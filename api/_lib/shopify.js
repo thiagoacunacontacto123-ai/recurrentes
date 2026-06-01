@@ -119,9 +119,18 @@ export async function shCreatePaidOrder(shop, token, params) {
   //   subtotal_items = total_cobrado - envío
   //   price_por_unidad = subtotal_items / sum(quantity de todos los items)
   const totalNum = Number(total_price || 0);
-  const subtotalItems = Math.max(0, totalNum - shippingPriceNum);
+  const subtotalItems = totalNum - shippingPriceNum;
   const totalQty = (line_items || []).reduce((acc, li) => acc + (Number(li.quantity) || 1), 0) || 1;
   const pricePerUnit = subtotalItems / totalQty;
+
+  // GUARD: si los datos son incoherentes (shipping >= total, o pricePerUnit <= 0),
+  // ABORTAMOS la creación de orden. Esto evita órdenes basura con $0 producto
+  // + shipping inflado, que pueden aparecer cuando el plan_snapshot del sub
+  // tiene shipping mal configurado o cuando el simulator usa datos corruptos.
+  if (pricePerUnit <= 0 || subtotalItems <= 0) {
+    throw new Error(`Datos incoherentes: total=${totalNum}, shipping=${shippingPriceNum}, qty=${totalQty}. pricePerUnit=${pricePerUnit}. Orden NO creada.`);
+  }
+
   const adjustedLineItems = (line_items || []).map(li => ({
     variant_id: li.variant_id,
     quantity: li.quantity,

@@ -140,37 +140,12 @@ export async function syncSubscriber(merchantId, subscriberId) {
   let approvedPayments = allPayments.filter(p => p.status === "approved");
   console.log(`[sync] sub ${subscriberId}: encontrados ${allPayments.length} payments (${approvedPayments.length} approved). preapproval=${pre.id} extRef=${extRef}`);
 
-  // PLAN C — Si no encontramos NINGÚN payment via search PERO el preapproval
-  // dice que cobró (summarized.charged_quantity > 0), confiamos en eso y
-  // creamos payment(s) "virtuales" con los datos del summarized. MP no
-  // devuelve payment_id en summarized pero sí amount y date — eso alcanza
-  // para crear la orden Shopify. La idempotencia la garantiza el pseudo-id
-  // que armamos como `${preapproval_id}-${charge_index}`.
-  if (approvedPayments.length === 0 && pre.summarized?.charged_quantity > 0) {
-    const charged = parseInt(pre.summarized.charged_quantity) || 0;
-    const amount = parseFloat(pre.summarized.last_charged_amount) || (pre.auto_recurring?.transaction_amount) || 0;
-    const lastDate = pre.summarized.last_charged_date || new Date().toISOString();
-    console.log(`[sync] sub ${subscriberId}: usando summarized fallback (${charged} cobros × $${amount})`);
-    // Creamos un payment "virtual" por cada cobro reportado. Idempotente:
-    // si el chargeRef ya existe, el loop de procesamiento abajo lo salta.
-    for (let i = 0; i < charged; i++) {
-      const pseudoId = `${pre.id}-${i + 1}`;
-      if (!paymentsMap.has(pseudoId)) {
-        paymentsMap.set(pseudoId, {
-          id: pseudoId,
-          status: "approved",
-          transaction_amount: amount,
-          date_created: lastDate,
-          external_reference: extRef,
-          preapproval_id: pre.id,
-          _synthetic: true, // marca interna — orden Shopify se crea igual
-        });
-      }
-    }
-    allPayments = Array.from(paymentsMap.values());
-    approvedPayments = allPayments.filter(p => p.status === "approved");
-    console.log(`[sync] tras fallback summarized: ${approvedPayments.length} approved`);
-  }
+  // PLAN C — Fallback synthetic basado en `pre.summarized.charged_quantity`
+  // DESHABILITADO permanentemente. Causó órdenes Shopify basura al procesar
+  // subs viejas con datos incoherentes. Si MP no devuelve el payment via
+  // search NI via authorized_payments, la sub queda en pending. El merchant
+  // la procesa manual desde el dashboard si hace falta.
+  // (Si en F2 querés reactivarlo, agregar validación estricta de datos antes.)
 
   // Si el preapproval está authorized pero NO hay payments aprobados ni
   // pending, intentamos forzar el cobro inmediato actualizando el
@@ -483,6 +458,18 @@ export async function simulateNextCharge(merchantId, subscriberId) {
   }
 
   const amount = sub.plan_snapshot?.total_per_charge_ars || sub.plan_snapshot?.subscription_price_ars || 0;
+  const shippingPrice = sub.plan_snapshot?.shipping_price_ars ?? 0;
+
+  // Guard estricto: si los datos no son coherentes, abortamos el simulador.
+  // Evita crear órdenes basura cuando el plan tenía shipping mal cargado o
+  // cuando el sub viene de un test con datos inválidos.
+  if (amount <= 0) {
+    return { status: "error", error: `amount inválido: ${amount}. Recargá la sub.` };
+  }
+  if (shippingPrice >= amount) {
+    return { status: "error", error: `shipping ($${shippingPrice}) >= total ($${amount}). Datos del plan_snapshot incoherentes.` };
+  }
+
   let shopifyOrderId = null;
   let orderStatusUrl = null;
   let shopifyError = null;

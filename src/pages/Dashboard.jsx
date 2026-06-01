@@ -942,6 +942,30 @@ function SubscriberDetailModal({ sub, onClose }) {
   }, [sub.id]);
 
   async function doAction(action) {
+    if (action === "delete") {
+      const ok = window.confirm(
+        `⚠️ BORRAR DEFINITIVAMENTE este subscriber?\n\n` +
+        `Esto elimina el subscriber + todos sus charges de Firestore.\n` +
+        `Intenta cancelar en MP (si todavía está activo); si MP da error lo ignora.\n\n` +
+        `NO se puede deshacer. ¿Continuar?`
+      );
+      if (!ok) return;
+      setBusyAction("delete");
+      try {
+        const r = await apiDelete("subscribers", { id: sub.id });
+        if (r?.error) {
+          alert("Error: " + r.error);
+          setBusyAction(null);
+        } else {
+          alert(`✓ Subscriber borrado.\n${r.charges_deleted || 0} charges asociados eliminados.`);
+          onClose();
+        }
+      } catch (e) {
+        alert("Error: " + e.message);
+        setBusyAction(null);
+      }
+      return;
+    }
     if (action === "simulate-charge") {
       const ok = window.confirm("Simular el próximo cobro recurrente?\n\nVa a crear una orden Shopify nueva como si MP hubiera cobrado el siguiente mes, SIN cobrar plata real. Solo para testear que el flow de cobros recurrentes funciona.");
       if (!ok) return;
@@ -1129,6 +1153,12 @@ function SubscriberDetailModal({ sub, onClose }) {
               {busyAction==="cancel"?"Cancelando…":"✕ Cancelar"}
             </button>
           )}
+          {/* Borrar definitivamente — elimina el sub + charges de Firestore.
+              Best effort para cancelar en MP si todavía está activo. Útil para
+              limpiar tests basura que no quedaron bien sincronizados con MP. */}
+          <button onClick={()=>doAction("delete")} disabled={busyAction} style={{...btnDan,opacity:busyAction?0.6:1,background:"rgba(239,68,68,0.15)"}}>
+            {busyAction==="delete"?"Borrando…":"🗑 Borrar definitivamente"}
+          </button>
         </div>
 
         {/* Historial de cargos */}

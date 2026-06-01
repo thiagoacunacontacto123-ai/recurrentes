@@ -102,16 +102,21 @@ export default async function handler(req, res) {
 
     const merchantSnap = await merchantRef.get();
     const merchant = merchantSnap.data() || {};
-    if (!merchant.mp_access_token) return res.status(400).json({ error: "MP no conectado" });
-    if (!sub.mp_preapproval_id) return res.status(400).json({ error: "Subscriber sin preapproval MP" });
 
     const mpStatusMap = { pause: "paused", resume: "authorized", cancel: "cancelled" };
     const newMpStatus = mpStatusMap[action];
 
-    try {
-      await mpUpdatePreapproval(merchant.mp_access_token, sub.mp_preapproval_id, { status: newMpStatus });
-    } catch (e) {
-      return res.status(502).json({ error: `MP: ${e.message}` });
+    // Intentamos sincronizar con MP (best effort). Si falla — ej "You can not
+    // modify a cancelled preapproval" porque ya está cancelado allá — igual
+    // actualizamos el estado local. La sincronización falla solo si no hay
+    // token MP o preapproval_id, en cuyo caso seguimos con el cambio local.
+    if (merchant.mp_access_token && sub.mp_preapproval_id) {
+      try {
+        await mpUpdatePreapproval(merchant.mp_access_token, sub.mp_preapproval_id, { status: newMpStatus });
+      } catch (e) {
+        console.warn(`[subscribers] MP update falló (${e.message}). Continúa con cambio local.`);
+        // No abortamos — seguimos con el cambio local.
+      }
     }
 
     const localStatus = action === "cancel" ? "cancelled" : action === "pause" ? "paused" : "active";
@@ -121,6 +126,35 @@ export default async function handler(req, res) {
       ...(action === "cancel" ? { cancelled_at: new Date().toISOString() } : {}),
     });
     return res.json({ ok: true, status: localStatus });
+  }
+
+  // DELETE /api/subscribers?id=X — borra el subscriber del Firestore
+  // definitivamente. Best effort: si MP todavía tiene la sub activa, intenta
+  // cancelarla; si MP da error (ya cancelada, etc), ignora y borra igual.
+  // Útil para limpiar tests / subs basura sin tener que tocar Firestore.
+  if (req.method === "DELETE") {
+    const id = req.query.id;
+    if (!id) return res.status(400).json({ error: "Falta id" });
+    const subRef = subsCol.doc(String(id));
+    const subSnap = await subRef.get();
+    if (!subSnap.exists) return res.status(404).json({ error: "Subscriber no encontrado" });
+    const sub = subSnap.data();
+    const merchantSnap = await merchantRef.get();
+    const merchant = merchantSnap.data() || {};
+
+    // Best effort: cancelar en MP por las dudas
+    if (merchant.mp_access_token && sub.mp_preapproval_id && sub.status !== "cancelled") {
+      try {
+        await mpUpdatePreapproval(merchant.mp_access_token, sub.mp_preapproval_id, { status: "cancelled" });
+      } catch (_) {}
+    }
+
+    // Borrar también los charges asociados
+    const chargesSnap = await merchantRef.collection("charges").where("subscriber_id", "==", String(id)).get();
+    for (const c of chargesSnap.docs) await c.ref.delete();
+
+    await subRef.delete();
+    return res.json({ ok: true, deleted: true, charges_deleted: chargesSnap.size });
   }
 
   return res.status(405).json({ error: "Method not allowed" });
