@@ -400,17 +400,12 @@ export default async function handler(req, res) {
   function setSubMode(active, form, widget, subPanel) {
     if (active) {
       // Ocultamos TODO el form de compra (variantes + add to cart + qty).
-      // Guardamos display previo para restaurar al volver a "Compra única".
       if (form && form.style.display !== "none") {
         form.dataset.recPrevDisplay = form.style.display || "";
         form.style.display = "none";
       }
-      // También ocultamos cualquier "buy_buttons" / "dynamic_checkout" que esté
-      // afuera del form (PayPal, Apple Pay, Shop Pay, etc).
       hideExternalBuyButtons(true);
-      // Mostrar panel de suscripción
       subPanel.style.display = "block";
-      // Visual del toggle
       widget.querySelector('[data-rec-mode="once"]').style.borderColor = "#d1d5db";
       widget.querySelector('[data-rec-mode="once"]').style.background = "#fff";
       widget.querySelector('[data-rec-mode="sub"]').style.borderColor = "${COL}";
@@ -424,6 +419,14 @@ export default async function handler(req, res) {
       widget.querySelector('[data-rec-mode="sub"]').style.borderColor = "#d1d5db";
       widget.querySelector('[data-rec-mode="sub"]').style.background = "#fff";
     }
+
+    // Emitir evento custom — themes/bundles custom escuchan esto para
+    // ocultar/mostrar sus propias secciones (packs, upsells, CTA propio, etc).
+    try {
+      document.dispatchEvent(new CustomEvent("recurrentes:mode-change", {
+        detail: { mode: active ? "sub" : "once", subPanel: subPanel },
+      }));
+    } catch (_) {}
   }
 
   function hideExternalBuyButtons(hide) {
@@ -595,18 +598,31 @@ export default async function handler(req, res) {
     var productId = detectProductId();
     if (!productId) { log("No se detectó productId — widget no carga"); return; }
     var form = findProductForm();
-    if (!form) { log("No encontramos form/cart/add"); return; }
-    var variantId = detectVariantId(form);
+    var variantId = form ? detectVariantId(form) : null;
+
+    // Mount point custom: si el theme tiene <div id="recurrentes-mount"></div>
+    // en algún lugar específico (ej dentro de un bundle Liquid custom),
+    // insertamos ahí en lugar de encima del form. Útil para themes con bundle
+    // custom que NO usan el <form action="/cart/add"> estándar.
+    var mountPoint = document.getElementById("recurrentes-mount");
+    if (!mountPoint && !form) {
+      log("No hay mount point ni form/cart/add. Widget no se monta.");
+      return;
+    }
 
     fetchPlan(productId, variantId).then(function(d){
       if (d.error || !d.plan) { log("Sin plan para producto", productId, d); return; }
       var plan = d.plan;
 
-      // Insertar widget + panel sub justo arriba del form.
       var widget = buildWidget(plan);
       var subPanel = buildSubscribePanel(plan);
-      form.parentNode.insertBefore(widget, form);
-      form.parentNode.insertBefore(subPanel, form);
+      if (mountPoint) {
+        mountPoint.appendChild(widget);
+        mountPoint.appendChild(subPanel);
+      } else {
+        form.parentNode.insertBefore(widget, form);
+        form.parentNode.insertBefore(subPanel, form);
+      }
 
       // Autofill con datos del cliente Shopify si está logueado.
       var customer = detectShopifyCustomer();
