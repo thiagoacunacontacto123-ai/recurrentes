@@ -288,7 +288,7 @@ export default async function handler(req, res) {
           <button id="rec-qty-plus" type="button" style="width:30px;height:30px;border:1px solid ${COL};background:#fff;color:${COL};border-radius:6px;font-size:18px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;line-height:1;">+</button>\
         </div>\
       </div>\
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">\
+      <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;margin-bottom:8px;">\
         <input id="rec-name" type="text" placeholder="Nombre completo" style="' + inputStyle + '"/>\
         <input id="rec-email" type="email" placeholder="Email" style="' + inputStyle + '"/>\
         <input id="rec-phone" type="tel" placeholder="Teléfono" style="' + inputStyle + '"/>\
@@ -393,7 +393,10 @@ export default async function handler(req, res) {
     return panel;
   }
 
-  var inputStyle = "padding:9px 11px;border:1px solid #d1d5db;border-radius:7px;font-size:13px;font-family:inherit;outline:none;background:#fff;color:#111827;box-sizing:border-box;";
+  // width:100% + min-width:0 son clave para mobile: sin esos dos atributos,
+  // los inputs dentro del grid 2-cols toman su min-content (basado en el
+  // placeholder) y "estiran" el grid hacia la derecha, rompiendo la card.
+  var inputStyle = "padding:9px 11px;border:1px solid #d1d5db;border-radius:7px;font-size:13px;font-family:inherit;outline:none;background:#fff;color:#111827;box-sizing:border-box;width:100%;min-width:0;max-width:100%;";
 
   // ─── Acciones ─────────────────────────────────────────────────
 
