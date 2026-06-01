@@ -129,8 +129,14 @@ export default async function handler(req, res) {
   if (req.method === "DELETE") {
     const id = req.query.id;
     if (!id) return res.status(400).json({ error: "Falta id" });
-    // Soft delete: marcamos active=false. Mantenemos historial para suscriptores existentes.
-    await plansCol.doc(String(id)).update({ active: false, updated_at: new Date().toISOString() });
+    // ?hard=1 → borrado REAL (remove del documento). Sin flag → soft delete
+    // (active=false, mantiene historial para suscriptores que ya estaban en
+    // este plan).
+    if (req.query.hard === "1") {
+      await plansCol.doc(String(id)).delete();
+    } else {
+      await plansCol.doc(String(id)).update({ active: false, updated_at: new Date().toISOString() });
+    }
     return res.json({ ok: true });
   }
 

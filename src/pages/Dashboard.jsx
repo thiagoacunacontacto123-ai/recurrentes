@@ -605,11 +605,20 @@ function PlansTab({ merchant }) {
               </div>
               <div style={{display:"flex",gap:6,marginTop:10}}>
                 <button onClick={()=>setEmbedFor(p)} style={{flex:1,background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",borderRadius:7,padding:"7px 10px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>📋 Snippet</button>
+                {/* Desactivar (soft): el plan deja de mostrarse pero las
+                    subs ya creadas con ese plan siguen vivas. */}
                 <button onClick={async()=>{
-                  if (!window.confirm(`¿Desactivar plan "${p.product_title}"? Los suscriptores actuales siguen activos.`)) return;
+                  if (!window.confirm(`¿Desactivar plan "${p.product_title}"?\n\nQueda inactivo (no se muestra en la storefront) pero los suscriptores actuales siguen cobrando.`)) return;
                   await apiDelete("plans",{id:p.id});
                   loadAll();
-                }} style={{background:"transparent",border:"1px solid rgba(239,68,68,0.4)",color:"var(--red)",borderRadius:7,padding:"7px 10px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✕</button>
+                }} style={{background:"transparent",border:"1px solid rgba(245,158,11,0.4)",color:"var(--yellow)",borderRadius:7,padding:"7px 10px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}} title="Desactivar (mantiene historial)">⏸</button>
+                {/* Borrar definitivamente (hard): elimina el plan de Firestore.
+                    El preapproval_plan en MP queda allá (hay que cancelarlo aparte). */}
+                <button onClick={async()=>{
+                  if (!window.confirm(`⚠️ BORRAR DEFINITIVAMENTE el plan "${p.product_title}"?\n\nEsto NO se puede deshacer. El plan se elimina de Firestore.\n\nNota: el preapproval_plan en MP queda intacto — si querés que las subs existentes paren de cobrar, cancelalas también en mercadopago.com.ar/subscriptions.`)) return;
+                  await apiDelete("plans", { id: p.id, hard: "1" });
+                  loadAll();
+                }} style={{background:"transparent",border:"1px solid rgba(239,68,68,0.4)",color:"var(--red)",borderRadius:7,padding:"7px 10px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}} title="Borrar definitivamente">🗑</button>
               </div>
             </div>
           ))}
