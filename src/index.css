@@ -1,0 +1,47 @@
+:root {
+  /* Verde tipo Green Dog / Mercado Pago accent */
+  --green: #10b981;
+  --green-dark: #059669;
+  --green-bg: #ecfdf5;
+  --bg: #0a0f0d;
+  --surface: #11171a;
+  --card: #161e22;
+  --border: #1f2a30;
+  --border-light: #283036;
+  --text: #f0f4f5;
+  --text-md: #c1cbd1;
+  --text-sm: #7e8a93;
+  --accent: #10b981;
+  --red: #ef4444;
+  --yellow: #f59e0b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+a:hover { text-decoration: underline; }
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input, textarea, select {
+  font-family: inherit;
+}

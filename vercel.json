@@ -1,0 +1,32 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/widget.js", "destination": "/api/widget" },
+    { "source": "/((?!api/|@|src/|node_modules/|.+\\.).*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/api/widget",
+      "headers": [
+        { "key": "Content-Type", "value": "application/javascript; charset=utf-8" },
+        { "key": "Cache-Control", "value": "public, max-age=300" },
+        { "key": "Access-Control-Allow-Origin", "value": "*" }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PATCH, DELETE, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" }
+      ]
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron?action=sync-all-pending",
+      "schedule": "0 4 * * *"
+    }
+  ]
+}

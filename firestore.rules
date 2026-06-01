@@ -1,0 +1,41 @@
+// Firestore Security Rules para Recurrentes.
+//
+// Modelo de acceso:
+//   - Las escrituras de "negocio" (subscribers, charges, plans, merchants)
+//     pasan TODAS por endpoints serverless de /api/*, que usan el Admin SDK
+//     y bypassan estas rules. Por eso podemos cerrar el acceso público a 0.
+//   - El cliente Firebase Web SDK del comerciante solo necesita poder leer
+//     su propio doc merchants/{uid} y subcollections (para el Dashboard).
+//   - El widget del storefront y el portal del cliente final NO usan Firebase
+//     Web SDK directamente — todo pasa por /api/public/* con tokens custom.
+//   - shopify_pending se usa solo internamente desde server — cerrado al cliente.
+//
+// Después de editar este archivo, copialo al Firebase Console:
+//   Firestore Database → Rules → Pegá el contenido → Publish.
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // El merchant logueado puede leer y escribir SOLO su propio doc + subcols.
+    match /merchants/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      // Subcollections (plans, subscribers, charges, etc) — mismo dueño.
+      match /{subcol}/{docId=**} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
+    }
+
+    // shopify_pending guarda tokens OAuth temporales entre el callback y el
+    // claim del front. Cerrado a clientes — solo Admin SDK escribe / lee.
+    match /shopify_pending/{state} {
+      allow read, write: if false;
+    }
+
+    // Por defecto, todo lo demás está cerrado.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
