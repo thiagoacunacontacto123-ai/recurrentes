@@ -933,6 +933,28 @@ function SubscriberDetailModal({ sub, onClose }) {
   }, [sub.id]);
 
   async function doAction(action) {
+    if (action === "simulate-charge") {
+      const ok = window.confirm("Simular el próximo cobro recurrente?\n\nVa a crear una orden Shopify nueva como si MP hubiera cobrado el siguiente mes, SIN cobrar plata real. Solo para testear que el flow de cobros recurrentes funciona.");
+      if (!ok) return;
+      setBusyAction("simulate-charge");
+      try {
+        const d = await apiPost("subscribers", {}, { action: "simulate-charge", id: sub.id });
+        if (d?.error) {
+          alert("Error: " + d.error);
+        } else if (d.status === "ok") {
+          alert(`✓ Simulado cobro #${d.charge_number}\nOrden Shopify: #${d.shopify_order_id}\nMonto: $${(d.amount_ars || 0).toLocaleString("es-AR")}`);
+        } else {
+          alert(`Falló: ${d.shopify_error || d.error || "desconocido"}`);
+        }
+        const refreshed = await apiGet("subscribers", { id: sub.id });
+        if (refreshed?.subscriber) setData(refreshed);
+      } catch (e) {
+        alert("Error: " + e.message);
+      } finally {
+        setBusyAction(null);
+      }
+      return;
+    }
     if (action === "link-payment") {
       // Pedimos el payment_id al merchant (lo saca del panel de MP del comprador).
       const paymentId = window.prompt(
@@ -1086,6 +1108,13 @@ function SubscriberDetailModal({ sub, onClose }) {
           <button onClick={()=>doAction("link-payment")} disabled={busyAction} style={{...btnSec,opacity:busyAction?0.6:1}}>
             {busyAction==="link-payment"?"Linkeando…":"🔗 Linkear payment ID"}
           </button>
+          {/* Simulador del próximo cobro recurrente — crea orden Shopify SIN
+              pasar por MP. Útil para validar mes 2, 3, etc sin esperar 30 días. */}
+          {status === "active" && (
+            <button onClick={()=>doAction("simulate-charge")} disabled={busyAction} style={{...btnSec,opacity:busyAction?0.6:1}}>
+              {busyAction==="simulate-charge"?"Simulando…":"🧪 Simular próximo cobro"}
+            </button>
+          )}
           {(status === "active" || status === "paused" || status === "payment_failed") && (
             <button onClick={()=>doAction("cancel")} disabled={busyAction} style={{...btnDan,opacity:busyAction?0.6:1}}>
               {busyAction==="cancel"?"Cancelando…":"✕ Cancelar"}

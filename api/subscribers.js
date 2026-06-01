@@ -30,6 +30,20 @@ export default async function handler(req, res) {
     }
   }
 
+  // POST ?action=simulate-charge&id=SUB
+  // Simula el próximo cobro recurrente — crea charge + orden Shopify sin
+  // pasar por MP. Útil para validar que el flow del 2do, 3er, N-ésimo cobro
+  // funciona, sin esperar 30 días reales ni gastar plata real.
+  if (req.method === "POST" && req.query.action === "simulate-charge" && req.query.id) {
+    try {
+      const { simulateNextCharge } = await import("./_lib/sync.js");
+      const r = await simulateNextCharge(uid, String(req.query.id));
+      return res.json({ ok: true, ...r });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
   // POST ?action=link-payment&id=SUB&payment_id=PID
   // Escape hatch para cuando MP indexa mal y el sync no encuentra el payment
   // pero el merchant lo ve en su panel. Pega el ID y procesamos directo.

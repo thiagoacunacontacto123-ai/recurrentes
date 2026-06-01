@@ -455,6 +455,105 @@ export async function linkPaymentToSubscriber(merchantId, subscriberId, paymentI
   };
 }
 
+/**
+ * Simula el próximo cobro recurrente — crea charge + orden Shopify como si
+ * MP hubiera cobrado el siguiente mes. Útil para validar que cobros 2, 3, ...
+ * funcionan bien sin esperar 30 días reales ni gastar plata.
+ *
+ * Reusa toda la lógica de creación de orden Shopify (customer, shipping,
+ * facturación, tags, DNI en company, idempotencia por chargeKey).
+ */
+export async function simulateNextCharge(merchantId, subscriberId) {
+  const merchantRef = db().collection("merchants").doc(merchantId);
+  const merchantSnap = await merchantRef.get();
+  if (!merchantSnap.exists) return { status: "error", error: "merchant_not_found" };
+  const merchant = merchantSnap.data();
+
+  const subRef = merchantRef.collection("subscribers").doc(subscriberId);
+  const subSnap = await subRef.get();
+  if (!subSnap.exists) return { status: "error", error: "subscriber_not_found" };
+  const sub = subSnap.data();
+  if (sub.status === "cancelled") return { status: "error", error: "sub_cancelled" };
+
+  const chargeNumber = (sub.shopify_orders || []).length + 1;
+  const chargeKey = `${sub.mp_preapproval_id || sub.mp_adhoc_plan_id || subscriberId}-${chargeNumber}-SIM`;
+  const chargeRef = merchantRef.collection("charges").doc(chargeKey);
+  if ((await chargeRef.get()).exists) {
+    return { status: "error", error: `Ya existe charge simulado #${chargeNumber}. Borralo de Firestore antes de reintentar.` };
+  }
+
+  const amount = sub.plan_snapshot?.total_per_charge_ars || sub.plan_snapshot?.subscription_price_ars || 0;
+  let shopifyOrderId = null;
+  let orderStatusUrl = null;
+  let shopifyError = null;
+
+  const addrOk = sub.shipping_address?.address1 && sub.shipping_address?.city;
+  if (merchant.shopify_token && merchant.shopify_shop && addrOk && sub.plan_snapshot?.shopify_variant_id) {
+    try {
+      const customer = await shFindOrCreateCustomer(merchant.shopify_shop, merchant.shopify_token, {
+        email: sub.customer_email,
+        first_name: (sub.customer_name || "").split(" ")[0] || "",
+        last_name: (sub.customer_name || "").split(" ").slice(1).join(" ") || "",
+        phone: sub.customer_phone,
+        tax_id: sub.customer_tax_id || null,
+        tax_id_kind: sub.customer_tax_id_kind || "DNI",
+      });
+      const itemQty = sub.quantity || sub.plan_snapshot?.units_per_shipment || 1;
+      const order = await shCreatePaidOrder(merchant.shopify_shop, merchant.shopify_token, {
+        customer_id: customer.id,
+        line_items: [{ variant_id: sub.plan_snapshot.shopify_variant_id, quantity: itemQty }],
+        shipping_address: toShopifyAddress(sub.shipping_address, sub.customer_name, sub.customer_phone),
+        subscriber_id: subscriberId,
+        plan_id: sub.plan_id,
+        charge_number: chargeNumber,
+        mp_payment_id: `SIM-${Date.now()}`,
+        total_price: amount,
+        shipping_price: sub.plan_snapshot?.shipping_price_ars ?? 0,
+        shipping_method_name: sub.plan_snapshot?.shipping_method_name || "Envío a domicilio",
+        tax_id: sub.customer_tax_id || null,
+        tax_id_kind: sub.customer_tax_id_kind || "DNI",
+      });
+      shopifyOrderId = order.id;
+      orderStatusUrl = order.order_status_url || null;
+    } catch (e) {
+      shopifyError = e.message;
+    }
+  } else {
+    shopifyError = "Faltan datos del sub (address o variant)";
+  }
+
+  await chargeRef.set({
+    subscriber_id: subscriberId,
+    mp_payment_id: `SIM-${Date.now()}`,
+    amount_ars: amount,
+    status: "approved",
+    shopify_order_id: shopifyOrderId,
+    shopify_order_status_url: orderStatusUrl,
+    error: shopifyError,
+    simulated: true,
+    charge_number: chargeNumber,
+    created_at: new Date().toISOString(),
+  });
+
+  if (shopifyOrderId) {
+    await subRef.update({
+      last_charge_at: new Date().toISOString(),
+      shopify_orders: [...(sub.shopify_orders || []), shopifyOrderId],
+      last_shopify_order_status_url: orderStatusUrl,
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  return {
+    status: shopifyOrderId ? "ok" : "error",
+    charge_number: chargeNumber,
+    shopify_order_id: shopifyOrderId,
+    shopify_order_status_url: orderStatusUrl,
+    amount_ars: amount,
+    shopify_error: shopifyError,
+  };
+}
+
 function toShopifyAddress(addr, name, phone) {
   const [first, ...rest] = (name || "").split(" ");
   return {
