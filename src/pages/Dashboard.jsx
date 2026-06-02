@@ -1059,6 +1059,27 @@ function SubscriberDetailModal({ sub, onClose }) {
       }
       return;
     }
+    if (action === "resync") {
+      // Reconcilia local con la realidad de MP: si MP tiene la sub activa
+      // pero acá quedó cancelled (por un cancel mal sincronizado), vuelve
+      // a marcarla active. Igual al revés.
+      setBusyAction("resync");
+      try {
+        const r = await apiPatch("subscribers", { action: "resync" }, { id: sub.id });
+        if (r?.error) {
+          alert("Error: " + r.error);
+        } else {
+          alert(`Estado MP: ${(r.mp_status || "?").toUpperCase()}\nEstado local actualizado: ${(r.status || "?").toUpperCase()}` + (r.next_charge_at ? `\nPróximo cobro: ${new Date(r.next_charge_at).toLocaleString("es-AR")}` : ""));
+          const refreshed = await apiGet("subscribers", { id: sub.id });
+          if (refreshed?.subscriber) setData(refreshed);
+        }
+      } catch (e) {
+        alert("Error de red: " + e.message);
+      } finally {
+        setBusyAction(null);
+      }
+      return;
+    }
     const ok = window.confirm({
       pause: "¿Pausar esta suscripción? No se cobra más hasta reactivar.",
       resume: "¿Reactivar esta suscripción?",
@@ -1096,12 +1117,6 @@ function SubscriberDetailModal({ sub, onClose }) {
           <StatusBadge status={status} orderCount={(s?.shopify_orders||[]).length}/>
           <span style={{fontSize:11,color:"var(--text-sm)"}}>desde {s.created_at?new Date(s.created_at).toLocaleDateString("es-AR"):"—"}</span>
         </div>
-        {status === "cancelled" && (s?.shopify_orders||[]).length > 0 && (
-          <div style={{padding:"10px 14px",background:"rgba(16,185,129,0.10)",border:"1px solid rgba(16,185,129,0.30)",borderRadius:8,fontSize:11,color:"var(--text-md)",lineHeight:1.5,marginBottom:14}}>
-            <strong style={{color:"var(--green)"}}>El cliente sí pagó.</strong> El cobro inicial se procesó correctamente y la orden Shopify se creó. "Cancelada" significa que MP NO va a cobrar más recurrencias (probablemente el cliente canceló la sub desde su app de MP o vos canceláste desde acá). El historial de cobros queda intacto.
-          </div>
-        )}
-
         <div style={{background:"var(--surface)",borderRadius:10,padding:"14px 16px",marginBottom:14}}>
           <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5,marginBottom:8}}>Plan</div>
           <div style={{fontSize:13,fontWeight:600,marginBottom:6}}>{plan.product_title || "—"}</div>
@@ -1164,6 +1179,15 @@ function SubscriberDetailModal({ sub, onClose }) {
           <button onClick={()=>doAction("sync")} disabled={busyAction} style={{...btnPri,opacity:busyAction?0.6:1}}>
             {busyAction==="sync"?"Sincronizando…":"⟳ Sincronizar con MP"}
           </button>
+          {/* Resync: SOLO cambia el status local para alinearlo con MP.
+              Útil cuando acá quedó cancelled pero MP sigue cobrando, o al
+              revés. NO crea orders, NO toca el preapproval — solo refleja
+              la verdad de MP en local. */}
+          {(status === "cancelled" || status === "paused") && (
+            <button onClick={()=>doAction("resync")} disabled={busyAction} style={{...btnPri,opacity:busyAction?0.6:1,background:"var(--green)",borderColor:"var(--green)"}}>
+              {busyAction==="resync"?"Verificando…":"✓ Sigue activa en MP — restaurar"}
+            </button>
+          )}
           {/* Link manual de payment ID — escape hatch para cuando los endpoints
               search de MP están delayados y no devuelven el payment. */}
           <button onClick={()=>doAction("link-payment")} disabled={busyAction} style={{...btnSec,opacity:busyAction?0.6:1}}>

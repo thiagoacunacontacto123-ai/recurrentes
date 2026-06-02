@@ -175,8 +175,8 @@ export default async function handler(req, res) {
     const id = req.query.id;
     if (!id) return res.status(400).json({ error: "Falta id" });
     const { action } = req.body || {};
-    if (!["pause", "resume", "cancel"].includes(action)) {
-      return res.status(400).json({ error: "action debe ser pause | resume | cancel" });
+    if (!["pause", "resume", "cancel", "resync"].includes(action)) {
+      return res.status(400).json({ error: "action debe ser pause | resume | cancel | resync" });
     }
 
     const subRef = subsCol.doc(String(id));
@@ -187,19 +187,77 @@ export default async function handler(req, res) {
     const merchantSnap = await merchantRef.get();
     const merchant = merchantSnap.data() || {};
 
+    // ── RESYNC: reconciliar estado local con la verdad de MP. Útil cuando
+    // el local quedó "cancelled" por un error de cancel anterior pero la sub
+    // en MP sigue activa (cobrando recurrencias mensuales). Le devuelve la
+    // verdad al merchant y, si MP la tiene activa, restablece el sub.
+    if (action === "resync") {
+      if (!merchant.mp_access_token) {
+        return res.status(400).json({ error: "Merchant sin MP conectado" });
+      }
+      // Buscar preapproval por external_reference (mid:sid) — más confiable
+      // que mp_preapproval_id local porque éste a veces se pierde en flow
+      // adhoc_plan donde MP crea el preapproval después del checkout.
+      const extRef = `${uid}:${id}`;
+      const r = await fetch(
+        `https://api.mercadopago.com/preapproval/search?external_reference=${encodeURIComponent(extRef)}`,
+        { headers: { Authorization: `Bearer ${merchant.mp_access_token}` } }
+      );
+      const search = await r.json().catch(() => ({}));
+      const preapprovals = search?.results || [];
+      if (preapprovals.length === 0) {
+        return res.status(404).json({ error: "No se encontró preapproval en MP para este sub" });
+      }
+      const pre = preapprovals.sort((a, b) => (b.date_created || "").localeCompare(a.date_created || ""))[0];
+
+      const mpStatusToLocal = {
+        authorized: "active",
+        paused: "paused",
+        cancelled: "cancelled",
+        pending: "pending",
+      };
+      const newLocalStatus = mpStatusToLocal[pre.status] || sub.status || "pending";
+
+      await subRef.update({
+        status: newLocalStatus,
+        mp_preapproval_id: pre.id,
+        next_charge_at: pre.next_payment_date || sub.next_charge_at || null,
+        updated_at: new Date().toISOString(),
+        ...(newLocalStatus !== "cancelled" ? { cancelled_at: null } : {}),
+      });
+      return res.json({
+        ok: true,
+        status: newLocalStatus,
+        mp_status: pre.status,
+        mp_preapproval_id: pre.id,
+        next_charge_at: pre.next_payment_date || null,
+      });
+    }
+
     const mpStatusMap = { pause: "paused", resume: "authorized", cancel: "cancelled" };
     const newMpStatus = mpStatusMap[action];
 
-    // Intentamos sincronizar con MP (best effort). Si falla — ej "You can not
-    // modify a cancelled preapproval" porque ya está cancelado allá — igual
-    // actualizamos el estado local. La sincronización falla solo si no hay
-    // token MP o preapproval_id, en cuyo caso seguimos con el cambio local.
+    // Sincronizar con MP. Antes era "best effort silencioso" — eso causó que
+    // local quedara cancelled mientras MP seguía cobrando recurrencias. Ahora:
+    //   - Si MP confirma el update → seguimos con cambio local.
+    //   - Si MP dice "ya está en ese estado" → seguimos (idempotente).
+    //   - Si MP devuelve OTRO error → ABORTAMOS y le decimos al merchant.
+    //     El local NO cambia, así no queda inconsistente con la realidad MP.
     if (merchant.mp_access_token && sub.mp_preapproval_id) {
       try {
         await mpUpdatePreapproval(merchant.mp_access_token, sub.mp_preapproval_id, { status: newMpStatus });
       } catch (e) {
-        console.warn(`[subscribers] MP update falló (${e.message}). Continúa con cambio local.`);
-        // No abortamos — seguimos con el cambio local.
+        const msg = String(e.message || "");
+        // MP es idempotente sobre cancelled — si decimos "cancel" sobre algo
+        // ya cancelled, devuelve error pero igual está en el estado objetivo.
+        const alreadyTarget = /already|cancelled preapproval|paused preapproval|same status/i.test(msg);
+        if (!alreadyTarget) {
+          console.error(`[subscribers] MP update falló (${msg}). ABORT — no cambiamos local.`);
+          return res.status(502).json({
+            error: `Mercado Pago no confirmó el cambio: ${msg}. El sub NO se modificó localmente. Probá "Volver a sincronizar con MP" para reconciliar.`,
+          });
+        }
+        console.warn(`[subscribers] MP ya estaba en target status (${msg}) — continuamos con cambio local.`);
       }
     }
 
@@ -208,6 +266,7 @@ export default async function handler(req, res) {
       status: localStatus,
       updated_at: new Date().toISOString(),
       ...(action === "cancel" ? { cancelled_at: new Date().toISOString() } : {}),
+      ...(action === "resume" ? { cancelled_at: null } : {}),
     });
     return res.json({ ok: true, status: localStatus });
   }

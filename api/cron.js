@@ -37,14 +37,17 @@ export default async function handler(req, res) {
   const start = Date.now();
   let merchantsProcessed = 0, subsProcessed = 0, activated = 0, errors = 0;
 
+  const now = Date.now();
   for (const m of merchantsSnap.docs) {
     merchantsProcessed += 1;
-    const pendings = await db().collection("merchants").doc(m.id).collection("subscribers")
-      .where("status", "==", "pending").get();
+    const merchantSubs = db().collection("merchants").doc(m.id).collection("subscribers");
+
+    // 1) PENDINGS — la primera activación: el sub se creó, falta confirmar
+    //    que MP procesó el primer cobro y bajó el preapproval real.
+    const pendings = await merchantSubs.where("status", "==", "pending").get();
     for (const subDoc of pendings.docs) {
-      // Sub muy reciente (< 60s) — esperamos al próximo tick para que MP termine de crear el preapproval.
       const created = subDoc.data().created_at ? new Date(subDoc.data().created_at).getTime() : 0;
-      if (Date.now() - created < 60 * 1000) continue;
+      if (now - created < 60 * 1000) continue;  // muy reciente, esperar al próximo tick
 
       try {
         const r = await syncSubscriber(m.id, subDoc.id);
@@ -52,7 +55,31 @@ export default async function handler(req, res) {
         if (r.status === "active") activated += 1;
       } catch (e) {
         errors += 1;
-        console.error(`[cron] sync subscriber ${m.id}/${subDoc.id}:`, e.message);
+        console.error(`[cron] sync pending ${m.id}/${subDoc.id}:`, e.message);
+      }
+    }
+
+    // 2) ACTIVAS VENCIDAS — safety net por si el webhook MP no llega. Si
+    //    `next_charge_at` ya pasó (MP debería haber cobrado hace rato),
+    //    sincronizamos para procesar el cobro nuevo + crear orden Shopify.
+    //    Esto cubre el caso de los cobros mensuales 2, 3, N — el evento
+    //    primario es el webhook MP, pero si MP falla en notificar, este
+    //    cron lo levanta dentro de 1 hora.
+    const actives = await merchantSubs.where("status", "==", "active").get();
+    for (const subDoc of actives.docs) {
+      const data = subDoc.data();
+      const nextChargeMs = data.next_charge_at ? new Date(data.next_charge_at).getTime() : 0;
+      // Sólo procesamos si next_charge ya pasó hace al menos 5min (margen).
+      // Si no tiene next_charge_at, lo skippeamos (estado raro).
+      if (!nextChargeMs || nextChargeMs > now - 5 * 60 * 1000) continue;
+
+      try {
+        const r = await syncSubscriber(m.id, subDoc.id);
+        subsProcessed += 1;
+        if (r.charges_processed > 0) activated += 1;
+      } catch (e) {
+        errors += 1;
+        console.error(`[cron] sync active ${m.id}/${subDoc.id}:`, e.message);
       }
     }
   }
