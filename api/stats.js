@@ -39,15 +39,22 @@ export default async function handler(req, res) {
       byStatus[k]++;
     }
 
-    // ── MRR ── (suma plan_snapshot.subscription_price_ars normalizado a 30 días)
+    // ── MRR ── (suma plan_snapshot.total_per_charge_ars normalizado a 30 días)
+    //
+    // Usamos total_per_charge_ars (precio FINAL que MP cobra en cada ciclo —
+    // incluye envío + multiplicador de cantidad) en vez de subscription_price_ars
+    // (que es solo el precio del producto por unidad, sin envío ni qty).
+    // El MRR debe reflejar lo que realmente entra a la cuenta MP del merchant.
     let mrr = 0;
     for (const s of subs) {
       if (s.status !== "active") continue;
-      const price = s.plan_snapshot?.subscription_price_ars || 0;
+      const qty = s.quantity || s.plan_snapshot?.units_per_shipment || 1;
+      const total = s.plan_snapshot?.total_per_charge_ars
+                    || ((s.plan_snapshot?.subscription_price_ars || 0) * qty);
       const freqDays = s.plan_snapshot?.frequency_days || 30;
-      // monto por 30 días = price * (30 / freq_days). Suscripción cada 15d
+      // monto por 30 días = total * (30 / freq_days). Suscripción cada 15d
       // genera 2 cobros de $X por mes → MRR = 2X. Cada 60d → 0.5X.
-      mrr += price * (30 / freqDays);
+      mrr += total * (30 / freqDays);
     }
     mrr = Math.round(mrr);
 
