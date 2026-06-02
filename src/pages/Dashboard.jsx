@@ -65,7 +65,7 @@ export default function Dashboard({ user, onLogout }) {
           <div style={{color:"var(--text-sm)",fontSize:14}}>Cargando…</div>
         ) : tab === "inicio" ? (
           integrationsReady
-            ? <HomeTab onGoSubscribers={()=>setTab("suscriptores")}/>
+            ? <HomeTab onGoSubscribers={()=>setTab("suscriptores")} onGoCarts={()=>setTab("carritos")}/>
             : <FirstStepsTab merchant={merchant} onGo={()=>setTab("integraciones")}/>
         ) : tab === "integraciones" ? (
           <IntegrationsTab merchant={merchant} onChange={reloadMerchant}/>
@@ -75,8 +75,12 @@ export default function Dashboard({ user, onLogout }) {
             : <NeedsIntegrations title="Planes" onGo={()=>setTab("integraciones")}/>
         ) : tab === "suscriptores" ? (
           integrationsReady
-            ? <SubscribersTab/>
-            : <NeedsIntegrations title="Suscriptores" onGo={()=>setTab("integraciones")}/>
+            ? <SubscribersTab mode="active"/>
+            : <NeedsIntegrations title="Suscriptores activos" onGo={()=>setTab("integraciones")}/>
+        ) : tab === "carritos" ? (
+          integrationsReady
+            ? <SubscribersTab mode="carts"/>
+            : <NeedsIntegrations title="Carritos de suscripción" onGo={()=>setTab("integraciones")}/>
         ) : tab === "cobros" ? (
           integrationsReady
             ? <ChargesTab/>
@@ -88,16 +92,17 @@ export default function Dashboard({ user, onLogout }) {
 }
 
 const NAV = [
-  { id:"inicio",        label:"Inicio",        icon:"📊" },
-  { id:"integraciones", label:"Integraciones", icon:"🔌" },
-  { id:"planes",        label:"Planes",        icon:"🎯" },
-  { id:"suscriptores",  label:"Suscriptores",  icon:"👥" },
-  { id:"cobros",        label:"Cobros",        icon:"💸" },
+  { id:"inicio",        label:"Inicio",                  icon:"📊" },
+  { id:"integraciones", label:"Integraciones",           icon:"🔌" },
+  { id:"planes",        label:"Planes",                  icon:"🎯" },
+  { id:"suscriptores",  label:"Suscriptores activos",    icon:"👥" },
+  { id:"carritos",      label:"Carritos de suscripción", icon:"🛒" },
+  { id:"cobros",        label:"Cobros",                  icon:"💸" },
 ];
 
 // ─── Tab: Inicio (KPIs) ─────────────────────────────────────────
 
-function HomeTab({ onGoSubscribers }) {
+function HomeTab({ onGoSubscribers, onGoCarts }) {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -130,7 +135,9 @@ function HomeTab({ onGoSubscribers }) {
         <button onClick={load} style={{background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text-md)",borderRadius:8,padding:"7px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>↻ Refrescar</button>
       </div>
 
-      {/* KPIs principales (4 cards grandes) */}
+      {/* KPIs principales (4 cards grandes) — basados SOLO en active/paused.
+          Los carritos (pending/cancelled/payment_failed) no entran acá: son
+          intentos abandonados y los gestionás desde el tab "Carritos". */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))",gap:12,marginBottom:14}}>
         <KpiBig label="MRR" value={`$${stats.mrr.toLocaleString("es-AR")}`} sub="ingresos mensuales recurrentes" highlight/>
         <KpiBig label="Suscriptores activos" value={totals.active||0} sub={`${totals.paused||0} pausados`}/>
@@ -138,12 +145,11 @@ function HomeTab({ onGoSubscribers }) {
         <KpiBig label="Churn 30d" value={`${growth.churn_rate_pct||0}%`} sub={`${growth.cancelled_30d||0} cancelaciones`} negative={(growth.churn_rate_pct||0)>5}/>
       </div>
 
-      {/* Funnel: nuevos vs cancelados */}
+      {/* Funnel: solo nuevos activos. Los cancelados/payment_failed los
+          ves en el tab "Carritos". */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))",gap:12,marginBottom:24}}>
         <KpiSmall label="Nuevos últimos 7d" value={growth.new_7d||0} positive/>
         <KpiSmall label="Nuevos últimos 30d" value={growth.new_30d||0} positive/>
-        <KpiSmall label="Cancelados 30d" value={growth.cancelled_30d||0} negative/>
-        <KpiSmall label="Pago falló" value={totals.payment_failed||0} negative={(totals.payment_failed||0)>0}/>
       </div>
 
       {/* Próximos cobros */}
@@ -179,15 +185,20 @@ function HomeTab({ onGoSubscribers }) {
         )}
       </div>
 
-      {/* Snapshot de la cuenta */}
+      {/* Snapshot de la cuenta — SOLO subs vivas (active + paused). Los
+          cancelled/pending/payment_failed se ven en el tab "Carritos". */}
       <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:14,padding:"20px 22px"}}>
-        <div style={{fontSize:11,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5,marginBottom:12}}>Estado de la cuenta</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,gap:10,flexWrap:"wrap"}}>
+          <div style={{fontSize:11,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5}}>Suscripciones operativas</div>
+          {((totals.pending||0) + (totals.cancelled||0) + (totals.payment_failed||0)) > 0 && (
+            <button onClick={onGoCarts} style={{background:"transparent",border:"1px solid var(--border)",color:"var(--text-md)",borderRadius:8,padding:"6px 11px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
+              Ver {(totals.pending||0) + (totals.cancelled||0) + (totals.payment_failed||0)} carritos →
+            </button>
+          )}
+        </div>
         <div style={{display:"flex",gap:18,flexWrap:"wrap",fontSize:12}}>
           <StateBadge label="Activos" value={totals.active||0} color="var(--accent)"/>
           <StateBadge label="Pausados" value={totals.paused||0} color="var(--yellow)"/>
-          <StateBadge label="Cancelados" value={totals.cancelled||0} color="var(--text-sm)"/>
-          <StateBadge label="Pendientes" value={totals.pending||0} color="var(--text-md)"/>
-          {totals.payment_failed > 0 && <StateBadge label="Pago falló" value={totals.payment_failed} color="var(--red)"/>}
         </div>
       </div>
     </div>
@@ -827,48 +838,68 @@ function EmbedSnippetModal({ plan, merchant, onClose }) {
 
 // ─── Tab: Suscriptores ──────────────────────────────────────────
 
-function SubscribersTab() {
+function SubscribersTab({ mode = "active" }) {
+  // mode="active" → Tab "Suscriptores activos": solo status === "active"
+  // mode="carts"  → Tab "Carritos de suscripción": el resto (pending,
+  //                  cancelled, paused, payment_failed). Son intentos /
+  //                  abandonos / cancelados, NO suscripciones operativas.
+  const isCarts = mode === "carts";
+  const cartStatuses = ["pending", "cancelled", "paused", "payment_failed"];
+
   const [subs, setSubs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("all"); // all | active | paused | cancelled | pending | payment_failed
+  const [filter, setFilter] = useState(isCarts ? "all" : "active");
   const [search, setSearch] = useState("");
-  const [detail, setDetail] = useState(null); // subscriber currently being viewed in modal
+  const [detail, setDetail] = useState(null);
 
   async function load() {
     setLoading(true);
-    // Solo leemos el estado actual de Firestore — el ÚNICO trigger que activa
-    // un subscriber es el webhook MP (que confirma que MP procesó el pago).
-    // Si una sub aparece como "Pendiente", o el webhook MP no llegó (falta
-    // configurar webhook a nivel cuenta MP), o el cobro todavía no se procesó.
     const params = {};
-    if (filter !== "all") params.status = filter;
+    if (!isCarts) {
+      // En modo "activos" forzamos siempre status=active (sin filter UI)
+      params.status = "active";
+    } else if (filter !== "all") {
+      params.status = filter;
+    }
     if (search.trim()) params.email = search.trim();
     const d = await apiGet("subscribers", params);
-    setSubs(d?.subscribers || []);
+    let list = d?.subscribers || [];
+    // En carts, si filter=all, filtramos client-side los no-active
+    if (isCarts && filter === "all") {
+      list = list.filter(s => cartStatuses.includes(s.status));
+    }
+    setSubs(list);
     setLoading(false);
   }
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [filter]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [filter, isCarts]);
 
   const filtered = subs;
+  const title = isCarts ? "Carritos de suscripción" : "Suscriptores activos";
+  const subtitle = isCarts
+    ? "Intentos abandonados, cancelados o con pago fallido. NO cuentan como MRR ni aparecen en Inicio."
+    : "Clientes con suscripción activa cobrando recurrentemente. Click para gestionar.";
+  const emptyTitle = isCarts ? "No hay carritos" : "Todavía no tenés suscriptores activos";
+  const emptyDesc = isCarts
+    ? "Cuando un cliente abandone el checkout o cancele su sub, aparece acá."
+    : "Cuando un cliente complete el pago MP, aparece acá automáticamente.";
 
   return (
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,gap:14,flexWrap:"wrap"}}>
         <div>
-          <h1 style={{fontSize:24,fontWeight:800,margin:"0 0 6px",letterSpacing:-0.5}}>Suscriptores</h1>
-          <p style={{fontSize:13,color:"var(--text-sm)",margin:0,lineHeight:1.55}}>
-            Tus clientes con suscripción activa. Click en uno para ver detalle y gestionar.
-          </p>
+          <h1 style={{fontSize:24,fontWeight:800,margin:"0 0 6px",letterSpacing:-0.5}}>{title}</h1>
+          <p style={{fontSize:13,color:"var(--text-sm)",margin:0,lineHeight:1.55}}>{subtitle}</p>
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-          <select value={filter} onChange={e=>setFilter(e.target.value)} style={inp2}>
-            <option value="all">Todos</option>
-            <option value="active">Activos</option>
-            <option value="paused">Pausados</option>
-            <option value="cancelled">Cancelados</option>
-            <option value="pending">Pendientes</option>
-            <option value="payment_failed">Pago falló</option>
-          </select>
+          {isCarts && (
+            <select value={filter} onChange={e=>setFilter(e.target.value)} style={inp2}>
+              <option value="all">Todos los carritos</option>
+              <option value="pending">Pendientes</option>
+              <option value="cancelled">Cancelados</option>
+              <option value="paused">Pausados</option>
+              <option value="payment_failed">Pago falló</option>
+            </select>
+          )}
           <input type="text" placeholder="🔍 Buscar email…" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")load();}} style={{...inp2,minWidth:180}}/>
           <button onClick={load} style={{background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text-md)",borderRadius:8,padding:"7px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>↻</button>
         </div>
@@ -878,11 +909,9 @@ function SubscribersTab() {
         <div style={{color:"var(--text-sm)",fontSize:13}}>Cargando…</div>
       ) : filtered.length === 0 ? (
         <div style={{background:"var(--card)",border:"1px dashed var(--border)",borderRadius:14,padding:"50px 30px",textAlign:"center"}}>
-          <div style={{fontSize:36,marginBottom:10}}>👥</div>
-          <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>{filter==="all"?"Todavía no hay suscriptores":"No hay suscriptores con ese filtro"}</div>
-          <div style={{fontSize:12,color:"var(--text-sm)",lineHeight:1.55,maxWidth:380,margin:"0 auto"}}>
-            Cuando un cliente complete el checkout MP, aparece acá automáticamente.
-          </div>
+          <div style={{fontSize:36,marginBottom:10}}>{isCarts ? "🛒" : "👥"}</div>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>{emptyTitle}</div>
+          <div style={{fontSize:12,color:"var(--text-sm)",lineHeight:1.55,maxWidth:380,margin:"0 auto"}}>{emptyDesc}</div>
         </div>
       ) : (
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(340px, 1fr))",gap:12}}>
