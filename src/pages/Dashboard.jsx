@@ -891,7 +891,7 @@ function SubscribersTab() {
               style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:12,padding:"14px 16px",textAlign:"left",cursor:"pointer",fontFamily:"inherit",color:"var(--text)"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:8}}>
                 <div style={{fontSize:13,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{s.customer_name || s.customer_email}</div>
-                <StatusBadge status={s.status}/>
+                <StatusBadge status={s.status} orderCount={(s.shopify_orders||[]).length}/>
               </div>
               <div style={{fontSize:11,color:"var(--text-sm)",marginBottom:8,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.customer_email}</div>
               <div style={{padding:"8px 10px",background:"var(--surface)",borderRadius:8,fontSize:11}}>
@@ -914,12 +914,17 @@ function SubscribersTab() {
   );
 }
 
-function StatusBadge({ status }) {
+function StatusBadge({ status, orderCount = 0 }) {
+  // Si la sub está cancelled PERO tiene órdenes Shopify procesadas, lo
+  // indicamos en el label para que el merchant no piense "el cliente no
+  // pagó". Cancelled significa "no habrá más cobros" — pero los cobros
+  // anteriores SÍ se hicieron y las órdenes existen.
+  const cancelledLabel = orderCount > 0 ? `Cancelada · ${orderCount} cobro${orderCount>1?"s":""} OK` : "Cancelada";
   const meta = {
     active:        { label:"Activa",    color:"var(--accent)",  bg:"rgba(16,185,129,0.15)" },
     pending:       { label:"Pendiente", color:"var(--yellow)",  bg:"rgba(245,158,11,0.15)" },
     paused:        { label:"Pausada",   color:"var(--yellow)",  bg:"rgba(245,158,11,0.15)" },
-    cancelled:     { label:"Cancelada", color:"var(--text-sm)", bg:"rgba(126,138,147,0.15)" },
+    cancelled:     { label: cancelledLabel, color: orderCount > 0 ? "var(--green)" : "var(--text-sm)", bg: orderCount > 0 ? "rgba(16,185,129,0.10)" : "rgba(126,138,147,0.15)" },
     payment_failed:{ label:"Pago falló",color:"var(--red)",     bg:"rgba(239,68,68,0.15)" },
   }[status] || { label: status || "—", color: "var(--text-sm)", bg: "rgba(126,138,147,0.15)" };
   return (
@@ -1088,9 +1093,14 @@ function SubscriberDetailModal({ sub, onClose }) {
         </div>
 
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
-          <StatusBadge status={status}/>
+          <StatusBadge status={status} orderCount={(s?.shopify_orders||[]).length}/>
           <span style={{fontSize:11,color:"var(--text-sm)"}}>desde {s.created_at?new Date(s.created_at).toLocaleDateString("es-AR"):"—"}</span>
         </div>
+        {status === "cancelled" && (s?.shopify_orders||[]).length > 0 && (
+          <div style={{padding:"10px 14px",background:"rgba(16,185,129,0.10)",border:"1px solid rgba(16,185,129,0.30)",borderRadius:8,fontSize:11,color:"var(--text-md)",lineHeight:1.5,marginBottom:14}}>
+            <strong style={{color:"var(--green)"}}>El cliente sí pagó.</strong> El cobro inicial se procesó correctamente y la orden Shopify se creó. "Cancelada" significa que MP NO va a cobrar más recurrencias (probablemente el cliente canceló la sub desde su app de MP o vos canceláste desde acá). El historial de cobros queda intacto.
+          </div>
+        )}
 
         <div style={{background:"var(--surface)",borderRadius:10,padding:"14px 16px",marginBottom:14}}>
           <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5,marginBottom:8}}>Plan</div>
