@@ -486,9 +486,11 @@ export default async function handler(req, res) {
     if (!values.name)    missing.push("name");
     if (!values.email)   missing.push("email");
     if (!values.taxid)   missing.push("taxid");
+    if (!values.phone)    missing.push("phone");
     if (!values.address)  missing.push("address");
     if (!values.city)     missing.push("city");
     if (!values.province) missing.push("province");
+    if (!values.zip)      missing.push("zip");
 
     var emailInvalid = values.email && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(values.email);
     // DNI: 7-8 dígitos. CUIL/CUIT: 11 dígitos. Cualquier otro largo es inválido.
