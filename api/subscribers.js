@@ -30,6 +30,76 @@ export default async function handler(req, res) {
     }
   }
 
+  // PATCH ?action=update-address&id=SUB
+  // Edita el shipping_address del sub Y propaga el cambio a TODAS las
+  // órdenes Shopify asociadas (las que ya se crearon + las que se generen
+  // en futuros cobros recurrentes).
+  if (req.method === "PATCH" && req.query.action === "update-address" && req.query.id) {
+    const { address1, address2, city, province, zip, phone, customer_name } = req.body || {};
+    if (!address1?.trim()) return res.status(400).json({ error: "Falta dirección (address1)" });
+    if (!city?.trim())     return res.status(400).json({ error: "Falta ciudad" });
+    if (!zip?.trim())      return res.status(400).json({ error: "Falta código postal" });
+    if (!province?.trim()) return res.status(400).json({ error: "Falta provincia" });
+
+    const subRef = subsCol.doc(String(req.query.id));
+    const subSnap = await subRef.get();
+    if (!subSnap.exists) return res.status(404).json({ error: "Subscriber no encontrado" });
+    const sub = subSnap.data();
+
+    const newAddr = {
+      address1: address1.trim(),
+      address2: (address2 || "").trim(),
+      city: city.trim(),
+      province: province.trim(),
+      zip: zip.trim(),
+      country: "Argentina",
+      phone: (phone || sub.customer_phone || "").trim(),
+      first_name: (customer_name || sub.customer_name || "").split(" ")[0] || "",
+      last_name: (customer_name || sub.customer_name || "").split(" ").slice(1).join(" ") || "",
+    };
+
+    await subRef.update({
+      shipping_address: newAddr,
+      ...(customer_name ? { customer_name: customer_name.trim() } : {}),
+      ...(phone ? { customer_phone: phone.trim() } : {}),
+      updated_at: new Date().toISOString(),
+    });
+
+    // Propagar a las órdenes Shopify ya creadas — PUT /orders/{id}.json
+    const merchantSnap = await merchantRef.get();
+    const merchant = merchantSnap.data() || {};
+    const orderIds = sub.shopify_orders || [];
+    const updatedOrders = [];
+    const failedOrders = [];
+    if (merchant.shopify_token && merchant.shopify_shop && orderIds.length > 0) {
+      for (const orderId of orderIds) {
+        try {
+          const url = `https://${merchant.shopify_shop}/admin/api/2024-10/orders/${orderId}.json`;
+          const r = await fetch(url, {
+            method: "PUT",
+            headers: {
+              "X-Shopify-Access-Token": merchant.shopify_token,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              order: {
+                id: orderId,
+                shipping_address: newAddr,
+                billing_address: newAddr,
+              },
+            }),
+          });
+          if (r.ok) updatedOrders.push(orderId);
+          else failedOrders.push({ orderId, status: r.status });
+        } catch (e) {
+          failedOrders.push({ orderId, error: e.message });
+        }
+      }
+    }
+
+    return res.json({ ok: true, updated_orders: updatedOrders, failed_orders: failedOrders });
+  }
+
   // POST ?action=simulate-charge&id=SUB
   // Simula el próximo cobro recurrente — crea charge + orden Shopify sin
   // pasar por MP. Útil para validar que el flow del 2do, 3er, N-ésimo cobro

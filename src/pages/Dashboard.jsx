@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { apiGet, apiPost, apiPatch, apiDelete } from "../lib/api.js";
+import { apiGet, apiPost, apiPatch, apiDelete, apiSend } from "../lib/api.js";
 
 // Dashboard del comerciante — Integraciones, Planes, Suscriptores, Cobros.
 export default function Dashboard({ user, onLogout }) {
@@ -932,6 +932,7 @@ function StatusBadge({ status }) {
 function SubscriberDetailModal({ sub, onClose }) {
   const [data, setData] = useState({ subscriber: sub, charges: [] });
   const [busyAction, setBusyAction] = useState(null);
+  const [editingAddress, setEditingAddress] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -1107,14 +1108,31 @@ function SubscriberDetailModal({ sub, onClose }) {
           })()}
         </div>
 
-        {s.shipping_address && (
-          <div style={{background:"var(--surface)",borderRadius:10,padding:"14px 16px",marginBottom:14}}>
-            <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5,marginBottom:8}}>Dirección de envío</div>
-            <div style={{fontSize:12,color:"var(--text-md)",lineHeight:1.5}}>
-              {s.shipping_address.address1}{s.shipping_address.address2?", "+s.shipping_address.address2:""}<br/>
-              {s.shipping_address.city}{s.shipping_address.zip?" — CP "+s.shipping_address.zip:""}
-            </div>
+        <div style={{background:"var(--surface)",borderRadius:10,padding:"14px 16px",marginBottom:14}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+            <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5}}>Dirección de envío</div>
+            <button onClick={()=>setEditingAddress(true)} style={{background:"transparent",border:"1px solid var(--border)",color:"var(--text-md)",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✏️ Editar</button>
           </div>
+          <div style={{fontSize:12,color:"var(--text-md)",lineHeight:1.5}}>
+            {s.shipping_address?.address1
+              ? <>
+                  {s.shipping_address.address1}{s.shipping_address.address2?", "+s.shipping_address.address2:""}<br/>
+                  {s.shipping_address.city}{s.shipping_address.province?", "+s.shipping_address.province:""}{s.shipping_address.zip?" — CP "+s.shipping_address.zip:""}
+                </>
+              : <span style={{color:"var(--red)",fontWeight:700}}>⚠️ Sin dirección — editá para arreglar</span>
+            }
+          </div>
+        </div>
+        {editingAddress && (
+          <EditAddressModal
+            sub={s}
+            onClose={()=>setEditingAddress(false)}
+            onSaved={async()=>{
+              setEditingAddress(false);
+              const refreshed = await apiGet("subscribers", { id: sub.id });
+              if (refreshed?.subscriber) setData(refreshed);
+            }}
+          />
         )}
 
         {/* Acciones */}
@@ -1308,3 +1326,86 @@ const inp2 = { background:"var(--surface)", border:"1px solid var(--border)", co
 const btnPri = { border:"none", padding:"8px 14px", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", background:"linear-gradient(135deg, var(--green), var(--green-dark))", color:"#fff" };
 const btnSec = { border:"1px solid var(--border)", padding:"8px 14px", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", background:"var(--surface)", color:"var(--text-md)" };
 const btnDan = { border:"1px solid rgba(239,68,68,0.4)", padding:"8px 14px", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", background:"transparent", color:"var(--red)" };
+
+// ─── Modal para editar la dirección de un subscriber ──────────────
+// Edita el shipping_address y propaga el cambio a TODAS las órdenes Shopify
+// ya creadas + las que se generen en cobros recurrentes futuros.
+function EditAddressModal({ sub, onClose, onSaved }) {
+  const a = sub?.shipping_address || {};
+  const [name, setName]         = React.useState(sub?.customer_name || "");
+  const [phone, setPhone]       = React.useState(sub?.customer_phone || a.phone || "");
+  const [address1, setAddress1] = React.useState(a.address1 || "");
+  const [address2, setAddress2] = React.useState(a.address2 || "");
+  const [city, setCity]         = React.useState(a.city || "");
+  const [province, setProvince] = React.useState(a.province || "");
+  const [zip, setZip]           = React.useState(a.zip || "");
+  const [saving, setSaving]     = React.useState(false);
+
+  async function save() {
+    if (!address1.trim()) return alert("Falta dirección (calle + número)");
+    if (!city.trim())     return alert("Falta ciudad");
+    if (!province)        return alert("Falta provincia");
+    if (!zip.trim())      return alert("Falta código postal");
+    setSaving(true);
+    const r = await apiSend("subscribers", "PATCH",
+      { address1, address2, city, province, zip, phone, customer_name: name },
+      { action: "update-address", id: sub.id }
+    );
+    setSaving(false);
+    if (r?.error) { alert("Error: " + r.error); return; }
+    let msg = "✓ Dirección actualizada en Recurrentes.";
+    if (r.updated_orders?.length) msg += `\n📦 ${r.updated_orders.length} órdenes Shopify actualizadas.`;
+    if (r.failed_orders?.length)  msg += `\n⚠️ ${r.failed_orders.length} órdenes Shopify fallaron al actualizar (verificá manual en Shopify Admin).`;
+    alert(msg);
+    onSaved?.();
+  }
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:99999}} onClick={onClose}>
+      <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:14,padding:"24px 26px",maxWidth:520,width:"100%",maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <div style={{fontSize:17,fontWeight:700}}>Editar dirección</div>
+          <button onClick={onClose} style={{background:"transparent",border:"none",color:"var(--text-sm)",fontSize:20,cursor:"pointer"}}>✕</button>
+        </div>
+        <div style={{fontSize:11,color:"var(--text-sm)",marginBottom:14,lineHeight:1.5}}>
+          Los cambios se aplican al sub Y a todas las órdenes Shopify ya creadas + las que se generen en cobros futuros.
+        </div>
+
+        <label style={lbl}>Nombre completo</label>
+        <input type="text" value={name} onChange={e=>setName(e.target.value)} style={inp}/>
+
+        <label style={lbl}>Teléfono</label>
+        <input type="tel" value={phone} onChange={e=>setPhone(e.target.value)} style={inp}/>
+
+        <label style={lbl}>Dirección (calle + número) *</label>
+        <input type="text" value={address1} onChange={e=>setAddress1(e.target.value)} style={inp} placeholder="Av. Corrientes 1234"/>
+
+        <label style={lbl}>Departamento / piso (opcional)</label>
+        <input type="text" value={address2} onChange={e=>setAddress2(e.target.value)} style={inp} placeholder="Depto 4B"/>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div>
+            <label style={lbl}>Ciudad *</label>
+            <input type="text" value={city} onChange={e=>setCity(e.target.value)} style={inp}/>
+          </div>
+          <div>
+            <label style={lbl}>Código postal *</label>
+            <input type="text" value={zip} onChange={e=>setZip(e.target.value)} style={inp}/>
+          </div>
+        </div>
+
+        <label style={lbl}>Provincia *</label>
+        <select value={province} onChange={e=>setProvince(e.target.value)} style={inp}>
+          <option value="">— Seleccioná —</option>
+          {["Buenos Aires","Ciudad Autónoma de Buenos Aires","Catamarca","Chaco","Chubut","Córdoba","Corrientes","Entre Ríos","Formosa","Jujuy","La Pampa","La Rioja","Mendoza","Misiones","Neuquén","Río Negro","Salta","San Juan","San Luis","Santa Cruz","Santa Fe","Santiago del Estero","Tierra del Fuego","Tucumán"].map(p=>(
+            <option key={p} value={p}>{p}</option>
+          ))}
+        </select>
+
+        <button onClick={save} disabled={saving} style={{width:"100%",marginTop:18,background:"linear-gradient(135deg, var(--green), var(--green-dark))",border:"none",color:"#fff",padding:"11px",borderRadius:10,fontSize:14,fontWeight:700,cursor:saving?"wait":"pointer",fontFamily:"inherit",opacity:saving?0.6:1}}>
+          {saving ? "Guardando…" : "Guardar y sincronizar con Shopify"}
+        </button>
+      </div>
+    </div>
+  );
+}
