@@ -296,6 +296,7 @@ export default async function handler(req, res) {
       </div>\
       <input id="rec-taxid" type="text" inputmode="numeric" placeholder="DNI o CUIL / CUIT (solo números)" style="' + inputStyle + ';width:100%;margin-bottom:8px;"/>\
       <input id="rec-address" type="text" placeholder="Dirección de envío (calle + número)" style="' + inputStyle + ';width:100%;margin-bottom:8px;"/>\
+      <input id="rec-address2" type="text" placeholder="Piso / departamento (opcional)" style="' + inputStyle + ';width:100%;margin-bottom:8px;"/>\
       <input id="rec-city" type="text" placeholder="Ciudad / Localidad" style="' + inputStyle + ';width:100%;margin-bottom:8px;"/>\
       <select id="rec-province" style="' + inputStyle + ';width:100%;margin-bottom:14px;cursor:pointer;">\
         <option value="">Provincia…</option>\
