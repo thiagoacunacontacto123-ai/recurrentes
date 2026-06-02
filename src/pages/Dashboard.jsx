@@ -1060,24 +1060,23 @@ function SubscriberDetailModal({ sub, onClose }) {
       return;
     }
     if (action === "resync") {
-      // Reconcilia local con la realidad de MP: si MP tiene la sub activa
-      // pero acá quedó cancelled (por un cancel mal sincronizado), vuelve
-      // a marcarla active. Igual al revés.
+      // "Marcar como activa": fuerza local → active y best-effort linkea el
+      // preapproval activo de MP. Confiamos en que el webhook de MP el día
+      // del próximo cobro va a encontrar el sub por external_reference.
       setBusyAction("resync");
       try {
         const r = await apiPatch("subscribers", { action: "resync" }, { id: sub.id });
         if (r?.error) {
           alert("Error: " + r.error);
         } else {
-          let msg = `Estado MP: ${(r.mp_status || "?").toUpperCase()}\nEstado local actualizado: ${(r.status || "?").toUpperCase()}`;
-          if (r.next_charge_at) msg += `\nPróximo cobro: ${new Date(r.next_charge_at).toLocaleString("es-AR")}`;
-          msg += `\nPreapproval activo: ${r.mp_preapproval_id}`;
-          if ((r.preapprovals_found || 0) > 1) {
-            msg += `\n\n⚠️ MP devolvió ${r.preapprovals_found} preapprovals para este cliente:`;
-            for (const p of (r.all_preapprovals || [])) {
-              msg += `\n  · ${p.id} → ${p.status} (${p.date_created?.slice(0,10) || "?"})`;
+          let msg = "✓ Sub marcada como ACTIVA";
+          if (r.mp_preapproval_linked) {
+            msg += `\n\nLinkeada al preapproval MP: ${r.mp_preapproval_id}`;
+            if (r.next_charge_at) {
+              msg += `\nPróximo cobro: ${new Date(r.next_charge_at).toLocaleString("es-AR")}`;
             }
-            msg += "\n\nElegimos el de mayor prioridad (authorized > paused > pending > cancelled).";
+          } else {
+            msg += "\n\nNo encontramos preapproval activo en MP via search, pero igual está activa localmente. Cuando MP cobre el próximo mes, el webhook va a llegar con external_reference y va a crear la orden Shopify normal.";
           }
           alert(msg);
           const refreshed = await apiGet("subscribers", { id: sub.id });
@@ -1189,13 +1188,14 @@ function SubscriberDetailModal({ sub, onClose }) {
           <button onClick={()=>doAction("sync")} disabled={busyAction} style={{...btnPri,opacity:busyAction?0.6:1}}>
             {busyAction==="sync"?"Sincronizando…":"⟳ Sincronizar con MP"}
           </button>
-          {/* Resync: SOLO cambia el status local para alinearlo con MP.
-              Útil cuando acá quedó cancelled pero MP sigue cobrando, o al
-              revés. NO crea orders, NO toca el preapproval — solo refleja
-              la verdad de MP en local. */}
-          {(status === "cancelled" || status === "paused") && (
+          {/* Marcar como activa: fuerza el sub local a "active". El merchant
+              verificó manualmente en MP que la sub sigue cobrando — confiamos
+              en eso. Best-effort linkea el preapproval si lo encontramos;
+              cuando MP cobre el próximo mes, el webhook matchea por
+              external_reference=mid:sid y crea la orden Shopify normal. */}
+          {(status === "cancelled" || status === "paused" || status === "pending") && (
             <button onClick={()=>doAction("resync")} disabled={busyAction} style={{...btnPri,opacity:busyAction?0.6:1,background:"var(--green)",borderColor:"var(--green)"}}>
-              {busyAction==="resync"?"Verificando…":"✓ Sigue activa en MP — restaurar"}
+              {busyAction==="resync"?"Marcando…":"✓ Marcar como activa (sigue en MP)"}
             </button>
           )}
           {/* Link manual de payment ID — escape hatch para cuando los endpoints

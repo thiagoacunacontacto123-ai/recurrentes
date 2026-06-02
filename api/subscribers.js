@@ -192,88 +192,56 @@ export default async function handler(req, res) {
     // en MP sigue activa (cobrando recurrencias mensuales). Le devuelve la
     // verdad al merchant y, si MP la tiene activa, restablece el sub.
     if (action === "resync") {
-      if (!merchant.mp_access_token) {
-        return res.status(400).json({ error: "Merchant sin MP conectado" });
-      }
-      // Buscar preapproval por external_reference (mid:sid). Si el cliente
-      // hizo el flow de checkout más de una vez (por ej. abandonó y volvió),
-      // MP genera múltiples preapprovals con el mismo external_reference.
-      // Algunos pueden estar cancelled y otro authorized — tenemos que tomar
-      // el authorized, NO el más reciente (que podría ser un retry cancelled).
+      // FORZAR LOCAL → "active" (sin importar lo que diga MP search). Esta
+      // acción es "marcar como activa": el merchant ya verificó manualmente
+      // en su panel MP que la sub sigue cobrando, y nos dice "anexá esto
+      // a la suscripción real". Cuando MP cobre el próximo mes, el webhook
+      // va a llegar con external_reference=mid:sid y matchea por ahí.
+      //
+      // Best-effort: si encontramos un preapproval authorized en MP, también
+      // guardamos su mp_preapproval_id para que sea otra ruta de match en el
+      // webhook (más confiable). Pero si no lo encontramos, igual marcamos
+      // active y confiamos en external_reference.
       const extRef = `${uid}:${id}`;
-      const headers = { Authorization: `Bearer ${merchant.mp_access_token}` };
-      const allPreapprovals = [];
+      let linkedPreapproval = null;
+      let nextChargeAt = sub.next_charge_at || null;
 
-      // 1) Search por external_reference (mid:sid)
-      try {
-        const r = await fetch(`https://api.mercadopago.com/preapproval/search?external_reference=${encodeURIComponent(extRef)}`, { headers });
-        const s = await r.json().catch(() => ({}));
-        for (const p of (s?.results || [])) {
-          if (!allPreapprovals.find(x => x.id === p.id)) allPreapprovals.push(p);
+      if (merchant.mp_access_token) {
+        const headers = { Authorization: `Bearer ${merchant.mp_access_token}` };
+        // Search por external_reference + por payer_email; nos quedamos con
+        // el primer authorized que encontremos.
+        const queries = [
+          `https://api.mercadopago.com/preapproval/search?external_reference=${encodeURIComponent(extRef)}`,
+          sub.customer_email ? `https://api.mercadopago.com/preapproval/search?payer_email=${encodeURIComponent(sub.customer_email)}` : null,
+        ].filter(Boolean);
+        for (const url of queries) {
+          try {
+            const r = await fetch(url, { headers });
+            const s = await r.json().catch(() => ({}));
+            const authorized = (s?.results || []).find(p => p.status === "authorized");
+            if (authorized) {
+              linkedPreapproval = authorized;
+              nextChargeAt = authorized.next_payment_date || nextChargeAt;
+              break;
+            }
+          } catch (_) {}
         }
-      } catch (_) {}
-
-      // 2) Si tenemos mp_preapproval_id local, también traerlo directo (puede
-      //    ser uno distinto del que aparece arriba por algún re-attempt).
-      if (sub.mp_preapproval_id) {
-        try {
-          const r = await fetch(`https://api.mercadopago.com/preapproval/${encodeURIComponent(sub.mp_preapproval_id)}`, { headers });
-          const p = await r.json().catch(() => ({}));
-          if (p?.id && !allPreapprovals.find(x => x.id === p.id)) allPreapprovals.push(p);
-        } catch (_) {}
       }
-
-      // 3) Search por payer_email — fallback final si el external_reference
-      //    se perdió por alguna razón (e.g. checkout viejo, MP indexación).
-      if (allPreapprovals.length === 0 && sub.customer_email) {
-        try {
-          const r = await fetch(`https://api.mercadopago.com/preapproval/search?payer_email=${encodeURIComponent(sub.customer_email)}`, { headers });
-          const s = await r.json().catch(() => ({}));
-          for (const p of (s?.results || [])) {
-            if (!allPreapprovals.find(x => x.id === p.id)) allPreapprovals.push(p);
-          }
-        } catch (_) {}
-      }
-
-      if (allPreapprovals.length === 0) {
-        return res.status(404).json({ error: "No se encontró preapproval en MP para este sub" });
-      }
-
-      // Prioridad: authorized > paused > pending > cancelled (el authorized
-      // siempre gana — significa que MP sigue cobrando esa sub).
-      const statusPriority = { authorized: 0, paused: 1, pending: 2, cancelled: 3 };
-      allPreapprovals.sort((a, b) => {
-        const pa = statusPriority[a.status] ?? 99;
-        const pb = statusPriority[b.status] ?? 99;
-        if (pa !== pb) return pa - pb;
-        // Empate de status → el más reciente primero
-        return (b.date_created || "").localeCompare(a.date_created || "");
-      });
-      const pre = allPreapprovals[0];
-
-      const mpStatusToLocal = {
-        authorized: "active",
-        paused: "paused",
-        cancelled: "cancelled",
-        pending: "pending",
-      };
-      const newLocalStatus = mpStatusToLocal[pre.status] || sub.status || "pending";
 
       await subRef.update({
-        status: newLocalStatus,
-        mp_preapproval_id: pre.id,
-        next_charge_at: pre.next_payment_date || sub.next_charge_at || null,
+        status: "active",
+        ...(linkedPreapproval ? { mp_preapproval_id: linkedPreapproval.id } : {}),
+        ...(nextChargeAt ? { next_charge_at: nextChargeAt } : {}),
+        cancelled_at: null,
         updated_at: new Date().toISOString(),
-        ...(newLocalStatus !== "cancelled" ? { cancelled_at: null } : {}),
       });
+
       return res.json({
         ok: true,
-        status: newLocalStatus,
-        mp_status: pre.status,
-        mp_preapproval_id: pre.id,
-        next_charge_at: pre.next_payment_date || null,
-        preapprovals_found: allPreapprovals.length,
-        all_preapprovals: allPreapprovals.map(p => ({ id: p.id, status: p.status, date_created: p.date_created })),
+        status: "active",
+        mp_preapproval_id: linkedPreapproval?.id || sub.mp_preapproval_id || null,
+        mp_preapproval_linked: !!linkedPreapproval,
+        next_charge_at: nextChargeAt,
       });
     }
 
