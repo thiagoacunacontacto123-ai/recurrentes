@@ -195,20 +195,61 @@ export default async function handler(req, res) {
       if (!merchant.mp_access_token) {
         return res.status(400).json({ error: "Merchant sin MP conectado" });
       }
-      // Buscar preapproval por external_reference (mid:sid) — más confiable
-      // que mp_preapproval_id local porque éste a veces se pierde en flow
-      // adhoc_plan donde MP crea el preapproval después del checkout.
+      // Buscar preapproval por external_reference (mid:sid). Si el cliente
+      // hizo el flow de checkout más de una vez (por ej. abandonó y volvió),
+      // MP genera múltiples preapprovals con el mismo external_reference.
+      // Algunos pueden estar cancelled y otro authorized — tenemos que tomar
+      // el authorized, NO el más reciente (que podría ser un retry cancelled).
       const extRef = `${uid}:${id}`;
-      const r = await fetch(
-        `https://api.mercadopago.com/preapproval/search?external_reference=${encodeURIComponent(extRef)}`,
-        { headers: { Authorization: `Bearer ${merchant.mp_access_token}` } }
-      );
-      const search = await r.json().catch(() => ({}));
-      const preapprovals = search?.results || [];
-      if (preapprovals.length === 0) {
+      const headers = { Authorization: `Bearer ${merchant.mp_access_token}` };
+      const allPreapprovals = [];
+
+      // 1) Search por external_reference (mid:sid)
+      try {
+        const r = await fetch(`https://api.mercadopago.com/preapproval/search?external_reference=${encodeURIComponent(extRef)}`, { headers });
+        const s = await r.json().catch(() => ({}));
+        for (const p of (s?.results || [])) {
+          if (!allPreapprovals.find(x => x.id === p.id)) allPreapprovals.push(p);
+        }
+      } catch (_) {}
+
+      // 2) Si tenemos mp_preapproval_id local, también traerlo directo (puede
+      //    ser uno distinto del que aparece arriba por algún re-attempt).
+      if (sub.mp_preapproval_id) {
+        try {
+          const r = await fetch(`https://api.mercadopago.com/preapproval/${encodeURIComponent(sub.mp_preapproval_id)}`, { headers });
+          const p = await r.json().catch(() => ({}));
+          if (p?.id && !allPreapprovals.find(x => x.id === p.id)) allPreapprovals.push(p);
+        } catch (_) {}
+      }
+
+      // 3) Search por payer_email — fallback final si el external_reference
+      //    se perdió por alguna razón (e.g. checkout viejo, MP indexación).
+      if (allPreapprovals.length === 0 && sub.customer_email) {
+        try {
+          const r = await fetch(`https://api.mercadopago.com/preapproval/search?payer_email=${encodeURIComponent(sub.customer_email)}`, { headers });
+          const s = await r.json().catch(() => ({}));
+          for (const p of (s?.results || [])) {
+            if (!allPreapprovals.find(x => x.id === p.id)) allPreapprovals.push(p);
+          }
+        } catch (_) {}
+      }
+
+      if (allPreapprovals.length === 0) {
         return res.status(404).json({ error: "No se encontró preapproval en MP para este sub" });
       }
-      const pre = preapprovals.sort((a, b) => (b.date_created || "").localeCompare(a.date_created || ""))[0];
+
+      // Prioridad: authorized > paused > pending > cancelled (el authorized
+      // siempre gana — significa que MP sigue cobrando esa sub).
+      const statusPriority = { authorized: 0, paused: 1, pending: 2, cancelled: 3 };
+      allPreapprovals.sort((a, b) => {
+        const pa = statusPriority[a.status] ?? 99;
+        const pb = statusPriority[b.status] ?? 99;
+        if (pa !== pb) return pa - pb;
+        // Empate de status → el más reciente primero
+        return (b.date_created || "").localeCompare(a.date_created || "");
+      });
+      const pre = allPreapprovals[0];
 
       const mpStatusToLocal = {
         authorized: "active",
@@ -231,6 +272,8 @@ export default async function handler(req, res) {
         mp_status: pre.status,
         mp_preapproval_id: pre.id,
         next_charge_at: pre.next_payment_date || null,
+        preapprovals_found: allPreapprovals.length,
+        all_preapprovals: allPreapprovals.map(p => ({ id: p.id, status: p.status, date_created: p.date_created })),
       });
     }
 

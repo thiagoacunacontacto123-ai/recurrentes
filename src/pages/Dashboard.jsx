@@ -1069,7 +1069,17 @@ function SubscriberDetailModal({ sub, onClose }) {
         if (r?.error) {
           alert("Error: " + r.error);
         } else {
-          alert(`Estado MP: ${(r.mp_status || "?").toUpperCase()}\nEstado local actualizado: ${(r.status || "?").toUpperCase()}` + (r.next_charge_at ? `\nPróximo cobro: ${new Date(r.next_charge_at).toLocaleString("es-AR")}` : ""));
+          let msg = `Estado MP: ${(r.mp_status || "?").toUpperCase()}\nEstado local actualizado: ${(r.status || "?").toUpperCase()}`;
+          if (r.next_charge_at) msg += `\nPróximo cobro: ${new Date(r.next_charge_at).toLocaleString("es-AR")}`;
+          msg += `\nPreapproval activo: ${r.mp_preapproval_id}`;
+          if ((r.preapprovals_found || 0) > 1) {
+            msg += `\n\n⚠️ MP devolvió ${r.preapprovals_found} preapprovals para este cliente:`;
+            for (const p of (r.all_preapprovals || [])) {
+              msg += `\n  · ${p.id} → ${p.status} (${p.date_created?.slice(0,10) || "?"})`;
+            }
+            msg += "\n\nElegimos el de mayor prioridad (authorized > paused > pending > cancelled).";
+          }
+          alert(msg);
           const refreshed = await apiGet("subscribers", { id: sub.id });
           if (refreshed?.subscriber) setData(refreshed);
         }
