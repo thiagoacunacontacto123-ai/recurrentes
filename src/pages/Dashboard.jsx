@@ -1334,6 +1334,7 @@ function EditAddressModal({ sub, onClose, onSaved }) {
   const a = sub?.shipping_address || {};
   const [name, setName]         = React.useState(sub?.customer_name || "");
   const [phone, setPhone]       = React.useState(sub?.customer_phone || a.phone || "");
+  const [taxId, setTaxId]       = React.useState(sub?.customer_tax_id || "");
   const [address1, setAddress1] = React.useState(a.address1 || "");
   const [address2, setAddress2] = React.useState(a.address2 || "");
   const [city, setCity]         = React.useState(a.city || "");
@@ -1346,9 +1347,13 @@ function EditAddressModal({ sub, onClose, onSaved }) {
     if (!city.trim())     return alert("Falta ciudad");
     if (!province)        return alert("Falta provincia");
     if (!zip.trim())      return alert("Falta código postal");
+    const cleanTax = (taxId || "").replace(/[^0-9]/g, "");
+    if (cleanTax && !(cleanTax.length === 7 || cleanTax.length === 8 || cleanTax.length === 11)) {
+      return alert("DNI o CUIL/CUIT inválido. DNI son 7-8 dígitos, CUIL/CUIT son 11.");
+    }
     setSaving(true);
     const r = await apiSend("subscribers", "PATCH",
-      { address1, address2, city, province, zip, phone, customer_name: name },
+      { address1, address2, city, province, zip, phone, customer_name: name, tax_id: cleanTax },
       { action: "update-address", id: sub.id }
     );
     setSaving(false);
@@ -1376,6 +1381,12 @@ function EditAddressModal({ sub, onClose, onSaved }) {
 
         <label style={lbl}>Teléfono</label>
         <input type="tel" value={phone} onChange={e=>setPhone(e.target.value)} style={inp}/>
+
+        <label style={lbl}>DNI o CUIL / CUIT (solo números)</label>
+        <input type="text" inputMode="numeric" value={taxId} onChange={e=>setTaxId(e.target.value.replace(/[^0-9]/g, ""))} style={inp} placeholder="12345678 ó 20123456789"/>
+        <div style={{fontSize:10,color:"var(--text-sm)",marginTop:-12,marginBottom:14,lineHeight:1.4}}>
+          7-8 dígitos para DNI · 11 dígitos para CUIL/CUIT. Se guarda como "Company" en la orden Shopify para facturación.
+        </div>
 
         <label style={lbl}>Dirección (calle + número) *</label>
         <input type="text" value={address1} onChange={e=>setAddress1(e.target.value)} style={inp} placeholder="Av. Corrientes 1234"/>

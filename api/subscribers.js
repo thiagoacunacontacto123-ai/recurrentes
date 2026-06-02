@@ -35,7 +35,7 @@ export default async function handler(req, res) {
   // órdenes Shopify asociadas (las que ya se crearon + las que se generen
   // en futuros cobros recurrentes).
   if (req.method === "PATCH" && req.query.action === "update-address" && req.query.id) {
-    const { address1, address2, city, province, zip, phone, customer_name } = req.body || {};
+    const { address1, address2, city, province, zip, phone, customer_name, tax_id } = req.body || {};
     if (!address1?.trim()) return res.status(400).json({ error: "Falta dirección (address1)" });
     if (!city?.trim())     return res.status(400).json({ error: "Falta ciudad" });
     if (!zip?.trim())      return res.status(400).json({ error: "Falta código postal" });
@@ -45,6 +45,17 @@ export default async function handler(req, res) {
     const subSnap = await subRef.get();
     if (!subSnap.exists) return res.status(404).json({ error: "Subscriber no encontrado" });
     const sub = subSnap.data();
+
+    // Sanitizar tax_id si vino — solo dígitos. DNI 7-8, CUIT/CUIL 11.
+    let cleanTaxId = null;
+    let cleanTaxIdKind = sub.customer_tax_id_kind || "DNI";
+    if (typeof tax_id === "string") {
+      cleanTaxId = tax_id.replace(/[^0-9]/g, "");
+      if (cleanTaxId && !(cleanTaxId.length === 7 || cleanTaxId.length === 8 || cleanTaxId.length === 11)) {
+        return res.status(400).json({ error: "DNI o CUIL/CUIT inválido (7-8 dígitos para DNI, 11 para CUIL/CUIT)" });
+      }
+      cleanTaxIdKind = cleanTaxId.length === 11 ? "CUIT" : "DNI";
+    }
 
     const newAddr = {
       address1: address1.trim(),
@@ -56,14 +67,17 @@ export default async function handler(req, res) {
       phone: (phone || sub.customer_phone || "").trim(),
       first_name: (customer_name || sub.customer_name || "").split(" ")[0] || "",
       last_name: (customer_name || sub.customer_name || "").split(" ").slice(1).join(" ") || "",
+      company: cleanTaxId || sub.customer_tax_id || "", // DNI/CUIT visible en Shopify
     };
 
-    await subRef.update({
+    const subUpdates = {
       shipping_address: newAddr,
       ...(customer_name ? { customer_name: customer_name.trim() } : {}),
       ...(phone ? { customer_phone: phone.trim() } : {}),
+      ...(cleanTaxId ? { customer_tax_id: cleanTaxId, customer_tax_id_kind: cleanTaxIdKind } : {}),
       updated_at: new Date().toISOString(),
-    });
+    };
+    await subRef.update(subUpdates);
 
     // Propagar a las órdenes Shopify ya creadas — PUT /orders/{id}.json
     const merchantSnap = await merchantRef.get();
