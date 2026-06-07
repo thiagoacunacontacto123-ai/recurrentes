@@ -66,6 +66,29 @@ export default async function handler(req, res) {
   if (!merchant_id || !plan_id) return res.status(400).json({ error: "Faltan merchant_id o plan_id" });
   if (!customer?.email) return res.status(400).json({ error: "Falta customer.email" });
 
+  // VALIDACIÓN ESTRICTA — bloqueamos avance a MP si falta cualquier dato de
+  // contacto/dirección. Esto previene que un cliente complete el pago y
+  // después la orden Shopify quede sin dirección (caso real: orden #4319 de
+  // Alberto perez 7-jun-2026). El widget ya valida en JS, pero si el cliente
+  // tiene cache vieja del widget, JS bloqueado, o entra por un flow raro,
+  // necesitamos defensa server-side igual.
+  const customerName = String(customer.name || "").trim();
+  const customerPhone = String(customer.phone || "").trim();
+  if (!customerName) return res.status(400).json({ error: "Falta nombre del cliente" });
+  if (!customerPhone) return res.status(400).json({ error: "Falta teléfono del cliente" });
+
+  const addr = shipping_address || {};
+  const addrMissing = [];
+  if (!String(addr.address1 || "").trim()) addrMissing.push("calle + número");
+  if (!String(addr.city || "").trim()) addrMissing.push("ciudad");
+  if (!String(addr.province || "").trim()) addrMissing.push("provincia");
+  if (!String(addr.zip || "").trim()) addrMissing.push("código postal");
+  if (addrMissing.length > 0) {
+    return res.status(400).json({
+      error: `Falta dirección de envío. Cargá: ${addrMissing.join(", ")}. No se puede procesar el pago sin estos datos.`,
+    });
+  }
+
   // Cantidad de paquetes que eligió el cliente. Capada entre 1 y 10 para
   // evitar abusos / errores. Si no viene, usamos units_per_shipment del plan.
   const qty = Math.max(1, Math.min(10, parseInt(quantity) || 0));
@@ -119,7 +142,22 @@ export default async function handler(req, res) {
     customer_phone: customer.phone || "",
     customer_tax_id: taxIdClean,
     customer_tax_id_kind: taxIdKind, // "DNI" | "CUIT"
-    shipping_address: shipping_address || null,
+    // Shipping address sanitizada — usamos el objeto validado arriba (addr),
+    // garantizando que address1/city/province/zip nunca sean undefined o ""
+    // (la validación previa rechazaría el request). first_name/last_name/phone
+    // los rellenamos del nombre/teléfono del customer para que la orden
+    // Shopify quede con todos los campos.
+    shipping_address: {
+      address1:   String(addr.address1).trim(),
+      address2:   String(addr.address2 || "").trim(),
+      city:       String(addr.city).trim(),
+      province:   String(addr.province).trim(),
+      zip:        String(addr.zip).trim(),
+      country:    String(addr.country || "Argentina").trim(),
+      first_name: customerName.split(" ")[0] || "",
+      last_name:  customerName.split(" ").slice(1).join(" ") || "",
+      phone:      customerPhone,
+    },
     plan_id,
     quantity: finalQty,
     plan_snapshot: {
