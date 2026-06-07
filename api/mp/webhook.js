@@ -173,7 +173,17 @@ async function processPaymentForMerchant(merchantId, merchant, payment) {
   let shopifyOrderId = null;
   let shopifyError = null;
   let orderStatusUrl = null; // URL pública de Thank You de Shopify (sin login).
-  if (merchant.shopify_token && merchant.shopify_shop && sub.shipping_address && sub.plan_snapshot?.shopify_variant_id) {
+  // Guard ESTRICTO: no basta con que shipping_address EXISTA. Tiene que tener
+  // al menos address1 (calle+nº) y city. Sin eso, Shopify acepta la orden
+  // pero queda como "No se proporcionó dirección de envío" y el merchant no
+  // puede empaquetar. Preferimos NO crear orden y registrar error → el
+  // merchant ve el problema en dashboard y carga la dirección con el botón
+  // "Editar dirección" del modal del subscriber.
+  const addrOk = !!(sub.shipping_address?.address1 && sub.shipping_address?.city);
+  if (!addrOk) {
+    console.warn(`[mp-webhook] sub ${subscriberId} sin address1/city → NO se crea orden Shopify`);
+  }
+  if (merchant.shopify_token && merchant.shopify_shop && addrOk && sub.plan_snapshot?.shopify_variant_id) {
     try {
       const customer = await shFindOrCreateCustomer(merchant.shopify_shop, merchant.shopify_token, {
         email: sub.customer_email,
