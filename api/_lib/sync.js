@@ -205,11 +205,13 @@ export async function syncSubscriber(merchantId, subscriberId) {
     let shopifyOrderId = null;
     let thisOrderStatusUrl = null;
     let shopifyError = null;
-    // Validación estricta de address — Shopify acepta orden sin address pero
-    // queda sin shipping. Mejor NO crear la orden si falta address1 + city,
-    // así el merchant no tiene órdenes rotas y puede arreglar/recrear el sub.
+    // REGLA: si pagó, SIEMPRE crear orden Shopify aunque falte address.
+    // La plata cobrada DEBE tener su contrapartida en Shopify. Si falta
+    // address1/city, la orden se crea con tag FALTA-DIRECCION y el
+    // merchant la completa luego con "Editar dirección" en Recurrentes
+    // (propaga vía PUT /orders/id.json).
     const addrOk = sub.shipping_address?.address1 && sub.shipping_address?.city;
-    if (merchant.shopify_token && merchant.shopify_shop && addrOk && sub.plan_snapshot?.shopify_variant_id) {
+    if (merchant.shopify_token && merchant.shopify_shop && sub.plan_snapshot?.shopify_variant_id) {
       try {
         const customer = await shFindOrCreateCustomer(merchant.shopify_shop, merchant.shopify_token, {
           email: sub.customer_email,

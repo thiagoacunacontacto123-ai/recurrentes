@@ -173,17 +173,22 @@ async function processPaymentForMerchant(merchantId, merchant, payment) {
   let shopifyOrderId = null;
   let shopifyError = null;
   let orderStatusUrl = null; // URL pública de Thank You de Shopify (sin login).
-  // Guard ESTRICTO: no basta con que shipping_address EXISTA. Tiene que tener
-  // al menos address1 (calle+nº) y city. Sin eso, Shopify acepta la orden
-  // pero queda como "No se proporcionó dirección de envío" y el merchant no
-  // puede empaquetar. Preferimos NO crear orden y registrar error → el
-  // merchant ve el problema en dashboard y carga la dirección con el botón
-  // "Editar dirección" del modal del subscriber.
+  // REGLA: si el cliente pagó, SIEMPRE creamos la orden Shopify. Aunque
+  // falte dirección. Lo importante es que la plata cobrada tenga su
+  // contrapartida en el panel de Shopify para que el merchant la trabaje.
+  // Si falta address1/city → marcamos la orden con tag FALTA-DIRECCION
+  // para que el merchant filtre y la complete con el botón "Editar
+  // dirección" del modal de Recurrentes (propaga via PUT a la orden).
   const addrOk = !!(sub.shipping_address?.address1 && sub.shipping_address?.city);
+  // LOG DETALLADO: diagnóstico cuando una orden se crea con address vacía
+  // aunque el subscriber tenga dirección en Firestore. Buscamos el bug
+  // donde la dirección se pierde entre el sub (que SÍ la tiene) y la
+  // orden Shopify (que queda vacía). Visible en Vercel function logs.
+  console.log(`[mp-webhook] sub=${subscriberId} addr=${JSON.stringify(sub.shipping_address)} name=${JSON.stringify(sub.customer_name)} phone=${JSON.stringify(sub.customer_phone)} addrOk=${addrOk}`);
   if (!addrOk) {
-    console.warn(`[mp-webhook] sub ${subscriberId} sin address1/city → NO se crea orden Shopify`);
+    console.warn(`[mp-webhook] sub ${subscriberId} sin address1/city → orden Shopify se crea con tag FALTA-DIRECCION`);
   }
-  if (merchant.shopify_token && merchant.shopify_shop && addrOk && sub.plan_snapshot?.shopify_variant_id) {
+  if (merchant.shopify_token && merchant.shopify_shop && sub.plan_snapshot?.shopify_variant_id) {
     try {
       const customer = await shFindOrCreateCustomer(merchant.shopify_shop, merchant.shopify_token, {
         email: sub.customer_email,

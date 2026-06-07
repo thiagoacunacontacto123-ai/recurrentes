@@ -178,7 +178,10 @@ export async function shCreatePaidOrder(shop, token, params) {
       // Identifica el origen del pedido en Shopify Admin (filtro "Source").
       source_name: "Recurrentes",
       // Tag visible — el merchant filtra fácilmente en Shopify Admin.
-      tags: "RECURRENTE",
+      // Si la dirección está vacía sumamos FALTA-DIRECCION para que el
+      // merchant pueda filtrar "tag:FALTA-DIRECCION" desde Shopify y
+      // cargar las direcciones de esas órdenes desde Recurrentes.
+      tags: (cleanShipping.address1 && cleanShipping.city) ? "RECURRENTE" : "RECURRENTE, FALTA-DIRECCION",
       transactions: [{
         kind: "sale",
         status: "success",
