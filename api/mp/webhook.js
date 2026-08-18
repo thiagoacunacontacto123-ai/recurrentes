@@ -12,6 +12,7 @@ import { db } from "../_lib/firebase.js";
 import { mpGetPayment, mpGetPreapproval, mpResolvePaymentLike } from "../_lib/mp.js";
 import { shFindOrCreateCustomer, shCreatePaidOrder } from "../_lib/shopify.js";
 import { emailSubscriptionActivated, emailPaymentFailed } from "../_lib/email.js";
+import { sendMetaPurchase } from "../_lib/meta.js";
 
 export default async function handler(req, res) {
   // MP a veces hace HEAD/GET de healthcheck — siempre 200.
@@ -248,6 +249,33 @@ async function processPaymentForMerchant(merchantId, merchant, payment) {
     shopify_orders: [...(sub.shopify_orders || []), shopifyOrderId].filter(Boolean),
     last_shopify_order_status_url: orderStatusUrl || sub.last_shopify_order_status_url || null,
   });
+
+  // ── Meta CAPI: reportar la venta a Meta SOLO en la PRIMERA suscripción (la
+  // que trajo el ad). Las renovaciones NO se reportan a propósito, para no
+  // inflar la atribución. Best-effort: si falla, no rompe nada. Requiere que el
+  // merchant haya cargado su Pixel ID + token de CAPI.
+  if (wasFirstCharge && merchant.meta_pixel_id && merchant.meta_capi_token) {
+    try {
+      const nombrePartes = String(sub.customer_name || "").trim().split(" ");
+      const r = await sendMetaPurchase({
+        pixelId: merchant.meta_pixel_id,
+        token: merchant.meta_capi_token,
+        value: payment.transaction_amount,
+        currency: payment.currency_id || "ARS",
+        email: sub.customer_email,
+        phone: sub.customer_phone,
+        firstName: nombrePartes[0] || "",
+        lastName: nombrePartes.slice(1).join(" ") || "",
+        city: sub.shipping_address?.city || "",
+        zip: sub.shipping_address?.zip || "",
+        eventId: "rec_sub_" + subscriberId, // dedup estable por suscriptor
+        eventSourceUrl: sub.plan_snapshot?.product_url || (merchant.shopify_shop ? `https://${merchant.shopify_shop}` : undefined),
+      });
+      console.log(`[mp-webhook] Meta CAPI Purchase sub=${subscriberId}: ${r.ok ? "ok" : "FALLO " + r.error}`);
+    } catch (e) {
+      console.warn("[mp-webhook] Meta CAPI falló:", e.message);
+    }
+  }
 
   // Email solo en el PRIMER cobro (activación). Los recurrentes posteriores
   // no spamean — el cliente ya sabe que tiene sub activa.

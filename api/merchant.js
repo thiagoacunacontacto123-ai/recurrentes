@@ -31,6 +31,10 @@ export default async function handler(req, res) {
         mp_user_id: merchant.mp_user_id || null,
         mp_access_token: merchant.mp_access_token ? "•••••" : null,
         mp_connected_at: merchant.mp_connected_at || null,
+        // Meta CAPI: solo flags/pixel (nunca el token)
+        meta_pixel_id: merchant.meta_pixel_id || null,
+        meta_connected: !!(merchant.meta_pixel_id && merchant.meta_capi_token),
+        meta_connected_at: merchant.meta_connected_at || null,
         // Settings del widget (UX del toggle Sub/Única)
         widget_mode_order:   merchant.widget_mode_order   || "sub_first", // "sub_first" | "once_first"
         widget_mode_default: merchant.widget_mode_default || "sub",       // "sub" | "once"
@@ -51,10 +55,32 @@ export default async function handler(req, res) {
     const action = String(req.query.action || "");
     if (action === "save-mp-token")       return saveMpToken(uid, req, res);
     if (action === "save-widget-settings") return saveWidgetSettings(uid, req, res);
+    if (action === "save-meta")            return saveMeta(uid, req, res);
     return res.status(400).json({ error: "action no reconocida" });
   }
 
   return res.status(405).json({ error: "Method not allowed" });
+}
+
+async function saveMeta(uid, req, res) {
+  // Guarda el Pixel ID + token de la API de Conversiones (CAPI) del merchant,
+  // para reportar a Meta la PRIMERA venta de cada suscripción (server-side).
+  // Pasar strings vacíos desconecta (borra las credenciales).
+  const { meta_pixel_id, meta_capi_token } = req.body || {};
+  const pixel = (typeof meta_pixel_id === "string" ? meta_pixel_id : "").replace(/\D/g, "").slice(0, 32);
+  const token = (typeof meta_capi_token === "string" ? meta_capi_token : "").trim().slice(0, 500);
+  try {
+    await db().collection("merchants").doc(uid).set({
+      meta_pixel_id: pixel,
+      meta_capi_token: token,
+      meta_connected_at: pixel && token ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    }, { merge: true });
+    // No devolvemos el token (sensible) — solo si quedó conectado.
+    return res.json({ ok: true, meta_connected: !!(pixel && token), meta_pixel_id: pixel });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
 }
 
 async function saveWidgetSettings(uid, req, res) {

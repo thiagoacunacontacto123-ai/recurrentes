@@ -319,6 +319,24 @@ function IntegrationsTab({ merchant, onChange }) {
     else onChange?.();
   }
 
+  async function connectMeta() {
+    const pixel = window.prompt("Pegá tu Pixel ID de Meta (solo números):\n\nMeta Business Suite → Administrador de eventos → tu pixel → arriba, 'Copiar identificador'.");
+    if (pixel === null) return;
+    const token = window.prompt("Ahora pegá el token de la API de Conversiones (CAPI):\n\nEn el mismo pixel → Configuración → API de conversiones → Generar token de acceso.");
+    if (token === null) return;
+    const d = await apiPatch("merchant", { meta_pixel_id: pixel.trim(), meta_capi_token: token.trim() }, { action: "save-meta" });
+    if (d?.error) alert("Error: " + d.error);
+    else onChange?.();
+  }
+
+  async function disconnectMeta() {
+    if (!window.confirm("¿Desconectar Meta? Las suscripciones dejarán de reportarse a Meta.")) return;
+    const d = await apiPatch("merchant", { meta_pixel_id: "", meta_capi_token: "" }, { action: "save-meta" });
+    if (d?.error) alert("Error: " + d.error);
+    else onChange?.();
+  }
+  const metaOk = Boolean(merchant?.meta_connected);
+
   return (
     <div>
       <h1 style={{fontSize:24,fontWeight:800,margin:"0 0 6px",letterSpacing:-0.5}}>Integraciones</h1>
@@ -401,6 +419,28 @@ function IntegrationsTab({ merchant, onChange }) {
           </div>
         </div>
       )}
+
+      {/* Meta Ads (opcional): reportar la primera venta de cada suscripción a Meta */}
+      <div style={{marginTop:24,background:"var(--card)",border:`1px solid ${metaOk ? "rgba(16,185,129,0.4)" : "var(--border)"}`,borderRadius:14,padding:"20px 22px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:11,marginBottom:14}}>
+          <div style={{width:42,height:42,borderRadius:10,background:"var(--surface)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>📊</div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:15,fontWeight:700}}>Meta Ads <span style={{fontSize:11,fontWeight:500,color:"var(--text-sm)"}}>(opcional)</span></div>
+            <div style={{fontSize:11,padding:"2px 7px",borderRadius:4,background:metaOk?"rgba(16,185,129,0.15)":"var(--surface)",color:metaOk?"var(--accent)":"var(--text-sm)",display:"inline-block",marginTop:4,fontWeight:600,letterSpacing:0.3}}>
+              {metaOk ? `✓ Conectado (pixel ${merchant.meta_pixel_id})` : "Sin conectar"}
+            </div>
+          </div>
+        </div>
+        <div style={{fontSize:12,color:"var(--text-md)",lineHeight:1.6,marginBottom:14}}>
+          Reportá a Meta la <strong>primera venta</strong> de cada suscripción (por la API de Conversiones, server-side) para que tus campañas la cuenten y optimicen mejor. <strong>Las renovaciones NO se reportan</strong> — así no inflás la atribución. Necesitás tu <strong>Pixel ID</strong> + el <strong>token de la API de Conversiones</strong>.
+        </div>
+        <div style={{display:"flex",gap:10}}>
+          <button onClick={connectMeta} style={{background:metaOk?"transparent":"linear-gradient(135deg, var(--green), var(--green-dark))",border:metaOk?"1px solid var(--border)":"none",color:metaOk?"var(--text-md)":"#fff",padding:"9px 16px",borderRadius:9,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+            {metaOk ? "Cambiar credenciales" : "Conectar Meta"}
+          </button>
+          {metaOk && <button onClick={disconnectMeta} style={{background:"transparent",border:"1px solid var(--border)",color:"var(--text-sm)",padding:"9px 16px",borderRadius:9,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Desconectar</button>}
+        </div>
+      </div>
 
       <WidgetSettingsCard merchant={merchant} onChange={onChange}/>
     </div>
