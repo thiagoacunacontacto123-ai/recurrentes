@@ -644,8 +644,15 @@ export default async function handler(req, res) {
     // insertamos ahí en lugar de encima del form. Útil para themes con bundle
     // custom que NO usan el <form action="/cart/add"> estándar.
     var mountPoint = document.getElementById("recurrentes-mount");
-    if (!mountPoint && !form) {
-      log("No hay mount point ni form/cart/add. Widget no se monta.");
+    // Buy box custom (bundle propio): si el merchant pasó &hide=, el widget se
+    // monta JUSTO ARRIBA de ese bloque, así el toggle Sub/Única queda antes del
+    // bundle y no debajo del botón de compra.
+    var hideAnchor = null;
+    if (HIDE_SELECTOR) {
+      try { hideAnchor = document.querySelector(HIDE_SELECTOR.split(",")[0].trim()); } catch(e){}
+    }
+    if (!mountPoint && !form && !hideAnchor) {
+      log("No hay mount point ni form/cart/add ni hide anchor. Widget no se monta.");
       return;
     }
 
@@ -658,6 +665,11 @@ export default async function handler(req, res) {
       if (mountPoint) {
         mountPoint.appendChild(widget);
         mountPoint.appendChild(subPanel);
+      } else if (hideAnchor && hideAnchor.parentNode) {
+        // Arriba del buy box custom: subPanel primero, después el toggle, así
+        // quedan en orden [toggle] → [panel de suscripción] → [bundle].
+        hideAnchor.parentNode.insertBefore(subPanel, hideAnchor);
+        hideAnchor.parentNode.insertBefore(widget, subPanel);
       } else {
         form.parentNode.insertBefore(widget, form);
         form.parentNode.insertBefore(subPanel, form);
