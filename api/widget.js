@@ -20,6 +20,11 @@ export default async function handler(req, res) {
 
   const merchantId = String(req.query.merchant || "");
   const apiBase = process.env.APP_BASE_URL || "";
+  // Selector(es) CSS extra a ocultar en modo suscripción — para tiendas con un
+  // buy box CUSTOM (bundles/quantity-breaks propios) que el widget no reconoce
+  // solo. El merchant lo pasa en el <script src> con &hide=<selector> (varios
+  // separados por coma). Fallback: setting widget_hide_selector del merchant.
+  let hideSelector = String(req.query.hide || "");
 
   if (!merchantId) {
     return res.send(`console.error("[Recurrentes] Falta merchant en el <script src>. Usá ?merchant=<uid>");`);
@@ -48,6 +53,7 @@ export default async function handler(req, res) {
       if (typeof m.widget_once_title === "string" && m.widget_once_title.trim()) widgetOnceTitle = m.widget_once_title.trim();
       if (typeof m.widget_once_subtitle === "string" && m.widget_once_subtitle.trim()) widgetOnceSubtitle = m.widget_once_subtitle.trim();
       if (typeof m.widget_disclaimer_text === "string") widgetDisclaimerText = m.widget_disclaimer_text;
+      if (!hideSelector && typeof m.widget_hide_selector === "string") hideSelector = m.widget_hide_selector;
     }
   } catch (_) {}
 
@@ -77,6 +83,7 @@ export default async function handler(req, res) {
   "use strict";
   var MERCHANT_ID = ${JSON.stringify(merchantId)};
   var API_BASE = ${JSON.stringify(apiBase)};
+  var HIDE_SELECTOR = ${JSON.stringify(hideSelector)};
   var MODE_ORDER = ${JSON.stringify(widgetModeOrder)};
   var MODE_DEFAULT = ${JSON.stringify(widgetModeDefault)};
   var SUB_TITLE = ${JSON.stringify(widgetSubTitle)};
@@ -409,6 +416,8 @@ export default async function handler(req, res) {
         form.style.display = "none";
       }
       hideExternalBuyButtons(true);
+      hideCustomSelector(true);
+      try { document.body.classList.add("rec-sub-active"); } catch(e){}
       subPanel.style.display = "block";
       widget.querySelector('[data-rec-mode="once"]').style.borderColor = "#d1d5db";
       widget.querySelector('[data-rec-mode="once"]').style.background = "#fff";
@@ -417,6 +426,8 @@ export default async function handler(req, res) {
     } else {
       if (form) form.style.display = form.dataset.recPrevDisplay || "";
       hideExternalBuyButtons(false);
+      hideCustomSelector(false);
+      try { document.body.classList.remove("rec-sub-active"); } catch(e){}
       subPanel.style.display = "none";
       widget.querySelector('[data-rec-mode="once"]').style.borderColor = "${COL}";
       widget.querySelector('[data-rec-mode="once"]').style.background = "${COL_BG_VERY_LIGHT}";
@@ -431,6 +442,28 @@ export default async function handler(req, res) {
         detail: { mode: active ? "sub" : "once", subPanel: subPanel },
       }));
     } catch (_) {}
+  }
+
+  // Oculta el buy box CUSTOM del merchant (bundles/quantity-breaks propios) en
+  // modo suscripción. Selector(es) vienen de &hide= en el <script src>.
+  function hideCustomSelector(hide) {
+    if (!HIDE_SELECTOR) return;
+    var sels = HIDE_SELECTOR.split(",").map(function(s){ return s.trim(); }).filter(Boolean);
+    sels.forEach(function(sel){
+      var nodes;
+      try { nodes = document.querySelectorAll(sel); } catch(e){ return; }
+      nodes.forEach(function(el){
+        if (hide) {
+          if (el.style.display !== "none") {
+            el.dataset.recPrevDisplay = el.style.display || "";
+            el.style.display = "none";
+          }
+        } else if (el.dataset.recPrevDisplay !== undefined) {
+          el.style.display = el.dataset.recPrevDisplay;
+          delete el.dataset.recPrevDisplay;
+        }
+      });
+    });
   }
 
   function hideExternalBuyButtons(hide) {
