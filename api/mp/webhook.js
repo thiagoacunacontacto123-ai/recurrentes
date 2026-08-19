@@ -215,6 +215,9 @@ async function processPaymentForMerchant(merchantId, merchant, payment) {
         charge_number: (sub.shopify_orders || []).length + 1,
         mp_payment_id: payment.id,
         total_price: payment.transaction_amount,
+        // Comisión REAL que cobró MP en este pago (fee que paga el vendedor —
+        // excluye el financing_fee de cuotas que paga el comprador).
+        mp_fee_real: (payment.fee_details||[]).filter(fd=>fd.fee_payer!=="payer").reduce((s,fd)=>s+(parseFloat(fd.amount)||0),0) || null,
         // Shipping: viene del snapshot del subscriber (precio + nombre custom
         // que el merchant configuró en el plan). Si snapshot no lo tiene
         // (subscribers creados antes del fix), default a "Envío a domicilio" $0.

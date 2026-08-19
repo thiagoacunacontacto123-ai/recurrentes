@@ -99,6 +99,8 @@ export async function shCreatePaidOrder(shop, token, params) {
     subscriber_id, plan_id, charge_number, mp_payment_id, total_price,
     shipping_price, shipping_method_name,
     tax_id, tax_id_kind,
+    mp_fee_real, // comisión REAL que cobró MP (fee_details del pago). Se guarda en
+                 // la orden para que herramientas de márgenes usen el fee exacto.
   } = params;
 
   // shipping_lines: Shopify rechaza `source` con valores no estándar. Solo
@@ -199,6 +201,9 @@ export async function shCreatePaidOrder(shop, token, params) {
         { name: "recurrentes_plan_id",       value: String(plan_id) },
         { name: "recurrentes_charge_number", value: String(charge_number || 1) },
         { name: "mp_payment_id",             value: String(mp_payment_id) },
+        ...(mp_fee_real != null && isFinite(mp_fee_real) ? [
+          { name: "mp_fee_real", value: String(Math.round(mp_fee_real * 100) / 100) },
+        ] : []),
         ...(tax_id ? [
           { name: tax_id_kind || "DNI", value: String(tax_id) },
           { name: "tax_id",             value: String(tax_id) },

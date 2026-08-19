@@ -233,6 +233,7 @@ export async function syncSubscriber(merchantId, subscriberId) {
           charge_number: chargeNumber,
           mp_payment_id: payment.id,
           total_price: payment.transaction_amount,
+          mp_fee_real: (payment.fee_details||[]).filter(fd=>fd.fee_payer!=="payer").reduce((s,fd)=>s+(parseFloat(fd.amount)||0),0) || null,
           shipping_price: sub.plan_snapshot?.shipping_price_ars ?? 0,
           shipping_method_name: sub.plan_snapshot?.shipping_method_name || "Envío a domicilio",
           tax_id: sub.customer_tax_id || null,
