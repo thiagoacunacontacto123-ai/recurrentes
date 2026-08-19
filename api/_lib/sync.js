@@ -271,14 +271,21 @@ export async function syncSubscriber(merchantId, subscriberId) {
   }
 
   // Definir status final del subscriber según resultado.
-  // - cancelled local → preservar (no pisar)
-  // - hay payments approved → "active" (sub real con cobro confirmado)
+  // - hay payments approved → "active" (sub real con cobro confirmado). ESTO
+  //   MANDA sobre un "cancelled" local sin cobro previo (last_charge_at null):
+  //   caso "falso cancelado" — MP en realidad cobró pero el sub local quedó
+  //   marcado cancelled por un estado transitorio. Se auto-recupera.
+  // - cancelled local CON cobro previo → preservar (cancelación real de una sub
+  //   que ya estaba activa: no revivir).
   // - MP marca preapproval paused → "paused"
   // - MP marca preapproval cancelled → "cancelled"
   // - resto (authorized sin payments, pending, etc) → "pending"
-  if (sub.status !== "cancelled") {
+  const cancelReal = sub.status === "cancelled" && sub.last_charge_at; // cancelación de una sub que ya cobró
+  if (!cancelReal) {
     if (approvedPayments.length > 0) {
       updates.status = "active";
+    } else if (sub.status === "cancelled") {
+      updates.status = "cancelled"; // sin pago y ya estaba cancelada → sigue cancelada
     } else if (pre.status === "paused") {
       updates.status = "paused";
     } else if (pre.status === "cancelled") {

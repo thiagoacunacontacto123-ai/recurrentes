@@ -59,6 +59,28 @@ export default async function handler(req, res) {
       }
     }
 
+    // 1b) FALSO-CANCELADAS — subs que quedaron en "cancelled" SIN cobro previo
+    //    (last_charge_at null) y son recientes (< 3 días). Puede ser un estado
+    //    transitorio de MP: syncSubscriber re-chequea la verdad en MP y, si hay
+    //    un pago aprobado, la activa (self-heal). Si MP la tiene cancelada de
+    //    verdad, sigue cancelada — sin riesgo.
+    const cancelledRecent = await merchantSubs.where("status", "==", "cancelled").get();
+    for (const subDoc of cancelledRecent.docs) {
+      const d = subDoc.data();
+      if (d.last_charge_at) continue; // cancelación real de una sub que ya cobró — no tocar
+      const created = d.created_at ? new Date(d.created_at).getTime() : 0;
+      if (!created || now - created > 3 * 24 * 60 * 60 * 1000) continue; // solo recientes
+      if (now - created < 60 * 1000) continue;
+      try {
+        const r = await syncSubscriber(m.id, subDoc.id);
+        subsProcessed += 1;
+        if (r.status === "active") activated += 1;
+      } catch (e) {
+        errors += 1;
+        console.error(`[cron] sync cancelled ${m.id}/${subDoc.id}:`, e.message);
+      }
+    }
+
     // 2) ACTIVAS VENCIDAS — safety net por si el webhook MP no llega. Si
     //    `next_charge_at` ya pasó (MP debería haber cobrado hace rato),
     //    sincronizamos para procesar el cobro nuevo + crear orden Shopify.
