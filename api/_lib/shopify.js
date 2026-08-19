@@ -187,7 +187,11 @@ export async function shCreatePaidOrder(shop, token, params) {
         status: "success",
         amount: totalPriceStr,
         currency: "ARS",
-        gateway: "manual",
+        // El cobro es real por Mercado Pago (suscripción). Marcamos el gateway
+        // como "Mercado Pago" para que herramientas de márgenes (ej. Growith)
+        // detecten el método de pago y le apliquen la comisión de MP, no una
+        // genérica ni $0.
+        gateway: "Mercado Pago",
       }],
       note: `Suscripción Recurrentes · Charge #${charge_number || 1}` + (tax_id ? `\n${tax_id_kind || "DNI"}: ${tax_id}` : ""),
       note_attributes: [
