@@ -17,6 +17,7 @@ import { db } from "./firebase.js";
 import { mpGetPayment, mpUpdatePreapproval } from "./mp.js";
 import { shFindOrCreateCustomer, shCreatePaidOrder } from "./shopify.js";
 import { emailSubscriptionActivated, emailPaymentFailed } from "./email.js";
+import { sendMetaPurchase } from "./meta.js";
 
 const MP_BASE = "https://api.mercadopago.com";
 
@@ -292,6 +293,32 @@ export async function syncSubscriber(merchantId, subscriberId) {
     if (orderStatusUrl) updates.last_shopify_order_status_url = orderStatusUrl;
   }
   await subRef.update(updates);
+
+  // ── Meta CAPI: reportar la PRIMERA venta a Meta (server-side). Mismo criterio
+  // que el email: solo primer charge. Las renovaciones NO se reportan. Best-effort.
+  // (La activación real suele pasar por acá, NO por el webhook, así que el CAPI va acá.)
+  if (wasFirstCharge && processed > 0 && merchant.meta_pixel_id && merchant.meta_capi_token) {
+    try {
+      const partes = String(sub.customer_name || "").trim().split(" ");
+      const r = await sendMetaPurchase({
+        pixelId: merchant.meta_pixel_id,
+        token: merchant.meta_capi_token,
+        value: sub.plan_snapshot?.total_per_charge_ars || approvedPayments[0]?.transaction_amount || 0,
+        currency: approvedPayments[0]?.currency_id || "ARS",
+        email: sub.customer_email,
+        phone: sub.customer_phone,
+        firstName: partes[0] || "",
+        lastName: partes.slice(1).join(" ") || "",
+        city: sub.shipping_address?.city || "",
+        zip: sub.shipping_address?.zip || "",
+        eventId: "rec_sub_" + subscriberId,
+        eventSourceUrl: sub.plan_snapshot?.product_url || (merchant.shopify_shop ? `https://${merchant.shopify_shop}` : undefined),
+      });
+      console.log(`[sync] Meta CAPI Purchase sub=${subscriberId}: ${r.ok ? "ok" : "FALLO " + r.error}`);
+    } catch (e) {
+      console.warn("[sync] Meta CAPI falló:", e.message);
+    }
+  }
 
   // Email de activación (solo en el primer charge procesado y si Resend está)
   if (wasFirstCharge && processed > 0 && sub.customer_email) {
