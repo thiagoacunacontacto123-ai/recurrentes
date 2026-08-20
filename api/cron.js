@@ -33,12 +33,14 @@ export default async function handler(req, res) {
   }
 
   // Iterar todos los merchants con MP conectado.
-  const merchantsSnap = await db().collection("merchants").where("mp_access_token", "!=", "").get();
   const start = Date.now();
+  try {
+  const merchantsSnap = await db().collection("merchants").where("mp_access_token", "!=", "").get();
   let merchantsProcessed = 0, subsProcessed = 0, activated = 0, errors = 0;
 
   const now = Date.now();
   for (const m of merchantsSnap.docs) {
+   try {
     merchantsProcessed += 1;
     const merchantSubs = db().collection("merchants").doc(m.id).collection("subscribers");
 
@@ -104,6 +106,12 @@ export default async function handler(req, res) {
         console.error(`[cron] sync active ${m.id}/${subDoc.id}:`, e.message);
       }
     }
+   } catch (e) {
+     // Un merchant que rompe (token roto, query que falla, etc.) NO tumba el cron
+     // entero — se loguea y se sigue con el resto.
+     errors += 1;
+     console.error(`[cron] merchant ${m.id} fallo:`, e.message);
+   }
   }
 
   const elapsed = Date.now() - start;
@@ -116,4 +124,11 @@ export default async function handler(req, res) {
     errors,
     elapsed_ms: elapsed,
   });
+  } catch (e) {
+    // NUNCA devolver 500: cron-job.org desactiva el job tras varios fallos. Si algo
+    // rompe a nivel global (ej. la query inicial de merchants), respondemos 200 con
+    // el error adentro para que el cron siga vivo y reintente el próximo tick.
+    console.error("[cron] error global:", e.message);
+    return res.status(200).json({ ok: false, error: e.message, merchants_processed: merchantsProcessed, subs_processed: subsProcessed, activated, errors: errors + 1, elapsed_ms: Date.now() - start });
+  }
 }
