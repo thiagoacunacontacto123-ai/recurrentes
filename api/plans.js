@@ -118,12 +118,39 @@ export default async function handler(req, res) {
   if (req.method === "PATCH") {
     const id = req.query.id;
     if (!id) return res.status(400).json({ error: "Falta id" });
+    const ref = plansCol.doc(String(id));
+    const cur = (await ref.get()).data();
+    if (!cur) return res.status(404).json({ error: "Plan no encontrado" });
     const patch = req.body || {};
-    delete patch.id;
-    delete patch.mp_preapproval_plan_id; // no editamos el id de MP
-    patch.updated_at = new Date().toISOString();
-    await plansCol.doc(String(id)).update(patch);
-    return res.json({ ok: true });
+    // Campos que NO se editan por acá.
+    delete patch.id; delete patch.mp_preapproval_plan_id; delete patch.created_at;
+    // Normalizar numéricos si vienen.
+    const num = (v, min = 0) => Math.max(min, parseFloat(v) || 0);
+    const out = {};
+    if (patch.product_title != null) out.product_title = String(patch.product_title);
+    if (patch.frequency_days != null) out.frequency_days = Math.max(1, parseInt(patch.frequency_days) || cur.frequency_days || 30);
+    if (patch.discount_pct != null) out.discount_pct = Math.max(0, Math.min(80, parseInt(patch.discount_pct) || 0));
+    if (patch.units_per_shipment != null) out.units_per_shipment = Math.max(1, parseInt(patch.units_per_shipment) || 1);
+    if (patch.base_price_ars != null) out.base_price_ars = num(patch.base_price_ars);
+    if (patch.shipping_price_ars != null) out.shipping_price_ars = num(patch.shipping_price_ars);
+    if (patch.free_shipping_from_ars != null) out.free_shipping_from_ars = num(patch.free_shipping_from_ars);
+    if (patch.shipping_method_name != null) out.shipping_method_name = String(patch.shipping_method_name).trim().slice(0, 60) || "Envío a domicilio";
+    if (patch.active != null) out.active = !!patch.active;
+    if (Array.isArray(patch.qty_discount_tiers)) {
+      out.qty_discount_tiers = patch.qty_discount_tiers
+        .map(t => ({ min_qty: Math.max(2, parseInt(t.min_qty) || 0), discount_pct: Math.max(0, Math.min(100, parseInt(t.discount_pct) || 0)) }))
+        .filter(t => t.min_qty >= 2 && t.discount_pct > 0)
+        .sort((a, b) => a.min_qty - b.min_qty);
+    }
+    // Recalcular precio sub si cambió base o descuento (o cualquiera de los dos).
+    const base = out.base_price_ars != null ? out.base_price_ars : (cur.base_price_ars || 0);
+    const disc = out.discount_pct != null ? out.discount_pct : (cur.discount_pct || 0);
+    if (out.base_price_ars != null || out.discount_pct != null) {
+      out.subscription_price_ars = Math.round(base * (1 - disc / 100));
+    }
+    out.updated_at = new Date().toISOString();
+    await ref.update(out);
+    return res.json({ ok: true, plan: { id, ...cur, ...out } });
   }
 
   if (req.method === "DELETE") {

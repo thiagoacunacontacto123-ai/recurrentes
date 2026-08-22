@@ -600,6 +600,7 @@ function PlansTab({ merchant }) {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState(null);
   const [embedFor, setEmbedFor] = useState(null);
 
   async function loadAll() {
@@ -655,6 +656,7 @@ function PlansTab({ merchant }) {
                 </div>
               </div>
               <div style={{display:"flex",gap:6,marginTop:10}}>
+                <button onClick={()=>setEditing(p)} style={{flex:1,background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",borderRadius:7,padding:"7px 10px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✏️ Editar</button>
                 <button onClick={()=>setEmbedFor(p)} style={{flex:1,background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",borderRadius:7,padding:"7px 10px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>📋 Snippet</button>
                 {/* Desactivar (soft): el plan deja de mostrarse pero las
                     subs ya creadas con ese plan siguen vivas. */}
@@ -677,28 +679,33 @@ function PlansTab({ merchant }) {
       )}
 
       {creating && <NewPlanModal products={products} onClose={()=>{setCreating(false); loadAll();}}/>}
+      {editing && <NewPlanModal products={products} editPlan={editing} onClose={()=>{setEditing(null); loadAll();}}/>}
       {embedFor && <EmbedSnippetModal plan={embedFor} merchant={merchant} onClose={()=>setEmbedFor(null)}/>}
     </div>
   );
 }
 
-function NewPlanModal({ products, onClose }) {
+function NewPlanModal({ products, onClose, editPlan }) {
+  const isEdit = !!editPlan;
   const [productId, setProductId] = useState("");
   const [variantId, setVariantId] = useState("");
-  const [frequency, setFrequency] = useState(30);
-  const [discount, setDiscount] = useState(15);
-  const [units, setUnits] = useState(1);
+  const [frequency, setFrequency] = useState(editPlan?.frequency_days ?? 30);
+  const [discount, setDiscount] = useState(editPlan?.discount_pct ?? 15);
+  const [units, setUnits] = useState(editPlan?.units_per_shipment ?? 1);
+  // En edición, el precio base es editable (no depende de re-elegir variante).
+  const [editBasePrice, setEditBasePrice] = useState(editPlan?.base_price_ars ?? 0);
   // Envío
-  const [shippingPrice, setShippingPrice] = useState(0);
-  const [freeShipFrom, setFreeShipFrom] = useState(0);
-  const [shippingName, setShippingName] = useState("Envío a domicilio");
+  const [shippingPrice, setShippingPrice] = useState(editPlan?.shipping_price_ars ?? 0);
+  const [freeShipFrom, setFreeShipFrom] = useState(editPlan?.free_shipping_from_ars ?? 0);
+  const [shippingName, setShippingName] = useState(editPlan?.shipping_method_name ?? "Envío a domicilio");
   // Descuentos por cantidad — array de { min_qty, discount_pct }
-  const [qtyTiers, setQtyTiers] = useState([]);
+  const [qtyTiers, setQtyTiers] = useState(editPlan?.qty_discount_tiers ? editPlan.qty_discount_tiers.map(t=>({min_qty:t.min_qty,discount_pct:t.discount_pct})) : []);
   const [saving, setSaving] = useState(false);
 
   const product = products.find(p => p.id === productId);
   const variant = product?.variants.find(v => v.id === variantId);
-  const basePrice = variant?.price || 0;
+  // Precio base: en edición sale del campo editable; en creación, de la variante.
+  const basePrice = isEdit ? (parseFloat(editBasePrice) || 0) : (variant?.price || 0);
   const subPrice = Math.round(basePrice * (1 - discount/100));
 
   function addTier() {
@@ -718,6 +725,29 @@ function NewPlanModal({ products, onClose }) {
   }
 
   async function save() {
+    const tiers = qtyTiers
+      .filter(t => t.min_qty >= 2 && t.discount_pct > 0)
+      .sort((a, b) => a.min_qty - b.min_qty);
+    if (isEdit) {
+      // Editar: solo se cambian los términos del plan (precio, descuento, envío,
+      // frecuencia, niveles). El producto/variante y el id de MP no se tocan.
+      if (!(parseFloat(editBasePrice) > 0)) return alert("El precio base tiene que ser mayor a 0");
+      setSaving(true);
+      const d = await apiPatch("plans", {
+        frequency_days: parseInt(frequency),
+        discount_pct: parseInt(discount),
+        units_per_shipment: parseInt(units),
+        base_price_ars: parseFloat(editBasePrice) || 0,
+        shipping_price_ars: parseFloat(shippingPrice) || 0,
+        free_shipping_from_ars: parseFloat(freeShipFrom) || 0,
+        shipping_method_name: shippingName.trim() || "Envío a domicilio",
+        qty_discount_tiers: tiers,
+      }, { id: editPlan.id });
+      setSaving(false);
+      if (d.error) alert("Error: " + d.error);
+      else onClose();
+      return;
+    }
     if (!productId || !variantId) return alert("Elegí producto y variante");
     setSaving(true);
     const d = await apiPost("plans", {
@@ -732,9 +762,7 @@ function NewPlanModal({ products, onClose }) {
       shipping_price_ars: parseFloat(shippingPrice) || 0,
       free_shipping_from_ars: parseFloat(freeShipFrom) || 0,
       shipping_method_name: shippingName.trim() || "Envío a domicilio",
-      qty_discount_tiers: qtyTiers
-        .filter(t => t.min_qty >= 2 && t.discount_pct > 0)
-        .sort((a, b) => a.min_qty - b.min_qty),
+      qty_discount_tiers: tiers,
     });
     setSaving(false);
     if (d.error) alert("Error: " + d.error);
@@ -745,23 +773,35 @@ function NewPlanModal({ products, onClose }) {
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:9999}} onClick={onClose}>
       <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:14,padding:"24px 26px",maxWidth:520,width:"100%",maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
-          <div style={{fontSize:17,fontWeight:700}}>Nuevo plan</div>
+          <div style={{fontSize:17,fontWeight:700}}>{isEdit ? "Editar plan" : "Nuevo plan"}</div>
           <button onClick={onClose} style={{background:"transparent",border:"none",color:"var(--text-sm)",fontSize:20,cursor:"pointer"}}>✕</button>
         </div>
 
-        <label style={lbl}>Producto Shopify</label>
-        <select value={productId} onChange={e=>{setProductId(e.target.value); setVariantId("");}} style={inp}>
-          <option value="">— Elegí —</option>
-          {products.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
-        </select>
-
-        {product && (
+        {isEdit ? (
           <>
-            <label style={lbl}>Variante</label>
-            <select value={variantId} onChange={e=>setVariantId(e.target.value)} style={inp}>
+            <label style={lbl}>Producto</label>
+            <div style={{...inp,display:"flex",alignItems:"center",opacity:0.8,cursor:"default"}}>{editPlan.product_title}</div>
+            <div style={{fontSize:11,color:"var(--text-sm)",margin:"-8px 0 12px"}}>El producto/variante no se cambia acá — editás precio, descuento, envío y niveles. Para cambiar el producto, creá un plan nuevo.</div>
+            <label style={lbl}>Precio normal ($)</label>
+            <input type="number" min="0" value={editBasePrice} onChange={e=>setEditBasePrice(e.target.value)} style={inp} placeholder="0"/>
+          </>
+        ) : (
+          <>
+            <label style={lbl}>Producto Shopify</label>
+            <select value={productId} onChange={e=>{setProductId(e.target.value); setVariantId("");}} style={inp}>
               <option value="">— Elegí —</option>
-              {product.variants.map(v => <option key={v.id} value={v.id}>{v.title} — ${v.price.toLocaleString("es-AR")}</option>)}
+              {products.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
             </select>
+
+            {product && (
+              <>
+                <label style={lbl}>Variante</label>
+                <select value={variantId} onChange={e=>setVariantId(e.target.value)} style={inp}>
+                  <option value="">— Elegí —</option>
+                  {product.variants.map(v => <option key={v.id} value={v.id}>{v.title} — ${v.price.toLocaleString("es-AR")}</option>)}
+                </select>
+              </>
+            )}
           </>
         )}
 
@@ -822,7 +862,7 @@ function NewPlanModal({ products, onClose }) {
           )}
         </div>
 
-        {variant && (
+        {(variant || (isEdit && basePrice > 0)) && (
           <div style={{marginTop:14,padding:"12px 14px",background:"var(--surface)",borderRadius:10,fontSize:12}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
               <span style={{color:"var(--text-sm)"}}>Precio normal:</span>
@@ -835,8 +875,8 @@ function NewPlanModal({ products, onClose }) {
           </div>
         )}
 
-        <button onClick={save} disabled={saving || !variantId} style={{width:"100%",marginTop:18,background:"linear-gradient(135deg, var(--green), var(--green-dark))",border:"none",color:"#fff",padding:"11px",borderRadius:10,fontSize:14,fontWeight:700,cursor:saving?"wait":"pointer",fontFamily:"inherit",opacity:(saving||!variantId)?0.6:1}}>
-          {saving ? "Creando…" : "Crear plan"}
+        <button onClick={save} disabled={saving || (!isEdit && !variantId)} style={{width:"100%",marginTop:18,background:"linear-gradient(135deg, var(--green), var(--green-dark))",border:"none",color:"#fff",padding:"11px",borderRadius:10,fontSize:14,fontWeight:700,cursor:saving?"wait":"pointer",fontFamily:"inherit",opacity:(saving||(!isEdit&&!variantId))?0.6:1}}>
+          {saving ? (isEdit ? "Guardando…" : "Creando…") : (isEdit ? "Guardar cambios" : "Crear plan")}
         </button>
       </div>
     </div>
