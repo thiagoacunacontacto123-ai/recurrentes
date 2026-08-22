@@ -529,8 +529,13 @@ export default async function handler(req, res) {
     var emailInvalid = values.email && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(values.email);
     // DNI: 7-8 dígitos. CUIL/CUIT: 11 dígitos. Cualquier otro largo es inválido.
     var taxidInvalid = values.taxid && !(values.taxid.length === 7 || values.taxid.length === 8 || values.taxid.length === 11);
+    // Dirección: tiene que ser calle + número REAL. Rechazamos lo que no tiene
+    // ningún número (ej. "Casa") y la basura típica del autofill de Google/Android
+    // ("Unnamed Road"), que dejaba envíos sin dirección utilizable.
+    var addrNorm = (values.address || "").trim().toLowerCase();
+    var addressInvalid = values.address && (!/\\d/.test(values.address) || /unnamed\\s*road|sin\\s*nombre|unnamed/.test(addrNorm));
 
-    if (missing.length || emailInvalid || taxidInvalid) {
+    if (missing.length || emailInvalid || taxidInvalid || addressInvalid) {
       missing.forEach(function(k){
         if (fields[k]) {
           fields[k].style.borderColor = "#ef4444";
@@ -545,9 +550,14 @@ export default async function handler(req, res) {
         fields.taxid.style.borderColor = "#ef4444";
         fields.taxid.style.background = "#fef2f2";
       }
+      if (addressInvalid && fields.address) {
+        fields.address.style.borderColor = "#ef4444";
+        fields.address.style.background = "#fef2f2";
+      }
       var errMsg;
       if (emailInvalid) errMsg = "El email no parece válido. Revisá que tenga formato nombre@dominio.com.";
       else if (taxidInvalid) errMsg = "DNI o CUIL inválido. DNI son 7-8 dígitos, CUIL/CUIT son 11 dígitos.";
+      else if (addressInvalid) errMsg = "Poné tu dirección completa con calle Y número (ej: Av. Corrientes 1234). No sirve solo 'Casa' ni direcciones sin número.";
       else errMsg = "Completá los campos en rojo para continuar.";
       showFormError(subPanel, errMsg);
       // Listener one-shot que limpia el rojo cuando el usuario empieza a tipear
