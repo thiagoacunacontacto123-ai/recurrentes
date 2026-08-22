@@ -181,12 +181,13 @@ export async function syncSubscriber(merchantId, subscriberId) {
     const payment = approvedPayments[idx];
     const chargeNumber = (sub.shopify_orders || []).length + idx + 1;
 
-    // Idempotencia REAL: usamos `preapproval_id-chargeNumber` como ID del
-    // charge en Firestore. Esto garantiza que el webhook (con payment real),
-    // el cron (con pseudo summarized), y el polling de CheckoutSuccess (todos
-    // diferentes triggers) creen el MISMO chargeRef — entonces el chequeo
-    // de "ya existe" funciona y no se duplica la orden Shopify.
-    const chargeKey = `${pre.id}-${chargeNumber}`;
+    // Idempotencia REAL por payment_id (globalmente único). ANTES se usaba
+    // `preapproval_id-chargeNumber`, pero si dos subscribers comparten el mismo
+    // preapproval (cliente que se re-suscribe, o datos duplicados) el key colisiona
+    // y la orden del segundo se salta como "ya procesada" → quedaba sin orden
+    // Shopify. Con payment.id nunca colisiona entre subs. Fallback al esquema viejo
+    // solo si el payment no trae id (caso synthetic/summarized).
+    const chargeKey = payment.id ? String(payment.id) : `${pre.id}-${chargeNumber}`;
     const chargeRef = merchantRef.collection("charges").doc(chargeKey);
     const existingCharge = await chargeRef.get();
     // Re-intentamos si el charge existe pero NO tiene shopify_order_id —
