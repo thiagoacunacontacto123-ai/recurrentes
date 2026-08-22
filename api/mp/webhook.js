@@ -271,8 +271,11 @@ async function processPaymentForMerchant(merchantId, merchant, payment) {
         lastName: nombrePartes.slice(1).join(" ") || "",
         city: sub.shipping_address?.city || "",
         zip: sub.shipping_address?.zip || "",
+        fbc: sub.fb_data?.fbc || undefined,
+        fbp: sub.fb_data?.fbp || undefined,
+        clientUa: sub.fb_data?.user_agent || undefined,
         eventId: "rec_sub_" + subscriberId, // dedup estable por suscriptor
-        eventSourceUrl: sub.plan_snapshot?.product_url || (merchant.shopify_shop ? `https://${merchant.shopify_shop}` : undefined),
+        eventSourceUrl: sub.fb_data?.event_source_url || sub.plan_snapshot?.product_url || (merchant.shopify_shop ? `https://${merchant.shopify_shop}` : undefined),
       });
       console.log(`[mp-webhook] Meta CAPI Purchase sub=${subscriberId}: ${r.ok ? "ok" : "FALLO " + r.error}`);
     } catch (e) {

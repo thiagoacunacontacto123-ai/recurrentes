@@ -50,6 +50,11 @@ export async function sendMetaPurchase(o) {
     ln: hash(o.lastName) ? [hash(o.lastName)] : undefined,
     ct: hash(o.city) ? [hash(o.city)] : undefined,
     zp: hash(o.zip) ? [hash(o.zip)] : undefined,
+    country: hash("ar"),
+    // fbc/fbp NO se hashean — son los IDs de click/navegador de Meta. Son EL
+    // señalador más fuerte para atribuir la venta al anuncio correcto.
+    fbc: o.fbc || undefined,
+    fbp: o.fbp || undefined,
     client_ip_address: o.clientIp || undefined,
     client_user_agent: o.clientUa || undefined,
   };

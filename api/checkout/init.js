@@ -179,6 +179,14 @@ export default async function handler(req, res) {
     status: "pending",
     created_at: new Date().toISOString(),
     shopify_orders: [],
+    // Datos de atribución de Meta capturados en el navegador (fbc/fbp/UA/URL).
+    // Se usan en el evento Purchase de CAPI para atribuir la venta al anuncio.
+    fb_data: (req.body.fb && typeof req.body.fb === "object") ? {
+      fbc: String(req.body.fb.fbc || "").slice(0, 255),
+      fbp: String(req.body.fb.fbp || "").slice(0, 255),
+      event_source_url: String(req.body.fb.event_source_url || "").slice(0, 500),
+      user_agent: String(req.body.fb.user_agent || "").slice(0, 500),
+    } : null,
   });
 
   // JWT del portal — vive 365 días, le permite al cliente gestionar la sub

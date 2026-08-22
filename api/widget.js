@@ -590,6 +590,25 @@ export default async function handler(req, res) {
 
     var qty = parseInt(subPanel.dataset.qty) || (plan.units_per_shipment || 1);
 
+    // ── Datos de atribución de Meta (para que la venta se atribuya al AD correcto) ──
+    // fbc = click ID del anuncio (cookie _fbc, o se construye del fbclid de la URL).
+    // fbp = ID del navegador (cookie _fbp). Se mandan al backend para incluirlos en
+    // el evento Purchase de la API de Conversiones. Sin esto, Meta solo matchea por
+    // email/tel (atribución débil).
+    var fbData = (function(){
+      function cookie(n){ var m = document.cookie.match(new RegExp("(^|;\\\\s*)" + n + "=([^;]+)")); return m ? decodeURIComponent(m[2]) : ""; }
+      var fbp = cookie("_fbp");
+      var fbc = cookie("_fbc");
+      if (!fbc) {
+        try {
+          var p = new URLSearchParams(window.location.search);
+          var fbclid = p.get("fbclid");
+          if (fbclid) fbc = "fb.1." + Date.now() + "." + fbclid;
+        } catch(e){}
+      }
+      return { fbp: fbp, fbc: fbc, event_source_url: window.location.href, user_agent: navigator.userAgent };
+    })();
+
     fetch(API_BASE + "/api/checkout/init", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -597,6 +616,7 @@ export default async function handler(req, res) {
         merchant_id: MERCHANT_ID,
         plan_id: plan.id,
         quantity: qty,
+        fb: fbData,
         customer: { email: email, name: name, phone: phone, tax_id: taxid },
         shipping_address: {
           address1: address1,
