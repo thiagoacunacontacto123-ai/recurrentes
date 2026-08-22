@@ -148,12 +148,18 @@ export async function shCreatePaidOrder(shop, token, params) {
   // identificador fiscal. La distinción DNI vs CUIT queda en note_attributes
   // y en el tag del customer ("DNI:12345678" vs "CUIT:20..."), no acá.
   const companyTax = tax_id ? String(tax_id) : "";
+  // country_code: Shopify DROPEA toda la shipping_address (la deja null) si el
+  // país/provincia vienen como nombre y no puede resolver el código. Mandando
+  // country_code="AR" explícito, Shopify acepta la provincia por nombre y guarda
+  // la dirección. Se deriva del country (default Argentina → AR).
+  const countryRaw = String(shipping_address?.country || "Argentina").trim();
+  const countryCode = /^ar$/i.test(countryRaw) || /argentin/i.test(countryRaw) ? "AR" : (countryRaw.length === 2 ? countryRaw.toUpperCase() : "AR");
   const cleanShipping = {
     address1: String(shipping_address?.address1 || "").slice(0, 255),
     address2: String(shipping_address?.address2 || "").slice(0, 255),
     city: String(shipping_address?.city || "").slice(0, 100),
     province: String(shipping_address?.province || "").slice(0, 100),
-    country: String(shipping_address?.country || "Argentina").slice(0, 50),
+    country_code: countryCode,
     zip: String(shipping_address?.zip || "").slice(0, 20),
     first_name: String(shipping_address?.first_name || "").slice(0, 50),
     last_name: String(shipping_address?.last_name || "").slice(0, 50),
