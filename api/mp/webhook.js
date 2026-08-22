@@ -213,7 +213,7 @@ async function processPaymentForMerchant(merchantId, merchant, payment) {
         subscriber_id: subscriberId,
         plan_id: sub.plan_id,
         charge_number: (sub.shopify_orders || []).length + 1,
-        mp_payment_id: payment.id,
+        mp_payment_id: String(payment.id),
         total_price: payment.transaction_amount,
         // Comisión REAL que cobró MP en este pago (fee que paga el vendedor —
         // excluye el financing_fee de cuotas que paga el comprador).
@@ -237,7 +237,7 @@ async function processPaymentForMerchant(merchantId, merchant, payment) {
   }
   await chargeRef.set({
     subscriber_id: subscriberId,
-    mp_payment_id: payment.id,
+    mp_payment_id: String(payment.id),
     amount_ars: payment.transaction_amount,
     status: payment.status,
     shopify_order_id: shopifyOrderId,

@@ -194,13 +194,20 @@ export async function syncSubscriber(merchantId, subscriberId) {
     // significa que el cobro se procesó OK pero la creación de orden Shopify
     // falló antes. Si ya tiene order_id, idempotente: skip.
     if (existingCharge.exists && existingCharge.data().shopify_order_id) continue;
-    // También skip si OTRO charge tiene el mismo mp_payment_id ya procesado
-    // (defensa adicional contra duplicación cross-key).
-    if (payment.id) {
-      const dup = await merchantRef.collection("charges")
-        .where("mp_payment_id", "==", String(payment.id))
-        .limit(1).get();
-      if (!dup.empty && dup.docs[0].data().shopify_order_id) continue;
+    // Dedup CROSS-KEY por mp_payment_id — CLAVE para no duplicar la orden cuando
+    // el mismo pago quedó guardado con la clave vieja (pre.id-N) y la nueva
+    // (payment.id). Firestore compara por TIPO, y datos viejos guardaron
+    // mp_payment_id como NÚMERO mientras el nuevo lo manda como texto → hay que
+    // consultar AMBOS tipos, si no se escapa y crea una orden duplicada.
+    if (payment.id != null) {
+      const pidStr = String(payment.id);
+      const pidNum = Number(payment.id);
+      const [qs, qn] = await Promise.all([
+        merchantRef.collection("charges").where("mp_payment_id", "==", pidStr).limit(3).get(),
+        isFinite(pidNum) ? merchantRef.collection("charges").where("mp_payment_id", "==", pidNum).limit(3).get() : Promise.resolve({ docs: [] }),
+      ]);
+      const yaConOrden = [...qs.docs, ...(qn.docs || [])].some(d => d.data().shopify_order_id);
+      if (yaConOrden) continue; // este pago ya tiene su orden Shopify — no duplicar
     }
 
     // Crear orden Shopify si tenemos todo
@@ -232,7 +239,7 @@ export async function syncSubscriber(merchantId, subscriberId) {
           subscriber_id: subscriberId,
           plan_id: sub.plan_id,
           charge_number: chargeNumber,
-          mp_payment_id: payment.id,
+          mp_payment_id: String(payment.id),
           total_price: payment.transaction_amount,
           mp_fee_real: (payment.fee_details||[]).filter(fd=>fd.fee_payer!=="payer").reduce((s,fd)=>s+(parseFloat(fd.amount)||0),0) || null,
           shipping_price: sub.plan_snapshot?.shipping_price_ars ?? 0,
@@ -259,7 +266,7 @@ export async function syncSubscriber(merchantId, subscriberId) {
 
     await chargeRef.set({
       subscriber_id: subscriberId,
-      mp_payment_id: payment.id,
+      mp_payment_id: String(payment.id),
       amount_ars: payment.transaction_amount,
       status: payment.status,
       shopify_order_id: shopifyOrderId,
@@ -420,7 +427,7 @@ export async function linkPaymentToSubscriber(merchantId, subscriberId, paymentI
         subscriber_id: subscriberId,
         plan_id: sub.plan_id,
         charge_number: (sub.shopify_orders || []).length + 1,
-        mp_payment_id: payment.id,
+        mp_payment_id: String(payment.id),
         total_price: payment.transaction_amount,
         shipping_price: sub.plan_snapshot?.shipping_price_ars ?? 0,
         shipping_method_name: sub.plan_snapshot?.shipping_method_name || "Envío a domicilio",
@@ -443,7 +450,7 @@ export async function linkPaymentToSubscriber(merchantId, subscriberId, paymentI
 
   await chargeRef.set({
     subscriber_id: subscriberId,
-    mp_payment_id: payment.id,
+    mp_payment_id: String(payment.id),
     amount_ars: payment.transaction_amount,
     status: payment.status,
     shopify_order_id: shopifyOrderId,
