@@ -391,12 +391,19 @@ async function handlePreapproval(preapprovalId) {
     }
 
     const map = { authorized: "active", paused: "paused", cancelled: "cancelled", pending: "pending" };
-    await subDoc.ref.update({
+    const nuevoStatus = map[pre.status] || pre.status || "unknown";
+    const upd = {
       mp_preapproval_id: preapprovalId, // grabamos por si era el primer webhook
-      status: map[pre.status] || pre.status || "unknown",
+      status: nuevoStatus,
       next_charge_at: pre.next_payment_date || null,
       updated_at: new Date().toISOString(),
-    });
+    };
+    // Trackear la cancelación: sella cuándo se canceló (para churn/reportes) la
+    // primera vez que pasa a cancelled. Sale de la lista de activos solo.
+    if (nuevoStatus === "cancelled" && subDoc.data().status !== "cancelled") {
+      upd.cancelled_at = new Date().toISOString();
+    }
+    await subDoc.ref.update(upd);
     console.log(`[mp-webhook] preapproval ${preapprovalId} → ${pre.status}`);
     return;
   }

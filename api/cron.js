@@ -61,17 +61,17 @@ export default async function handler(req, res) {
       }
     }
 
-    // 1b) FALSO-CANCELADAS — subs que quedaron en "cancelled" SIN cobro previo
-    //    (last_charge_at null) y son recientes (< 3 días). Puede ser un estado
-    //    transitorio de MP: syncSubscriber re-chequea la verdad en MP y, si hay
-    //    un pago aprobado, la activa (self-heal). Si MP la tiene cancelada de
-    //    verdad, sigue cancelada — sin riesgo.
+    // 1b) RE-VERIFICAR CANCELADAS contra MP (self-heal). Bugs viejos dejaron
+    //    clientas que PAGAN marcadas como "cancelled" → desaparecían de la lista
+    //    y no contaban en el MRR. syncSubscriber re-chequea la verdad en MP: si el
+    //    preapproval sigue autorizado con pagos → vuelve a "active"; si MP la tiene
+    //    cancelada de verdad → sigue cancelada (sin riesgo). Se re-verifican las de
+    //    los últimos 90 días (con o sin cobro previo) para recuperar las mal marcadas.
     const cancelledRecent = await merchantSubs.where("status", "==", "cancelled").get();
     for (const subDoc of cancelledRecent.docs) {
       const d = subDoc.data();
-      if (d.last_charge_at) continue; // cancelación real de una sub que ya cobró — no tocar
       const created = d.created_at ? new Date(d.created_at).getTime() : 0;
-      if (!created || now - created > 3 * 24 * 60 * 60 * 1000) continue; // solo recientes
+      if (!created || now - created > 90 * 24 * 60 * 60 * 1000) continue; // solo últimos 90 días
       if (now - created < 60 * 1000) continue;
       try {
         const r = await syncSubscriber(m.id, subDoc.id);

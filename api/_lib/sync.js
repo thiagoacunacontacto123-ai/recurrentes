@@ -272,29 +272,27 @@ export async function syncSubscriber(merchantId, subscriberId) {
     processed += 1;
   }
 
-  // Definir status final del subscriber según resultado.
-  // - hay payments approved → "active" (sub real con cobro confirmado). ESTO
-  //   MANDA sobre un "cancelled" local sin cobro previo (last_charge_at null):
-  //   caso "falso cancelado" — MP en realidad cobró pero el sub local quedó
-  //   marcado cancelled por un estado transitorio. Se auto-recupera.
-  // - cancelled local CON cobro previo → preservar (cancelación real de una sub
-  //   que ya estaba activa: no revivir).
-  // - MP marca preapproval paused → "paused"
-  // - MP marca preapproval cancelled → "cancelled"
-  // - resto (authorized sin payments, pending, etc) → "pending"
-  const cancelReal = sub.status === "cancelled" && sub.last_charge_at; // cancelación de una sub que ya cobró
-  if (!cancelReal) {
-    if (approvedPayments.length > 0) {
-      updates.status = "active";
-    } else if (sub.status === "cancelled") {
-      updates.status = "cancelled"; // sin pago y ya estaba cancelada → sigue cancelada
-    } else if (pre.status === "paused") {
-      updates.status = "paused";
-    } else if (pre.status === "cancelled") {
-      updates.status = "cancelled";
-    } else {
-      updates.status = "pending";
-    }
+  // Definir status final SEGÚN LA VERDAD DE MERCADO PAGO (el preapproval manda):
+  // 1. MP dice cancelled → cancelled (cliente/nosotros cancelamos: no hay más
+  //    cobros). Manda incluso si tuvo pagos antes → sale de la lista de activos.
+  // 2. MP dice paused → paused.
+  // 3. Hay pagos aprobados y MP NO está cancelado → active. Esto RECUPERA los
+  //    subs que quedaron mal marcados "cancelled" por bugs viejos pero que en MP
+  //    siguen cobrando (falso-cancelado). Vuelven a contar en el MRR.
+  // 4. Estaba cancelled local y MP no muestra ni pago ni cancel → sigue cancelled.
+  // 5. Resto (authorized sin pagos, pending) → pending.
+  const preCancelled = pre.status === "cancelled";
+  if (preCancelled) {
+    updates.status = "cancelled";
+    if (sub.status !== "cancelled") updates.cancelled_at = new Date().toISOString();
+  } else if (pre.status === "paused") {
+    updates.status = "paused";
+  } else if (approvedPayments.length > 0) {
+    updates.status = "active";
+  } else if (sub.status === "cancelled") {
+    updates.status = "cancelled";
+  } else {
+    updates.status = "pending";
   }
   if (approvedPayments.length > 0) {
     updates.last_charge_at = new Date().toISOString();
