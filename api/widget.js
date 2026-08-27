@@ -882,6 +882,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
   function errBox(msg){ return '<div style="max-width:420px;margin:60px auto;text-align:center;font-family:-apple-system,Segoe UI,Roboto,sans-serif;"><div style="font-size:15px;font-weight:700;margin-bottom:8px;">Ups</div><div style="font-size:13px;color:#666;line-height:1.5;">' + esc(msg) + '</div></div>'; }
 
   function prices(){
+    if (!plan) return { subtotal:0, disc:0, ship:0, shipName:"", total:0, loading:true };
     var disc, subtotal;
     if (BASE > 0) {
       // Bundle con descuento fijo: cobra pack × (1 − descuento).
@@ -976,7 +977,10 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
     });
   }
   function renderSummary(){
-    var el = document.getElementById("rc-summary"); if (!el) return; var p = prices();
+    var el = document.getElementById("rc-summary"); if (!el) return;
+    // Plan todavía cargando → spinner en lugar de precios vacíos.
+    if (!plan) { el.innerHTML = '<div style="display:flex;align-items:center;gap:10px;font-size:13px;color:#888;padding:6px 2px;"><span style="width:16px;height:16px;border:2px solid #e3e3e5;border-top-color:' + COL + ';border-radius:50%;display:inline-block;animation:rc-spin .7s linear infinite;"></span>Cargando resumen del pedido…</div>'; return; }
+    var p = prices();
     var body =
       '<div style="display:flex;gap:12px;align-items:center;margin:14px 0;">'
       + '<div style="min-width:0;"><div style="font-size:10px;font-weight:800;color:' + COL + ';text-transform:uppercase;letter-spacing:.5px;">Suscripción · ' + esc(freqTxt()) + '</div>'
@@ -997,6 +1001,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
   }
 
   function pagar(){
+    if (!plan) return; // plan aún cargando — evitamos submit sin datos
     var box = document.getElementById("rc-err"); box.style.display = "none";
     RC_FIELDS.forEach(clrBad);
     var email = val("rc-email"), name = (val("rc-name") + " " + val("rc-last")).trim(), phone = val("rc-phone");
@@ -1068,7 +1073,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
       + '</div>'
       + '<div class="rc-summary-wrap" style="' + card + '"><div id="rc-summary"></div></div>'
       + '</div></div>'
-      + '<style>@media(max-width:760px){.rc-grid{grid-template-columns:1fr!important;}.rc-summary-wrap{order:-1;}}</style>';
+      + '<style>@media(max-width:760px){.rc-grid{grid-template-columns:1fr!important;}.rc-summary-wrap{order:-1;}}@keyframes rc-spin{to{transform:rotate(360deg)}}</style>';
 
     document.getElementById("rc-pay").addEventListener("click", pagar);
     ["rc-zip","rc-prov","rc-city"].forEach(function(id){ var el=document.getElementById(id); if(el){ el.addEventListener("change", onAddrChange); el.addEventListener("input", onAddrChange); } });
@@ -1078,9 +1083,15 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
   }
 
   if (!PRODUCT) { mount.innerHTML = errBox("Faltan datos del producto en la URL. Volvé a la tienda e intentá de nuevo."); return; }
+  // Pintamos el formulario YA, sin esperar el plan → mata la pantalla blanca y el
+  // cliente puede empezar a completar sus datos de contacto/entrega mientras el
+  // plan carga en paralelo. El resumen muestra un spinner hasta que el plan llega
+  // (ms después) y ahí se hidratan precios + envío. Antes esto esperaba el fetch
+  // completo antes de dibujar nada → pantalla blanca de varios segundos en frío.
+  render();
   fetch(API_BASE + "/api/public?action=plan&merchant=" + encodeURIComponent(MERCHANT_ID) + "&product=" + encodeURIComponent(PRODUCT))
     .then(function(r){ return r.json(); })
-    .then(function(d){ if (!d || !d.plan) { mount.innerHTML = errBox("No encontramos una suscripción activa para este producto."); return; } plan = d.plan; render(); })
+    .then(function(d){ if (!d || !d.plan) { mount.innerHTML = errBox("No encontramos una suscripción activa para este producto."); return; } plan = d.plan; renderRates(); renderSummary(); })
     .catch(function(){ mount.innerHTML = errBox("No pudimos cargar el plan. Revisá tu conexión."); });
 })();`;
 }
