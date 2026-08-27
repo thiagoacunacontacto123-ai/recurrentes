@@ -242,57 +242,63 @@ export default async function handler(req, res) {
   // payment_methods_allowed: solo credit_card → MP filtra dinero+débito en el
   // checkout. external_reference se hereda al preapproval que MP cree cuando
   // el cliente confirme — el webhook lo usa para resolver subscriber.
-  // ── Preapproval DIRECTO, SIN payer_email (TRUCO para dinero en cuenta) ──────
-  // El init_point del preapproval DIRECTO muestra TODOS los métodos: crédito,
-  // débito y DINERO EN CUENTA — cosa que el flujo de plan NO ofrece.
-  // El problema del directo era que, al mandar payer_email = el mail escrito, MP
-  // obliga a pagar logueado con ESE mail ("tu email no coincide con el de la
-  // suscripción"). TRUCO: NO mandamos payer_email → MP toma el mail de la cuenta
-  // con la que el cliente se loguea, sin obligar a que coincida con el que puso en
-  // el checkout (ese queda solo para seguimiento: orden Shopify + emails).
-  // RED DE SEGURIDAD: si MP rechaza el preapproval sin payer_email, reintentamos
-  // CON el mail escrito (comportamiento viejo) para que el checkout NUNCA quede
-  // roto — peor caso, vuelve la restricción de mail, pero el cliente puede pagar.
-  // start_date +60s: el /preapproval directo rechaza fechas pasadas.
-  const startDate = new Date(Date.now() + 60 * 1000).toISOString();
-  const preapprovalBody = {
+  // ── Flujo de PLAN (preapproval_plan) — MP pide el mail en SU pantalla ───────
+  // MP no permite tener "dinero en cuenta" (solo lo da el preapproval directo) Y
+  // a la vez liberar el mail (el directo EXIGE payer_email y obliga a que coincida
+  // → "tu email no coincide con la suscripción"). Comprobado: MP rechaza el
+  // preapproval sin payer_email. Como muchos clientes no recuerdan el mail de su
+  // cuenta MP o pagan con la de otra persona, priorizamos que TODOS puedan pagar:
+  // en el flujo de plan MP pide el login en su pantalla y toma el mail de esa
+  // cuenta. El mail del checkout queda SOLO para seguimiento (orden Shopify +
+  // emails), NO viaja a MP. Costo: el checkout de plan no ofrece dinero en cuenta
+  // (queda tarjeta crédito/débito), que igual es lo confiable para lo recurrente.
+  // El monto ya viene multiplicado por qty → un plan ad-hoc por sub escala bien.
+  // external_reference se propaga al preapproval que MP crea al confirmar, así el
+  // sync/webhook resuelven el subscriber (primer cobro: polling de CheckoutSuccess).
+  const planBodyBase = {
     reason: `${plan.product_title} × ${finalQty} — cada ${freqDays} días`,
-    external_reference: `${merchant_id}:${subscriberId}`,
     auto_recurring: {
       frequency: freqDays,
       frequency_type: "days",
-      start_date: startDate,
       transaction_amount: totalPerCharge,
       currency_id: "ARS",
     },
     back_url: backUrl,
     ...(notificationUrl ? { notification_url: notificationUrl } : {}),
-    status: "pending",
   };
 
-  let preapproval;
+  // Por defecto el checkout de plan sale SOLO crédito. Habilitamos crédito +
+  // débito explícito con payment_methods_allowed. RED DE SEGURIDAD: si MP rechaza
+  // esa config (algunas cuentas/países solo permiten crédito para lo recurrente),
+  // reintentamos sin restricción → el plan se crea igual (crédito) y no rompe.
+  let preapprovalPlan;
   try {
-    // Intento SIN payer_email — que MP tome el mail de la cuenta del cliente.
-    preapproval = await mpCreatePreapproval(merchant.mp_access_token, preapprovalBody);
+    preapprovalPlan = await mpCreatePreapprovalPlan(merchant.mp_access_token, {
+      ...planBodyBase,
+      payment_methods_allowed: { payment_types: [{ id: "credit_card" }, { id: "debit_card" }], payment_methods: [] },
+    });
   } catch (e1) {
-    // MP puede exigir payer_email. Fallback: reintento con el mail escrito para no
-    // romper el checkout (vuelve la restricción de mail, pero el pago funciona).
     try {
-      preapproval = await mpCreatePreapproval(merchant.mp_access_token, { ...preapprovalBody, payer_email: customer.email });
+      preapprovalPlan = await mpCreatePreapprovalPlan(merchant.mp_access_token, planBodyBase);
     } catch (e2) {
       await subRef.update({ status: "error", error: e2.message });
       return res.status(502).json({ error: `MP: ${e2.message}` });
     }
   }
-
-  const checkoutUrl = preapproval.init_point;
-  if (!checkoutUrl) {
-    await subRef.update({ status: "error", error: "MP no devolvió init_point" });
+  if (!preapprovalPlan?.id) {
+    await subRef.update({ status: "error", error: "MP no devolvió el plan" });
     return res.status(502).json({ error: "MP no devolvió el link de pago" });
   }
 
+  // URL del checkout del plan. NO adjuntamos payer_email → MP usa el mail de la
+  // cuenta logueada del cliente. external_reference linkea el preapproval al sub.
+  const planBase = preapprovalPlan.init_point
+    || `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=${encodeURIComponent(preapprovalPlan.id)}`;
+  const checkoutUrl = planBase + (planBase.indexOf("?") >= 0 ? "&" : "?")
+    + "external_reference=" + encodeURIComponent(`${merchant_id}:${subscriberId}`);
+
   await subRef.update({
-    mp_preapproval_id: preapproval.id,
+    mp_preapproval_plan_id: preapprovalPlan.id,
     mp_init_point: checkoutUrl,
     portal_token: portalToken,
   });
