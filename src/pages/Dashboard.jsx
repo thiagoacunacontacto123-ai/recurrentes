@@ -207,13 +207,20 @@ function HomeTab({ onGoSubscribers, onGoCarts }) {
 
 function KpiBig({ label, value, sub, delta, highlight, negative }) {
   return (
-    <div style={{background:"var(--card)",border:`1px solid ${highlight?"rgba(16,185,129,0.4)":"var(--border)"}`,borderRadius:14,padding:"18px 20px"}}>
-      <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5,marginBottom:8}}>{label}</div>
-      <div style={{fontSize:28,fontWeight:800,letterSpacing:-0.6,color:highlight?"var(--accent)":negative?"var(--red)":"var(--text)",lineHeight:1}}>{value}</div>
-      <div style={{display:"flex",alignItems:"center",gap:6,marginTop:8,fontSize:11,color:"var(--text-sm)"}}>
+    <div style={{
+      position:"relative", overflow:"hidden",
+      background: highlight ? "linear-gradient(160deg, rgba(16,185,129,0.10), rgba(16,185,129,0.015) 55%, var(--card))" : "var(--card)",
+      border:`1px solid ${highlight?"rgba(16,185,129,0.45)":"var(--border)"}`,
+      borderRadius:16, padding:"18px 20px",
+      boxShadow: highlight ? "0 10px 26px -16px rgba(16,185,129,0.45)" : "0 2px 12px -8px rgba(0,0,0,0.35)",
+    }}>
+      {highlight && <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:"linear-gradient(90deg,var(--accent),transparent 85%)"}}/>}
+      <div style={{fontSize:10.5,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.6,marginBottom:9}}>{label}</div>
+      <div style={{fontSize:29,fontWeight:800,letterSpacing:-0.7,color:highlight?"var(--accent)":negative?"var(--red)":"var(--text)",lineHeight:1,fontVariantNumeric:"tabular-nums"}}>{value}</div>
+      <div style={{display:"flex",alignItems:"center",gap:6,marginTop:9,fontSize:11,color:"var(--text-sm)"}}>
         <span>{sub}</span>
         {typeof delta === "number" && (
-          <span style={{padding:"1px 6px",borderRadius:4,background:delta>=0?"rgba(16,185,129,0.15)":"rgba(239,68,68,0.15)",color:delta>=0?"var(--accent)":"var(--red)",fontWeight:700,letterSpacing:0.3}}>
+          <span style={{padding:"1px 7px",borderRadius:5,background:delta>=0?"rgba(16,185,129,0.15)":"rgba(239,68,68,0.15)",color:delta>=0?"var(--accent)":"var(--red)",fontWeight:700,letterSpacing:0.3}}>
             {delta>=0?"↑":"↓"} {Math.abs(delta)}%
           </span>
         )}
@@ -224,9 +231,9 @@ function KpiBig({ label, value, sub, delta, highlight, negative }) {
 
 function KpiSmall({ label, value, positive, negative }) {
   return (
-    <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 14px"}}>
-      <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5,marginBottom:4}}>{label}</div>
-      <div style={{fontSize:18,fontWeight:800,color:positive?"var(--accent)":negative?"var(--red)":"var(--text)"}}>{value}</div>
+    <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:12,padding:"13px 15px"}}>
+      <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5,marginBottom:5}}>{label}</div>
+      <div style={{fontSize:19,fontWeight:800,color:positive?"var(--accent)":negative?"var(--red)":"var(--text)",fontVariantNumeric:"tabular-nums"}}>{value}</div>
     </div>
   );
 }
