@@ -62,7 +62,7 @@ export default async function handler(req, res) {
 
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { merchant_id, plan_id, customer, shipping_address, quantity, shipping_method } = req.body || {};
+  const { merchant_id, plan_id, customer, shipping_address, quantity, shipping_method, frequency_days } = req.body || {};
   if (!merchant_id || !plan_id) return res.status(400).json({ error: "Faltan merchant_id o plan_id" });
   if (!customer?.email) return res.status(400).json({ error: "Falta customer.email" });
 
@@ -107,6 +107,14 @@ export default async function handler(req, res) {
   // Cantidad final: elección del cliente, o units_per_shipment del plan como default.
   const finalQty = qty || plan.units_per_shipment || 1;
   const unitPrice = plan.subscription_price_ars || 0;
+
+  // Frecuencia efectiva. El bundle puede mandar frequency_days (ej. "N potes cada
+  // N×2 meses" → 60·qty días). Si viene y es válida, MANDA sobre la del plan.
+  // Rango 1..365 para no romper el preapproval de MP.
+  const freqParsed = parseInt(frequency_days);
+  const freqDays = (Number.isFinite(freqParsed) && freqParsed >= 1 && freqParsed <= 365)
+    ? freqParsed
+    : (plan.frequency_days || 30);
 
   // Aplicar descuento por cantidad si corresponde. Los tiers están ordenados
   // por min_qty asc — buscamos el último tier cuyo min_qty <= finalQty.
@@ -173,7 +181,7 @@ export default async function handler(req, res) {
       shopify_variant_id: plan.shopify_variant_id,
       shopify_product_id: plan.shopify_product_id,
       product_title: plan.product_title,
-      frequency_days: plan.frequency_days,
+      frequency_days: freqDays,
       subscription_price_ars: unitPrice,
       units_per_shipment: finalQty,
       // Desglose snapshot — los uso para mostrar al cliente y para crear orden
@@ -228,9 +236,9 @@ export default async function handler(req, res) {
   const startDate = new Date(Date.now() - 5 * 1000).toISOString();
 
   const planBody = {
-    reason: `${plan.product_title} × ${finalQty} — cada ${plan.frequency_days} días`,
+    reason: `${plan.product_title} × ${finalQty} — cada ${freqDays} días`,
     auto_recurring: {
-      frequency: plan.frequency_days,
+      frequency: freqDays,
       frequency_type: "days",
       start_date: startDate,
       transaction_amount: totalPerCharge,

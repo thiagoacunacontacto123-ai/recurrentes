@@ -844,6 +844,15 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
   var PRODUCT = q.get("product") || q.get("product_id") || "";
   var VARIANT = q.get("variant") || q.get("variant_id") || "";
   var QTY = Math.max(1, Math.min(10, parseInt(q.get("qty") || q.get("quantity") || "1", 10) || 1));
+  // Frecuencia efectiva (días). El bundle la manda ya calculada (ej. "N potes cada
+  // N×2 meses" → freq_days = 60·qty). Si viene freq_value/freq_type los convierte.
+  var FREQ_DAYS = (function(){
+    var d = parseInt(q.get("freq_days") || "", 10);
+    if (d >= 1 && d <= 365) return d;
+    var v = parseInt(q.get("freq_value") || "", 10), t = q.get("freq_type") || "";
+    if (v >= 1) { if (t === "months") return v * 30; if (t === "days") return v; if (t === "weeks") return v * 7; }
+    return 0; // 0 = usar la del plan
+  })();
 
   var mount = document.getElementById("recurrentes-checkout");
   if (!mount) { mount = document.createElement("div"); mount.id = "recurrentes-checkout"; document.body.appendChild(mount); }
@@ -863,7 +872,8 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
     var sel = rates[rateIdx] || { name: (plan.shipping_method_name||"Envío"), price: (plan.shipping_price_ars||0) };
     return { subtotal: subtotal, disc: disc, ship: Number(sel.price)||0, shipName: sel.name, total: subtotal + (Number(sel.price)||0) };
   }
-  function freqTxt(){ var d = plan.frequency_days; return d===30?"mensual":d===60?"cada 2 meses":d===90?"cada 3 meses":("cada "+d+" días"); }
+  function effFreqDays(){ return (FREQ_DAYS >= 1) ? FREQ_DAYS : (plan.frequency_days || 30); }
+  function freqTxt(){ var d = effFreqDays(); if (d===30) return "mensual"; if (d===60) return "cada 2 meses"; if (d===90) return "cada 3 meses"; if (d % 30 === 0) return "cada " + (d/30) + " meses"; return "cada " + d + " días"; }
 
   // Traer envíos reales de Shopify por CP. Corre en el dominio de la tienda:
   // agrega la variante al carrito, pide las tarifas, y saca la variante que
@@ -925,6 +935,8 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
     var email = val("rc-email"), name = (val("rc-name") + " " + val("rc-last")).trim(), phone = val("rc-phone");
     if (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)) miss.push("email válido");
     if (!val("rc-name")) miss.push("nombre");
+    if (!val("rc-last")) miss.push("apellido");
+    if (!val("rc-tax")) miss.push("DNI / CUIL");
     if (!phone) miss.push("teléfono");
     if (!val("rc-addr")) miss.push("calle y número");
     if (!val("rc-city")) miss.push("localidad");
@@ -937,7 +949,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
     fetch(API_BASE + "/api/checkout/init", {
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({
-        merchant_id: MERCHANT_ID, plan_id: plan.id, quantity: QTY,
+        merchant_id: MERCHANT_ID, plan_id: plan.id, quantity: QTY, frequency_days: effFreqDays(),
         customer: { email: email, name: name, phone: phone, tax_id: val("rc-tax") },
         shipping_address: {
           address1: val("rc-addr"), address2: val("rc-addr2"), city: val("rc-city"),
@@ -947,9 +959,9 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
         shipping_method: { name: sel.name, price: Number(sel.price) || 0 }
       })
     }).then(function(r){ return r.json(); }).then(function(d){
-      if (d.error) { box.textContent = d.error; box.style.display = "block"; submitting = false; if(btn){ btn.disabled=false; btn.textContent="Suscribirme y pagar"; } return; }
+      if (d.error) { box.textContent = d.error; box.style.display = "block"; submitting = false; if(btn){ btn.disabled=false; btn.textContent="Pagar"; } return; }
       window.location.href = d.init_point;
-    }).catch(function(){ box.textContent = "No pudimos conectar con Mercado Pago. Reintentá."; box.style.display = "block"; submitting = false; if(btn){ btn.disabled=false; btn.textContent="Suscribirme y pagar"; } });
+    }).catch(function(){ box.textContent = "No pudimos conectar con Mercado Pago. Reintentá."; box.style.display = "block"; submitting = false; if(btn){ btn.disabled=false; btn.textContent="Pagar"; } });
   }
 
   var PROV = ["Buenos Aires","Ciudad Autónoma de Buenos Aires","Catamarca","Chaco","Chubut","Córdoba","Corrientes","Entre Ríos","Formosa","Jujuy","La Pampa","La Rioja","Mendoza","Misiones","Neuquén","Río Negro","Salta","San Juan","San Luis","Santa Cruz","Santa Fe","Santiago del Estero","Tierra del Fuego","Tucumán"];
@@ -966,9 +978,10 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
         + '<div style="' + card + '"><h3 style="' + h + '">Contacto</h3>'
           + '<div style="margin-bottom:12px;"><label style="' + lbl + '">Email</label><input id="rc-email" type="email" style="' + inp + '" placeholder="tu@email.com"/></div>'
           + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;"><div><label style="' + lbl + '">Nombre</label><input id="rc-name" style="' + inp + '" placeholder="Juan"/></div><div><label style="' + lbl + '">Apellido</label><input id="rc-last" style="' + inp + '" placeholder="Pérez"/></div></div>'
-          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"><div><label style="' + lbl + '">Teléfono</label><input id="rc-phone" style="' + inp + '" placeholder="11 2345 6789"/></div><div><label style="' + lbl + '">DNI/CUIT <span style="color:#aaa;font-weight:400;">(opc.)</span></label><input id="rc-tax" style="' + inp + '" placeholder="20123456789"/></div></div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"><div><label style="' + lbl + '">Teléfono</label><input id="rc-phone" style="' + inp + '" placeholder="11 2345 6789"/></div><div><label style="' + lbl + '">DNI / CUIL</label><input id="rc-tax" style="' + inp + '" placeholder="20123456789"/></div></div>'
         + '</div>'
         + '<div style="' + card + '"><h3 style="' + h + '">Entrega</h3>'
+          + '<div style="margin-bottom:12px;"><label style="' + lbl + '">País / Región</label><input value="Argentina" disabled style="' + inp + 'background:#f4f4f5;color:#555;"/></div>'
           + '<div style="margin-bottom:12px;"><label style="' + lbl + '">Calle y número</label><input id="rc-addr" style="' + inp + '" placeholder="Av. Siempreviva 742"/></div>'
           + '<div style="margin-bottom:12px;"><label style="' + lbl + '">Piso / depto <span style="color:#aaa;font-weight:400;">(opc.)</span></label><input id="rc-addr2" style="' + inp + '" placeholder="3° B"/></div>'
           + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;"><div><label style="' + lbl + '">C.P.</label><input id="rc-zip" style="' + inp + '" placeholder="1754"/></div><div><label style="' + lbl + '">Localidad</label><input id="rc-city" style="' + inp + '" placeholder="San Justo"/></div></div>'
@@ -978,7 +991,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
         + '<div style="' + card + '"><h3 style="' + h + '">Pago</h3>'
           + '<div style="font-size:13px;color:#555;margin-bottom:12px;">Vas a completar el pago de forma segura en <b>Mercado Pago</b>.</div>'
           + '<div id="rc-err" style="display:none;background:#fde8e8;border:1px solid #f5b5b5;color:#b42318;font-size:13px;padding:10px 12px;border-radius:9px;margin-bottom:12px;"></div>'
-          + '<button id="rc-pay" style="width:100%;padding:14px;font-size:15px;font-weight:700;color:#fff;background:' + COL + ';border:none;border-radius:11px;cursor:pointer;">Suscribirme y pagar</button>'
+          + '<button id="rc-pay" style="width:100%;padding:14px;font-size:15px;font-weight:700;color:#fff;background:' + COL + ';border:none;border-radius:11px;cursor:pointer;">Pagar</button>'
         + '</div>'
       + '</div>'
       + '<div class="rc-summary-wrap" style="' + card + 'position:sticky;top:16px;"><div id="rc-summary"></div></div>'
