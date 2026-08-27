@@ -421,6 +421,32 @@ async function handlePreapproval(preapprovalId) {
     if (nuevoStatus === "cancelled" && subDoc.data().status !== "cancelled") {
       upd.cancelled_at = new Date().toISOString();
     }
+
+    // ── FORZAR EL PRIMER COBRO server-side ─────────────────────────────────
+    // En el flujo de plan, MP AUTORIZA el preapproval pero NO cobra el primer
+    // pago de una (lo agenda a "ahora + frecuencia"). Antes eso solo se
+    // destrababa cuando el cliente volvía al sitio y corría el sync. Ahora, en
+    // cuanto llega este webhook con el preapproval authorized y el sub todavía
+    // sin cobro, adelantamos el start_date para que MP cobre YA → eso dispara el
+    // webhook de pago (subscription_authorized_payment) → que crea la orden
+    // Shopify. Así la venta cae SOLA aunque el cliente cierre todo. Idempotente:
+    // sync_force_attempted evita re-forzar (el sync usa la misma bandera).
+    const sd = subDoc.data();
+    if (pre.status === "authorized" && !sd.last_charge_at && !sd.sync_force_attempted) {
+      try {
+        const { mpUpdatePreapproval } = await import("../_lib/mp.js");
+        const nowPlusOne = new Date(Date.now() + 60 * 1000).toISOString();
+        await mpUpdatePreapproval(m.data().mp_access_token, preapprovalId, {
+          auto_recurring: { ...pre.auto_recurring, start_date: nowPlusOne },
+        });
+        upd.sync_force_attempted = true;
+        upd.sync_force_at = new Date().toISOString();
+        console.log(`[mp-webhook] forzado primer cobro de ${preapprovalId} (start_date ${nowPlusOne})`);
+      } catch (e) {
+        console.warn(`[mp-webhook] no pude forzar primer cobro ${preapprovalId}: ${e.message}`);
+      }
+    }
+
     await subDoc.ref.update(upd);
     console.log(`[mp-webhook] preapproval ${preapprovalId} → ${pre.status}`);
     return;
