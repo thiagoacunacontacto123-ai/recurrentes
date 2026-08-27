@@ -21,7 +21,7 @@
 // El external_reference se propaga del checkout al preapproval que MP crea
 // al confirmar, así el webhook puede resolver el subscriber correcto.
 import { db } from "../_lib/firebase.js";
-import { mpCreatePreapprovalPlan } from "../_lib/mp.js";
+import { mpCreatePreapproval } from "../_lib/mp.js";
 import { generatePortalToken, verifyPortalToken } from "../public.js";
 import { syncSubscriber } from "../_lib/sync.js";
 import { sendMetaInitiateCheckout } from "../_lib/meta.js";
@@ -249,8 +249,16 @@ export default async function handler(req, res) {
   // en el pasado, MP procesa el primer cobro en segundos.
   const startDate = new Date(Date.now() - 5 * 1000).toISOString();
 
-  const planBody = {
+  // Suscripción DIRECTA (preapproval, no preapproval_plan). El init_point de este
+  // flujo (redirect) muestra TODOS los métodos de pago: tarjeta de crédito,
+  // tarjeta de DÉBITO y DINERO EN CUENTA — y redirige SOLO a back_url al terminar
+  // (la página de agradecimiento). A propósito NO restringimos payment_methods_allowed
+  // para habilitar débito + saldo. (Ojo: con débito/saldo la renovación puede fallar
+  // si no hay fondos, igual que una tarjeta rechazada — es la elección del cliente.)
+  const preapprovalBody = {
     reason: `${plan.product_title} × ${finalQty} — cada ${freqDays} días`,
+    external_reference: `${merchant_id}:${subscriberId}`,
+    payer_email: customer.email,
     auto_recurring: {
       frequency: freqDays,
       frequency_type: "days",
@@ -260,29 +268,25 @@ export default async function handler(req, res) {
     },
     back_url: backUrl,
     ...(notificationUrl ? { notification_url: notificationUrl } : {}),
-    external_reference: `${merchant_id}:${subscriberId}`,
-    payment_methods_allowed: {
-      payment_types: [{ id: "credit_card" }],
-      payment_methods: [],
-    },
+    status: "pending",
   };
 
-  let adhocPlan;
+  let preapproval;
   try {
-    adhocPlan = await mpCreatePreapprovalPlan(merchant.mp_access_token, planBody);
+    preapproval = await mpCreatePreapproval(merchant.mp_access_token, preapprovalBody);
   } catch (e) {
     await subRef.update({ status: "error", error: e.message });
     return res.status(502).json({ error: `MP: ${e.message}` });
   }
 
-  // Construir URL del checkout del plan. Es la URL pública de MP que respeta
-  // payment_methods_allowed (a diferencia del init_point del preapproval).
-  // Pasamos external_reference, payer_email y back_url por query para que MP
-  // los herede al preapproval que cree al confirmar.
-  const checkoutUrl = `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=${encodeURIComponent(adhocPlan.id)}&external_reference=${encodeURIComponent(`${merchant_id}:${subscriberId}`)}&payer_email=${encodeURIComponent(customer.email)}&back_url=${encodeURIComponent(backUrl)}`;
+  const checkoutUrl = preapproval.init_point;
+  if (!checkoutUrl) {
+    await subRef.update({ status: "error", error: "MP no devolvió init_point" });
+    return res.status(502).json({ error: "MP no devolvió el link de pago" });
+  }
 
   await subRef.update({
-    mp_adhoc_plan_id: adhocPlan.id,
+    mp_preapproval_id: preapproval.id,
     mp_init_point: checkoutUrl,
     portal_token: portalToken,
   });
@@ -312,7 +316,7 @@ export default async function handler(req, res) {
     ok: true,
     subscriber_id: subscriberId,
     init_point: checkoutUrl,
-    adhoc_plan_id: adhocPlan.id,
+    preapproval_id: preapproval.id,
     portal_token: portalToken,
   });
 }
