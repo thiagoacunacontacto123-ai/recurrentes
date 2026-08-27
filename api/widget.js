@@ -880,7 +880,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
   function prices(){
     var unit = plan.subscription_price_ars || 0;
     var tiers = Array.isArray(plan.qty_discount_tiers) ? plan.qty_discount_tiers : [];
-    var disc = 0; for (var i=0;i<tiers.length;i++){ if (QTY >= (tiers[i].min_qty||0)) disc = tiers[i].discount_pct||0; }
+    var disc = 0, bestMin = -1; for (var i=0;i<tiers.length;i++){ var mq = parseInt(tiers[i].min_qty)||0; if (QTY >= mq && mq > bestMin) { bestMin = mq; disc = parseFloat(tiers[i].discount_pct)||0; } }
     var subtotal = Math.round(unit * QTY * (1 - disc/100));
     var sel = rates[rateIdx] || { name: (plan.shipping_method_name||"Envío"), price: (plan.shipping_price_ars||0) };
     return { subtotal: subtotal, disc: disc, ship: Number(sel.price)||0, shipName: sel.name, total: subtotal + (Number(sel.price)||0) };

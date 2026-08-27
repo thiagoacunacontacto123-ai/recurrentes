@@ -119,9 +119,11 @@ export default async function handler(req, res) {
 
   // Aplicar descuento por cantidad si corresponde. Los tiers están ordenados
   // por min_qty asc — buscamos el último tier cuyo min_qty <= finalQty.
+  // Descuento por cantidad: se toma el tier de MAYOR min_qty que no supere la
+  // cantidad (robusto ante tiers desordenados). Sin tiers configurados → 0%.
   const tiers = Array.isArray(plan.qty_discount_tiers) ? plan.qty_discount_tiers : [];
-  let qtyDiscountPct = 0;
-  for (const t of tiers) if (finalQty >= t.min_qty) qtyDiscountPct = t.discount_pct;
+  let qtyDiscountPct = 0, _bestMin = -1;
+  for (const t of tiers) { const mq = parseInt(t && t.min_qty) || 0; if (finalQty >= mq && mq > _bestMin) { _bestMin = mq; qtyDiscountPct = parseFloat(t.discount_pct) || 0; } }
 
   const subtotal = Math.round(unitPrice * finalQty * (1 - qtyDiscountPct / 100));
 
