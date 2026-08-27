@@ -62,7 +62,7 @@ export default async function handler(req, res) {
 
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { merchant_id, plan_id, customer, shipping_address, quantity } = req.body || {};
+  const { merchant_id, plan_id, customer, shipping_address, quantity, shipping_method } = req.body || {};
   if (!merchant_id || !plan_id) return res.status(400).json({ error: "Faltan merchant_id o plan_id" });
   if (!customer?.email) return res.status(400).json({ error: "Falta customer.email" });
 
@@ -116,10 +116,19 @@ export default async function handler(req, res) {
 
   const subtotal = Math.round(unitPrice * finalQty * (1 - qtyDiscountPct / 100));
 
-  // Envío: si subtotal >= free_shipping_from_ars (y >0), gratis. Si no, costo fijo.
+  // Envío. Si el checkout mandó un método elegido (shipping_method, traído de los
+  // envíos configurados en Shopify), se usa ESE precio y nombre. Si no, se cae al
+  // envío del plan (fijo + regla de envío gratis desde $X) — compat hacia atrás.
   const freeShippingFrom = plan.free_shipping_from_ars || 0;
-  const shippingPrice = plan.shipping_price_ars || 0;
-  const shippingCost = (freeShippingFrom > 0 && subtotal >= freeShippingFrom) ? 0 : shippingPrice;
+  let shippingCost, shippingName;
+  if (shipping_method && typeof shipping_method === "object" && shipping_method.name) {
+    shippingCost = Math.max(0, Math.round(Number(shipping_method.price) || 0));
+    shippingName = String(shipping_method.name).slice(0, 60);
+  } else {
+    const shippingPrice = plan.shipping_price_ars || 0;
+    shippingCost = (freeShippingFrom > 0 && subtotal >= freeShippingFrom) ? 0 : shippingPrice;
+    shippingName = plan.shipping_method_name || "Envío a domicilio";
+  }
 
   const totalPerCharge = subtotal + shippingCost;
 
@@ -172,7 +181,7 @@ export default async function handler(req, res) {
       // snapshot preserva el cobro original del subscriber.
       subtotal_ars: subtotal,
       shipping_price_ars: shippingCost,
-      shipping_method_name: plan.shipping_method_name || "Envío a domicilio",
+      shipping_method_name: shippingName,
       qty_discount_pct: qtyDiscountPct,
       total_per_charge_ars: totalPerCharge,
     },

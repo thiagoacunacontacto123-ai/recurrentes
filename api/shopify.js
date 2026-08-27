@@ -13,7 +13,7 @@
 // Todos los endpoints (excepto oauth-start, que recibe uid por query
 // para que funcione como redirect desde el browser) requieren Firebase Auth.
 import { db, requireAuth } from "./_lib/firebase.js";
-import { shListProducts } from "./_lib/shopify.js";
+import { shListProducts, shGetShippingRates } from "./_lib/shopify.js";
 
 const productsCache = new Map();
 
@@ -24,7 +24,30 @@ export default async function handler(req, res) {
   if (action === "oauth-start") return handleOauthStart(req, res);
   if (action === "products")    return handleProducts(req, res);
   if (action === "save-creds")  return handleSaveCreds(req, res);
-  return res.status(400).json({ error: "action debe ser oauth-start | products | save-creds" });
+  if (action === "shipping-rates") return handleShippingRates(req, res);
+  return res.status(400).json({ error: "action debe ser oauth-start | products | save-creds | shipping-rates" });
+}
+
+// ─── action=shipping-rates ─────────────────────────────────────
+// PÚBLICO (lo llama el checkout del cliente final, sin login): devuelve los
+// métodos de envío que la tienda tiene configurados en Shopify, para la
+// provincia/subtotal del carrito. Recibe merchant por query.
+async function handleShippingRates(req, res) {
+  const merchantId = String(req.query.merchant || req.query.uid || "");
+  if (!merchantId) return res.status(400).json({ error: "Falta merchant" });
+  try {
+    const snap = await db().collection("merchants").doc(merchantId).get();
+    const m = snap.exists ? snap.data() : null;
+    if (!m?.shopify_token || !m?.shopify_shop) return res.json({ rates: [] });
+    const rates = await shGetShippingRates(m.shopify_shop, m.shopify_token, {
+      province: req.query.province || "",
+      subtotal: Number(req.query.subtotal || 0),
+    });
+    res.setHeader("Cache-Control", "no-store");
+    return res.json({ rates });
+  } catch (e) {
+    return res.json({ rates: [], error: e.message });
+  }
 }
 
 // ─── action=oauth-start ────────────────────────────────────────

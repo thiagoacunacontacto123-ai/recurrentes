@@ -30,6 +30,58 @@ export async function shListProducts(shop, token) {
   return data.products || [];
 }
 
+// Métodos de envío configurados en la tienda (los mismos de la venta común).
+// Lee las shipping_zones y devuelve las tarifas que aplican a Argentina (o a la
+// provincia pedida). Solo trae las tarifas EXPUESTAS por API (price_based y
+// weight_based, o sea las fijas/por-monto que el merchant cargó a mano). Las
+// tarifas calculadas en tiempo real por una app de correo (carrier service, ej.
+// los puntos HOP dinámicos de Andreani) NO vienen acá — para esas el checkout
+// cae al envío del plan. `subtotal` filtra las tarifas por monto (envío gratis
+// desde $X) para no ofrecer una tarifa que no aplica a ese carrito.
+export async function shGetShippingRates(shop, token, { province = "", subtotal = 0 } = {}) {
+  let data;
+  try { data = await call(shop, token, "GET", "/shipping_zones.json"); }
+  catch (_) { return []; }
+  const zones = data.shipping_zones || [];
+  const provNorm = String(province || "").trim().toLowerCase();
+  const out = [];
+  const seen = new Set();
+  for (const z of zones) {
+    const countries = z.countries || [];
+    const cubreAR = countries.some(c => {
+      const code = String(c.code || "").toUpperCase();
+      const name = String(c.name || "").toLowerCase();
+      const esAR = code === "AR" || code === "*" || name.includes("argentina");
+      if (!esAR) return false;
+      // Si la zona limita por provincia y pedimos una, respetarla.
+      if (provNorm && Array.isArray(c.provinces) && c.provinces.length) {
+        return c.provinces.some(p => String(p.name || "").toLowerCase() === provNorm || String(p.code || "").toLowerCase() === provNorm);
+      }
+      return true;
+    });
+    if (!cubreAR) continue;
+    const push = (r, kind) => {
+      const price = Number(r.price || 0);
+      const min = r.min_order_subtotal != null ? Number(r.min_order_subtotal) : null;
+      const max = r.max_order_subtotal != null ? Number(r.max_order_subtotal) : null;
+      if (kind === "price" && subtotal > 0) {
+        if (min != null && subtotal < min) return;
+        if (max != null && subtotal > max) return;
+      }
+      const name = String(r.name || "Envío").trim();
+      const key = name + "|" + price;
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({ name, price, free: price === 0 });
+    };
+    for (const r of (z.price_based_shipping_rates || [])) push(r, "price");
+    for (const r of (z.weight_based_shipping_rates || [])) push(r, "weight");
+  }
+  // Gratis primero, después por precio ascendente.
+  out.sort((a, b) => a.price - b.price);
+  return out;
+}
+
 // Customer find-or-create — antes de crear la orden necesitamos un customer.
 // Buscar por email primero; si no existe, crear con datos minimos. La
 // dirección NO se setea en el customer create (Shopify a veces rechaza

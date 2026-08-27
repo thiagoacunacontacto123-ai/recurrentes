@@ -40,6 +40,9 @@ export default async function handler(req, res) {
   let widgetOnceTitle = "Compra única";
   let widgetOnceSubtitle = "Comprá una vez al precio normal.";
   let widgetDisclaimerText = ""; // "" → usa default
+  // "page" = el botón lleva a un checkout propio (contacto/dirección/envíos de
+  // Shopify) antes de MP. "inline" = form dentro del widget (comportamiento viejo).
+  let checkoutFlow = "page";
   try {
     const { db } = await import("./_lib/firebase.js");
     const snap = await db().collection("merchants").doc(merchantId).get();
@@ -54,6 +57,7 @@ export default async function handler(req, res) {
       if (typeof m.widget_once_subtitle === "string" && m.widget_once_subtitle.trim()) widgetOnceSubtitle = m.widget_once_subtitle.trim();
       if (typeof m.widget_disclaimer_text === "string") widgetDisclaimerText = m.widget_disclaimer_text;
       if (!hideSelector && typeof m.widget_hide_selector === "string") hideSelector = m.widget_hide_selector;
+      if (m.widget_checkout_flow === "inline") checkoutFlow = "inline";
     }
   } catch (_) {}
 
@@ -86,6 +90,8 @@ export default async function handler(req, res) {
   var HIDE_SELECTOR = ${JSON.stringify(hideSelector)};
   var MODE_ORDER = ${JSON.stringify(widgetModeOrder)};
   var MODE_DEFAULT = ${JSON.stringify(widgetModeDefault)};
+  var CHECKOUT_FLOW = ${JSON.stringify(checkoutFlow)};
+  var WIDGET_COLOR = ${JSON.stringify(widgetColor)};
   var SUB_TITLE = ${JSON.stringify(widgetSubTitle)};
   var SUB_SUBTITLE = ${JSON.stringify(widgetSubSubtitle)};
   var ONCE_TITLE = ${JSON.stringify(widgetOnceTitle)};
@@ -295,6 +301,7 @@ export default async function handler(req, res) {
           <button id="rec-qty-plus" type="button" style="width:30px;height:30px;border:1px solid ${COL};background:#fff;color:${COL};border-radius:6px;font-size:18px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;line-height:1;">+</button>\
         </div>\
       </div>\
+      <div id="rec-inline-fields"' + (CHECKOUT_FLOW === "page" ? ' style="display:none;"' : '') + '>\
       <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;margin-bottom:8px;">\
         <input id="rec-name" type="text" placeholder="Nombre completo" style="' + inputStyle + '"/>\
         <input id="rec-email" type="email" placeholder="Email" style="' + inputStyle + '"/>\
@@ -332,6 +339,7 @@ export default async function handler(req, res) {
         <option value="Tierra del Fuego">Tierra del Fuego</option>\
         <option value="Tucumán">Tucumán</option>\
       </select>\
+      </div>\
       <div id="rec-breakdown" style="background:#fff;border:1px solid ${COL_BORDER};border-radius:10px;padding:11px 14px;margin-bottom:10px;font-size:12px;line-height:1.7;color:${COL_TEXT_DARK};">\
         <div style="display:flex;justify-content:space-between;align-items:baseline;">\
           <span>Subtotal</span>\
@@ -731,6 +739,22 @@ export default async function handler(req, res) {
       });
 
       subPanel.querySelector("#recurrentes-subscribe-btn").addEventListener("click", function(){
+        if (CHECKOUT_FLOW === "page") {
+          // Modo checkout propio: el botón lleva a la página de checkout de
+          // Recurrentes (contacto + dirección + envíos de Shopify) con el
+          // producto y la cantidad elegida. Ahí se junta todo y va a MP.
+          var qEl = subPanel.querySelector("#rec-qty");
+          var q = parseInt(qEl ? qEl.value : (subPanel.dataset.qty || 1)) || 1;
+          var ogImg = (document.querySelector('meta[property="og:image"]') || {}).content || "";
+          var u = API_BASE + "/#/checkout?merchant=" + encodeURIComponent(MERCHANT_ID) +
+            "&product=" + encodeURIComponent(plan.shopify_product_id) +
+            "&qty=" + q +
+            "&title=" + encodeURIComponent(plan.product_title || "") +
+            "&color=" + encodeURIComponent(WIDGET_COLOR || "") +
+            (ogImg ? "&img=" + encodeURIComponent(ogImg) : "");
+          window.location.href = u;
+          return;
+        }
         startSubscribe(plan, subPanel);
       });
 

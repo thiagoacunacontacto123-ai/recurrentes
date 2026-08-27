@@ -5,6 +5,7 @@ import Landing from "./pages/Landing.jsx";
 import Dashboard from "./pages/Dashboard.jsx";
 import Portal from "./pages/Portal.jsx";
 import CheckoutSuccess from "./pages/CheckoutSuccess.jsx";
+import Checkout from "./pages/Checkout.jsx";
 
 // Routing simple hash-based.
 // Rutas PÚBLICAS (ignoran si hay user logueado o no):
@@ -34,6 +35,7 @@ export default function App() {
 
   // Rutas públicas: NO esperan auth, se renderean al toque.
   if (route === "portal") return <Portal/>;
+  if (route === "checkout") return <Checkout/>;
   if (route === "checkout-success") return <CheckoutSuccess/>;
 
   if (!authReady) {
@@ -56,6 +58,7 @@ function parseRoute() {
   const hash = window.location.hash || "";
   const path = hash.replace(/^#/, "").split("?")[0].replace(/^\//, "");
   if (path === "portal") return "portal";
+  if (path === "checkout") return "checkout";
   if (path === "checkout-success") return "checkout-success";
   return "default";
 }
