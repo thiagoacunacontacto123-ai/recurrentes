@@ -232,8 +232,12 @@ export async function shCreatePaidOrder(shop, token, params) {
       shipping_lines: shippingLines,
       financial_status: "paid",
       fulfillment_status: null,
-      send_receipt: false,
-      send_fulfillment_receipt: false,
+      // Que Shopify mande los mails como en una venta normal:
+      //  · send_receipt → mail de CONFIRMACIÓN de compra al crear la orden.
+      //  · send_fulfillment_receipt → mail de SEGUIMIENTO cuando se despacha/fulfilla.
+      // (El cliente recibe la misma experiencia de mails que una compra común.)
+      send_receipt: true,
+      send_fulfillment_receipt: true,
       currency: "ARS",
       // Identifica el origen del pedido en Shopify Admin (filtro "Source").
       source_name: "Recurrentes",
