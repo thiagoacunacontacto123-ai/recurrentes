@@ -336,7 +336,7 @@ export default async function handler(req, res) {
     ok: true,
     subscriber_id: subscriberId,
     init_point: checkoutUrl,
-    preapproval_id: preapproval.id,
+    preapproval_plan_id: preapprovalPlan.id,
     portal_token: portalToken,
   });
 }

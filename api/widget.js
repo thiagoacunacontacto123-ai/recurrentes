@@ -1043,7 +1043,9 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
   var PROV = ["Buenos Aires","Ciudad Autónoma de Buenos Aires","Catamarca","Chaco","Chubut","Córdoba","Corrientes","Entre Ríos","Formosa","Jujuy","La Pampa","La Rioja","Mendoza","Misiones","Neuquén","Río Negro","Salta","San Juan","San Luis","Santa Cruz","Santa Fe","Santiago del Estero","Tierra del Fuego","Tucumán"];
 
   function render(){
-    var inp = "width:100%;padding:11px 12px;font-size:14px;border:1px solid #d6d6d8;border-radius:9px;box-sizing:border-box;outline:none;background:#fff;font-family:inherit;";
+    // font-size 16px a propósito: iOS Safari hace zoom automático al enfocar un
+    // input con letra <16px. Con 16px NO zoomea (y se ve bien igual en desktop).
+    var inp = "width:100%;padding:11px 12px;font-size:16px;border:1px solid #d6d6d8;border-radius:9px;box-sizing:border-box;outline:none;background:#fff;font-family:inherit;";
     var card = "background:#fff;border:1px solid #e8e8ea;border-radius:14px;padding:20px;margin-bottom:16px;";
     var lbl = "font-size:12px;font-weight:600;color:#555;margin:0 0 5px;display:block;";
     var h = "font-size:15px;font-weight:700;margin:0 0 14px;";
