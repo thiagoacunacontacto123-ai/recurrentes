@@ -862,6 +862,10 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
   function money(n){ return "$" + Math.round(Number(n) || 0).toLocaleString("es-AR"); }
   function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c]; }); }
   function val(id){ var el = document.getElementById(id); return el ? el.value.trim() : ""; }
+  // Error por campo estilo Shopify: borde rojo + mensaje debajo del input.
+  function setBad(id, msg){ var el = document.getElementById(id), e = document.getElementById(id + "-e"); if (el) { el.style.borderColor = "#d33"; el.style.boxShadow = "0 0 0 2px rgba(221,51,51,.12)"; } if (e) { e.textContent = msg; e.style.display = "block"; } }
+  function clrBad(id){ var el = document.getElementById(id), e = document.getElementById(id + "-e"); if (el) { el.style.borderColor = "#d6d6d8"; el.style.boxShadow = "none"; } if (e) { e.style.display = "none"; } }
+  var RC_FIELDS = ["rc-email","rc-name","rc-last","rc-tax","rc-phone","rc-addr","rc-city","rc-prov","rc-zip"];
   function errBox(msg){ return '<div style="max-width:420px;margin:60px auto;text-align:center;font-family:-apple-system,Segoe UI,Roboto,sans-serif;"><div style="font-size:15px;font-weight:700;margin-bottom:8px;">Ups</div><div style="font-size:13px;color:#666;line-height:1.5;">' + esc(msg) + '</div></div>'; }
 
   function prices(){
@@ -871,6 +875,14 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
     var subtotal = Math.round(unit * QTY * (1 - disc/100));
     var sel = rates[rateIdx] || { name: (plan.shipping_method_name||"Envío"), price: (plan.shipping_price_ars||0) };
     return { subtotal: subtotal, disc: disc, ship: Number(sel.price)||0, shipName: sel.name, total: subtotal + (Number(sel.price)||0) };
+  }
+  // Días hábiles (lun-vie) entre hoy y una fecha ISO — para el "X a Y días hábiles".
+  function bizDaysUntil(iso){
+    var target = new Date(iso); target.setHours(0,0,0,0);
+    var d = new Date(); d.setHours(0,0,0,0);
+    var n = 0, guard = 0;
+    while (d < target && guard < 400) { d.setDate(d.getDate() + 1); var g = d.getDay(); if (g !== 0 && g !== 6) n++; guard++; }
+    return n;
   }
   function effFreqDays(){ return (FREQ_DAYS >= 1) ? FREQ_DAYS : (plan.frequency_days || 30); }
   function freqTxt(){ var d = effFreqDays(); if (d===30) return "mensual"; if (d===60) return "cada 2 meses"; if (d===90) return "cada 3 meses"; if (d % 30 === 0) return "cada " + (d/30) + " meses"; return "cada " + d + " días"; }
@@ -891,7 +903,20 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
     fetch("/cart/add.js", { method:"POST", headers:{"Content-Type":"application/json"}, body: addBody })
       .then(doFetch)
       .then(function(d){
-        var list = (d.shipping_rates || []).map(function(sr){ return { name: sr.presentment_name || sr.name, price: parseFloat(sr.price) || 0 }; });
+        var list = (d.shipping_rates || []).map(function(sr){
+          // Tiempo de entrega estimado (como en el checkout de Shopify): lo calcula
+          // desde delivery_range (rango de fechas del carrier) en días hábiles.
+          var eta = "";
+          var r = sr.delivery_range;
+          if (Object.prototype.toString.call(r) === "[object Array]" && r.length >= 2 && r[0] && r[1]) {
+            try {
+              var lo = bizDaysUntil(r[0]), hi = bizDaysUntil(r[1]);
+              if (hi < lo) { var t = lo; lo = hi; hi = t; }
+              if (lo >= 1) eta = (lo === hi) ? (lo + " días hábiles") : (lo + " a " + hi + " días hábiles");
+            } catch (e) {}
+          }
+          return { name: sr.presentment_name || sr.name, price: parseFloat(sr.price) || 0, eta: eta };
+        });
         rates = list.length ? list : [{ name: (plan.shipping_method_name||"Envío"), price: (plan.shipping_price_ars||0) }];
         rateIdx = 0; ratesMsg = "";
         // sacar la variante que agregamos (no queremos tocar el carrito real)
@@ -907,10 +932,11 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
     if (ratesMsg) { box.innerHTML = '<div style="font-size:13px;color:#888;padding:10px 0;">' + esc(ratesMsg) + '</div>'; return; }
     box.innerHTML = rates.map(function(rt,i){
       var free = (Number(rt.price)||0) === 0;
-      return '<label style="display:flex;align-items:center;gap:10px;padding:11px 13px;border:1.5px solid ' + (i===rateIdx?COL:"#e0e0e2") + ';border-radius:10px;cursor:pointer;margin-bottom:8px;background:' + (i===rateIdx?(COL+"0d"):"#fff") + ';">'
-        + '<input type="radio" name="rc-rate" ' + (i===rateIdx?"checked":"") + ' data-i="' + i + '" style="accent-color:' + COL + ';"/>'
-        + '<span style="flex:1;font-size:13px;font-weight:500;">' + esc(rt.name) + '</span>'
-        + '<b style="font-size:13px;color:' + (free?"#0a8a3f":"#1a1a1a") + ';">' + (free?"Gratis":money(rt.price)) + '</b></label>';
+      return '<label style="display:flex;align-items:flex-start;gap:10px;padding:11px 13px;border:1.5px solid ' + (i===rateIdx?COL:"#e0e0e2") + ';border-radius:10px;cursor:pointer;margin-bottom:8px;background:' + (i===rateIdx?(COL+"0d"):"#fff") + ';">'
+        + '<input type="radio" name="rc-rate" ' + (i===rateIdx?"checked":"") + ' data-i="' + i + '" style="accent-color:' + COL + ';margin-top:2px;"/>'
+        + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:13px;font-weight:500;line-height:1.35;">' + esc(rt.name) + '</span>'
+        + (rt.eta ? '<span style="display:block;font-size:11.5px;color:#888;margin-top:2px;">' + esc(rt.eta) + '</span>' : '') + '</span>'
+        + '<b style="font-size:13px;color:' + (free?"#0a8a3f":"#1a1a1a") + ';white-space:nowrap;">' + (free?"Gratis":money(rt.price)) + '</b></label>';
     }).join("");
     Array.prototype.forEach.call(box.querySelectorAll('input[name="rc-rate"]'), function(inp){
       inp.addEventListener("change", function(){ rateIdx = parseInt(inp.getAttribute("data-i"),10)||0; renderRates(); renderSummary(); });
@@ -931,18 +957,20 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
 
   function pagar(){
     var box = document.getElementById("rc-err"); box.style.display = "none";
-    var miss = [];
+    RC_FIELDS.forEach(clrBad);
     var email = val("rc-email"), name = (val("rc-name") + " " + val("rc-last")).trim(), phone = val("rc-phone");
-    if (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)) miss.push("email válido");
-    if (!val("rc-name")) miss.push("nombre");
-    if (!val("rc-last")) miss.push("apellido");
-    if (!val("rc-tax")) miss.push("DNI / CUIL");
-    if (!phone) miss.push("teléfono");
-    if (!val("rc-addr")) miss.push("calle y número");
-    if (!val("rc-city")) miss.push("localidad");
-    if (!val("rc-prov")) miss.push("provincia");
-    if (!val("rc-zip")) miss.push("código postal");
-    if (miss.length) { box.textContent = "Completá: " + miss.join(", ") + "."; box.style.display = "block"; return; }
+    var firstBad = null;
+    function mark(id, msg){ setBad(id, msg); if (!firstBad) firstBad = id; }
+    if (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)) mark("rc-email", "Introducí un correo electrónico válido");
+    if (!val("rc-name")) mark("rc-name", "Introducí un nombre");
+    if (!val("rc-last")) mark("rc-last", "Introducí un apellido");
+    if (!val("rc-tax")) mark("rc-tax", "Introducí tu DNI / CUIL");
+    if (!phone) mark("rc-phone", "Introducí un número de teléfono");
+    if (!val("rc-addr")) mark("rc-addr", "Introducí una dirección");
+    if (!val("rc-zip")) mark("rc-zip", "Introducí un código postal");
+    if (!val("rc-city")) mark("rc-city", "Introducí una localidad");
+    if (!val("rc-prov")) mark("rc-prov", "Elegí una provincia");
+    if (firstBad) { var fe = document.getElementById(firstBad); if (fe) { if (fe.scrollIntoView) fe.scrollIntoView({ behavior: "smooth", block: "center" }); try { fe.focus(); } catch (e) {} } return; }
     if (submitting) return; submitting = true;
     var btn = document.getElementById("rc-pay"); if (btn){ btn.disabled = true; btn.textContent = "Redirigiendo a Mercado Pago…"; }
     var sel = rates[rateIdx] || { name: (plan.shipping_method_name||"Envío"), price: (plan.shipping_price_ars||0) };
@@ -971,21 +999,22 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
     var card = "background:#fff;border:1px solid #e8e8ea;border-radius:14px;padding:20px;margin-bottom:16px;";
     var lbl = "font-size:12px;font-weight:600;color:#555;margin:0 0 5px;display:block;";
     var h = "font-size:15px;font-weight:700;margin:0 0 14px;";
+    var eslot = function(id){ return '<div class="rc-e" id="' + id + '-e" style="display:none;color:#d33;font-size:11.5px;margin-top:4px;font-weight:600;"></div>'; };
     mount.innerHTML =
       '<div style="max-width:940px;margin:0 auto;padding:24px 16px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;color:#1a1a1a;">'
       + '<div class="rc-grid" style="display:grid;grid-template-columns:1fr 340px;gap:22px;align-items:start;">'
       + '<div>'
         + '<div style="' + card + '"><h3 style="' + h + '">Contacto</h3>'
-          + '<div style="margin-bottom:12px;"><label style="' + lbl + '">Email</label><input id="rc-email" type="email" style="' + inp + '" placeholder="tu@email.com"/></div>'
-          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;"><div><label style="' + lbl + '">Nombre</label><input id="rc-name" style="' + inp + '" placeholder="Juan"/></div><div><label style="' + lbl + '">Apellido</label><input id="rc-last" style="' + inp + '" placeholder="Pérez"/></div></div>'
-          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"><div><label style="' + lbl + '">Teléfono</label><input id="rc-phone" style="' + inp + '" placeholder="11 2345 6789"/></div><div><label style="' + lbl + '">DNI / CUIL</label><input id="rc-tax" style="' + inp + '" placeholder="20123456789"/></div></div>'
+          + '<div style="margin-bottom:12px;"><label style="' + lbl + '">Email</label><input id="rc-email" type="email" style="' + inp + '" placeholder="tu@email.com"/>' + eslot("rc-email") + '</div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;"><div><label style="' + lbl + '">Nombre</label><input id="rc-name" style="' + inp + '" placeholder="Juan"/>' + eslot("rc-name") + '</div><div><label style="' + lbl + '">Apellido</label><input id="rc-last" style="' + inp + '" placeholder="Pérez"/>' + eslot("rc-last") + '</div></div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"><div><label style="' + lbl + '">Teléfono</label><input id="rc-phone" style="' + inp + '" placeholder="11 2345 6789"/>' + eslot("rc-phone") + '</div><div><label style="' + lbl + '">DNI / CUIL</label><input id="rc-tax" style="' + inp + '" placeholder="20123456789"/>' + eslot("rc-tax") + '</div></div>'
         + '</div>'
         + '<div style="' + card + '"><h3 style="' + h + '">Entrega</h3>'
           + '<div style="margin-bottom:12px;"><label style="' + lbl + '">País / Región</label><input value="Argentina" disabled style="' + inp + 'background:#f4f4f5;color:#555;"/></div>'
-          + '<div style="margin-bottom:12px;"><label style="' + lbl + '">Calle y número</label><input id="rc-addr" style="' + inp + '" placeholder="Av. Siempreviva 742"/></div>'
+          + '<div style="margin-bottom:12px;"><label style="' + lbl + '">Calle y número</label><input id="rc-addr" style="' + inp + '" placeholder="Av. Siempreviva 742"/>' + eslot("rc-addr") + '</div>'
           + '<div style="margin-bottom:12px;"><label style="' + lbl + '">Piso / depto <span style="color:#aaa;font-weight:400;">(opc.)</span></label><input id="rc-addr2" style="' + inp + '" placeholder="3° B"/></div>'
-          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;"><div><label style="' + lbl + '">C.P.</label><input id="rc-zip" style="' + inp + '" placeholder="1754"/></div><div><label style="' + lbl + '">Localidad</label><input id="rc-city" style="' + inp + '" placeholder="San Justo"/></div></div>'
-          + '<div><label style="' + lbl + '">Provincia</label><select id="rc-prov" style="' + inp + 'cursor:pointer;"><option value="">Elegí tu provincia…</option>' + PROV.map(function(p){ return '<option value="' + esc(p) + '">' + esc(p) + '</option>'; }).join("") + '</select></div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;"><div><label style="' + lbl + '">C.P.</label><input id="rc-zip" style="' + inp + '" placeholder="1754"/>' + eslot("rc-zip") + '</div><div><label style="' + lbl + '">Localidad</label><input id="rc-city" style="' + inp + '" placeholder="San Justo"/>' + eslot("rc-city") + '</div></div>'
+          + '<div><label style="' + lbl + '">Provincia</label><select id="rc-prov" style="' + inp + 'cursor:pointer;"><option value="">Elegí tu provincia…</option>' + PROV.map(function(p){ return '<option value="' + esc(p) + '">' + esc(p) + '</option>'; }).join("") + '</select>' + eslot("rc-prov") + '</div>'
         + '</div>'
         + '<div style="' + card + '"><h3 style="' + h + '">Envío</h3><div id="rc-rates"></div></div>'
         + '<div style="' + card + '"><h3 style="' + h + '">Pago</h3>'
@@ -1000,6 +1029,8 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
 
     document.getElementById("rc-pay").addEventListener("click", pagar);
     ["rc-zip","rc-prov","rc-city"].forEach(function(id){ var el=document.getElementById(id); if(el){ el.addEventListener("change", onAddrChange); el.addEventListener("input", onAddrChange); } });
+    // Al escribir, se limpia el error de ese campo (como Shopify).
+    RC_FIELDS.forEach(function(id){ var el=document.getElementById(id); if(el){ el.addEventListener("input", function(){ clrBad(id); }); el.addEventListener("change", function(){ clrBad(id); }); } });
     renderRates(); renderSummary();
   }
 
