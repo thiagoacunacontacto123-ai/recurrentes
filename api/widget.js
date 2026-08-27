@@ -884,6 +884,17 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
     while (d < target && guard < 400) { d.setDate(d.getDate() + 1); var g = d.getDay(); if (g !== 0 && g !== 6) n++; guard++; }
     return n;
   }
+  // Fallback del tiempo de envío: lo saca del NOMBRE de la tarifa. Sirve para las
+  // tarifas planas (Flex, prioritario) que la API AJAX no devuelve con delivery_range
+  // pero que suelen tener el tiempo en el nombre ("24/48hs", "1 a 4 días", etc.).
+  function etaFromName(nm){
+    var s = String(nm || "").toLowerCase();
+    var m = s.match(/(\\d+)\\s*[a\\/\\-]\\s*(\\d+)\\s*(hs?|horas?|d[ií]as?)/);
+    if (m) return m[1] + " a " + m[2] + " " + (/h/.test(m[3]) ? "hs" : "días hábiles");
+    m = s.match(/(\\d+)\\s*(hs?|horas?|d[ií]as?)\\b/);
+    if (m) return m[1] + " " + (/h/.test(m[2]) ? "hs" : "días hábiles");
+    return "";
+  }
   function effFreqDays(){ return (FREQ_DAYS >= 1) ? FREQ_DAYS : (plan.frequency_days || 30); }
   function freqTxt(){ var d = effFreqDays(); if (d===30) return "mensual"; if (d===60) return "cada 2 meses"; if (d===90) return "cada 3 meses"; if (d % 30 === 0) return "cada " + (d/30) + " meses"; return "cada " + d + " días"; }
 
@@ -915,7 +926,9 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
               if (lo >= 1) eta = (lo === hi) ? (lo + " días hábiles") : (lo + " a " + hi + " días hábiles");
             } catch (e) {}
           }
-          return { name: sr.presentment_name || sr.name, price: parseFloat(sr.price) || 0, eta: eta };
+          var nm = sr.presentment_name || sr.name;
+          if (!eta) eta = etaFromName(nm);  // fallback: tiempo dentro del nombre (Flex, etc.)
+          return { name: nm, price: parseFloat(sr.price) || 0, eta: eta };
         });
         rates = list.length ? list : [{ name: (plan.shipping_method_name||"Envío"), price: (plan.shipping_price_ars||0) }];
         rateIdx = 0; ratesMsg = "";
