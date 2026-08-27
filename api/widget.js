@@ -1073,15 +1073,16 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
       + '</div>'
       + '<div class="rc-summary-wrap" style="' + card + '"><div id="rc-summary"></div></div>'
       + '</div></div>'
-      + '<style>@media(max-width:760px){.rc-grid{grid-template-columns:1fr!important;}.rc-summary-wrap{order:-1;}}@keyframes rc-spin{to{transform:rotate(360deg)}}</style>';
+      + '<style>@media(max-width:760px){.rc-grid{grid-template-columns:1fr!important;}.rc-summary-wrap{order:-1;}#recurrentes-checkout input,#recurrentes-checkout select{font-size:16px!important;}}@keyframes rc-spin{to{transform:rotate(360deg)}}</style>';
 
     document.getElementById("rc-pay").addEventListener("click", pagar);
     ["rc-zip","rc-prov","rc-city"].forEach(function(id){ var el=document.getElementById(id); if(el){ el.addEventListener("change", onAddrChange); el.addEventListener("input", onAddrChange); } });
     // Al escribir, se limpia el error de ese campo (como Shopify).
     RC_FIELDS.forEach(function(id){ var el=document.getElementById(id); if(el){ el.addEventListener("input", function(){ clrBad(id); }); el.addEventListener("change", function(){ clrBad(id); }); } });
-    // C.P. y DNI/CUIL: SOLO números. inputmode numérico (teclado numérico en
-    // celular) + filtro que borra cualquier caracter no numérico al tipear o pegar.
-    ["rc-zip","rc-tax"].forEach(function(id){ var el=document.getElementById(id); if(el){ el.setAttribute("inputmode","numeric"); el.addEventListener("input", function(){ var v=el.value.replace(/[^0-9]/g,""); if(v!==el.value) el.value=v; }); } });
+    // C.P., DNI/CUIL y Teléfono: SOLO números. inputmode numérico (teclado
+    // numérico en celular) + filtro que borra cualquier caracter no numérico al
+    // tipear o pegar.
+    ["rc-zip","rc-tax","rc-phone"].forEach(function(id){ var el=document.getElementById(id); if(el){ el.setAttribute("inputmode","numeric"); el.addEventListener("input", function(){ var v=el.value.replace(/[^0-9]/g,""); if(v!==el.value) el.value=v; }); } });
     renderRates(); renderSummary();
   }
 
