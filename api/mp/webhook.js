@@ -151,6 +151,23 @@ async function processPaymentForMerchant(merchantId, merchant, payment) {
       const q = await db().collection("merchants").doc(merchantId).collection("subscribers")
         .where("mp_preapproval_id", "==", preapprovalId).limit(1).get();
       if (!q.empty) subscriberId = q.docs[0].id;
+      // Flujo de plan: en el primer webhook el sub AÚN no tiene grabado
+      // mp_preapproval_id (MP recién creó el preapproval). Y MP no propaga el
+      // external_reference. Resolvemos via el preapproval → su preapproval_plan_id,
+      // que es único por sub (cada sub crea su plan ad-hoc). Sin esto, el webhook
+      // no encontraba el sub y la venta no caía sola.
+      if (!subscriberId) {
+        try {
+          const pre = await mpGetPreapproval(merchant.mp_access_token, preapprovalId);
+          if (pre?.preapproval_plan_id) {
+            const q2 = await db().collection("merchants").doc(merchantId).collection("subscribers")
+              .where("mp_preapproval_plan_id", "==", pre.preapproval_plan_id).limit(1).get();
+            if (!q2.empty) subscriberId = q2.docs[0].id;
+          }
+        } catch (e) {
+          console.warn(`[mp-webhook] no pude resolver preapproval ${preapprovalId}: ${e.message}`);
+        }
+      }
     }
   }
   if (!subscriberId) {
