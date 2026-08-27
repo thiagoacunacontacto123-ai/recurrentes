@@ -242,12 +242,12 @@ export default async function handler(req, res) {
   // payment_methods_allowed: solo credit_card → MP filtra dinero+débito en el
   // checkout. external_reference se hereda al preapproval que MP cree cuando
   // el cliente confirme — el webhook lo usa para resolver subscriber.
-  // start_date: 5 segundos EN EL PASADO. MP solo cobra inmediato si start_date
-  // ya pasó. Sin start_date (o con start_date futuro) MP calcula
-  // "next_payment = ahora + frequency" → ej 30 días para el primer cobro,
-  // la sub queda authorized sin payment hasta dentro de 1 mes. Con start_date
-  // en el pasado, MP procesa el primer cobro en segundos.
-  const startDate = new Date(Date.now() - 5 * 1000).toISOString();
+  // start_date: ~60 segundos EN EL FUTURO. El /preapproval DIRECTO de MP RECHAZA
+  // fechas pasadas ("Invalid value for auto_recurring.start_date, cannot be a past
+  // date") — el truco de fecha pasada solo funcionaba con el flujo viejo de
+  // preapproval_plan. Con +60s pasa la validación con margen de sesgo de reloj y
+  // MP genera el primer cobro apenas se cumple (segundos), no dentro de un ciclo.
+  const startDate = new Date(Date.now() + 60 * 1000).toISOString();
 
   // Suscripción DIRECTA (preapproval, no preapproval_plan). El init_point de este
   // flujo (redirect) muestra TODOS los métodos de pago: tarjeta de crédito,
