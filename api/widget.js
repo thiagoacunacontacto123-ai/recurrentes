@@ -853,6 +853,10 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
     if (v >= 1) { if (t === "months") return v * 30; if (t === "days") return v; if (t === "weeks") return v * 7; }
     return 0; // 0 = usar la del plan
   })();
+  // Precio del PACK (compra única) y % de descuento de suscripción — el bundle los
+  // manda para cobrar pack × (1 − descuento). Descuento fijo por bundle.
+  var BASE = Math.round(parseFloat(q.get("base") || "0")) || 0;
+  var SUB_OFF = (function(){ var d = parseFloat(q.get("sub_off")); return (isFinite(d) && d >= 0 && d <= 90) ? d : null; })();
 
   var mount = document.getElementById("recurrentes-checkout");
   if (!mount) { mount = document.createElement("div"); mount.id = "recurrentes-checkout"; document.body.appendChild(mount); }
@@ -878,10 +882,17 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
   function errBox(msg){ return '<div style="max-width:420px;margin:60px auto;text-align:center;font-family:-apple-system,Segoe UI,Roboto,sans-serif;"><div style="font-size:15px;font-weight:700;margin-bottom:8px;">Ups</div><div style="font-size:13px;color:#666;line-height:1.5;">' + esc(msg) + '</div></div>'; }
 
   function prices(){
-    var unit = plan.subscription_price_ars || 0;
-    var tiers = Array.isArray(plan.qty_discount_tiers) ? plan.qty_discount_tiers : [];
-    var disc = 0, bestMin = -1; for (var i=0;i<tiers.length;i++){ var mq = parseInt(tiers[i].min_qty)||0; if (QTY >= mq && mq > bestMin) { bestMin = mq; disc = parseFloat(tiers[i].discount_pct)||0; } }
-    var subtotal = Math.round(unit * QTY * (1 - disc/100));
+    var disc, subtotal;
+    if (BASE > 0) {
+      // Bundle con descuento fijo: cobra pack × (1 − descuento).
+      disc = (SUB_OFF != null) ? SUB_OFF : (parseFloat(plan.discount_pct) || 0);
+      subtotal = Math.round(BASE * (1 - disc / 100));
+    } else {
+      var unit = plan.subscription_price_ars || 0;
+      var tiers = Array.isArray(plan.qty_discount_tiers) ? plan.qty_discount_tiers : [];
+      disc = 0; var bestMin = -1; for (var i=0;i<tiers.length;i++){ var mq = parseInt(tiers[i].min_qty)||0; if (QTY >= mq && mq > bestMin) { bestMin = mq; disc = parseFloat(tiers[i].discount_pct)||0; } }
+      subtotal = Math.round(unit * QTY * (1 - disc/100));
+    }
     var sel = rates[rateIdx] || { name: (plan.shipping_method_name||"Envío"), price: (plan.shipping_price_ars||0) };
     return { subtotal: subtotal, disc: disc, ship: Number(sel.price)||0, shipName: sel.name, total: subtotal + (Number(sel.price)||0) };
   }
@@ -1008,6 +1019,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({
         merchant_id: MERCHANT_ID, plan_id: plan.id, quantity: QTY, frequency_days: effFreqDays(),
+        base_price: (BASE > 0 ? BASE : undefined), sub_discount: (SUB_OFF != null ? SUB_OFF : undefined),
         fb: fbData(),
         customer: { email: email, name: name, phone: phone, tax_id: val("rc-tax") },
         shipping_address: {

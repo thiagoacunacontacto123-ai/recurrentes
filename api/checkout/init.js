@@ -63,7 +63,7 @@ export default async function handler(req, res) {
 
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { merchant_id, plan_id, customer, shipping_address, quantity, shipping_method, frequency_days } = req.body || {};
+  const { merchant_id, plan_id, customer, shipping_address, quantity, shipping_method, frequency_days, base_price, sub_discount } = req.body || {};
   if (!merchant_id || !plan_id) return res.status(400).json({ error: "Faltan merchant_id o plan_id" });
   if (!customer?.email) return res.status(400).json({ error: "Falta customer.email" });
 
@@ -117,15 +117,26 @@ export default async function handler(req, res) {
     ? freqParsed
     : (plan.frequency_days || 30);
 
-  // Aplicar descuento por cantidad si corresponde. Los tiers están ordenados
-  // por min_qty asc — buscamos el último tier cuyo min_qty <= finalQty.
-  // Descuento por cantidad: se toma el tier de MAYOR min_qty que no supere la
-  // cantidad (robusto ante tiers desordenados). Sin tiers configurados → 0%.
-  const tiers = Array.isArray(plan.qty_discount_tiers) ? plan.qty_discount_tiers : [];
-  let qtyDiscountPct = 0, _bestMin = -1;
-  for (const t of tiers) { const mq = parseInt(t && t.min_qty) || 0; if (finalQty >= mq && mq > _bestMin) { _bestMin = mq; qtyDiscountPct = parseFloat(t.discount_pct) || 0; } }
-
-  const subtotal = Math.round(unitPrice * finalQty * (1 - qtyDiscountPct / 100));
+  // ── Precio de la suscripción ──────────────────────────────────────────
+  // Modelo BUNDLE (el que usa Lumina): el bundle manda el precio del PACK
+  // (compra única) en `base_price` + el % de descuento de suscripción en
+  // `sub_discount`. La suscripción cobra pack × (1 − descuento). Descuento fijo
+  // por bundle (ej. 15% en 1/2/3 potes), sin depender del precio por unidad.
+  //   → sub_discount: si no viene, usa plan.discount_pct.
+  // Modelo por-unidad (legacy / sin bundle): precio_1_pote × cantidad × tier.
+  const basePrice = Math.round(parseFloat(base_price) || 0);
+  const subOffParsed = parseFloat(sub_discount);
+  const subOff = Number.isFinite(subOffParsed) ? Math.max(0, Math.min(90, subOffParsed)) : (parseFloat(plan.discount_pct) || 0);
+  let subtotal, qtyDiscountPct;
+  if (basePrice > 0) {
+    qtyDiscountPct = subOff;
+    subtotal = Math.round(basePrice * (1 - subOff / 100));
+  } else {
+    const tiers = Array.isArray(plan.qty_discount_tiers) ? plan.qty_discount_tiers : [];
+    qtyDiscountPct = 0; let _bestMin = -1;
+    for (const t of tiers) { const mq = parseInt(t && t.min_qty) || 0; if (finalQty >= mq && mq > _bestMin) { _bestMin = mq; qtyDiscountPct = parseFloat(t.discount_pct) || 0; } }
+    subtotal = Math.round(unitPrice * finalQty * (1 - qtyDiscountPct / 100));
+  }
 
   // Envío. Si el checkout mandó un método elegido (shipping_method, traído de los
   // envíos configurados en Shopify), se usa ESE precio y nombre. Si no, se cae al
