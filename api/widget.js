@@ -43,6 +43,9 @@ export default async function handler(req, res) {
   // "page" = el botón lleva a un checkout propio (contacto/dirección/envíos de
   // Shopify) antes de MP. "inline" = form dentro del widget (comportamiento viejo).
   let checkoutFlow = "page";
+  // Path de la PÁGINA de checkout on-store que el merchant creó en Shopify (con el
+  // embed pegado). El botón del producto redirige ahí, en el dominio de la tienda.
+  let checkoutPagePath = "/pages/suscripcion-form";
   try {
     const { db } = await import("./_lib/firebase.js");
     const snap = await db().collection("merchants").doc(merchantId).get();
@@ -58,6 +61,7 @@ export default async function handler(req, res) {
       if (typeof m.widget_disclaimer_text === "string") widgetDisclaimerText = m.widget_disclaimer_text;
       if (!hideSelector && typeof m.widget_hide_selector === "string") hideSelector = m.widget_hide_selector;
       if (m.widget_checkout_flow === "inline") checkoutFlow = "inline";
+      if (typeof m.widget_checkout_page_path === "string" && m.widget_checkout_page_path.trim()) checkoutPagePath = m.widget_checkout_page_path.trim();
     }
   } catch (_) {}
 
@@ -76,6 +80,14 @@ export default async function handler(req, res) {
     return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
   }
   const COL = widgetColor;
+
+  // ?view=checkout → sirve el CHECKOUT ON-STORE (página de Shopify del merchant),
+  // en vez del widget del producto. Corre en el dominio de la tienda, así puede
+  // pedir los envíos REALES por CP a Shopify (/cart/shipping_rates.json) y va a MP.
+  if (String(req.query.view || "") === "checkout") {
+    return res.send(buildCheckoutEmbed({ merchantId, apiBase, color: widgetColor }));
+  }
+
   const COL_DARK = shade(widgetColor, -35);           // gradient end (botones)
   const COL_TEXT_DARK = shade(widgetColor, -70);      // títulos sobre fondo claro
   const COL_TEXT_MEDIUM = shade(widgetColor, -50);    // textos secundarios
@@ -91,6 +103,7 @@ export default async function handler(req, res) {
   var MODE_ORDER = ${JSON.stringify(widgetModeOrder)};
   var MODE_DEFAULT = ${JSON.stringify(widgetModeDefault)};
   var CHECKOUT_FLOW = ${JSON.stringify(checkoutFlow)};
+  var CHECKOUT_PAGE_PATH = ${JSON.stringify(checkoutPagePath)};
   var WIDGET_COLOR = ${JSON.stringify(widgetColor)};
   var SUB_TITLE = ${JSON.stringify(widgetSubTitle)};
   var SUB_SUBTITLE = ${JSON.stringify(widgetSubSubtitle)};
@@ -740,18 +753,17 @@ export default async function handler(req, res) {
 
       subPanel.querySelector("#recurrentes-subscribe-btn").addEventListener("click", function(){
         if (CHECKOUT_FLOW === "page") {
-          // Modo checkout propio: el botón lleva a la página de checkout de
-          // Recurrentes (contacto + dirección + envíos de Shopify) con el
-          // producto y la cantidad elegida. Ahí se junta todo y va a MP.
+          // Modo checkout ON-STORE: el botón lleva a la PÁGINA de Shopify del
+          // merchant (misma tienda), con producto/variante/cantidad. Esa página
+          // tiene el embed (?view=checkout) que junta datos + envíos reales por
+          // CP de Shopify y va a MP. Igual que Puentify (/pages/suscripcion-form).
           var qEl = subPanel.querySelector("#rec-qty");
           var q = parseInt(qEl ? qEl.value : (subPanel.dataset.qty || 1)) || 1;
-          var ogImg = (document.querySelector('meta[property="og:image"]') || {}).content || "";
-          var u = API_BASE + "/#/checkout?merchant=" + encodeURIComponent(MERCHANT_ID) +
-            "&product=" + encodeURIComponent(plan.shopify_product_id) +
+          var u = window.location.origin + CHECKOUT_PAGE_PATH +
+            "?product=" + encodeURIComponent(plan.shopify_product_id) +
+            "&variant=" + encodeURIComponent(plan.shopify_variant_id || variantId || "") +
             "&qty=" + q +
-            "&title=" + encodeURIComponent(plan.product_title || "") +
-            "&color=" + encodeURIComponent(WIDGET_COLOR || "") +
-            (ogImg ? "&img=" + encodeURIComponent(ogImg) : "");
+            "&freq_value=1&freq_type=months";
           window.location.href = u;
           return;
         }
@@ -809,4 +821,179 @@ export default async function handler(req, res) {
 })();`;
 
   return res.send(script);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// CHECKOUT ON-STORE — se sirve con ?view=checkout. El merchant crea una página
+// en Shopify (ej. /pages/suscripcion-form) y pega:
+//   <div id="recurrentes-checkout"></div>
+//   <script src="https://<recurrentes>/api/widget?merchant=<uid>&view=checkout"></script>
+// El widget del producto redirige a esa página con ?product=&variant=&qty=.
+// Como corre en el dominio de la tienda, usa /cart/shipping_rates.json para
+// traer los envíos REALES por CP (los mismos del checkout normal) y termina en MP.
+// ─────────────────────────────────────────────────────────────────────────
+function buildCheckoutEmbed({ merchantId, apiBase, color }) {
+  return `(function(){
+  "use strict";
+  var MERCHANT_ID = ${JSON.stringify(merchantId)};
+  var API_BASE = ${JSON.stringify(apiBase)};
+  var COL = ${JSON.stringify(color || "#10b981")};
+  if (!MERCHANT_ID) { console.error("[Recurrentes checkout] falta ?merchant en el <script>"); return; }
+
+  var q = new URLSearchParams(window.location.search);
+  var PRODUCT = q.get("product") || q.get("product_id") || "";
+  var VARIANT = q.get("variant") || q.get("variant_id") || "";
+  var QTY = Math.max(1, Math.min(10, parseInt(q.get("qty") || q.get("quantity") || "1", 10) || 1));
+
+  var mount = document.getElementById("recurrentes-checkout");
+  if (!mount) { mount = document.createElement("div"); mount.id = "recurrentes-checkout"; document.body.appendChild(mount); }
+
+  var plan = null, rates = [], rateIdx = 0, submitting = false, ratesMsg = "Completá C.P. y provincia para ver el envío.";
+
+  function money(n){ return "$" + Math.round(Number(n) || 0).toLocaleString("es-AR"); }
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c]; }); }
+  function val(id){ var el = document.getElementById(id); return el ? el.value.trim() : ""; }
+  function errBox(msg){ return '<div style="max-width:420px;margin:60px auto;text-align:center;font-family:-apple-system,Segoe UI,Roboto,sans-serif;"><div style="font-size:15px;font-weight:700;margin-bottom:8px;">Ups</div><div style="font-size:13px;color:#666;line-height:1.5;">' + esc(msg) + '</div></div>'; }
+
+  function prices(){
+    var unit = plan.subscription_price_ars || 0;
+    var tiers = Array.isArray(plan.qty_discount_tiers) ? plan.qty_discount_tiers : [];
+    var disc = 0; for (var i=0;i<tiers.length;i++){ if (QTY >= (tiers[i].min_qty||0)) disc = tiers[i].discount_pct||0; }
+    var subtotal = Math.round(unit * QTY * (1 - disc/100));
+    var sel = rates[rateIdx] || { name: (plan.shipping_method_name||"Envío"), price: (plan.shipping_price_ars||0) };
+    return { subtotal: subtotal, disc: disc, ship: Number(sel.price)||0, shipName: sel.name, total: subtotal + (Number(sel.price)||0) };
+  }
+  function freqTxt(){ var d = plan.frequency_days; return d===30?"mensual":d===60?"cada 2 meses":d===90?"cada 3 meses":("cada "+d+" días"); }
+
+  // Traer envíos reales de Shopify por CP. Corre en el dominio de la tienda:
+  // agrega la variante al carrito, pide las tarifas, y saca la variante que
+  // agregó (deja el carrito como estaba). Si falla, cae al envío del plan.
+  var rateTimer = null;
+  function fetchRates(){
+    var zip = val("rc-zip"), prov = val("rc-prov"), city = val("rc-city");
+    if (!zip || !prov) { ratesMsg = "Completá C.P. y provincia para ver el envío."; renderRates(); return; }
+    ratesMsg = "Buscando opciones de envío…"; renderRates();
+    var addr = "shipping_address%5Bzip%5D=" + encodeURIComponent(zip) + "&shipping_address%5Bcountry%5D=Argentina&shipping_address%5Bprovince%5D=" + encodeURIComponent(prov) + "&shipping_address%5Bcity%5D=" + encodeURIComponent(city);
+    var addBody = JSON.stringify({ items: [{ id: parseInt(VARIANT,10), quantity: QTY }] });
+    var doFetch = function(){
+      return fetch("/cart/shipping_rates.json?" + addr).then(function(r){ return r.json(); });
+    };
+    fetch("/cart/add.js", { method:"POST", headers:{"Content-Type":"application/json"}, body: addBody })
+      .then(doFetch)
+      .then(function(d){
+        var list = (d.shipping_rates || []).map(function(sr){ return { name: sr.presentment_name || sr.name, price: parseFloat(sr.price) || 0 }; });
+        rates = list.length ? list : [{ name: (plan.shipping_method_name||"Envío"), price: (plan.shipping_price_ars||0) }];
+        rateIdx = 0; ratesMsg = "";
+        // sacar la variante que agregamos (no queremos tocar el carrito real)
+        fetch("/cart/change.js", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ id: parseInt(VARIANT,10), quantity: 0 }) }).catch(function(){});
+        renderRates(); renderSummary();
+      })
+      .catch(function(){ rates = [{ name: (plan.shipping_method_name||"Envío"), price: (plan.shipping_price_ars||0) }]; rateIdx = 0; ratesMsg = ""; renderRates(); renderSummary(); });
+  }
+  function onAddrChange(){ clearTimeout(rateTimer); rateTimer = setTimeout(fetchRates, 500); }
+
+  function renderRates(){
+    var box = document.getElementById("rc-rates"); if (!box) return;
+    if (ratesMsg) { box.innerHTML = '<div style="font-size:13px;color:#888;padding:10px 0;">' + esc(ratesMsg) + '</div>'; return; }
+    box.innerHTML = rates.map(function(rt,i){
+      var free = (Number(rt.price)||0) === 0;
+      return '<label style="display:flex;align-items:center;gap:10px;padding:11px 13px;border:1.5px solid ' + (i===rateIdx?COL:"#e0e0e2") + ';border-radius:10px;cursor:pointer;margin-bottom:8px;background:' + (i===rateIdx?(COL+"0d"):"#fff") + ';">'
+        + '<input type="radio" name="rc-rate" ' + (i===rateIdx?"checked":"") + ' data-i="' + i + '" style="accent-color:' + COL + ';"/>'
+        + '<span style="flex:1;font-size:13px;font-weight:500;">' + esc(rt.name) + '</span>'
+        + '<b style="font-size:13px;color:' + (free?"#0a8a3f":"#1a1a1a") + ';">' + (free?"Gratis":money(rt.price)) + '</b></label>';
+    }).join("");
+    Array.prototype.forEach.call(box.querySelectorAll('input[name="rc-rate"]'), function(inp){
+      inp.addEventListener("change", function(){ rateIdx = parseInt(inp.getAttribute("data-i"),10)||0; renderRates(); renderSummary(); });
+    });
+  }
+  function renderSummary(){
+    var el = document.getElementById("rc-summary"); if (!el) return; var p = prices();
+    el.innerHTML =
+      '<div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;">'
+      + '<div style="min-width:0;"><div style="font-size:10px;font-weight:800;color:' + COL + ';text-transform:uppercase;letter-spacing:.5px;">Suscripción · ' + esc(freqTxt()) + '</div>'
+      + '<div style="font-size:14px;font-weight:700;line-height:1.3;">' + esc(plan.product_title) + ' × ' + QTY + '</div></div></div>'
+      + '<div style="border-top:1px solid #eee;padding-top:12px;display:flex;flex-direction:column;gap:8px;font-size:13px;">'
+      + '<div style="display:flex;justify-content:space-between;"><span style="color:#666;">Subtotal' + (p.disc>0?(" (−"+p.disc+"%)"):"") + '</span><b>' + money(p.subtotal) + '</b></div>'
+      + '<div style="display:flex;justify-content:space-between;"><span style="color:#666;">Envío' + (p.shipName?(" · "+esc(p.shipName)):"") + '</span><b>' + (p.ship===0?"Gratis":money(p.ship)) + '</b></div>'
+      + '<div style="display:flex;justify-content:space-between;border-top:1px solid #eee;padding-top:10px;font-size:15px;"><b>Total ' + esc(freqTxt()) + '</b><b>' + money(p.total) + '</b></div></div>'
+      + '<div style="margin-top:12px;font-size:11px;color:#888;line-height:1.5;">Se cobra ' + money(p.total) + ' ahora y se renueva automáticamente ' + esc(freqTxt()) + '. Cancelás cuando quieras.</div>';
+  }
+
+  function pagar(){
+    var box = document.getElementById("rc-err"); box.style.display = "none";
+    var miss = [];
+    var email = val("rc-email"), name = (val("rc-name") + " " + val("rc-last")).trim(), phone = val("rc-phone");
+    if (!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email)) miss.push("email válido");
+    if (!val("rc-name")) miss.push("nombre");
+    if (!phone) miss.push("teléfono");
+    if (!val("rc-addr")) miss.push("calle y número");
+    if (!val("rc-city")) miss.push("localidad");
+    if (!val("rc-prov")) miss.push("provincia");
+    if (!val("rc-zip")) miss.push("código postal");
+    if (miss.length) { box.textContent = "Completá: " + miss.join(", ") + "."; box.style.display = "block"; return; }
+    if (submitting) return; submitting = true;
+    var btn = document.getElementById("rc-pay"); if (btn){ btn.disabled = true; btn.textContent = "Redirigiendo a Mercado Pago…"; }
+    var sel = rates[rateIdx] || { name: (plan.shipping_method_name||"Envío"), price: (plan.shipping_price_ars||0) };
+    fetch(API_BASE + "/api/checkout/init", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        merchant_id: MERCHANT_ID, plan_id: plan.id, quantity: QTY,
+        customer: { email: email, name: name, phone: phone, tax_id: val("rc-tax") },
+        shipping_address: {
+          address1: val("rc-addr"), address2: val("rc-addr2"), city: val("rc-city"),
+          province: val("rc-prov"), zip: val("rc-zip"), country: "Argentina",
+          first_name: val("rc-name"), last_name: val("rc-last"), phone: phone
+        },
+        shipping_method: { name: sel.name, price: Number(sel.price) || 0 }
+      })
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if (d.error) { box.textContent = d.error; box.style.display = "block"; submitting = false; if(btn){ btn.disabled=false; btn.textContent="Suscribirme y pagar"; } return; }
+      window.location.href = d.init_point;
+    }).catch(function(){ box.textContent = "No pudimos conectar con Mercado Pago. Reintentá."; box.style.display = "block"; submitting = false; if(btn){ btn.disabled=false; btn.textContent="Suscribirme y pagar"; } });
+  }
+
+  var PROV = ["Buenos Aires","Ciudad Autónoma de Buenos Aires","Catamarca","Chaco","Chubut","Córdoba","Corrientes","Entre Ríos","Formosa","Jujuy","La Pampa","La Rioja","Mendoza","Misiones","Neuquén","Río Negro","Salta","San Juan","San Luis","Santa Cruz","Santa Fe","Santiago del Estero","Tierra del Fuego","Tucumán"];
+
+  function render(){
+    var inp = "width:100%;padding:11px 12px;font-size:14px;border:1px solid #d6d6d8;border-radius:9px;box-sizing:border-box;outline:none;background:#fff;font-family:inherit;";
+    var card = "background:#fff;border:1px solid #e8e8ea;border-radius:14px;padding:20px;margin-bottom:16px;";
+    var lbl = "font-size:12px;font-weight:600;color:#555;margin:0 0 5px;display:block;";
+    var h = "font-size:15px;font-weight:700;margin:0 0 14px;";
+    mount.innerHTML =
+      '<div style="max-width:940px;margin:0 auto;padding:24px 16px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;color:#1a1a1a;">'
+      + '<div class="rc-grid" style="display:grid;grid-template-columns:1fr 340px;gap:22px;align-items:start;">'
+      + '<div>'
+        + '<div style="' + card + '"><h3 style="' + h + '">Contacto</h3>'
+          + '<div style="margin-bottom:12px;"><label style="' + lbl + '">Email</label><input id="rc-email" type="email" style="' + inp + '" placeholder="tu@email.com"/></div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;"><div><label style="' + lbl + '">Nombre</label><input id="rc-name" style="' + inp + '" placeholder="Juan"/></div><div><label style="' + lbl + '">Apellido</label><input id="rc-last" style="' + inp + '" placeholder="Pérez"/></div></div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"><div><label style="' + lbl + '">Teléfono</label><input id="rc-phone" style="' + inp + '" placeholder="11 2345 6789"/></div><div><label style="' + lbl + '">DNI/CUIT <span style="color:#aaa;font-weight:400;">(opc.)</span></label><input id="rc-tax" style="' + inp + '" placeholder="20123456789"/></div></div>'
+        + '</div>'
+        + '<div style="' + card + '"><h3 style="' + h + '">Entrega</h3>'
+          + '<div style="margin-bottom:12px;"><label style="' + lbl + '">Calle y número</label><input id="rc-addr" style="' + inp + '" placeholder="Av. Siempreviva 742"/></div>'
+          + '<div style="margin-bottom:12px;"><label style="' + lbl + '">Piso / depto <span style="color:#aaa;font-weight:400;">(opc.)</span></label><input id="rc-addr2" style="' + inp + '" placeholder="3° B"/></div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;"><div><label style="' + lbl + '">C.P.</label><input id="rc-zip" style="' + inp + '" placeholder="1754"/></div><div><label style="' + lbl + '">Localidad</label><input id="rc-city" style="' + inp + '" placeholder="San Justo"/></div></div>'
+          + '<div><label style="' + lbl + '">Provincia</label><select id="rc-prov" style="' + inp + 'cursor:pointer;"><option value="">Elegí tu provincia…</option>' + PROV.map(function(p){ return '<option value="' + esc(p) + '">' + esc(p) + '</option>'; }).join("") + '</select></div>'
+        + '</div>'
+        + '<div style="' + card + '"><h3 style="' + h + '">Envío</h3><div id="rc-rates"></div></div>'
+        + '<div style="' + card + '"><h3 style="' + h + '">Pago</h3>'
+          + '<div style="font-size:13px;color:#555;margin-bottom:12px;">Vas a completar el pago de forma segura en <b>Mercado Pago</b>.</div>'
+          + '<div id="rc-err" style="display:none;background:#fde8e8;border:1px solid #f5b5b5;color:#b42318;font-size:13px;padding:10px 12px;border-radius:9px;margin-bottom:12px;"></div>'
+          + '<button id="rc-pay" style="width:100%;padding:14px;font-size:15px;font-weight:700;color:#fff;background:' + COL + ';border:none;border-radius:11px;cursor:pointer;">Suscribirme y pagar</button>'
+        + '</div>'
+      + '</div>'
+      + '<div class="rc-summary-wrap" style="' + card + 'position:sticky;top:16px;"><div id="rc-summary"></div></div>'
+      + '</div></div>'
+      + '<style>@media(max-width:760px){.rc-grid{grid-template-columns:1fr!important;}.rc-summary-wrap{order:-1;}}</style>';
+
+    document.getElementById("rc-pay").addEventListener("click", pagar);
+    ["rc-zip","rc-prov","rc-city"].forEach(function(id){ var el=document.getElementById(id); if(el){ el.addEventListener("change", onAddrChange); el.addEventListener("input", onAddrChange); } });
+    renderRates(); renderSummary();
+  }
+
+  if (!PRODUCT) { mount.innerHTML = errBox("Faltan datos del producto en la URL. Volvé a la tienda e intentá de nuevo."); return; }
+  fetch(API_BASE + "/api/public?action=plan&merchant=" + encodeURIComponent(MERCHANT_ID) + "&product=" + encodeURIComponent(PRODUCT))
+    .then(function(r){ return r.json(); })
+    .then(function(d){ if (!d || !d.plan) { mount.innerHTML = errBox("No encontramos una suscripción activa para este producto."); return; } plan = d.plan; render(); })
+    .catch(function(){ mount.innerHTML = errBox("No pudimos cargar el plan. Revisá tu conexión."); });
+})();`;
 }
