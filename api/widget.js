@@ -858,6 +858,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
   if (!mount) { mount = document.createElement("div"); mount.id = "recurrentes-checkout"; document.body.appendChild(mount); }
 
   var plan = null, rates = [], rateIdx = 0, submitting = false, ratesMsg = "Completá C.P. y provincia para ver el envío.";
+  var sumOpen = !(typeof window !== "undefined" && window.innerWidth < 760);  // resumen: abierto en desktop, colapsado en mobile
 
   function money(n){ return "$" + Math.round(Number(n) || 0).toLocaleString("es-AR"); }
   function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c]; }); }
@@ -957,8 +958,8 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
   }
   function renderSummary(){
     var el = document.getElementById("rc-summary"); if (!el) return; var p = prices();
-    el.innerHTML =
-      '<div style="display:flex;gap:12px;align-items:center;margin-bottom:14px;">'
+    var body =
+      '<div style="display:flex;gap:12px;align-items:center;margin:14px 0;">'
       + '<div style="min-width:0;"><div style="font-size:10px;font-weight:800;color:' + COL + ';text-transform:uppercase;letter-spacing:.5px;">Suscripción · ' + esc(freqTxt()) + '</div>'
       + '<div style="font-size:14px;font-weight:700;line-height:1.3;">' + esc(plan.product_title) + ' × ' + QTY + '</div></div></div>'
       + '<div style="border-top:1px solid #eee;padding-top:12px;display:flex;flex-direction:column;gap:8px;font-size:13px;">'
@@ -966,6 +967,14 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
       + '<div style="display:flex;justify-content:space-between;"><span style="color:#666;">Envío' + (p.shipName?(" · "+esc(p.shipName)):"") + '</span><b>' + (p.ship===0?"Gratis":money(p.ship)) + '</b></div>'
       + '<div style="display:flex;justify-content:space-between;border-top:1px solid #eee;padding-top:10px;font-size:15px;"><b>Total ' + esc(freqTxt()) + '</b><b>' + money(p.total) + '</b></div></div>'
       + '<div style="margin-top:12px;font-size:11px;color:#888;line-height:1.5;">Se cobra ' + money(p.total) + ' ahora y se renueva automáticamente ' + esc(freqTxt()) + '. Cancelás cuando quieras.</div>';
+    el.innerHTML =
+      '<button id="rc-sum-head" type="button" style="width:100%;display:flex;align-items:center;gap:9px;background:none;border:none;padding:0;cursor:pointer;font-family:inherit;color:#1a1a1a;text-align:left;">'
+      + '<span style="transition:transform .2s;transform:rotate(' + (sumOpen?90:0) + 'deg);font-size:11px;color:#999;">▶</span>'
+      + '<span style="font-size:13px;font-weight:700;flex:1;">' + (sumOpen ? "Ocultar resumen" : "Mostrar resumen del pedido") + '</span>'
+      + '<b style="font-size:15px;">' + money(p.total) + '</b></button>'
+      + '<div style="display:' + (sumOpen?"block":"none") + ';">' + body + '</div>';
+    var head = document.getElementById("rc-sum-head");
+    if (head) head.addEventListener("click", function(){ sumOpen = !sumOpen; renderSummary(); });
   }
 
   function pagar(){
@@ -1036,7 +1045,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
           + '<button id="rc-pay" style="width:100%;padding:14px;font-size:15px;font-weight:700;color:#fff;background:' + COL + ';border:none;border-radius:11px;cursor:pointer;">Pagar</button>'
         + '</div>'
       + '</div>'
-      + '<div class="rc-summary-wrap" style="' + card + 'position:sticky;top:16px;"><div id="rc-summary"></div></div>'
+      + '<div class="rc-summary-wrap" style="' + card + '"><div id="rc-summary"></div></div>'
       + '</div></div>'
       + '<style>@media(max-width:760px){.rc-grid{grid-template-columns:1fr!important;}.rc-summary-wrap{order:-1;}}</style>';
 
