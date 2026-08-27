@@ -863,6 +863,14 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
   function money(n){ return "$" + Math.round(Number(n) || 0).toLocaleString("es-AR"); }
   function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c]; }); }
   function val(id){ var el = document.getElementById(id); return el ? el.value.trim() : ""; }
+  // Atribución de Meta: cookies _fbp/_fbc (o fbclid de la URL) para que el evento
+  // InitiateCheckout + Purchase se atribuyan al anuncio correcto.
+  function fbData(){
+    function ck(n){ var m = document.cookie.match(new RegExp("(^|;\\\\s*)" + n + "=([^;]+)")); return m ? decodeURIComponent(m[2]) : ""; }
+    var fbp = ck("_fbp"), fbc = ck("_fbc");
+    if (!fbc) { try { var f = new URLSearchParams(window.location.search).get("fbclid"); if (f) fbc = "fb.1." + Date.now() + "." + f; } catch(e){} }
+    return { fbp: fbp, fbc: fbc, event_source_url: window.location.href, user_agent: navigator.userAgent };
+  }
   // Error por campo estilo Shopify: borde rojo + mensaje debajo del input.
   function setBad(id, msg){ var el = document.getElementById(id), e = document.getElementById(id + "-e"); if (el) { el.style.borderColor = "#d33"; el.style.boxShadow = "0 0 0 2px rgba(221,51,51,.12)"; } if (e) { e.textContent = msg; e.style.display = "block"; } }
   function clrBad(id){ var el = document.getElementById(id), e = document.getElementById(id + "-e"); if (el) { el.style.borderColor = "#d6d6d8"; el.style.boxShadow = "none"; } if (e) { e.style.display = "none"; } }
@@ -1000,6 +1008,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({
         merchant_id: MERCHANT_ID, plan_id: plan.id, quantity: QTY, frequency_days: effFreqDays(),
+        fb: fbData(),
         customer: { email: email, name: name, phone: phone, tax_id: val("rc-tax") },
         shipping_address: {
           address1: val("rc-addr"), address2: val("rc-addr2"), city: val("rc-city"),

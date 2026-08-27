@@ -41,7 +41,8 @@ function hashPhone(phone) {
  * @param {string} [o.clientIp]  / {string} [o.clientUa]
  * @returns {Promise<{ok:boolean, error?:string}>}
  */
-export async function sendMetaPurchase(o) {
+// Emisor genérico de eventos CAPI. eventName = "Purchase" | "InitiateCheckout" | …
+export async function sendMetaEvent(eventName, o) {
   if (!o?.pixelId || !o?.token) return { ok: false, error: "sin pixel/token" };
   const userData = {
     em: hash(o.email) ? [hash(o.email)] : undefined,
@@ -62,7 +63,7 @@ export async function sendMetaPurchase(o) {
   Object.keys(userData).forEach(k => userData[k] === undefined && delete userData[k]);
 
   const event = {
-    event_name: "Purchase",
+    event_name: eventName,
     event_time: Math.floor(Date.now() / 1000),
     action_source: "website",
     event_id: o.eventId ? String(o.eventId) : undefined,
@@ -89,3 +90,8 @@ export async function sendMetaPurchase(o) {
     return { ok: false, error: e.message };
   }
 }
+
+// Compra concretada (primer cobro de la suscripción).
+export async function sendMetaPurchase(o) { return sendMetaEvent("Purchase", o); }
+// Pago iniciado (el cliente completó el checkout y se va a MP a pagar).
+export async function sendMetaInitiateCheckout(o) { return sendMetaEvent("InitiateCheckout", o); }

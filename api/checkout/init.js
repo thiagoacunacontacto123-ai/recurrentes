@@ -24,6 +24,7 @@ import { db } from "../_lib/firebase.js";
 import { mpCreatePreapprovalPlan } from "../_lib/mp.js";
 import { generatePortalToken, verifyPortalToken } from "../public.js";
 import { syncSubscriber } from "../_lib/sync.js";
+import { sendMetaInitiateCheckout } from "../_lib/meta.js";
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -272,6 +273,27 @@ export default async function handler(req, res) {
     mp_init_point: checkoutUrl,
     portal_token: portalToken,
   });
+
+  // Meta CAPI — "InitiateCheckout" (pago iniciado): el cliente completó el checkout
+  // y se va a MP a pagar. Best-effort (no rompe el flujo). El "Purchase" lo dispara
+  // sync.js cuando MP confirma el cobro, con el mismo fb_data guardado en el sub.
+  if (merchant.meta_pixel_id && merchant.meta_capi_token) {
+    try {
+      const fb = (req.body.fb && typeof req.body.fb === "object") ? req.body.fb : {};
+      const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || undefined;
+      await sendMetaInitiateCheckout({
+        pixelId: merchant.meta_pixel_id, token: merchant.meta_capi_token,
+        value: totalPerCharge, currency: "ARS",
+        email: customer.email, phone: customerPhone,
+        firstName: customerName.split(" ")[0] || "", lastName: customerName.split(" ").slice(1).join(" ") || "",
+        city: addr.city, zip: addr.zip,
+        eventId: `${subscriberId}-ic`,
+        eventSourceUrl: fb.event_source_url || undefined,
+        fbc: fb.fbc || undefined, fbp: fb.fbp || undefined,
+        clientIp: ip, clientUa: fb.user_agent || req.headers["user-agent"] || undefined,
+      });
+    } catch (_) {}
+  }
 
   return res.json({
     ok: true,
