@@ -868,7 +868,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
   //  2) Despacho prioritario 24/48hs (tarifa ya existente, $5.900).
   var rates = [
     { name: "Envío a domicilio (Andreani / Flex) — Estándar", price: 0, eta: "3 a 6 días hábiles" },
-    { name: "Envío a Domicilio por Andreani / Flex DESPACHO PRIORITARIO 🚚", price: 5900, eta: "24 a 48 hs hábiles" }
+    { name: "Envío a Domicilio por Andreani / Flex DESPACHO PRIORITARIO 🚚", price: 5900, eta: "1 a 5 días hábiles" }
   ];
   var sumOpen = !(typeof window !== "undefined" && window.innerWidth < 760);  // resumen: abierto en desktop, colapsado en mobile
 
