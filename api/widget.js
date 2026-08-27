@@ -1079,6 +1079,9 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
     ["rc-zip","rc-prov","rc-city"].forEach(function(id){ var el=document.getElementById(id); if(el){ el.addEventListener("change", onAddrChange); el.addEventListener("input", onAddrChange); } });
     // Al escribir, se limpia el error de ese campo (como Shopify).
     RC_FIELDS.forEach(function(id){ var el=document.getElementById(id); if(el){ el.addEventListener("input", function(){ clrBad(id); }); el.addEventListener("change", function(){ clrBad(id); }); } });
+    // C.P. y DNI/CUIL: SOLO números. inputmode numérico (teclado numérico en
+    // celular) + filtro que borra cualquier caracter no numérico al tipear o pegar.
+    ["rc-zip","rc-tax"].forEach(function(id){ var el=document.getElementById(id); if(el){ el.setAttribute("inputmode","numeric"); el.addEventListener("input", function(){ var v=el.value.replace(/[^0-9]/g,""); if(v!==el.value) el.value=v; }); } });
     renderRates(); renderSummary();
   }
 
