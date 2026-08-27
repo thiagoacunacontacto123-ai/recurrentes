@@ -861,7 +861,15 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
   var mount = document.getElementById("recurrentes-checkout");
   if (!mount) { mount = document.createElement("div"); mount.id = "recurrentes-checkout"; document.body.appendChild(mount); }
 
-  var plan = null, rates = [], rateIdx = 0, submitting = false, ratesMsg = "Completá C.P. y provincia para ver el envío.";
+  var plan = null, rateIdx = 0, submitting = false, ratesMsg = "";
+  // ENVÍOS FIJOS para la suscripción (sin sucursal — Envialo no toma el punto de
+  // retiro vía API, es read-only). Solo domicilio, que sale como orden normal:
+  //  1) Domicilio estándar Andreani/Flex GRATIS (beneficio suscriptor).
+  //  2) Despacho prioritario 24/48hs (tarifa ya existente, $5.900).
+  var rates = [
+    { name: "Envío a domicilio (Andreani / Flex) — Estándar", price: 0, eta: "3 a 6 días hábiles" },
+    { name: "Envío a Domicilio por Andreani / Flex DESPACHO PRIORITARIO 🚚", price: 5900, eta: "24 a 48 hs hábiles" }
+  ];
   var sumOpen = !(typeof window !== "undefined" && window.innerWidth < 760);  // resumen: abierto en desktop, colapsado en mobile
 
   function money(n){ return "$" + Math.round(Number(n) || 0).toLocaleString("es-AR"); }
@@ -961,7 +969,10 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
       })
       .catch(function(){ rates = [{ name: (plan.shipping_method_name||"Envío"), price: (plan.shipping_price_ars||0) }]; rateIdx = 0; ratesMsg = ""; renderRates(); renderSummary(); });
   }
-  function onAddrChange(){ clearTimeout(rateTimer); rateTimer = setTimeout(fetchRates, 500); }
+  // Envíos fijos: ya no re-consultamos tarifas por CP (antes traía las sucursales
+  // dinámicas de Envialo que no se pueden asignar por API). Los dos envíos a
+  // domicilio están fijos arriba. La dirección/CP se sigue pidiendo para el envío.
+  function onAddrChange(){ /* no-op: envíos fijos */ }
 
   function renderRates(){
     var box = document.getElementById("rc-rates"); if (!box) return;
