@@ -267,23 +267,31 @@ export default async function handler(req, res) {
     ...(notificationUrl ? { notification_url: notificationUrl } : {}),
   };
 
-  // Por defecto el checkout de plan sale SOLO crédito. Habilitamos crédito +
-  // débito explícito con payment_methods_allowed. RED DE SEGURIDAD: si MP rechaza
-  // esa config (algunas cuentas/países solo permiten crédito para lo recurrente),
-  // reintentamos sin restricción → el plan se crea igual (crédito) y no rompe.
-  let preapprovalPlan;
-  try {
-    preapprovalPlan = await mpCreatePreapprovalPlan(merchant.mp_access_token, {
-      ...planBodyBase,
-      payment_methods_allowed: { payment_types: [{ id: "credit_card" }, { id: "debit_card" }], payment_methods: [] },
-    });
-  } catch (e1) {
+  // Por defecto el checkout de plan sale SOLO crédito. Intentamos habilitar la
+  // mayor cantidad de métodos con payment_methods_allowed, en CASCADA de más a
+  // menos inclusivo: 1) crédito+débito+dinero en cuenta, 2) crédito+débito,
+  // 3) sin restricción (crédito). Nos quedamos con el PRIMERO que MP acepte, así
+  // sumamos dinero en cuenta si MP lo permite sin arriesgar perder débito. (MP
+  // suele NO permitir dinero en cuenta para lo recurrente porque no puede
+  // auto-debitar un saldo; si lo rechaza, cae solo a la opción siguiente.)
+  const pmaAttempts = [
+    { payment_types: [{ id: "credit_card" }, { id: "debit_card" }, { id: "account_money" }], payment_methods: [] },
+    { payment_types: [{ id: "credit_card" }, { id: "debit_card" }], payment_methods: [] },
+    null, // sin restricción
+  ];
+  let preapprovalPlan = null, lastPlanErr = null;
+  for (const pma of pmaAttempts) {
     try {
-      preapprovalPlan = await mpCreatePreapprovalPlan(merchant.mp_access_token, planBodyBase);
-    } catch (e2) {
-      await subRef.update({ status: "error", error: e2.message });
-      return res.status(502).json({ error: `MP: ${e2.message}` });
-    }
+      preapprovalPlan = await mpCreatePreapprovalPlan(
+        merchant.mp_access_token,
+        pma ? { ...planBodyBase, payment_methods_allowed: pma } : planBodyBase
+      );
+      break;
+    } catch (e) { lastPlanErr = e; }
+  }
+  if (!preapprovalPlan) {
+    await subRef.update({ status: "error", error: lastPlanErr?.message || "MP plan" });
+    return res.status(502).json({ error: `MP: ${lastPlanErr?.message || "no se pudo crear el plan"}` });
   }
   if (!preapprovalPlan?.id) {
     await subRef.update({ status: "error", error: "MP no devolvió el plan" });
