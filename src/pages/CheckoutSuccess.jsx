@@ -114,17 +114,15 @@ export default function CheckoutSuccess() {
           </div>
         )}
 
-        <div style={S.steps}>
-          <Step icon="✉️" text="Te enviamos un email con la confirmación de tu suscripción." />
-          <Step icon="📦" text="Preparamos tu primer envío y te avisamos cuando salga." />
-          <Step icon="🔁" text="Se renueva automáticamente. Pausás o cancelás cuando quieras." />
+        <div style={S.mailNote}>
+          📩 En <b>2 a 10 minutos</b> te va a llegar el email con la confirmación de tu compra.
         </div>
 
-        {portalToken && (
-          <a href={`/#/portal?token=${portalToken}`} style={S.btn} className="tk-btn">
-            Gestionar mi suscripción
-          </a>
-        )}
+        <div style={S.steps}>
+          <Step icon="📦" text="Preparamos tu envío y te avisamos por email cuando salga en camino." />
+          <Step icon="🔁" text="Se renueva automáticamente. Cancelás cuando quieras." />
+        </div>
+
         <p style={S.foot}>Cualquier duda, respondé el email de confirmación y te ayudamos.</p>
       </div>
     </div>
@@ -173,6 +171,7 @@ const S = {
   },
   h1: { fontSize: 25, fontWeight: 800, color: "#16241d", margin: "0 0 10px", letterSpacing: "-.3px", lineHeight: 1.2 },
   sub: { fontSize: 15, color: "#5c6b64", lineHeight: 1.55, margin: "0 0 24px" },
+  mailNote: { background: "#eef6f1", border: "1px solid #d5e8dd", borderRadius: 12, padding: "12px 16px", marginBottom: 22, fontSize: 13.5, color: "#2f5545", lineHeight: 1.5 },
   detail: { background: "#f7faf8", border: "1px solid #e8efeb", borderRadius: 14, padding: "6px 16px", marginBottom: 22 },
   detailRow: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid #eef3f0" },
   detailLabel: { fontSize: 13, color: "#7a8983" },
