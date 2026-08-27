@@ -48,10 +48,25 @@ export async function syncSubscriber(merchantId, subscriberId) {
   if (!subSnap.exists) return { status: "error", error: "subscriber_not_found" };
   const sub = subSnap.data();
 
-  // Buscar preapproval en MP por external_reference (mid:sid)
+  // Buscar EL preapproval de ESTE subscriber en MP.
+  // ⚠️ En el flujo de plan, MP NO propaga el external_reference de la URL al
+  // preapproval → buscar por external_reference devuelve cualquiera (o la de otro
+  // subscriber) y se cruzaban todas al mismo preapproval. FIX: cada sub crea su
+  // PROPIO preapproval_plan ad-hoc (id único), así que matcheamos por
+  // preapproval_plan_id — que sí es 1:1 con el subscriber. Fallback a
+  // external_reference solo para subs viejos del flujo directo.
   const extRef = `${merchantId}:${subscriberId}`;
-  const search = await mpFetch(merchant.mp_access_token, `/preapproval/search?external_reference=${encodeURIComponent(extRef)}`);
-  const preapprovals = search?.results || [];
+  let preapprovals = [];
+  if (sub.mp_preapproval_plan_id) {
+    const byPlan = await mpFetch(merchant.mp_access_token, `/preapproval/search?preapproval_plan_id=${encodeURIComponent(sub.mp_preapproval_plan_id)}`);
+    preapprovals = byPlan?.results || [];
+  }
+  if (preapprovals.length === 0) {
+    const byRef = await mpFetch(merchant.mp_access_token, `/preapproval/search?external_reference=${encodeURIComponent(extRef)}`);
+    // Solo aceptamos matches por external_reference si el preapproval REALMENTE
+    // trae ese external_reference (evita agarrar cualquiera si MP lo ignora).
+    preapprovals = (byRef?.results || []).filter(p => p.external_reference === extRef);
+  }
   if (preapprovals.length === 0) {
     return { status: sub.status || "pending", message: "preapproval_not_found_yet" };
   }
