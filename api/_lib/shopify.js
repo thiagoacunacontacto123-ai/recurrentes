@@ -149,7 +149,7 @@ export async function shCreatePaidOrder(shop, token, params) {
   const {
     customer_id, line_items, shipping_address, billing_address,
     subscriber_id, plan_id, charge_number, mp_payment_id, total_price,
-    shipping_price, shipping_method_name,
+    shipping_price, shipping_method_name, shipping_method_code,
     tax_id, tax_id_kind,
     mp_fee_real, // comisión REAL que cobró MP (fee_details del pago). Se guarda en
                  // la orden para que herramientas de márgenes usen el fee exacto.
@@ -163,7 +163,9 @@ export async function shCreatePaidOrder(shop, token, params) {
   const shippingLines = [{
     title: shippingTitle,
     price: shippingPriceStr,
-    code: shippingTitle.slice(0, 30),
+    // code = el código REAL de la tarifa del carrier (Envialo, etc.) para que la
+    // app de envío reconozca el método/sucursal. Fallback al título si no vino.
+    code: (shipping_method_code && String(shipping_method_code).trim()) || shippingTitle.slice(0, 50),
   }];
 
   // CRÍTICO: setear `price` en cada line_item con el precio REAL que cobró MP

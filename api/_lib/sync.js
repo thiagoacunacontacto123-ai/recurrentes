@@ -259,6 +259,7 @@ export async function syncSubscriber(merchantId, subscriberId) {
           mp_fee_real: (payment.fee_details||[]).filter(fd=>fd.fee_payer!=="payer").reduce((s,fd)=>s+(parseFloat(fd.amount)||0),0) || null,
           shipping_price: sub.plan_snapshot?.shipping_price_ars ?? 0,
           shipping_method_name: sub.plan_snapshot?.shipping_method_name || "Envío a domicilio",
+          shipping_method_code: sub.plan_snapshot?.shipping_method_code || "",
           tax_id: sub.customer_tax_id || null,
           tax_id_kind: sub.customer_tax_id_kind || "DNI",
         });

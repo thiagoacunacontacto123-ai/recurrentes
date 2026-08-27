@@ -142,10 +142,14 @@ export default async function handler(req, res) {
   // envíos configurados en Shopify), se usa ESE precio y nombre. Si no, se cae al
   // envío del plan (fijo + regla de envío gratis desde $X) — compat hacia atrás.
   const freeShippingFrom = plan.free_shipping_from_ars || 0;
-  let shippingCost, shippingName;
+  let shippingCost, shippingName, shippingCode = "";
   if (shipping_method && typeof shipping_method === "object" && shipping_method.name) {
     shippingCost = Math.max(0, Math.round(Number(shipping_method.price) || 0));
-    shippingName = String(shipping_method.name).slice(0, 60);
+    // Nombre EXACTO de la tarifa (hasta 250 = límite de Shopify). Las apps de
+    // envío como Envialo matchean el método/sucursal por el nombre + code exacto;
+    // si lo cortábamos a 60 no lo reconocían. Guardamos también el code original.
+    shippingName = String(shipping_method.name).slice(0, 250);
+    shippingCode = String(shipping_method.code || "").slice(0, 250);
   } else {
     const shippingPrice = plan.shipping_price_ars || 0;
     shippingCost = (freeShippingFrom > 0 && subtotal >= freeShippingFrom) ? 0 : shippingPrice;
@@ -204,6 +208,7 @@ export default async function handler(req, res) {
       subtotal_ars: subtotal,
       shipping_price_ars: shippingCost,
       shipping_method_name: shippingName,
+      shipping_method_code: shippingCode,
       qty_discount_pct: qtyDiscountPct,
       total_per_charge_ars: totalPerCharge,
     },

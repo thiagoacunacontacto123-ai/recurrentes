@@ -240,6 +240,7 @@ async function processPaymentForMerchant(merchantId, merchant, payment) {
         // (subscribers creados antes del fix), default a "Envío a domicilio" $0.
         shipping_price: sub.plan_snapshot?.shipping_price_ars ?? 0,
         shipping_method_name: sub.plan_snapshot?.shipping_method_name || "Envío a domicilio",
+        shipping_method_code: sub.plan_snapshot?.shipping_method_code || "",
         tax_id: sub.customer_tax_id || null,
         tax_id_kind: sub.customer_tax_id_kind || "DNI",
       });

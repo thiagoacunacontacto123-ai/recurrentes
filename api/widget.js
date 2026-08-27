@@ -949,7 +949,9 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
           }
           var nm = sr.presentment_name || sr.name;
           if (!eta) eta = etaFromName(nm);  // fallback: tiempo dentro del nombre (Flex, etc.)
-          return { name: nm, price: parseFloat(sr.price) || 0, eta: eta };
+          // Guardamos también el CODE real de la tarifa: las apps de envío (Envialo,
+          // etc.) matchean el método/sucursal por ese code + nombre exacto.
+          return { name: nm, price: parseFloat(sr.price) || 0, eta: eta, code: sr.code || "" };
         });
         rates = list.length ? list : [{ name: (plan.shipping_method_name||"Envío"), price: (plan.shipping_price_ars||0) }];
         rateIdx = 0; ratesMsg = "";
@@ -1032,7 +1034,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
           province: val("rc-prov"), zip: val("rc-zip"), country: "Argentina",
           first_name: val("rc-name"), last_name: val("rc-last"), phone: phone
         },
-        shipping_method: { name: sel.name, price: Number(sel.price) || 0 }
+        shipping_method: { name: sel.name, price: Number(sel.price) || 0, code: sel.code || "" }
       })
     }).then(function(r){ return r.json(); }).then(function(d){
       if (d.error) { box.textContent = d.error; box.style.display = "block"; submitting = false; if(btn){ btn.disabled=false; btn.textContent="Pagar"; } return; }
