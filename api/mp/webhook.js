@@ -180,10 +180,15 @@ async function processPaymentForMerchant(merchantId, merchant, payment) {
   if (!subSnap.exists) return;
   const sub = subSnap.data();
 
-  // Idempotencia: si ya procesamos este payment, no duplicamos.
+  // Idempotencia: solo saltamos si el cobro YA tiene su orden Shopify. Si el
+  // cobro existe pero SIN orden (la creación falló antes), NO lo bloqueamos —
+  // dejamos que este webhook (o un reintento de MP) vuelva a crear la orden. Sin
+  // esto, un fallo transitorio al crear la orden dejaba la venta trabada para
+  // siempre (el cobro quedaba guardado y bloqueaba el reintento).
   const chargeRef = db().collection("merchants").doc(merchantId).collection("charges").doc(String(payment.id));
-  if ((await chargeRef.get()).exists) {
-    console.log(`[mp-webhook] payment ${payment.id} ya procesado — skip`);
+  const existingCharge = await chargeRef.get();
+  if (existingCharge.exists && existingCharge.data().shopify_order_id) {
+    console.log(`[mp-webhook] payment ${payment.id} ya tiene orden — skip`);
     return;
   }
 
