@@ -92,10 +92,23 @@ export default async function handler(req, res) {
     const actives = await merchantSubs.where("status", "==", "active").get();
     for (const subDoc of actives.docs) {
       const data = subDoc.data();
+      const created = data.created_at ? new Date(data.created_at).getTime() : 0;
       const nextChargeMs = data.next_charge_at ? new Date(data.next_charge_at).getTime() : 0;
-      // Sólo procesamos si next_charge ya pasó hace al menos 5min (margen).
-      // Si no tiene next_charge_at, lo skippeamos (estado raro).
-      if (!nextChargeMs || nextChargeMs > now - 5 * 60 * 1000) continue;
+
+      // CASO A: cobro recurrente vencido — MP debería haber cobrado hace rato y
+      // el webhook no llegó. next_charge ya pasó (5min de margen).
+      const chargeVencida = nextChargeMs && nextChargeMs <= now - 5 * 60 * 1000;
+
+      // CASO B: ACTIVA SIN ORDEN (nuevo) — el webhook la marcó active (preapproval
+      // authorized) pero el webhook de PAGO no creó la orden (MP a veces no entrega
+      // ese evento). Sin esto quedaba trabada hasta un sync manual. Solo las
+      // recientes (72h) para no re-escanear el histórico en cada tick.
+      const sinOrden = (data.shopify_orders || []).length === 0;
+      const reciente = created && (now - created < 72 * 60 * 60 * 1000);
+      const activaSinOrden = sinOrden && reciente;
+
+      if (now - created < 60 * 1000) continue; // muy nueva, esperar al próximo tick
+      if (!chargeVencida && !activaSinOrden) continue;
 
       try {
         const r = await syncSubscriber(m.id, subDoc.id);
