@@ -863,6 +863,13 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
 
   var plan = null, rateIdx = 0, submitting = false, ratesMsg = "";
   var RC_DISC = { code: "", pct: 0 }; // código de descuento aplicado (ej. HOLA5 → 5)
+  // Meta "InitiateCheckout" (pago iniciado): se dispara UNA vez, apenas carga el
+  // checkout (no al tocar Pagar), con el Pixel del navegador de la tienda.
+  var _icFired = false;
+  function fireIC(){
+    if (_icFired) return; _icFired = true;
+    try { var p = prices(); if (window.fbq) window.fbq("track", "InitiateCheckout", { value: p.total || 0, currency: "ARS", num_items: QTY }); } catch(e){}
+  }
   // ENVÍOS FIJOS para la suscripción (sin sucursal — Envialo no toma el punto de
   // retiro vía API, es read-only). Solo domicilio, que sale como orden normal:
   //  1) Domicilio estándar Andreani/Flex GRATIS (beneficio suscriptor).
@@ -1145,7 +1152,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
   render();
   fetch(API_BASE + "/api/public?action=plan&merchant=" + encodeURIComponent(MERCHANT_ID) + "&product=" + encodeURIComponent(PRODUCT))
     .then(function(r){ return r.json(); })
-    .then(function(d){ if (!d || !d.plan) { mount.innerHTML = errBox("No encontramos una suscripción activa para este producto."); return; } plan = d.plan; renderRates(); renderSummary(); })
+    .then(function(d){ if (!d || !d.plan) { mount.innerHTML = errBox("No encontramos una suscripción activa para este producto."); return; } plan = d.plan; renderRates(); renderSummary(); fireIC(); })
     .catch(function(){ mount.innerHTML = errBox("No pudimos cargar el plan. Revisá tu conexión."); });
 })();`;
 }
