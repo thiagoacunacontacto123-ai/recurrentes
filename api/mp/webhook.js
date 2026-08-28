@@ -449,8 +449,34 @@ async function handlePreapproval(preapprovalId) {
 
     await subDoc.ref.update(upd);
     console.log(`[mp-webhook] preapproval ${preapprovalId} → ${pre.status}`);
+    // Self-heal oportunista: cada evento de un suscriptor destraba hasta 2 subs
+    // ACTIVAS SIN ORDEN recientes de este merchant (por si a alguna el webhook de
+    // pago no le llegó). Así, sin depender de un cron frecuente, cada venta nueva
+    // recupera las anteriores que quedaron colgadas. Best-effort, acotado.
+    await healRecentActiveNoOrder(m.id).catch(() => {});
     return;
   }
+}
+
+// Sincroniza hasta `limit` suscripciones ACTIVAS SIN ORDEN de las últimas 6h de un
+// merchant. Se llama al final de handlePreapproval → cada suscriptor nuevo cura
+// ventas anteriores cuyo webhook de pago se perdió. Best-effort y acotado para no
+// exceder el timeout del webhook (Vercel 10s).
+async function healRecentActiveNoOrder(merchantId, limit = 2) {
+  try {
+    const { syncSubscriber } = await import("../_lib/sync.js");
+    const cutoff = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    const snap = await db().collection("merchants").doc(merchantId).collection("subscribers")
+      .where("status", "==", "active").get();
+    let done = 0;
+    for (const doc of snap.docs) {
+      if (done >= limit) break;
+      const d = doc.data();
+      if ((d.shopify_orders || []).length > 0) continue;    // ya tiene orden
+      if (!d.created_at || d.created_at < cutoff) continue;  // solo recientes
+      try { await syncSubscriber(merchantId, doc.id); done++; } catch (_) {}
+    }
+  } catch (_) {}
 }
 
 // Reclamo / contracargo / fraude → pausamos o cancelamos la sub para parar
