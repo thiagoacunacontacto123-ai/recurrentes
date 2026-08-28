@@ -32,7 +32,12 @@ export default function CheckoutSuccess() {
     // asegurar que la orden Shopify se cree, aunque el webhook MP no esté. No
     // bloquea NADA de la UI — el cliente ya ve su página de gracias.
     async function backgroundSync() {
-      for (let i = 0; i < 8 && !cancelled; i++) {
+      // El primer cobro de MP se procesa async (~60s tras autorizar). Chequeamos
+      // en silencio hasta ~3 min (cada 3s) para que la orden Shopify se cree
+      // mientras el cliente aún tiene la página abierta — sin spinner ni loading.
+      // (Antes cortaba a 20s → dejaba de chequear ANTES del cobro y la orden no
+      // caía si el cliente no volvía. Este es el fix.)
+      for (let i = 0; i < 60 && !cancelled; i++) {
         try {
           if (sid) {
             let url = `/api/checkout/init?sub=${encodeURIComponent(sid)}&token=${encodeURIComponent(tkn)}`;
@@ -50,7 +55,7 @@ export default function CheckoutSuccess() {
             if (d.sub.shopify_order_status_url) return; // orden ya creada, listo
           }
         } catch (_) {}
-        await new Promise((res) => setTimeout(res, 2500));
+        await new Promise((res) => setTimeout(res, 3000));
       }
     }
     backgroundSync();
