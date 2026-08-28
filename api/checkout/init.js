@@ -63,7 +63,7 @@ export default async function handler(req, res) {
 
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { merchant_id, plan_id, customer, shipping_address, quantity, shipping_method, frequency_days, base_price, sub_discount } = req.body || {};
+  const { merchant_id, plan_id, customer, shipping_address, quantity, shipping_method, frequency_days, base_price, sub_discount, discount_code } = req.body || {};
   if (!merchant_id || !plan_id) return res.status(400).json({ error: "Faltan merchant_id o plan_id" });
   if (!customer?.email) return res.status(400).json({ error: "Falta customer.email" });
 
@@ -138,6 +138,30 @@ export default async function handler(req, res) {
     subtotal = Math.round(unitPrice * finalQty * (1 - qtyDiscountPct / 100));
   }
 
+  // ── Código de descuento (opcional) ────────────────────────────────────────
+  // El cliente puede ingresar un código en el checkout (ej. HOLA5). Los códigos
+  // los define el comerciante en su cuenta (merchant.discount_codes). Validamos
+  // SIEMPRE server-side (no confiamos en el cliente) y aplicamos sobre el subtotal
+  // del producto (no sobre el envío). Aplica a TODOS los cobros (queda en el monto
+  // del preapproval de MP). Si el código no existe/está inactivo, se ignora.
+  let discountCodeApplied = null, discountCodePct = 0;
+  const rawCode = String(discount_code || "").trim().toUpperCase();
+  if (rawCode) {
+    const codes = Array.isArray(merchant.discount_codes) ? merchant.discount_codes : [];
+    const hit = codes.find(c => String(c.code || "").trim().toUpperCase() === rawCode && c.active !== false);
+    if (hit) {
+      const type = hit.type || "percent";
+      if (type === "percent") {
+        const pct = Math.max(0, Math.min(90, parseFloat(hit.value) || 0));
+        if (pct > 0) { discountCodePct = pct; subtotal = Math.round(subtotal * (1 - pct / 100)); }
+      } else if (type === "fixed") {
+        const off = Math.max(0, Math.round(parseFloat(hit.value) || 0));
+        subtotal = Math.max(0, subtotal - off);
+      }
+      discountCodeApplied = rawCode;
+    }
+  }
+
   // Envío. Si el checkout mandó un método elegido (shipping_method, traído de los
   // envíos configurados en Shopify), se usa ESE precio y nombre. Si no, se cae al
   // envío del plan (fijo + regla de envío gratis desde $X) — compat hacia atrás.
@@ -210,6 +234,8 @@ export default async function handler(req, res) {
       shipping_method_name: shippingName,
       shipping_method_code: shippingCode,
       qty_discount_pct: qtyDiscountPct,
+      discount_code: discountCodeApplied,
+      discount_code_pct: discountCodePct,
       total_per_charge_ars: totalPerCharge,
     },
     status: "pending",

@@ -44,6 +44,8 @@ export default async function handler(req, res) {
         widget_once_title:    merchant.widget_once_title    || "Compra única",
         widget_once_subtitle: merchant.widget_once_subtitle || "Comprá una vez al precio normal.",
         widget_disclaimer_text: merchant.widget_disclaimer_text || "",   // vacío = usar default explicativo
+        // Códigos de descuento del merchant (para el checkout de suscripción)
+        discount_codes: Array.isArray(merchant.discount_codes) ? merchant.discount_codes : [],
       };
       return res.json({ merchant: safe });
     } catch (e) {
@@ -53,9 +55,10 @@ export default async function handler(req, res) {
 
   if (req.method === "PATCH" || req.method === "POST") {
     const action = String(req.query.action || "");
-    if (action === "save-mp-token")       return saveMpToken(uid, req, res);
+    if (action === "save-mp-token")        return saveMpToken(uid, req, res);
     if (action === "save-widget-settings") return saveWidgetSettings(uid, req, res);
     if (action === "save-meta")            return saveMeta(uid, req, res);
+    if (action === "save-discount-codes")  return saveDiscountCodes(uid, req, res);
     return res.status(400).json({ error: "action no reconocida" });
   }
 
@@ -115,6 +118,28 @@ async function saveWidgetSettings(uid, req, res) {
       updated_at: new Date().toISOString(),
     }, { merge: true });
     return res.json({ ok: true, widget_mode_order: order, widget_mode_default: def, widget_color: color, widget_sub_title: subTitle, widget_sub_subtitle: subSubtitle, widget_once_title: onceTitle, widget_once_subtitle: onceSubtitle, widget_disclaimer_text: disclaimerText });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+async function saveDiscountCodes(uid, req, res) {
+  // Guarda los códigos de descuento del merchant para el checkout de suscripción.
+  // Formato: [{ code, type:"percent"|"fixed", value, active }]. Se sanitiza todo.
+  const { discount_codes } = req.body || {};
+  const arr = Array.isArray(discount_codes) ? discount_codes : [];
+  const clean = arr.map(c => ({
+    code: String(c.code || "").trim().toUpperCase().slice(0, 40),
+    type: c.type === "fixed" ? "fixed" : "percent",
+    value: Math.max(0, parseFloat(c.value) || 0),
+    active: c.active !== false,
+  })).filter(c => c.code && c.value > 0).slice(0, 100);
+  try {
+    await db().collection("merchants").doc(uid).set({
+      discount_codes: clean,
+      updated_at: new Date().toISOString(),
+    }, { merge: true });
+    return res.json({ ok: true, discount_codes: clean });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }

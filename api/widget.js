@@ -862,6 +862,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
   if (!mount) { mount = document.createElement("div"); mount.id = "recurrentes-checkout"; document.body.appendChild(mount); }
 
   var plan = null, rateIdx = 0, submitting = false, ratesMsg = "";
+  var RC_DISC = { code: "", pct: 0 }; // código de descuento aplicado (ej. HOLA5 → 5)
   // ENVÍOS FIJOS para la suscripción (sin sucursal — Envialo no toma el punto de
   // retiro vía API, es read-only). Solo domicilio, que sale como orden normal:
   //  1) Domicilio estándar Andreani/Flex GRATIS (beneficio suscriptor).
@@ -902,8 +903,11 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
       disc = 0; var bestMin = -1; for (var i=0;i<tiers.length;i++){ var mq = parseInt(tiers[i].min_qty)||0; if (QTY >= mq && mq > bestMin) { bestMin = mq; disc = parseFloat(tiers[i].discount_pct)||0; } }
       subtotal = Math.round(unit * QTY * (1 - disc/100));
     }
+    // Código de descuento (ej. HOLA5): se aplica sobre el subtotal del producto.
+    var codeOff = 0;
+    if (RC_DISC.pct > 0) { codeOff = Math.round(subtotal * RC_DISC.pct / 100); subtotal = subtotal - codeOff; }
     var sel = rates[rateIdx] || { name: (plan.shipping_method_name||"Envío"), price: (plan.shipping_price_ars||0) };
-    return { subtotal: subtotal, disc: disc, ship: Number(sel.price)||0, shipName: sel.name, total: subtotal + (Number(sel.price)||0) };
+    return { subtotal: subtotal, disc: disc, codeOff: codeOff, codePct: RC_DISC.pct, code: RC_DISC.code, ship: Number(sel.price)||0, shipName: sel.name, total: subtotal + (Number(sel.price)||0) };
   }
   // Días hábiles (lun-vie) entre hoy y una fecha ISO — para el "X a Y días hábiles".
   function bizDaysUntil(iso){
@@ -999,7 +1003,8 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
       + '<div style="min-width:0;"><div style="font-size:10px;font-weight:800;color:' + COL + ';text-transform:uppercase;letter-spacing:.5px;">Suscripción · ' + esc(freqTxt()) + '</div>'
       + '<div style="font-size:14px;font-weight:700;line-height:1.3;">' + esc(plan.product_title) + ' × ' + QTY + '</div></div></div>'
       + '<div style="border-top:1px solid #eee;padding-top:12px;display:flex;flex-direction:column;gap:8px;font-size:13px;">'
-      + '<div style="display:flex;justify-content:space-between;"><span style="color:#666;">Subtotal' + (p.disc>0?(" (−"+p.disc+"%)"):"") + '</span><b>' + money(p.subtotal) + '</b></div>'
+      + '<div style="display:flex;justify-content:space-between;"><span style="color:#666;">Subtotal' + (p.disc>0?(" (−"+p.disc+"%)"):"") + '</span><b>' + money(p.subtotal + (p.codeOff||0)) + '</b></div>'
+      + ((p.codeOff||0) > 0 ? '<div style="display:flex;justify-content:space-between;"><span style="color:#0a8a3f;">Código ' + esc(p.code) + ' (−' + p.codePct + '%)</span><b style="color:#0a8a3f;">−' + money(p.codeOff) + '</b></div>' : '')
       + '<div style="display:flex;justify-content:space-between;"><span style="color:#666;">Envío' + (p.shipName?(" · "+esc(p.shipName)):"") + '</span><b>' + (p.ship===0?"Gratis":money(p.ship)) + '</b></div>'
       + '<div style="display:flex;justify-content:space-between;border-top:1px solid #eee;padding-top:10px;font-size:15px;"><b>Total ' + esc(freqTxt()) + '</b><b>' + money(p.total) + '</b></div></div>'
       + '<div style="margin-top:12px;font-size:11px;color:#888;line-height:1.5;">Se cobra ' + money(p.total) + ' ahora y se renueva automáticamente ' + esc(freqTxt()) + '. Cancelás cuando quieras.</div>';
@@ -1011,6 +1016,28 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
       + '<div style="display:' + (sumOpen?"block":"none") + ';">' + body + '</div>';
     var head = document.getElementById("rc-sum-head");
     if (head) head.addEventListener("click", function(){ sumOpen = !sumOpen; renderSummary(); });
+  }
+
+  // Valida un código de descuento contra la cuenta del comerciante y lo aplica.
+  function applyDiscount(){
+    var el = document.getElementById("rc-disc"), msg = document.getElementById("rc-disc-msg");
+    var code = ((el && el.value) || "").trim().toUpperCase();
+    if (!code) return;
+    var btn = document.getElementById("rc-disc-btn"); if (btn){ btn.disabled = true; btn.textContent = "…"; }
+    fetch(API_BASE + "/api/public?action=discount&merchant=" + encodeURIComponent(MERCHANT_ID) + "&code=" + encodeURIComponent(code))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if (btn){ btn.disabled = false; btn.textContent = "Aplicar"; }
+        if (d && d.valid && (d.type || "percent") === "percent" && Number(d.value) > 0) {
+          RC_DISC = { code: code, pct: Number(d.value) || 0 };
+          if (msg){ msg.style.display = "block"; msg.style.color = "#0a8a3f"; msg.textContent = "✓ Código " + code + " aplicado — " + d.value + "% OFF"; }
+        } else {
+          RC_DISC = { code: "", pct: 0 };
+          if (msg){ msg.style.display = "block"; msg.style.color = "#d33"; msg.textContent = "Código inválido o vencido."; }
+        }
+        renderSummary();
+      })
+      .catch(function(){ if (btn){ btn.disabled = false; btn.textContent = "Aplicar"; } if (msg){ msg.style.display = "block"; msg.style.color = "#d33"; msg.textContent = "No se pudo validar. Reintentá."; } });
   }
 
   function pagar(){
@@ -1038,6 +1065,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
       body: JSON.stringify({
         merchant_id: MERCHANT_ID, plan_id: plan.id, quantity: QTY, frequency_days: effFreqDays(),
         base_price: (BASE > 0 ? BASE : undefined), sub_discount: (SUB_OFF != null ? SUB_OFF : undefined),
+        discount_code: (RC_DISC.code || undefined),
         fb: fbData(),
         customer: { email: email, name: name, phone: phone, tax_id: val("rc-tax") },
         shipping_address: {
@@ -1082,6 +1110,11 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
         + '<div style="' + card + '"><h3 style="' + h + '">Envío</h3><div id="rc-rates"></div></div>'
         + '<div style="' + card + '"><h3 style="' + h + '">Pago</h3>'
           + '<div style="font-size:13px;color:#555;margin-bottom:12px;">Vas a completar el pago de forma segura en <b>Mercado Pago</b>.</div>'
+          + '<div style="display:flex;gap:8px;margin-bottom:8px;">'
+            + '<input id="rc-disc" placeholder="Código de descuento" style="' + inp + 'text-transform:uppercase;"/>'
+            + '<button id="rc-disc-btn" type="button" style="flex-shrink:0;padding:0 16px;font-size:13px;font-weight:700;color:' + COL + ';background:#fff;border:1.5px solid ' + COL + ';border-radius:9px;cursor:pointer;font-family:inherit;">Aplicar</button>'
+          + '</div>'
+          + '<div id="rc-disc-msg" style="display:none;font-size:12px;font-weight:600;margin-bottom:12px;"></div>'
           + '<div id="rc-err" style="display:none;background:#fde8e8;border:1px solid #f5b5b5;color:#b42318;font-size:13px;padding:10px 12px;border-radius:9px;margin-bottom:12px;"></div>'
           + '<button id="rc-pay" style="width:100%;padding:14px;font-size:15px;font-weight:700;color:#fff;background:' + COL + ';border:none;border-radius:11px;cursor:pointer;">Pagar</button>'
         + '</div>'
@@ -1091,6 +1124,8 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
       + '<style>@media(max-width:760px){.rc-grid{grid-template-columns:1fr!important;}.rc-summary-wrap{order:-1;}#recurrentes-checkout input,#recurrentes-checkout select{font-size:16px!important;}}@keyframes rc-spin{to{transform:rotate(360deg)}}</style>';
 
     document.getElementById("rc-pay").addEventListener("click", pagar);
+    var _db = document.getElementById("rc-disc-btn"); if (_db) _db.addEventListener("click", applyDiscount);
+    var _di = document.getElementById("rc-disc"); if (_di) _di.addEventListener("keydown", function(e){ if (e.key === "Enter") { e.preventDefault(); applyDiscount(); } });
     ["rc-zip","rc-prov","rc-city"].forEach(function(id){ var el=document.getElementById(id); if(el){ el.addEventListener("change", onAddrChange); el.addEventListener("input", onAddrChange); } });
     // Al escribir, se limpia el error de ese campo (como Shopify).
     RC_FIELDS.forEach(function(id){ var el=document.getElementById(id); if(el){ el.addEventListener("input", function(){ clrBad(id); }); el.addEventListener("change", function(){ clrBad(id); }); } });

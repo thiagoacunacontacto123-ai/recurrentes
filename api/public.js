@@ -60,7 +60,29 @@ export default async function handler(req, res) {
   const action = String(req.query.action || "");
   if (action === "plan") return handlePlan(req, res);
   if (action === "sub")  return handleSub(req, res);
-  return res.status(400).json({ error: "action debe ser plan | sub" });
+  if (action === "discount") return handleDiscount(req, res);
+  return res.status(400).json({ error: "action debe ser plan | sub | discount" });
+}
+
+// ─── action=discount ───────────────────────────────────────────
+// Valida un código de descuento del comerciante (merchant.discount_codes).
+// Público: lo llama el checkout cuando el cliente tipea un código. Devuelve
+// solo si es válido + su valor; el descuento REAL se re-valida y aplica en
+// checkout/init (server-side), así nadie puede falsear el precio.
+async function handleDiscount(req, res) {
+  const merchantId = String(req.query.merchant || "");
+  const code = String(req.query.code || "").trim().toUpperCase();
+  if (!merchantId || !code) return res.status(400).json({ error: "Faltan merchant o code" });
+  try {
+    const snap = await db().collection("merchants").doc(merchantId).get();
+    if (!snap.exists) return res.json({ valid: false });
+    const codes = Array.isArray(snap.data().discount_codes) ? snap.data().discount_codes : [];
+    const hit = codes.find(c => String(c.code || "").trim().toUpperCase() === code && c.active !== false);
+    if (!hit) return res.json({ valid: false });
+    return res.json({ valid: true, code, type: hit.type || "percent", value: parseFloat(hit.value) || 0 });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
 }
 
 // ─── action=plan ───────────────────────────────────────────────
