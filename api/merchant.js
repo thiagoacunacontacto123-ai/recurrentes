@@ -10,6 +10,7 @@
 // para entrar en el límite de 12 funciones del plan Hobby de Vercel.
 import { db, requireAuth, getOrCreateMerchant } from "./_lib/firebase.js";
 import { mpMe } from "./_lib/mp.js";
+import { emailAbandonedCheckout } from "./_lib/email.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
@@ -59,6 +60,7 @@ export default async function handler(req, res) {
     if (action === "save-widget-settings") return saveWidgetSettings(uid, req, res);
     if (action === "save-meta")            return saveMeta(uid, req, res);
     if (action === "save-discount-codes")  return saveDiscountCodes(uid, req, res);
+    if (action === "test-email")           return testEmail(uid, req, res);
     return res.status(400).json({ error: "action no reconocida" });
   }
 
@@ -121,6 +123,28 @@ async function saveWidgetSettings(uid, req, res) {
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
+}
+
+async function testEmail(uid, req, res) {
+  // Envía el mail de carrito abandonado de PRUEBA a una dirección, para verificar
+  // que Resend + el remitente + la marca quedaron bien antes de mandarlo a clientes.
+  const to = String(req.body?.to || "").trim();
+  if (!to) return res.status(400).json({ error: "Falta 'to'" });
+  const merchant = await getOrCreateMerchant(uid, null);
+  const brand = merchant?.email_brand || (process.env.EMAIL_FROM || "").split("<")[0].trim().replace(/^["']|["']$/g, "") || "";
+  const r = await emailAbandonedCheckout({
+    to,
+    customerName: "Nombre de prueba",
+    productTitle: "Cápsulas LuminaLabs",
+    amount: 50992,
+    recoverUrl: "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=TEST",
+    brand,
+    accent: merchant?.widget_color || "",
+    from: merchant?.email_from || undefined,
+  });
+  if (r?.skipped) return res.status(400).json({ error: "RESEND_API_KEY no configurada (o no tomó el redeploy todavía)" });
+  if (r?.error) return res.status(502).json({ error: r.error });
+  return res.json({ ok: true, id: r.id, from: merchant?.email_from || process.env.EMAIL_FROM || null, brand });
 }
 
 async function saveDiscountCodes(uid, req, res) {

@@ -57,7 +57,9 @@ export async function sendAbandonedEmails(merchantId, merchant) {
         productTitle: s.plan_snapshot?.product_title || "tu suscripción",
         amount: s.plan_snapshot?.total_per_charge_ars || 0,
         recoverUrl: s.mp_init_point || "",
-        brand: merchant?.email_brand || "",
+        // La marca del header sale del nombre en EMAIL_FROM (ej. "LuminaLabs
+        // <hola@...>") o de merchant.email_brand — así el cliente NO ve "Recurrentes".
+        brand: merchant?.email_brand || (process.env.EMAIL_FROM || "").split("<")[0].trim().replace(/^["']|["']$/g, "") || "",
         accent: merchant?.widget_color || "",
         from: merchant?.email_from || undefined,
       });
