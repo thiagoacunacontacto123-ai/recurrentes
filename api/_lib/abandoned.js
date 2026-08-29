@@ -10,6 +10,7 @@
 // de un cron frecuente. Idempotente: marca `abandoned_email_sent_at`.
 import { db } from "./firebase.js";
 import { emailAbandonedCheckout } from "./email.js";
+import { syncSubscriber } from "./sync.js";
 
 const MIN_AGE_MS = 60 * 60 * 1000;          // 1 hora (le dimos tiempo a completar)
 const MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000; // 3 días (más viejo no vale la pena)
@@ -35,9 +36,20 @@ export async function sendAbandonedEmails(merchantId, merchant) {
     if (!byEmail[k] || s.created_at > byEmail[k].s.created_at) byEmail[k] = { ref: doc.ref, s };
   }
 
+  // Tope por corrida para no exceder el timeout (el resto sale en la próxima).
+  const candidates = Object.values(byEmail)
+    .sort((a, b) => (a.s.created_at || "").localeCompare(b.s.created_at || "")) // más viejos primero
+    .slice(0, 12);
+
   let sent = 0;
-  for (const k of Object.keys(byEmail)) {
-    const { ref, s } = byEmail[k];
+  for (const { ref, s } of candidates) {
+    // SEGURIDAD: sincronizamos con MP ANTES de mandar. Si en realidad PAGÓ y quedó
+    // trabada en pending (webhook perdido), el sync le crea la orden y la pasa a
+    // active → NO le mandamos el mail de abandono (nunca molestamos a quien pagó).
+    try {
+      const r = await syncSubscriber(merchantId, ref.id);
+      if (r && (r.status === "active" || (r.charges_processed || 0) > 0 || r.shopify_order_id)) continue;
+    } catch (_) {}
     try {
       const r = await emailAbandonedCheckout({
         to: s.customer_email,
