@@ -459,6 +459,10 @@ async function handlePreapproval(preapprovalId) {
     // pago no le llegó). Así, sin depender de un cron frecuente, cada venta nueva
     // recupera las anteriores que quedaron colgadas. Best-effort, acotado.
     await healRecentActiveNoOrder(m.id).catch(() => {});
+    // Mails de carrito abandonado: cada evento de suscriptor manda (una vez) el
+    // mail de recupero a los que iniciaron y no pagaron. Con tráfico regular salen
+    // a las pocas horas sin depender de un cron frecuente. Best-effort.
+    try { const { sendAbandonedEmails } = await import("../_lib/abandoned.js"); await sendAbandonedEmails(m.id, m.data()); } catch (_) {}
     return;
   }
 }

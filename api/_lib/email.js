@@ -40,26 +40,28 @@ async function sendEmail({ from, to, subject, html, replyTo }) {
 
 // Template base. Mantener simple — inline styles, dark mode friendly,
 // markup mínimo (Gmail/Outlook).
-function baseTemplate({ title, body, ctaLabel, ctaUrl, footerNote }) {
+function baseTemplate({ title, body, ctaLabel, ctaUrl, footerNote, brand, accent }) {
+  const brandName = brand || "🔁 Recurrentes";
+  const col = accent || "#10b981";
   return `<!doctype html>
 <html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head>
 <body style="margin:0;padding:24px;background:#f5f7f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1f2937;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden;border:1px solid #e5e7eb;">
     <tr><td style="padding:24px 28px 12px;border-bottom:1px solid #e5e7eb;">
-      <div style="font-size:20px;font-weight:800;color:#10b981;">🔁 Recurrentes</div>
+      <div style="font-size:20px;font-weight:800;color:${col};">${escapeHtml(brandName)}</div>
     </td></tr>
     <tr><td style="padding:24px 28px;">
       <h1 style="margin:0 0 14px;font-size:20px;font-weight:700;color:#111827;">${escapeHtml(title)}</h1>
       <div style="font-size:14px;line-height:1.6;color:#374151;">${body}</div>
       ${ctaUrl && ctaLabel ? `
         <p style="margin:24px 0 0;">
-          <a href="${escapeAttr(ctaUrl)}" style="display:inline-block;background:#10b981;color:#fff;text-decoration:none;padding:11px 22px;border-radius:10px;font-weight:700;font-size:14px;">${escapeHtml(ctaLabel)}</a>
+          <a href="${escapeAttr(ctaUrl)}" style="display:inline-block;background:${col};color:#fff;text-decoration:none;padding:11px 22px;border-radius:10px;font-weight:700;font-size:14px;">${escapeHtml(ctaLabel)}</a>
         </p>
       ` : ""}
     </td></tr>
     ${footerNote ? `<tr><td style="padding:14px 28px;background:#f9fafb;border-top:1px solid #e5e7eb;font-size:12px;color:#6b7280;">${footerNote}</td></tr>` : ""}
   </table>
-  <div style="text-align:center;margin-top:14px;font-size:11px;color:#9ca3af;">Recurrentes — gestión de suscripciones recurrentes</div>
+  <div style="text-align:center;margin-top:14px;font-size:11px;color:#9ca3af;">${brand ? escapeHtml(brand) : "Recurrentes — gestión de suscripciones recurrentes"}</div>
 </body></html>`;
 }
 
@@ -101,6 +103,29 @@ export async function emailSubscriptionCancelled({ to, customerName, productTitl
     footerNote: "¿Querés contarnos por qué cancelaste? Respondé a este email — nos ayuda a mejorar.",
   });
   return sendEmail({ to, subject: `Tu suscripción a ${productTitle} fue cancelada`, html });
+}
+
+// Carrito de suscripción abandonado — el cliente inició el checkout y no pagó.
+// brand/accent/from permiten mostrarlo con la marca de la tienda (no "Recurrentes").
+export async function emailAbandonedCheckout({ to, customerName, productTitle, amount, recoverUrl, brand, accent, from }) {
+  const html = baseTemplate({
+    brand: brand || "",
+    accent,
+    title: `Te quedó tu ${productTitle} a mitad de camino 👀`,
+    body: `
+      <p>Hola ${escapeHtml(customerName || "")},</p>
+      <p>Vimos que empezaste tu suscripción a <strong>${escapeHtml(productTitle)}</strong> pero no llegaste a terminar el pago. ¡No te quedes sin la tuya!</p>
+      <p style="background:#f0fdf4;border:1px solid #10b98133;border-radius:10px;padding:14px;margin:18px 0;">
+        Tu suscripción con <strong>15% OFF</strong> sigue esperándote${amount ? ` — quedaría en <strong>$${(amount||0).toLocaleString("es-AR")}</strong>` : ""}.<br/>
+        Retomás el pago en 1 clic, justo donde lo dejaste.
+      </p>
+      <p>Recordá: te llega cómodo a tu casa y cancelás cuando quieras. 💜</p>
+    `,
+    ctaLabel: "Retomar mi compra",
+    ctaUrl: recoverUrl,
+    footerNote: "Si ya lo compraste o no te interesa, ignorá este mail. 🙌",
+  });
+  return sendEmail({ from, to, subject: `¿Te olvidaste de algo? Tu ${productTitle} quedó pendiente`, html });
 }
 
 export async function emailPaymentFailed({ to, customerName, productTitle, portalUrl }) {

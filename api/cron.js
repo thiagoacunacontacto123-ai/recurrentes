@@ -11,6 +11,7 @@
 // permitimos sin auth para poder testear con curl.
 import { db } from "./_lib/firebase.js";
 import { syncSubscriber } from "./_lib/sync.js";
+import { sendAbandonedEmails } from "./_lib/abandoned.js";
 
 export default async function handler(req, res) {
   // Auth: aceptamos 2 formas para que el endpoint sirva tanto para Vercel
@@ -119,6 +120,11 @@ export default async function handler(req, res) {
         console.error(`[cron] sync active ${m.id}/${subDoc.id}:`, e.message);
       }
     }
+
+    // 4) MAILS DE CARRITO ABANDONADO — a los que iniciaron el checkout y no
+    //    pagaron (1h–3d, sin orden, aún sin mail). Uno por email, marca el envío.
+    try { await sendAbandonedEmails(m.id, m.data()); }
+    catch (e) { errors += 1; console.error(`[cron] abandoned ${m.id}:`, e.message); }
    } catch (e) {
      // Un merchant que rompe (token roto, query que falla, etc.) NO tumba el cron
      // entero — se loguea y se sigue con el resto.
