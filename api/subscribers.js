@@ -143,6 +143,47 @@ export default async function handler(req, res) {
     }
   }
 
+  // ── GET ?action=abandoned — lista de checkouts ABANDONADOS ────────────────
+  // Suscriptores en "pending" (iniciaron el checkout de suscripción y NO pagaron)
+  // de hace +45 min (les dimos tiempo a completar) y hasta 30 días atrás, sin
+  // orden. Deduplicados por email (queda el intento MÁS RECIENTE). Devuelve los
+  // datos para el follow-up + el link de MP para retomar el pago. Base del flujo
+  // de carrito abandonado.
+  if (req.method === "GET" && req.query.action === "abandoned") {
+    const now = Date.now();
+    const minAgeMs = 45 * 60 * 1000;
+    const maxAgeMs = 30 * 24 * 60 * 60 * 1000;
+    const snap = await subsCol.where("status", "==", "pending").get();
+    const rows = [];
+    for (const doc of snap.docs) {
+      const s = doc.data();
+      const created = s.created_at ? new Date(s.created_at).getTime() : 0;
+      if (!created) continue;
+      const age = now - created;
+      if (age < minAgeMs || age > maxAgeMs) continue;
+      if ((s.shopify_orders || []).length > 0) continue;
+      rows.push({
+        id: doc.id,
+        email: s.customer_email || null,
+        name: s.customer_name || null,
+        phone: s.customer_phone || null,
+        product_title: s.plan_snapshot?.product_title || null,
+        quantity: s.quantity || 1,
+        value_ars: s.plan_snapshot?.total_per_charge_ars || s.plan_snapshot?.subscription_price_ars || 0,
+        frequency_days: s.plan_snapshot?.frequency_days || null,
+        created_at: s.created_at,
+        recover_url: s.mp_init_point || null,
+      });
+    }
+    const byEmail = {};
+    for (const r of rows) {
+      const k = (r.email || "").toLowerCase();
+      if (!byEmail[k] || r.created_at > byEmail[k].created_at) byEmail[k] = r;
+    }
+    const list = Object.values(byEmail).sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+    return res.json({ abandoned: list, count: list.length });
+  }
+
   if (req.method === "GET") {
     const id = req.query.id;
     if (id) {

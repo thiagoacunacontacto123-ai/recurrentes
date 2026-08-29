@@ -81,6 +81,10 @@ export default function Dashboard({ user, onLogout }) {
           integrationsReady
             ? <SubscribersTab mode="carts"/>
             : <NeedsIntegrations title="Carritos de suscripción" onGo={()=>setTab("integraciones")}/>
+        ) : tab === "abandonados" ? (
+          integrationsReady
+            ? <AbandonedTab/>
+            : <NeedsIntegrations title="Abandonados" onGo={()=>setTab("integraciones")}/>
         ) : tab === "cobros" ? (
           integrationsReady
             ? <ChargesTab/>
@@ -97,6 +101,7 @@ const NAV = [
   { id:"planes",        label:"Planes",                  icon:"🎯" },
   { id:"suscriptores",  label:"Suscriptores activos",    icon:"👥" },
   { id:"carritos",      label:"Carritos de suscripción", icon:"🛒" },
+  { id:"abandonados",   label:"Abandonados",             icon:"📭" },
   { id:"cobros",        label:"Cobros",                  icon:"💸" },
 ];
 
@@ -1369,6 +1374,66 @@ function SubscriberDetailModal({ sub, onClose }) {
 }
 
 // ─── Tab: Cobros ─────────────────────────────────────────────────
+
+// ─── Tab: Carritos abandonados ──────────────────────────────────
+function AbandonedTab() {
+  const [list, setList] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const btnSec = {background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text-md)",borderRadius:8,padding:"7px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"};
+
+  async function load() {
+    setLoading(true);
+    const d = await apiGet("subscribers", { action: "abandoned" });
+    setList(d?.abandoned || []);
+    setLoading(false);
+  }
+  useEffect(() => { load(); }, []);
+
+  function copyEmails() {
+    const emails = list.map(x => x.email).filter(Boolean).join(", ");
+    try { navigator.clipboard.writeText(emails); setCopied(true); setTimeout(()=>setCopied(false), 1500); } catch (_) {}
+  }
+  const fmtDate = iso => { try { return new Date(iso).toLocaleString("es-AR",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}); } catch(e){ return "—"; } };
+
+  return (
+    <div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,gap:14,flexWrap:"wrap"}}>
+        <div>
+          <h1 style={{fontSize:24,fontWeight:800,margin:"0 0 6px",letterSpacing:-0.5}}>Carritos abandonados</h1>
+          <p style={{fontSize:13,color:"var(--text-sm)",margin:0,lineHeight:1.55}}>Clientas que iniciaron el checkout de suscripción y no completaron el pago (+45 min). Base para el flujo de recupero.</p>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          {list.length>0 && <button onClick={copyEmails} style={btnSec}>{copied ? "✓ Copiado" : "📋 Copiar emails"}</button>}
+          <button onClick={load} style={btnSec}>↻</button>
+        </div>
+      </div>
+      {loading ? (
+        <div style={{color:"var(--text-sm)",fontSize:13}}>Cargando…</div>
+      ) : list.length === 0 ? (
+        <div style={{background:"var(--card)",border:"1px dashed var(--border)",borderRadius:14,padding:"50px 30px",textAlign:"center"}}>
+          <div style={{fontSize:36,marginBottom:10}}>📭</div>
+          <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>No hay carritos abandonados</div>
+          <div style={{fontSize:12,color:"var(--text-sm)"}}>Cuando alguien inicie el checkout y no pague, aparece acá a los 45 min.</div>
+        </div>
+      ) : (
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          <div style={{fontSize:12,color:"var(--text-sm)"}}>{list.length} recuperable{list.length===1?"":"s"}</div>
+          {list.map(a => (
+            <div key={a.id} style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:12,padding:"14px 16px",display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:14,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name || a.email}</div>
+                <div style={{fontSize:12,color:"var(--text-sm)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.email}{a.phone ? ` · ${a.phone}` : ""}</div>
+                <div style={{fontSize:12,color:"var(--text-md)",marginTop:4}}>{a.product_title || "—"}{a.quantity>1 ? ` × ${a.quantity}` : ""} · ${(a.value_ars||0).toLocaleString("es-AR")} · {fmtDate(a.created_at)}</div>
+              </div>
+              {a.recover_url && <a href={a.recover_url} target="_blank" rel="noreferrer" style={{...btnSec,textDecoration:"none"}}>Link de pago →</a>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ChargesTab() {
   const [charges, setCharges] = useState([]);
