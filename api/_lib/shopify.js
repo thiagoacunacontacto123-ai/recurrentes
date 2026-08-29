@@ -23,6 +23,26 @@ async function call(shop, token, method, path, body = null) {
   return data;
 }
 
+// Normaliza teléfonos argentinos a E.164 (+549…) para que Shopify los acepte.
+// El problema: el prefijo viejo de celular "15" hace que Shopify rechace el número
+// ("phone is invalid"). Regla: el "15" se cambia por el código de área (11 para
+// BsAs) o se quita si va después del área. NUNCA dejamos el teléfono vacío si vino
+// un número — solo lo arreglamos.
+function normalizeArPhone(raw) {
+  let d = String(raw || "").replace(/\D/g, "");
+  if (!d) return "";
+  d = d.replace(/^00/, "");
+  if (d.startsWith("549")) d = d.slice(3);       // ya venía con país + 9 (móvil)
+  else if (d.startsWith("54")) d = d.slice(2);   // país sin el 9
+  d = d.replace(/^0/, "");                         // sacar 0 de larga distancia
+  // "15" al inicio con 10 dígitos = BsAs escrito como 15+8 → área 11.
+  if (d.length === 10 && d.startsWith("15")) d = "11" + d.slice(2);
+  // "15" justo después del código de área (2-4 díg) → sacarlo (ej. 351-15-xxxxxx).
+  else d = d.replace(/^(\d{2,4})15(\d{6,8})$/, "$1$2");
+  if (!d) return "";
+  return "+549" + d; // móvil AR en E.164
+}
+
 // Lista de productos con sus variantes — usado en el plan creator para que
 // el merchant elija cuál convertir en suscribible. Paginamos hasta 250.
 export async function shListProducts(shop, token) {
@@ -137,16 +157,14 @@ export async function shFindOrCreateCustomer(shop, token, { email, first_name, l
     ...(companyTax ? { note: `Identificador fiscal: ${companyTax}` } : {}),
   };
   try {
+    // Primero SIEMPRE con el teléfono TAL CUAL lo puso el cliente.
     const created = await call(shop, token, "POST", "/customers.json", { customer: customerBody });
     return created.customer;
   } catch (e) {
-    // Shopify rechaza algunos teléfonos (formato AR viejo con "15", números raros)
-    // con "phone is invalid" → sin esto, la orden NUNCA se creaba aunque el cliente
-    // haya PAGADO. El teléfono es opcional en el customer, así que reintentamos SIN
-    // teléfono: el cliente + la orden se crean igual (el tel queda en la dirección
-    // de envío y en la nota del pedido).
-    if (/phone/i.test(e.message)) {
-      const created = await call(shop, token, "POST", "/customers.json", { customer: { ...customerBody, phone: null } });
+    // SOLO si Shopify lo rechaza ("phone is invalid"), lo normalizamos (15→11) y
+    // reintentamos. Nunca lo dejamos vacío — el teléfono siempre viaja.
+    if (/phone/i.test(e.message) && phone) {
+      const created = await call(shop, token, "POST", "/customers.json", { customer: { ...customerBody, phone: normalizeArPhone(phone) || phone } });
       return created.customer;
     }
     throw e;
@@ -289,14 +307,16 @@ export async function shCreatePaidOrder(shop, token, params) {
     },
   };
   try {
+    // Primero con el teléfono TAL CUAL vino en la dirección.
     const data = await call(shop, token, "POST", "/orders.json", body);
     return data.order;
   } catch (e) {
-    // Si Shopify rechaza la orden por el teléfono (formato raro), reintentamos sin
-    // teléfono en la dirección — la orden se crea igual (el tel queda en la nota).
+    // SOLO si Shopify rechaza el teléfono, lo normalizamos (15→11) y reintentamos.
+    // El teléfono sigue viajando (nunca vacío).
     if (/phone/i.test(e.message)) {
-      body.order.shipping_address = { ...body.order.shipping_address, phone: "" };
-      if (body.order.billing_address) body.order.billing_address = { ...body.order.billing_address, phone: "" };
+      const fixed = normalizeArPhone(body.order.shipping_address?.phone) || body.order.shipping_address?.phone || "";
+      body.order.shipping_address = { ...body.order.shipping_address, phone: fixed };
+      if (body.order.billing_address) body.order.billing_address = { ...body.order.billing_address, phone: fixed };
       const data = await call(shop, token, "POST", "/orders.json", body);
       return data.order;
     }
