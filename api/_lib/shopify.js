@@ -128,17 +128,29 @@ export async function shFindOrCreateCustomer(shop, token, { email, first_name, l
   // company en el customer principal — algunos themes / facturadores leen
   // de acá el identificador fiscal del cliente.
   const companyTax = tax_id ? `${tax_id_kind || "DNI"} ${tax_id}` : null;
-  const created = await call(shop, token, "POST", "/customers.json", {
-    customer: {
-      email,
-      first_name: first_name || "",
-      last_name: last_name || "",
-      phone: phone || null,
-      tags,
-      ...(companyTax ? { note: `Identificador fiscal: ${companyTax}` } : {}),
-    },
-  });
-  return created.customer;
+  const customerBody = {
+    email,
+    first_name: first_name || "",
+    last_name: last_name || "",
+    phone: phone || null,
+    tags,
+    ...(companyTax ? { note: `Identificador fiscal: ${companyTax}` } : {}),
+  };
+  try {
+    const created = await call(shop, token, "POST", "/customers.json", { customer: customerBody });
+    return created.customer;
+  } catch (e) {
+    // Shopify rechaza algunos teléfonos (formato AR viejo con "15", números raros)
+    // con "phone is invalid" → sin esto, la orden NUNCA se creaba aunque el cliente
+    // haya PAGADO. El teléfono es opcional en el customer, así que reintentamos SIN
+    // teléfono: el cliente + la orden se crean igual (el tel queda en la dirección
+    // de envío y en la nota del pedido).
+    if (/phone/i.test(e.message)) {
+      const created = await call(shop, token, "POST", "/customers.json", { customer: { ...customerBody, phone: null } });
+      return created.customer;
+    }
+    throw e;
+  }
 }
 
 // Crear orden PAGA con los items del plan. Marcada como `financial_status:
@@ -276,6 +288,18 @@ export async function shCreatePaidOrder(shop, token, params) {
       ],
     },
   };
-  const data = await call(shop, token, "POST", "/orders.json", body);
-  return data.order;
+  try {
+    const data = await call(shop, token, "POST", "/orders.json", body);
+    return data.order;
+  } catch (e) {
+    // Si Shopify rechaza la orden por el teléfono (formato raro), reintentamos sin
+    // teléfono en la dirección — la orden se crea igual (el tel queda en la nota).
+    if (/phone/i.test(e.message)) {
+      body.order.shipping_address = { ...body.order.shipping_address, phone: "" };
+      if (body.order.billing_address) body.order.billing_address = { ...body.order.billing_address, phone: "" };
+      const data = await call(shop, token, "POST", "/orders.json", body);
+      return data.order;
+    }
+    throw e;
+  }
 }
