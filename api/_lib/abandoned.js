@@ -1,75 +1,123 @@
-// Flujo de carrito abandonado de suscripción.
+// Flujo de carrito abandonado de suscripción — SECUENCIA de 3 pasos:
+//   Paso 1 → 15 min:  recordatorio simple (sin cupón).
+//   Paso 2 → 2 hs:    con cupón VUELVO5 (5% OFF).
+//   Paso 3 → 24 hs:   última chance con ULTIMACHANCE15 (15% OFF).
 //
-// Busca subs en "pending" (iniciaron el checkout y NO pagaron) de un merchant,
-// con una antigüedad de 1h a 3 días, sin orden y a las que todavía no se les
-// mandó el mail de recupero. Deduplica por email (solo el intento más reciente)
-// y les manda UN mail con el link para retomar el pago.
+// Reglas:
+//  · Solo subs en "pending" (iniciaron el checkout y no pagaron).
+//  · Máx 3 días de antigüedad (más viejo no se molesta).
+//  · Sincroniza con MP ANTES de mandar: si en realidad pagó la suscripción, le
+//    crea la orden y NO le manda nada.
+//  · Chequea Shopify: si el cliente YA compró (suscripción o COMPRA ÚNICA), NO
+//    le manda nada.
+//  · Un mail por PASO (marca `abandoned_step` = 1/2/3). Nunca repite un paso.
+//  · Backfill: un sub viejo (ej. 2 días) salta directo al paso que corresponde
+//    por su edad (no manda los 3 de golpe).
 //
-// Se dispara desde el cron (1×/día en Hobby) y desde el webhook self-heal (cada
-// venta nueva) → así, con tráfico, los mails salen a las pocas horas sin depender
-// de un cron frecuente. Idempotente: marca `abandoned_email_sent_at`.
+// Se dispara desde el cron + webhook self-heal. Para timing preciso (15min/2h/24h)
+// necesita un cron frecuente (Vercel Pro o cron externo cada ~10 min).
 import { db } from "./firebase.js";
 import { emailAbandonedCheckout } from "./email.js";
 import { syncSubscriber } from "./sync.js";
+import { shHasRecentPaidOrder } from "./shopify.js";
 
-const MIN_AGE_MS = 60 * 60 * 1000;          // 1 hora (le dimos tiempo a completar)
-const MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000; // 3 días (más viejo no vale la pena)
+const STEPS = [
+  { n: 1, minAgeMs: 15 * 60 * 1000,      coupon: null,              pct: 0 },
+  { n: 2, minAgeMs: 2 * 60 * 60 * 1000,  coupon: "VUELVO5",         pct: 5 },
+  { n: 3, minAgeMs: 24 * 60 * 60 * 1000, coupon: "ULTIMACHANCE15",  pct: 15 },
+];
+const MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
 
 export async function sendAbandonedEmails(merchantId, merchant) {
   const now = Date.now();
   const snap = await db().collection("merchants").doc(merchantId).collection("subscribers")
     .where("status", "==", "pending").get();
 
-  // Dedup por email → el intento MÁS RECIENTE (si reintentó varias veces).
+  // Elegir candidatos: por cada email, el intento más reciente que tenga un PASO
+  // pendiente (target > abandoned_step ya enviado).
+  // También registramos, por email, la última vez que recibió un mail del flujo
+  // (en cualquier intento) → para el cooldown de 30 días.
   const byEmail = {};
+  const lastFlow = {}; // email → { at, subId }
   for (const doc of snap.docs) {
     const s = doc.data();
-    if (s.abandoned_email_sent_at) continue;             // ya se le mandó
-    if ((s.shopify_orders || []).length > 0) continue;   // ya convirtió
     const email = (s.customer_email || "").trim();
     if (!email) continue;
+    const k0 = email.toLowerCase();
+    if (s.abandoned_step_at && (!lastFlow[k0] || s.abandoned_step_at > lastFlow[k0].at)) {
+      lastFlow[k0] = { at: s.abandoned_step_at, subId: doc.id };
+    }
+    if ((s.shopify_orders || []).length > 0) continue;
     const created = s.created_at ? new Date(s.created_at).getTime() : 0;
     if (!created) continue;
     const age = now - created;
-    if (age < MIN_AGE_MS || age > MAX_AGE_MS) continue;
+    if (age > MAX_AGE_MS) continue;
+
+    let target = 0;
+    for (const st of STEPS) if (age >= st.minAgeMs) target = st.n;
+    if (target === 0) continue;                 // < 15 min: todavía no
+    const done = s.abandoned_step || 0;
+    if (target <= done) continue;               // ese paso (o más) ya se mandó
+
     const k = email.toLowerCase();
-    if (!byEmail[k] || s.created_at > byEmail[k].s.created_at) byEmail[k] = { ref: doc.ref, s };
+    if (!byEmail[k] || s.created_at > byEmail[k].s.created_at) byEmail[k] = { ref: doc.ref, s, target };
   }
 
-  // Tope por corrida para no exceder el timeout (el resto sale en la próxima).
   const candidates = Object.values(byEmail)
-    .sort((a, b) => (a.s.created_at || "").localeCompare(b.s.created_at || "")) // más viejos primero
+    .sort((a, b) => (a.s.created_at || "").localeCompare(b.s.created_at || ""))
     .slice(0, 12);
 
+  const fromName = (process.env.EMAIL_FROM || "").split("<")[0].trim().replace(/^["']|["']$/g, "");
+  const COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
   let sent = 0;
-  for (const { ref, s } of candidates) {
-    // SEGURIDAD: sincronizamos con MP ANTES de mandar. Si en realidad PAGÓ y quedó
-    // trabada en pending (webhook perdido), el sync le crea la orden y la pasa a
-    // active → NO le mandamos el mail de abandono (nunca molestamos a quien pagó).
+
+  for (const { ref, s, target } of candidates) {
+    // 0) COOLDOWN 30 días: si este es un intento NUEVO (aún sin ningún paso) pero
+    //    esta persona ya recibió el flujo en OTRO intento hace <30 días → no re-flujea.
+    //    (La progresión del mismo intento no se bloquea: sólo cuenta otro sub.)
+    const own = s.abandoned_step || 0;
+    const lf = lastFlow[(s.customer_email || "").toLowerCase()];
+    if (own === 0 && lf && lf.subId !== ref.id && (now - new Date(lf.at).getTime()) < COOLDOWN_MS) continue;
+
+    // 1) ¿Pagó la SUSCRIPCIÓN y quedó trabada? Sync → si pagó, crea orden y no emaila.
     try {
       const r = await syncSubscriber(merchantId, ref.id);
       if (r && (r.status === "active" || (r.charges_processed || 0) > 0 || r.shopify_order_id)) continue;
     } catch (_) {}
+    // 2) ¿Ya compró en Shopify (suscripción O compra única)? → no emailar. Marcamos
+    //    para no volver a intentarlo con esta persona.
+    try {
+      if (merchant?.shopify_shop && merchant?.shopify_token &&
+          await shHasRecentPaidOrder(merchant.shopify_shop, merchant.shopify_token, s.customer_email)) {
+        await ref.update({ abandoned_step: 99, abandoned_bought: true });
+        continue;
+      }
+    } catch (_) {}
+
+    const step = STEPS.find(x => x.n === target) || STEPS[0];
+    const baseUrl = s.fb_data?.event_source_url || s.mp_init_point || "";
+    // El cupón se aplica solo en el checkout via ?code= (el widget lo autocompleta).
+    const recoverUrl = (step.coupon && baseUrl)
+      ? baseUrl + (baseUrl.includes("?") ? "&" : "?") + "code=" + encodeURIComponent(step.coupon)
+      : baseUrl;
+
     try {
       const r = await emailAbandonedCheckout({
         to: s.customer_email,
         customerName: s.customer_name,
         productTitle: s.plan_snapshot?.product_title || "tu suscripción",
         amount: s.plan_snapshot?.total_per_charge_ars || 0,
-        // Link de recupero: el CHECKOUT on-store con su pack ya cargado (la URL
-        // desde donde inició, guardada en fb_data), NO el link de MP (uso único +
-        // feo). Fallback al init_point de MP solo si no tenemos la del checkout.
-        recoverUrl: s.fb_data?.event_source_url || s.mp_init_point || "",
-        // La marca del header sale del nombre en EMAIL_FROM (ej. "LuminaLabs
-        // <hola@...>") o de merchant.email_brand — así el cliente NO ve "Recurrentes".
-        brand: merchant?.email_brand || (process.env.EMAIL_FROM || "").split("<")[0].trim().replace(/^["']|["']$/g, "") || "",
+        recoverUrl,
+        brand: merchant?.email_brand || fromName || "",
         accent: merchant?.widget_color || "",
         from: merchant?.email_from || undefined,
+        step: target,
+        couponCode: step.coupon,
+        couponPct: step.pct,
       });
-      // Si Resend NO está configurado (skipped), NO marcamos → se reintenta cuando
-      // se configure. Si se envió (o hubo error real), marcamos para no repetir.
+      // Si Resend no está configurado (skipped), NO marcamos → reintenta al configurar.
       if (!r?.skipped) {
-        await ref.update({ abandoned_email_sent_at: new Date().toISOString() });
+        await ref.update({ abandoned_step: target, abandoned_step_at: new Date().toISOString() });
         if (!r?.error) sent++;
       }
     } catch (_) {}

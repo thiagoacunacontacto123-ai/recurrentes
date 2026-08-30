@@ -50,6 +50,19 @@ export async function shListProducts(shop, token) {
   return data.products || [];
 }
 
+// ¿El cliente (por email) tiene una orden PAGA reciente en Shopify? Se usa para
+// NO mandar el flujo de abandono a quien YA compró — sea suscripción o COMPRA
+// ÚNICA (one-time). Si no puede consultar, devuelve false (mejor no bloquear).
+export async function shHasRecentPaidOrder(shop, token, email, days = 14) {
+  if (!email) return false;
+  try {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    const data = await call(shop, token, "GET",
+      `/orders.json?email=${encodeURIComponent(email)}&status=any&financial_status=paid&created_at_min=${encodeURIComponent(since)}&limit=1&fields=id`);
+    return (data.orders || []).length > 0;
+  } catch (_) { return false; }
+}
+
 // Métodos de envío configurados en la tienda (los mismos de la venta común).
 // Lee las shipping_zones y devuelve las tarifas que aplican a Argentina (o a la
 // provincia pedida). Solo trae las tarifas EXPUESTAS por API (price_based y

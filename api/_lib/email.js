@@ -105,27 +105,48 @@ export async function emailSubscriptionCancelled({ to, customerName, productTitl
   return sendEmail({ to, subject: `Tu suscripción a ${productTitle} fue cancelada`, html });
 }
 
-// Carrito de suscripción abandonado — el cliente inició el checkout y no pagó.
-// brand/accent/from permiten mostrarlo con la marca de la tienda (no "Recurrentes").
-export async function emailAbandonedCheckout({ to, customerName, productTitle, amount, recoverUrl, brand, accent, from }) {
+// Carrito de suscripción abandonado — secuencia de 3 pasos:
+//   step 1 (15 min): recordatorio simple, sin cupón.
+//   step 2 (2 hs):  con cupón (ej. VUELVO5 5% OFF).
+//   step 3 (24 hs): última chance con cupón mayor (ej. ULTIMACHANCE15 15% OFF).
+// brand/accent/from muestran la marca de la tienda (no "Recurrentes").
+export async function emailAbandonedCheckout({ to, customerName, productTitle, amount, recoverUrl, brand, accent, from, step, couponCode, couponPct }) {
+  step = step || 1;
+  const name = escapeHtml(customerName || "");
+  const prod = escapeHtml(productTitle);
+  const box = (inner) => `<p style="background:#f0fdf4;border:1px solid #10b98133;border-radius:10px;padding:14px;margin:18px 0;">${inner}</p>`;
+  let subject, title, extra, ctaLabel;
+
+  if (step === 2) {
+    subject = `Te guardamos tu ${productTitle} + un regalito 🎁`;
+    title = `Seguís a tiempo — y con un extra 🎁`;
+    extra = box(`Usá el código <strong>${escapeHtml(couponCode || "")}</strong> y te llevás <strong>${couponPct || 0}% OFF extra</strong>.<br/>Ya te lo dejamos aplicado en el link — retomás con tu pack elegido.`);
+    ctaLabel = `Retomar con ${couponPct || 0}% OFF`;
+  } else if (step === 3) {
+    subject = `⏰ Última chance: ${couponPct || 0}% OFF en tu ${productTitle}`;
+    title = `Última oportunidad: ${couponPct || 0}% OFF ⏰`;
+    extra = box(`Es tu <strong>última chance</strong>. Con el código <strong>${escapeHtml(couponCode || "")}</strong> te llevás <strong>${couponPct || 0}% OFF</strong>.<br/>Ya está aplicado en el link, con tu pack elegido. No lo dejes pasar. 💜`);
+    ctaLabel = `Aprovechar ${couponPct || 0}% OFF`;
+  } else {
+    subject = `¿Te olvidaste de algo? Tu ${productTitle} quedó pendiente`;
+    title = `Te quedó tu ${productTitle} a mitad de camino 👀`;
+    extra = box(`Retomás el pago en 1 clic, justo donde lo dejaste — con tu pack ya elegido.`);
+    ctaLabel = "Retomar mi compra";
+  }
+
   const html = baseTemplate({
-    brand: brand || "",
-    accent,
-    title: `Te quedó tu ${productTitle} a mitad de camino 👀`,
+    brand: brand || "", accent, title,
     body: `
-      <p>Hola ${escapeHtml(customerName || "")},</p>
-      <p>Vimos que empezaste tu suscripción a <strong>${escapeHtml(productTitle)}</strong> pero no llegaste a terminar el pago. ¡No te quedes sin la tuya!</p>
-      <p style="background:#f0fdf4;border:1px solid #10b98133;border-radius:10px;padding:14px;margin:18px 0;">
-        Tu suscripción con <strong>15% OFF</strong> sigue esperándote${amount ? ` — quedaría en <strong>$${(amount||0).toLocaleString("es-AR")}</strong>` : ""}.<br/>
-        Retomás el pago en 1 clic, justo donde lo dejaste.
-      </p>
-      <p>Recordá: te llega cómodo a tu casa y cancelás cuando quieras. 💜</p>
+      <p>Hola ${name},</p>
+      <p>Vimos que empezaste tu suscripción a <strong>${prod}</strong> pero no llegaste a terminar el pago.</p>
+      ${extra}
+      <p>Te llega cómodo a tu casa y cancelás cuando quieras. 💜</p>
     `,
-    ctaLabel: "Retomar mi compra",
+    ctaLabel,
     ctaUrl: recoverUrl,
     footerNote: "Si ya lo compraste o no te interesa, ignorá este mail. 🙌",
   });
-  return sendEmail({ from, to, subject: `¿Te olvidaste de algo? Tu ${productTitle} quedó pendiente`, html });
+  return sendEmail({ from, to, subject, html });
 }
 
 export async function emailPaymentFailed({ to, customerName, productTitle, portalUrl }) {

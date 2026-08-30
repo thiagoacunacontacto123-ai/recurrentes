@@ -130,21 +130,29 @@ async function testEmail(uid, req, res) {
   // que Resend + el remitente + la marca quedaron bien antes de mandarlo a clientes.
   const to = String(req.body?.to || "").trim();
   if (!to) return res.status(400).json({ error: "Falta 'to'" });
+  const step = Math.min(3, Math.max(1, parseInt(req.body?.step, 10) || 1));
+  const COUPONS = { 1: { code: null, pct: 0 }, 2: { code: "VUELVO5", pct: 5 }, 3: { code: "ULTIMACHANCE15", pct: 15 } };
+  const cp = COUPONS[step];
   const merchant = await getOrCreateMerchant(uid, null);
   const brand = merchant?.email_brand || (process.env.EMAIL_FROM || "").split("<")[0].trim().replace(/^["']|["']$/g, "") || "";
+  let recoverUrl = "https://www.luminalabs-arg.com/pages/suscripcion-form";
+  if (cp.code) recoverUrl += "?code=" + encodeURIComponent(cp.code);
   const r = await emailAbandonedCheckout({
     to,
     customerName: "Nombre de prueba",
     productTitle: "Cápsulas LuminaLabs",
     amount: 50992,
-    recoverUrl: "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=TEST",
+    recoverUrl,
     brand,
     accent: merchant?.widget_color || "",
     from: merchant?.email_from || undefined,
+    step,
+    couponCode: cp.code,
+    couponPct: cp.pct,
   });
   if (r?.skipped) return res.status(400).json({ error: "RESEND_API_KEY no configurada (o no tomó el redeploy todavía)" });
   if (r?.error) return res.status(502).json({ error: r.error });
-  return res.json({ ok: true, id: r.id, from: merchant?.email_from || process.env.EMAIL_FROM || null, brand });
+  return res.json({ ok: true, id: r.id, step, coupon: cp.code, from: merchant?.email_from || process.env.EMAIL_FROM || null, brand });
 }
 
 async function saveDiscountCodes(uid, req, res) {

@@ -1133,6 +1133,12 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
     document.getElementById("rc-pay").addEventListener("click", pagar);
     var _db = document.getElementById("rc-disc-btn"); if (_db) _db.addEventListener("click", applyDiscount);
     var _di = document.getElementById("rc-disc"); if (_di) _di.addEventListener("keydown", function(e){ if (e.key === "Enter") { e.preventDefault(); applyDiscount(); } });
+    // Cupón por URL (?code=VUELVO5): lo autocompleta y aplica solo — usado por los
+    // mails de carrito abandonado (pasos 2 y 3) para que llegue con el descuento puesto.
+    try {
+      var _uc = new URLSearchParams(window.location.search).get("code");
+      if (_uc && _di) { _di.value = _uc.trim().toUpperCase(); applyDiscount(); }
+    } catch (e) {}
     ["rc-zip","rc-prov","rc-city"].forEach(function(id){ var el=document.getElementById(id); if(el){ el.addEventListener("change", onAddrChange); el.addEventListener("input", onAddrChange); } });
     // Al escribir, se limpia el error de ese campo (como Shopify).
     RC_FIELDS.forEach(function(id){ var el=document.getElementById(id); if(el){ el.addEventListener("input", function(){ clrBad(id); }); el.addEventListener("change", function(){ clrBad(id); }); } });
