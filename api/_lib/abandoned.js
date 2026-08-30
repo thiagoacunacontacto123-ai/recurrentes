@@ -20,6 +20,7 @@ import { db } from "./firebase.js";
 import { emailAbandonedCheckout } from "./email.js";
 import { syncSubscriber } from "./sync.js";
 import { shHasRecentPaidOrder } from "./shopify.js";
+import { logEmail } from "./emaillog.js";
 
 const STEPS = [
   { n: 1, minAgeMs: 15 * 60 * 1000,      coupon: null,              pct: 0 },
@@ -118,6 +119,11 @@ export async function sendAbandonedEmails(merchantId, merchant) {
       // Si Resend no está configurado (skipped), NO marcamos → reintenta al configurar.
       if (!r?.skipped) {
         await ref.update({ abandoned_step: target, abandoned_step_at: new Date().toISOString() });
+        await logEmail(merchantId, {
+          type: "abandoned", subscriber_id: ref.id, to: s.customer_email,
+          customer_name: s.customer_name, product_title: s.plan_snapshot?.product_title,
+          step: target, coupon: step.coupon, status: r?.error ? "error" : "sent", error: r?.error || null,
+        });
         if (!r?.error) sent++;
       }
     } catch (_) {}

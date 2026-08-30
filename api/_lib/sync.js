@@ -18,6 +18,7 @@ import { mpGetPayment, mpUpdatePreapproval } from "./mp.js";
 import { shFindOrCreateCustomer, shCreatePaidOrder } from "./shopify.js";
 import { emailSubscriptionActivated, emailPaymentFailed } from "./email.js";
 import { sendMetaPurchase } from "./meta.js";
+import { logEmail } from "./emaillog.js";
 
 const MP_BASE = "https://api.mercadopago.com";
 
@@ -360,13 +361,18 @@ export async function syncSubscriber(merchantId, subscriberId) {
       ? `${process.env.APP_BASE_URL}/#/portal?token=${encodeURIComponent(sub.portal_token)}`
       : `${process.env.APP_BASE_URL}/#/portal`;
     try {
-      await emailSubscriptionActivated({
+      const er = await emailSubscriptionActivated({
         to: sub.customer_email,
         customerName: sub.customer_name,
         productTitle: sub.plan_snapshot?.product_title || "Suscripción",
         frequencyDays: sub.plan_snapshot?.frequency_days || 30,
         amount: sub.plan_snapshot?.total_per_charge_ars || approvedPayments[0]?.transaction_amount || 0,
         portalUrl,
+      });
+      if (!er?.skipped) await logEmail(merchantId, {
+        type: "activation", subscriber_id: subscriberId, to: sub.customer_email,
+        customer_name: sub.customer_name, product_title: sub.plan_snapshot?.product_title,
+        status: er?.error ? "error" : "sent", error: er?.error || null,
       });
     } catch (e) {
       console.warn("[sync] email activación falló:", e.message);

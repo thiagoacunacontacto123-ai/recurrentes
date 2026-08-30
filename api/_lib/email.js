@@ -68,6 +68,11 @@ function baseTemplate({ title, body, ctaLabel, ctaUrl, footerNote, brand, accent
 function escapeHtml(s) {
   return String(s || "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;" }[c]));
 }
+// Saludo que no deja "Hola ," cuando falta el nombre del cliente.
+function greet(name) {
+  const n = String(name || "").trim();
+  return n ? `Hola ${escapeHtml(n)},` : "¡Hola! 👋";
+}
 function escapeAttr(s) { return escapeHtml(s); }
 
 // ─── Templates ───────────────────────────────────────────────────
@@ -76,7 +81,7 @@ export async function emailSubscriptionActivated({ to, customerName, productTitl
   const html = baseTemplate({
     title: `¡Tu suscripción a ${productTitle} está activa!`,
     body: `
-      <p>Hola ${escapeHtml(customerName || "")},</p>
+      <p>${greet(customerName)}</p>
       <p>Recibimos la confirmación de tu pago. Ya estás suscrito a <strong>${escapeHtml(productTitle)}</strong>.</p>
       <p style="background:#ecfdf5;border:1px solid #10b98133;border-radius:10px;padding:14px;margin:18px 0;">
         <strong>Resumen:</strong><br/>
@@ -96,7 +101,7 @@ export async function emailSubscriptionCancelled({ to, customerName, productTitl
   const html = baseTemplate({
     title: `Cancelamos tu suscripción`,
     body: `
-      <p>Hola ${escapeHtml(customerName || "")},</p>
+      <p>${greet(customerName)}</p>
       <p>Confirmamos que <strong>${escapeHtml(productTitle)}</strong> fue cancelada. No vamos a hacer más cobros.</p>
       <p>Si fue un error o cambiás de idea, podés volver al producto en la tienda y suscribirte de nuevo.</p>
     `,
@@ -112,7 +117,9 @@ export async function emailSubscriptionCancelled({ to, customerName, productTitl
 // brand/accent/from muestran la marca de la tienda (no "Recurrentes").
 export async function emailAbandonedCheckout({ to, customerName, productTitle, amount, recoverUrl, brand, accent, from, step, couponCode, couponPct }) {
   step = step || 1;
-  const name = escapeHtml(customerName || "");
+  // Si no tenemos el nombre, saludamos sin dejar "Hola ," colgado.
+  const nm = String(customerName || "").trim();
+  const greeting = nm ? `Hola ${escapeHtml(nm)},` : "¡Hola! 👋";
   const prod = escapeHtml(productTitle);
   const box = (inner) => `<p style="background:#f0fdf4;border:1px solid #10b98133;border-radius:10px;padding:14px;margin:18px 0;">${inner}</p>`;
   let subject, title, extra, ctaLabel;
@@ -137,7 +144,7 @@ export async function emailAbandonedCheckout({ to, customerName, productTitle, a
   const html = baseTemplate({
     brand: brand || "", accent, title,
     body: `
-      <p>Hola ${name},</p>
+      <p>${greeting}</p>
       <p>Vimos que empezaste tu suscripción a <strong>${prod}</strong> pero no llegaste a terminar el pago.</p>
       ${extra}
       <p>Te llega cómodo a tu casa y cancelás cuando quieras. 💜</p>
@@ -153,7 +160,7 @@ export async function emailPaymentFailed({ to, customerName, productTitle, porta
   const html = baseTemplate({
     title: `Tu pago no se pudo procesar`,
     body: `
-      <p>Hola ${escapeHtml(customerName || "")},</p>
+      <p>${greet(customerName)}</p>
       <p>Intentamos cobrar tu suscripción a <strong>${escapeHtml(productTitle)}</strong> y no fue posible. Suele pasar por:</p>
       <ul style="padding-left:18px;line-height:1.7;">
         <li>Tarjeta vencida o con saldo insuficiente</li>

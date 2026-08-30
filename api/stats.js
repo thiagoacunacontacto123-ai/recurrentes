@@ -21,6 +21,8 @@ export default async function handler(req, res) {
   const uid = await requireAuth(req, res);
   if (!uid) return;
 
+  if (req.query.action === "activity") return activity(uid, res);
+
   try {
     const merchantRef = db().collection("merchants").doc(uid);
 
@@ -128,6 +130,95 @@ export default async function handler(req, res) {
       },
       growth: { new_7d: new7, new_30d: new30, cancelled_30d: cancelled30, churn_rate_pct: Math.round(churnRate * 10) / 10 },
       upcoming_charges: upcomingCharges.slice(0, 10),
+    });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+// GET /api/stats?action=activity — 3 tablas para el dashboard:
+//   mails  → cada email enviado (abandono paso 1/2/3, activación, cancelación, pago fallido)
+//   envios → cada orden Shopify generada por un cobro
+//   cobros → cada cobro MP (facturación) con totales hoy / mes
+async function activity(uid, res) {
+  try {
+    const mRef = db().collection("merchants").doc(uid);
+    const [mSnap, subsSnap, chargesSnap, mailsSnap] = await Promise.all([
+      mRef.get(),
+      mRef.collection("subscribers").get(),
+      mRef.collection("charges").get(),
+      mRef.collection("email_log").get(),
+    ]);
+    const merchant = mSnap.data() || {};
+    const shop = merchant.shopify_shop || null;
+    // Mapa sub → datos de cliente (para nombrar cobros/envíos)
+    const subMap = {};
+    subsSnap.docs.forEach(d => { const s = d.data(); subMap[d.id] = { name: s.customer_name || "", email: s.customer_email || "", product: s.plan_snapshot?.product_title || "" }; });
+
+    const now = new Date();
+    const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const startMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+    // ── MAILS ──
+    const mails = mailsSnap.docs.map(d => { const m = d.data(); return {
+      id: d.id, type: m.type, step: m.step || null, coupon: m.coupon || null,
+      to: m.to, customer_name: m.customer_name || subMap[m.subscriber_id]?.name || "",
+      product_title: m.product_title || subMap[m.subscriber_id]?.product || "",
+      status: m.status || "sent", created_at: m.created_at || "",
+    }; }).sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+    const mailSummary = { total: 0, abandoned_1: 0, abandoned_2: 0, abandoned_3: 0, activation: 0, cancellation: 0, payment_failed: 0 };
+    for (const m of mails) {
+      if (m.status === "error") continue;
+      mailSummary.total++;
+      if (m.type === "abandoned") mailSummary["abandoned_" + (m.step || 1)]++;
+      else if (mailSummary[m.type] !== undefined) mailSummary[m.type]++;
+    }
+
+    // ── COBROS (facturación) + ENVÍOS (órdenes) ──
+    const cobros = [];
+    const envios = [];
+    let todayCount = 0, todayAmount = 0, monthCount = 0, monthAmount = 0, allAmount = 0;
+    for (const d of chargesSnap.docs) {
+      const c = d.data();
+      const cust = subMap[c.subscriber_id] || {};
+      const ts = c.created_at || "";
+      const ok = !c.error && c.status !== "rejected";
+      cobros.push({
+        id: d.id, amount: c.amount_ars || 0, status: c.error ? "error" : (c.status || "approved"),
+        customer_name: cust.name || "", customer_email: cust.email || "",
+        product_title: cust.product || "", order_id: c.shopify_order_id || null,
+        error: c.error || null, created_at: ts,
+      });
+      if (ok) {
+        allAmount += c.amount_ars || 0;
+        if (ts >= startToday) { todayCount++; todayAmount += c.amount_ars || 0; }
+        if (ts >= startMonth) { monthCount++; monthAmount += c.amount_ars || 0; }
+      }
+      if (c.shopify_order_id) {
+        envios.push({
+          id: d.id, order_id: c.shopify_order_id,
+          order_url: shop ? `https://${shop}/admin/orders/${c.shopify_order_id}` : null,
+          customer_name: cust.name || "", customer_email: cust.email || "",
+          product_title: cust.product || "", created_at: ts,
+        });
+      }
+    }
+    cobros.sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+    envios.sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+
+    const envioMonth = envios.filter(e => (e.created_at || "") >= startMonth).length;
+
+    return res.json({
+      mails: mails.slice(0, 200),
+      mail_summary: mailSummary,
+      envios: envios.slice(0, 200),
+      envio_summary: { total: envios.length, this_month: envioMonth },
+      cobros: cobros.slice(0, 200),
+      cobro_summary: {
+        today: { count: todayCount, amount: Math.round(todayAmount) },
+        this_month: { count: monthCount, amount: Math.round(monthAmount) },
+        all_time: Math.round(allAmount),
+      },
     });
   } catch (e) {
     return res.status(500).json({ error: e.message });

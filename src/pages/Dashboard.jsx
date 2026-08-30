@@ -85,6 +85,10 @@ export default function Dashboard({ user, onLogout }) {
           integrationsReady
             ? <AbandonedTab/>
             : <NeedsIntegrations title="Abandonados" onGo={()=>setTab("integraciones")}/>
+        ) : tab === "actividad" ? (
+          integrationsReady
+            ? <ActivityTab/>
+            : <NeedsIntegrations title="Actividad" onGo={()=>setTab("integraciones")}/>
         ) : tab === "cobros" ? (
           integrationsReady
             ? <ChargesTab/>
@@ -102,6 +106,7 @@ const NAV = [
   { id:"suscriptores",  label:"Suscriptores activos",    icon:"👥" },
   { id:"carritos",      label:"Carritos de suscripción", icon:"🛒" },
   { id:"abandonados",   label:"Abandonados",             icon:"📭" },
+  { id:"actividad",     label:"Actividad",               icon:"🗂️" },
   { id:"cobros",        label:"Cobros",                  icon:"💸" },
 ];
 
@@ -1429,6 +1434,151 @@ function AbandonedTab() {
               {a.recover_url && <a href={a.recover_url} target="_blank" rel="noreferrer" style={{...btnSec,textDecoration:"none"}}>Link de pago →</a>}
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Tab: Actividad (Mails / Envíos / Facturación) ─────────────────
+function ActivityTab() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState("mails");
+  const btnSec = {background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text-md)",borderRadius:8,padding:"7px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"};
+
+  async function load() {
+    setLoading(true);
+    const d = await apiGet("stats", { action: "activity" });
+    setData(d || {});
+    setLoading(false);
+  }
+  useEffect(() => { load(); }, []);
+
+  const fmtDate = iso => { try { return new Date(iso).toLocaleString("es-AR",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}); } catch(e){ return "—"; } };
+  const money = n => "$" + (n||0).toLocaleString("es-AR");
+
+  const MAIL_LABEL = {
+    activation:      { t:"Activación",     c:"#10b981", e:"✅" },
+    cancellation:    { t:"Cancelación",    c:"#ef4444", e:"🚫" },
+    payment_failed:  { t:"Pago fallido",   c:"#f59e0b", e:"⚠️" },
+  };
+  const mailLabel = (m) => {
+    if (m.type === "abandoned") return { t:`Abandono · Paso ${m.step||1}`, c:"#8b5cf6", e:"📭" };
+    return MAIL_LABEL[m.type] || { t:m.type, c:"var(--text-md)", e:"📧" };
+  };
+
+  const views = [
+    { id:"mails",  label:"📧 Mails" },
+    { id:"envios", label:"📦 Envíos" },
+    { id:"cobros", label:"💵 Facturación" },
+  ];
+
+  const th = {textAlign:"left",fontSize:11,fontWeight:700,color:"var(--text-sm)",textTransform:"uppercase",letterSpacing:0.4,padding:"0 14px 8px"};
+  const td = {fontSize:13,color:"var(--text-md)",padding:"11px 14px",borderTop:"1px solid var(--border)",verticalAlign:"top"};
+  const chip = (label, val, col) => (
+    <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:12,padding:"12px 16px",minWidth:120}}>
+      <div style={{fontSize:11,color:"var(--text-sm)",fontWeight:600,marginBottom:4}}>{label}</div>
+      <div style={{fontSize:20,fontWeight:800,color:col||"var(--text)",letterSpacing:-0.5}}>{val}</div>
+    </div>
+  );
+  const emptyBox = (emoji, txt) => (
+    <div style={{background:"var(--card)",border:"1px dashed var(--border)",borderRadius:14,padding:"50px 30px",textAlign:"center"}}>
+      <div style={{fontSize:36,marginBottom:10}}>{emoji}</div>
+      <div style={{fontSize:13,color:"var(--text-sm)"}}>{txt}</div>
+    </div>
+  );
+  const tableWrap = (inner) => (
+    <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:14,overflow:"hidden"}}>
+      <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:560}}>{inner}</table></div>
+    </div>
+  );
+
+  const ms = data?.mail_summary || {};
+  const cs = data?.cobro_summary || {};
+  const es = data?.envio_summary || {};
+
+  return (
+    <div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,gap:14,flexWrap:"wrap"}}>
+        <div>
+          <h1 style={{fontSize:24,fontWeight:800,margin:"0 0 6px",letterSpacing:-0.5}}>Actividad</h1>
+          <p style={{fontSize:13,color:"var(--text-sm)",margin:0,lineHeight:1.55}}>Resumen de los mails que manda Recurrentes, los envíos generados y la facturación de las suscripciones.</p>
+        </div>
+        <button onClick={load} style={btnSec}>↻</button>
+      </div>
+
+      <div style={{display:"flex",gap:6,marginBottom:18,flexWrap:"wrap"}}>
+        {views.map(v => (
+          <button key={v.id} onClick={()=>setView(v.id)} style={{
+            padding:"8px 14px",borderRadius:9,border:"1px solid var(--border)",cursor:"pointer",fontFamily:"inherit",fontSize:13,
+            fontWeight: view===v.id?700:500,
+            background: view===v.id?"rgba(16,185,129,0.12)":"var(--surface)",
+            color: view===v.id?"var(--accent)":"var(--text-md)",
+          }}>{v.label}</button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div style={{color:"var(--text-sm)",fontSize:13}}>Cargando…</div>
+      ) : view === "mails" ? (
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+            {chip("Total enviados", ms.total||0)}
+            {chip("Abandono P1", ms.abandoned_1||0, "#8b5cf6")}
+            {chip("Abandono P2", ms.abandoned_2||0, "#8b5cf6")}
+            {chip("Abandono P3", ms.abandoned_3||0, "#8b5cf6")}
+            {chip("Activación", ms.activation||0, "#10b981")}
+            {chip("Cancelación", ms.cancellation||0, "#ef4444")}
+          </div>
+          {(data?.mails||[]).length === 0 ? emptyBox("📭","Todavía no se envió ningún mail. Aparecen acá a medida que el sistema los manda.") : tableWrap(
+            <><thead><tr><th style={th}>Fecha</th><th style={th}>Tipo</th><th style={th}>Cliente</th><th style={th}>Producto</th></tr></thead>
+            <tbody>{data.mails.map(m => { const L = mailLabel(m); return (
+              <tr key={m.id}>
+                <td style={{...td,whiteSpace:"nowrap",color:"var(--text-sm)"}}>{fmtDate(m.created_at)}</td>
+                <td style={td}><span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:12,fontWeight:700,color:L.c}}>{L.e} {L.t}</span>{m.coupon?<span style={{marginLeft:6,fontSize:11,fontWeight:700,color:"var(--text-sm)",border:"1px solid var(--border)",borderRadius:5,padding:"1px 5px"}}>{m.coupon}</span>:null}{m.status==="error"?<span style={{marginLeft:6,fontSize:11,color:"#ef4444"}}>error</span>:null}</td>
+                <td style={td}><div style={{fontWeight:600}}>{m.customer_name||"—"}</div><div style={{fontSize:11,color:"var(--text-sm)"}}>{m.to}</div></td>
+                <td style={{...td,color:"var(--text-sm)"}}>{m.product_title||"—"}</td>
+              </tr>); })}</tbody></>
+          )}
+        </div>
+      ) : view === "envios" ? (
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+            {chip("Envíos totales", es.total||0)}
+            {chip("Este mes", es.this_month||0, "#10b981")}
+          </div>
+          {(data?.envios||[]).length === 0 ? emptyBox("📦","Todavía no se generó ninguna orden de envío. Cada cobro aprobado crea una orden en Shopify.") : tableWrap(
+            <><thead><tr><th style={th}>Fecha</th><th style={th}>Orden</th><th style={th}>Cliente</th><th style={th}>Producto</th></tr></thead>
+            <tbody>{data.envios.map(e => (
+              <tr key={e.id}>
+                <td style={{...td,whiteSpace:"nowrap",color:"var(--text-sm)"}}>{fmtDate(e.created_at)}</td>
+                <td style={td}>{e.order_url ? <a href={e.order_url} target="_blank" rel="noreferrer" style={{color:"var(--accent)",fontWeight:700,textDecoration:"none"}}>#{e.order_id} →</a> : <span style={{fontWeight:700}}>#{e.order_id}</span>}</td>
+                <td style={td}><div style={{fontWeight:600}}>{e.customer_name||"—"}</div><div style={{fontSize:11,color:"var(--text-sm)"}}>{e.customer_email}</div></td>
+                <td style={{...td,color:"var(--text-sm)"}}>{e.product_title||"—"}</td>
+              </tr>))}</tbody></>
+          )}
+        </div>
+      ) : (
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+            {chip("Cobrado hoy", money(cs.today?.amount||0), "#10b981")}
+            {chip("Cobros hoy", cs.today?.count||0)}
+            {chip("Este mes", money(cs.this_month?.amount||0), "#10b981")}
+            {chip("Cobros del mes", cs.this_month?.count||0)}
+            {chip("Histórico", money(cs.all_time||0))}
+          </div>
+          {(data?.cobros||[]).length === 0 ? emptyBox("💵","Todavía no hay cobros registrados.") : tableWrap(
+            <><thead><tr><th style={th}>Fecha</th><th style={th}>Monto</th><th style={th}>Estado</th><th style={th}>Cliente</th><th style={th}>Orden</th></tr></thead>
+            <tbody>{data.cobros.map(c => { const okk = c.status!=="error" && c.status!=="rejected"; return (
+              <tr key={c.id}>
+                <td style={{...td,whiteSpace:"nowrap",color:"var(--text-sm)"}}>{fmtDate(c.created_at)}</td>
+                <td style={{...td,fontWeight:800,fontVariantNumeric:"tabular-nums"}}>{money(c.amount)}</td>
+                <td style={td}><span style={{fontSize:11,fontWeight:700,color:okk?"#10b981":"#ef4444"}}>{okk?"✓ aprobado":"✕ "+(c.status||"error")}</span></td>
+                <td style={td}><div style={{fontWeight:600}}>{c.customer_name||"—"}</div><div style={{fontSize:11,color:"var(--text-sm)"}}>{c.customer_email}</div></td>
+                <td style={{...td,color:"var(--text-sm)"}}>{c.order_id?`#${c.order_id}`:"—"}</td>
+              </tr>); })}</tbody></>
+          )}
         </div>
       )}
     </div>

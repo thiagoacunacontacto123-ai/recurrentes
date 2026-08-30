@@ -13,6 +13,7 @@ import { mpGetPayment, mpGetPreapproval, mpResolvePaymentLike } from "../_lib/mp
 import { shFindOrCreateCustomer, shCreatePaidOrder } from "../_lib/shopify.js";
 import { emailSubscriptionActivated, emailPaymentFailed } from "../_lib/email.js";
 import { sendMetaPurchase } from "../_lib/meta.js";
+import { logEmail } from "../_lib/emaillog.js";
 
 export default async function handler(req, res) {
   // MP a veces hace HEAD/GET de healthcheck — siempre 200.
@@ -313,13 +314,18 @@ async function processPaymentForMerchant(merchantId, merchant, payment) {
       ? `${process.env.APP_BASE_URL}/#/portal?token=${encodeURIComponent(sub.portal_token)}`
       : `${process.env.APP_BASE_URL}/#/portal`;
     try {
-      await emailSubscriptionActivated({
+      const er = await emailSubscriptionActivated({
         to: sub.customer_email,
         customerName: sub.customer_name,
         productTitle: sub.plan_snapshot?.product_title || "Suscripción",
         frequencyDays: sub.plan_snapshot?.frequency_days || 30,
         amount: sub.plan_snapshot?.subscription_price_ars || payment.transaction_amount,
         portalUrl,
+      });
+      if (!er?.skipped) await logEmail(merchantId, {
+        type: "activation", subscriber_id: subscriberId, to: sub.customer_email,
+        customer_name: sub.customer_name, product_title: sub.plan_snapshot?.product_title,
+        status: er?.error ? "error" : "sent", error: er?.error || null,
       });
     } catch (e) {
       console.warn("[mp-webhook] email activación falló:", e.message);
@@ -368,11 +374,16 @@ async function markPaymentFailed(merchantId, payment) {
   if (isRecurring && sub.customer_email) {
     const portalUrl = sub.portal_token ? `${process.env.APP_BASE_URL}/#/portal?token=${encodeURIComponent(sub.portal_token)}` : `${process.env.APP_BASE_URL}/#/portal`;
     try {
-      await emailPaymentFailed({
+      const er = await emailPaymentFailed({
         to: sub.customer_email,
         customerName: sub.customer_name,
         productTitle: sub.plan_snapshot?.product_title || "Suscripción",
         portalUrl,
+      });
+      if (!er?.skipped) await logEmail(merchantId, {
+        type: "payment_failed", subscriber_id: subscriberId, to: sub.customer_email,
+        customer_name: sub.customer_name, product_title: sub.plan_snapshot?.product_title,
+        status: er?.error ? "error" : "sent", error: er?.error || null,
       });
     } catch (e) { console.warn("[mp-webhook] email payment_failed falló:", e.message); }
   }
