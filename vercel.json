@@ -26,7 +26,7 @@
   "crons": [
     {
       "path": "/api/cron?action=sync-all-pending",
-      "schedule": "0 4 * * *"
+      "schedule": "*/2 * * * *"
     }
   ]
 }
