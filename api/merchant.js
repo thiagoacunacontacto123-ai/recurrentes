@@ -134,26 +134,30 @@ async function backfillEmailLog(uid, req, res) {
   // Idempotente: saltea subs que ya tienen una entrada de ese tipo en email_log.
   try {
     const mRef = db().collection("merchants").doc(uid);
+    const col = mRef.collection("email_log");
     const [subsSnap, logSnap] = await Promise.all([
       mRef.collection("subscribers").get(),
-      mRef.collection("email_log").get(),
+      col.get(),
     ]);
-    // Sets de lo ya logueado (real o backfill previo) para no duplicar.
-    const haveActivation = new Set(), haveAbandoned = new Set();
+    // Idempotente: borrar la corrida de backfill previa (backfilled:true) y NO
+    // pisar mails reales logueados por el sistema (subscriber ya con log real).
+    const realActivation = new Set(), realAbandoned = new Set();
+    const toDelete = [];
     logSnap.docs.forEach(d => {
       const l = d.data();
-      if (!l.subscriber_id) return;
-      if (l.type === "activation") haveActivation.add(l.subscriber_id);
-      if (l.type === "abandoned") haveAbandoned.add(l.subscriber_id);
+      if (l.backfilled === true) { toDelete.push(d.ref); return; }
+      if (l.type === "activation" && l.subscriber_id) realActivation.add(l.subscriber_id);
+      if (l.type === "abandoned" && l.subscriber_id) realAbandoned.add(l.subscriber_id);
     });
 
+    const COUPON = { 2: "VUELVO5", 3: "ULTIMACHANCE15" };
     const batchWrites = [];
     let activation = 0, abandoned = 0;
     for (const doc of subsSnap.docs) {
       const s = doc.data();
       const id = doc.id;
       const activated = (s.shopify_orders || []).length > 0 || s.status === "active" || !!s.last_charge_at;
-      if (activated && s.customer_email && !haveActivation.has(id)) {
+      if (activated && s.customer_email && !realActivation.has(id)) {
         batchWrites.push({
           type: "activation", subscriber_id: id, to: s.customer_email,
           customer_name: s.customer_name || null, product_title: s.plan_snapshot?.product_title || null,
@@ -163,24 +167,29 @@ async function backfillEmailLog(uid, req, res) {
         });
         activation++;
       }
-      if (s.abandoned_email_sent_at && s.customer_email && !haveAbandoned.has(id)) {
+      // Abandono: paso = 2/3 si el flujo nuevo mandó cupón; si no, paso 1 (el
+      // recordatorio viejo). step 99 = comprador salteado → cuenta como paso 1
+      // (igual recibió el recordatorio viejo). Solo si hubo algún envío real.
+      const gotAband = s.abandoned_email_sent_at || (s.abandoned_step && s.abandoned_step !== 99);
+      if (gotAband && s.customer_email && !realAbandoned.has(id)) {
+        const step = (s.abandoned_step === 2 || s.abandoned_step === 3) ? s.abandoned_step : 1;
         batchWrites.push({
           type: "abandoned", subscriber_id: id, to: s.customer_email,
           customer_name: s.customer_name || null, product_title: s.plan_snapshot?.product_title || null,
-          step: s.abandoned_step || 1, coupon: null, status: "sent", error: null,
-          created_at: s.abandoned_email_sent_at, backfilled: true,
+          step, coupon: COUPON[step] || null, status: "sent", error: null,
+          created_at: s.abandoned_step_at || s.abandoned_email_sent_at || s.created_at, backfilled: true,
         });
         abandoned++;
       }
     }
-    // Escribir en lotes de 400 (límite batch Firestore = 500).
-    const col = mRef.collection("email_log");
-    for (let i = 0; i < batchWrites.length; i += 400) {
+    // Borrar backfill previo + escribir el nuevo, en lotes de 400 (límite 500).
+    const ops = toDelete.map(ref => ({ del: ref })).concat(batchWrites.map(w => ({ set: w })));
+    for (let i = 0; i < ops.length; i += 400) {
       const batch = db().batch();
-      for (const w of batchWrites.slice(i, i + 400)) batch.set(col.doc(), w);
+      for (const op of ops.slice(i, i + 400)) { if (op.del) batch.delete(op.del); else batch.set(col.doc(), op.set); }
       await batch.commit();
     }
-    return res.json({ ok: true, activation_logged: activation, abandoned_logged: abandoned, total: batchWrites.length });
+    return res.json({ ok: true, deleted_prev: toDelete.length, activation_logged: activation, abandoned_logged: abandoned, total: batchWrites.length });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }

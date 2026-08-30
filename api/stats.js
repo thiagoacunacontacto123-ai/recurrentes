@@ -170,8 +170,12 @@ async function activity(uid, res) {
     for (const m of mails) {
       if (m.status === "error") continue;
       mailSummary.total++;
-      if (m.type === "abandoned") mailSummary["abandoned_" + (m.step || 1)]++;
-      else if (mailSummary[m.type] !== undefined) mailSummary[m.type]++;
+      if (m.type === "abandoned") {
+        // Solo pasos reales de mail (1/2/3). Cualquier otro valor (ej. 99 = comprador
+        // salteado) se cuenta como paso 1 para no romper el resumen.
+        const st = (m.step === 2 || m.step === 3) ? m.step : 1;
+        mailSummary["abandoned_" + st]++;
+      } else if (mailSummary[m.type] !== undefined) mailSummary[m.type]++;
     }
 
     // ── COBROS (facturación) + ENVÍOS (órdenes) ──
