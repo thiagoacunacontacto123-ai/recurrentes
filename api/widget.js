@@ -85,6 +85,9 @@ export default async function handler(req, res) {
   // en vez del widget del producto. Corre en el dominio de la tienda, así puede
   // pedir los envíos REALES por CP a Shopify (/cart/shipping_rates.json) y va a MP.
   if (String(req.query.view || "") === "checkout") {
+    // Cache corta para el checkout: así un deploy nuevo (ej. cambios de captura de
+    // carrito) se propaga en ≤60s a la storefront, en vez de quedar 5 min viejo.
+    res.setHeader("Cache-Control", "public, max-age=60");
     return res.send(buildCheckoutEmbed({ merchantId, apiBase, color: widgetColor }));
   }
 
