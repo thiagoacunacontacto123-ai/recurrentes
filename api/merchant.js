@@ -61,6 +61,7 @@ export default async function handler(req, res) {
     if (action === "save-meta")            return saveMeta(uid, req, res);
     if (action === "save-discount-codes")  return saveDiscountCodes(uid, req, res);
     if (action === "test-email")           return testEmail(uid, req, res);
+    if (action === "backfill-email-log")   return backfillEmailLog(uid, req, res);
     return res.status(400).json({ error: "action no reconocida" });
   }
 
@@ -120,6 +121,66 @@ async function saveWidgetSettings(uid, req, res) {
       updated_at: new Date().toISOString(),
     }, { merge: true });
     return res.json({ ok: true, widget_mode_order: order, widget_mode_default: def, widget_color: color, widget_sub_title: subTitle, widget_sub_subtitle: subSubtitle, widget_once_title: onceTitle, widget_once_subtitle: onceSubtitle, widget_disclaimer_text: disclaimerText });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+async function backfillEmailLog(uid, req, res) {
+  // Reconstrucción ONE-TIME del historial de mails en email_log a partir de datos
+  // reales, para que la tab Actividad no arranque vacía:
+  //  · activation → un mail por cada sub que se activó (tiene orden Shopify).
+  //  · abandoned  → un mail por cada sub con abandoned_email_sent_at (flujo viejo 1 paso).
+  // Idempotente: saltea subs que ya tienen una entrada de ese tipo en email_log.
+  try {
+    const mRef = db().collection("merchants").doc(uid);
+    const [subsSnap, logSnap] = await Promise.all([
+      mRef.collection("subscribers").get(),
+      mRef.collection("email_log").get(),
+    ]);
+    // Sets de lo ya logueado (real o backfill previo) para no duplicar.
+    const haveActivation = new Set(), haveAbandoned = new Set();
+    logSnap.docs.forEach(d => {
+      const l = d.data();
+      if (!l.subscriber_id) return;
+      if (l.type === "activation") haveActivation.add(l.subscriber_id);
+      if (l.type === "abandoned") haveAbandoned.add(l.subscriber_id);
+    });
+
+    const batchWrites = [];
+    let activation = 0, abandoned = 0;
+    for (const doc of subsSnap.docs) {
+      const s = doc.data();
+      const id = doc.id;
+      const activated = (s.shopify_orders || []).length > 0 || s.status === "active" || !!s.last_charge_at;
+      if (activated && s.customer_email && !haveActivation.has(id)) {
+        batchWrites.push({
+          type: "activation", subscriber_id: id, to: s.customer_email,
+          customer_name: s.customer_name || null, product_title: s.plan_snapshot?.product_title || null,
+          step: null, coupon: null, status: "sent", error: null,
+          created_at: s.last_charge_at || s.updated_at || s.created_at || new Date().toISOString(),
+          backfilled: true,
+        });
+        activation++;
+      }
+      if (s.abandoned_email_sent_at && s.customer_email && !haveAbandoned.has(id)) {
+        batchWrites.push({
+          type: "abandoned", subscriber_id: id, to: s.customer_email,
+          customer_name: s.customer_name || null, product_title: s.plan_snapshot?.product_title || null,
+          step: s.abandoned_step || 1, coupon: null, status: "sent", error: null,
+          created_at: s.abandoned_email_sent_at, backfilled: true,
+        });
+        abandoned++;
+      }
+    }
+    // Escribir en lotes de 400 (límite batch Firestore = 500).
+    const col = mRef.collection("email_log");
+    for (let i = 0; i < batchWrites.length; i += 400) {
+      const batch = db().batch();
+      for (const w of batchWrites.slice(i, i + 400)) batch.set(col.doc(), w);
+      await batch.commit();
+    }
+    return res.json({ ok: true, activation_logged: activation, abandoned_logged: abandoned, total: batchWrites.length });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
