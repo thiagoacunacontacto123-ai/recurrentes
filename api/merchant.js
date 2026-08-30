@@ -137,9 +137,11 @@ async function testEmail(uid, req, res) {
   const brand = merchant?.email_brand || (process.env.EMAIL_FROM || "").split("<")[0].trim().replace(/^["']|["']$/g, "") || "";
   let recoverUrl = "https://www.luminalabs-arg.com/pages/suscripcion-form";
   if (cp.code) recoverUrl += "?code=" + encodeURIComponent(cp.code);
+  // name opcional: si mandan name:"" se ve el saludo sin nombre ("¡Hola! 👋").
+  const customerName = req.body?.name !== undefined ? String(req.body.name) : "Nombre de prueba";
   const r = await emailAbandonedCheckout({
     to,
-    customerName: "Nombre de prueba",
+    customerName,
     productTitle: "Cápsulas LuminaLabs",
     amount: 50992,
     recoverUrl,
