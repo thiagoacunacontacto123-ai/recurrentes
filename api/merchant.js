@@ -150,6 +150,17 @@ async function backfillEmailLog(uid, req, res) {
       if (l.type === "abandoned" && l.subscriber_id) realAbandoned.add(l.subscriber_id);
     });
 
+    // Modo CLEAR: solo borrar las entradas reconstruidas (backfilled) y salir.
+    // Deja el log con SOLO mails reales enviados por el sistema.
+    if (req.body?.clear === true) {
+      for (let i = 0; i < toDelete.length; i += 400) {
+        const batch = db().batch();
+        for (const ref of toDelete.slice(i, i + 400)) batch.delete(ref);
+        await batch.commit();
+      }
+      return res.json({ ok: true, cleared: toDelete.length });
+    }
+
     const COUPON = { 2: "VUELVO5", 3: "ULTIMACHANCE15" };
     const batchWrites = [];
     let activation = 0, abandoned = 0;
