@@ -30,6 +30,10 @@ const STEPS = [
 const MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
 
 export async function sendAbandonedEmails(merchantId, merchant) {
+  // KILL SWITCH: el flujo solo corre si el merchant lo habilitó explícitamente
+  // (abandoned_enabled === true). Por defecto está APAGADO — así ninguna corrida
+  // automática manda mails sin que estemos 100% seguros de las protecciones.
+  if (!merchant || merchant.abandoned_enabled !== true) return 0;
   const now = Date.now();
   const snap = await db().collection("merchants").doc(merchantId).collection("subscribers")
     .where("status", "==", "pending").get();
