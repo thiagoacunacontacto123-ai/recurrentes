@@ -56,7 +56,10 @@ export async function sendAbandonedEmails(merchantId, merchant) {
         customerName: s.customer_name,
         productTitle: s.plan_snapshot?.product_title || "tu suscripción",
         amount: s.plan_snapshot?.total_per_charge_ars || 0,
-        recoverUrl: s.mp_init_point || "",
+        // Link de recupero: el CHECKOUT on-store con su pack ya cargado (la URL
+        // desde donde inició, guardada en fb_data), NO el link de MP (uso único +
+        // feo). Fallback al init_point de MP solo si no tenemos la del checkout.
+        recoverUrl: s.fb_data?.event_source_url || s.mp_init_point || "",
         // La marca del header sale del nombre en EMAIL_FROM (ej. "LuminaLabs
         // <hola@...>") o de merchant.email_brand — así el cliente NO ve "Recurrentes".
         brand: merchant?.email_brand || (process.env.EMAIL_FROM || "").split("<")[0].trim().replace(/^["']|["']$/g, "") || "",

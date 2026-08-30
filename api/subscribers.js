@@ -172,7 +172,7 @@ export default async function handler(req, res) {
         value_ars: s.plan_snapshot?.total_per_charge_ars || s.plan_snapshot?.subscription_price_ars || 0,
         frequency_days: s.plan_snapshot?.frequency_days || null,
         created_at: s.created_at,
-        recover_url: s.mp_init_point || null,
+        recover_url: s.fb_data?.event_source_url || s.mp_init_point || null,
       });
     }
     const byEmail = {};
