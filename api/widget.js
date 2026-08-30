@@ -1047,6 +1047,34 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
       .catch(function(){ if (btn){ btn.disabled = false; btn.textContent = "Aplicar"; } if (msg){ msg.style.display = "block"; msg.style.color = "#d33"; msg.textContent = "No se pudo validar. Reintentá."; } });
   }
 
+  // Captura de carrito abandonado ANTES de Pagar: apenas el cliente escribe un
+  // email válido, avisamos al backend con lo que haya (mail + nombre/tel si están)
+  // + el link de recupero (esta misma URL con el pack). Si después no paga, el
+  // flujo de abandono lo agarra igual. No bloquea nada, es fire-and-forget.
+  var LEAD_SIG = ""; // última firma enviada, para no repetir en cada blur
+  function captureLead(){
+    if (!plan) return;
+    var email = val("rc-email");
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return;
+    var name = (val("rc-name") + " " + val("rc-last")).trim();
+    var phone = val("rc-phone");
+    var sig = email + "|" + name + "|" + phone;
+    if (sig === LEAD_SIG) return; // nada nuevo desde la última vez
+    LEAD_SIG = sig;
+    try {
+      fetch(API_BASE + "/api/checkout/init", {
+        method:"POST", headers:{"Content-Type":"application/json"}, keepalive:true,
+        body: JSON.stringify({
+          merchant_id: MERCHANT_ID, plan_id: plan.id, capture: true,
+          quantity: QTY, frequency_days: effFreqDays(),
+          base_price: (BASE > 0 ? BASE : undefined), sub_discount: (SUB_OFF != null ? SUB_OFF : undefined),
+          fb: fbData(),
+          customer: { email: email, name: name, phone: phone }
+        })
+      }).catch(function(){});
+    } catch(e){}
+  }
+
   function pagar(){
     if (!plan) return; // plan aún cargando — evitamos submit sin datos
     var box = document.getElementById("rc-err"); box.style.display = "none";
@@ -1139,6 +1167,12 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
       var _uc = new URLSearchParams(window.location.search).get("code");
       if (_uc && _di) { _di.value = _uc.trim().toUpperCase(); applyDiscount(); }
     } catch (e) {}
+    // Captura de lead: apenas el mail queda válido (blur) → registra el carrito.
+    // Nombre/apellido/teléfono también disparan para ir enriqueciendo el lead.
+    ["rc-email","rc-name","rc-last","rc-phone"].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el) el.addEventListener("blur", captureLead);
+    });
     ["rc-zip","rc-prov","rc-city"].forEach(function(id){ var el=document.getElementById(id); if(el){ el.addEventListener("change", onAddrChange); el.addEventListener("input", onAddrChange); } });
     // Al escribir, se limpia el error de ese campo (como Shopify).
     RC_FIELDS.forEach(function(id){ var el=document.getElementById(id); if(el){ el.addEventListener("input", function(){ clrBad(id); }); el.addEventListener("change", function(){ clrBad(id); }); } });

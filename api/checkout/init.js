@@ -66,6 +66,70 @@ export default async function handler(req, res) {
   if (!merchant_id || !plan_id) return res.status(400).json({ error: "Faltan merchant_id o plan_id" });
   if (!customer?.email) return res.status(400).json({ error: "Falta customer.email" });
 
+  // ── CAPTURA DE LEAD (carrito abandonado ANTES de tocar Pagar) ────────────────
+  // El widget llama esto apenas el cliente escribe un email válido en el checkout.
+  // Guardamos un subscriber "pending" liviano (capture:true) con lo que haya + el
+  // link de recupero (la URL del checkout con su pack). Así, si NO paga, el flujo
+  // de carrito abandonado lo levanta igual — no necesitamos que haya tocado Pagar.
+  // NO crea plan MP ni exige dirección/teléfono. Reusa el lead del mismo mail para
+  // no duplicar por cada tecla. Si ya hay un checkout "real" (con plan MP) de ese
+  // mail, no hace nada.
+  if (req.body.capture === true) {
+    const email = String(customer.email || "").trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: "Email inválido" });
+    try {
+      const mSnap = await db().collection("merchants").doc(merchant_id).get();
+      if (!mSnap.exists) return res.status(404).json({ error: "Merchant no encontrado" });
+      const plSnap = await db().collection("merchants").doc(merchant_id).collection("plans").doc(plan_id).get();
+      const pl = plSnap.exists ? plSnap.data() : {};
+      const subsCol = db().collection("merchants").doc(merchant_id).collection("subscribers");
+      // Buscar subs pending del mismo mail (query 1 campo → sin índice compuesto).
+      const q = await subsCol.where("customer_email", "==", email).get();
+      let leadRef = null, hasReal = false;
+      q.forEach(d => {
+        const x = d.data();
+        if (x.status !== "pending") return;
+        if (x.mp_preapproval_plan_id) hasReal = true;   // ya arrancó checkout real
+        else if (x.capture === true && !leadRef) leadRef = d.ref;
+      });
+      if (hasReal) return res.json({ ok: true, skipped: "already_in_checkout" });
+
+      const bp = Math.round(parseFloat(base_price) || 0);
+      const soP = parseFloat(sub_discount);
+      const so = Number.isFinite(soP) ? Math.max(0, Math.min(90, soP)) : (parseFloat(pl.discount_pct) || 0);
+      const qn = Math.max(1, Math.min(10, parseInt(quantity) || pl.units_per_shipment || 1));
+      const totalCapture = bp > 0 ? Math.round(bp * (1 - so / 100)) : Math.round((pl.subscription_price_ars || 0) * qn);
+      const fp = parseInt(frequency_days);
+      const freqCapture = (Number.isFinite(fp) && fp >= 1 && fp <= 365) ? fp : (pl.frequency_days || 30);
+      const eventUrl = String(req.body.fb?.event_source_url || "").slice(0, 500);
+
+      const data = {
+        customer_email: email,
+        customer_name: String(customer.name || "").trim(),
+        customer_phone: String(customer.phone || "").trim(),
+        plan_id,
+        quantity: qn,
+        plan_snapshot: {
+          shopify_variant_id: pl.shopify_variant_id || null,
+          shopify_product_id: pl.shopify_product_id || null,
+          product_title: pl.product_title || "Suscripción",
+          frequency_days: freqCapture,
+          total_per_charge_ars: totalCapture,
+        },
+        status: "pending",
+        capture: true,
+        fb_data: eventUrl ? { event_source_url: eventUrl } : null,
+        updated_at: new Date().toISOString(),
+      };
+      if (leadRef) { await leadRef.update(data); return res.json({ ok: true, lead_id: leadRef.id, updated: true }); }
+      const ref = subsCol.doc();
+      await ref.set({ ...data, created_at: new Date().toISOString(), shopify_orders: [] });
+      return res.json({ ok: true, lead_id: ref.id, created: true });
+    } catch (e) {
+      return res.status(500).json({ error: e.message });
+    }
+  }
+
   // VALIDACIÓN ESTRICTA — bloqueamos avance a MP si falta cualquier dato de
   // contacto/dirección. Esto previene que un cliente complete el pago y
   // después la orden Shopify quede sin dirección (caso real: orden #4319 de
@@ -183,7 +247,17 @@ export default async function handler(req, res) {
 
   // Crear subscriber en estado pending. Si el pago no se confirma, queda
   // huérfano hasta limpieza periódica (cron F3).
-  const subRef = db().collection("merchants").doc(merchant_id).collection("subscribers").doc();
+  // Reuso: si ya existe un "lead" (capture:true) pending del mismo mail —creado
+  // cuando el cliente escribió el email antes de tocar Pagar—, lo REUSO y lo
+  // convierto en el sub real, para no duplicar el carrito. El set() de abajo
+  // reemplaza el doc completo (el flag capture desaparece → pasa a ser real).
+  let subRef = null;
+  try {
+    const dq = await db().collection("merchants").doc(merchant_id).collection("subscribers")
+      .where("customer_email", "==", customer.email).get();
+    dq.forEach(d => { const x = d.data(); if (!subRef && x.status === "pending" && x.capture === true && !x.mp_preapproval_plan_id) subRef = d.ref; });
+  } catch (_) {}
+  if (!subRef) subRef = db().collection("merchants").doc(merchant_id).collection("subscribers").doc();
   const subscriberId = subRef.id;
   // Sanitizar tax_id: solo dígitos. DNI (7-8) o CUIL/CUIT (11). Es obligatorio
   // para facturación AR — lo guardamos en el subscriber + lo pasamos a la

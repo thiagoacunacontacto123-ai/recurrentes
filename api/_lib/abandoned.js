@@ -81,10 +81,14 @@ export async function sendAbandonedEmails(merchantId, merchant) {
     if (own === 0 && lf && lf.subId !== ref.id && (now - new Date(lf.at).getTime()) < COOLDOWN_MS) continue;
 
     // 1) ¿Pagó la SUSCRIPCIÓN y quedó trabada? Sync → si pagó, crea orden y no emaila.
-    try {
-      const r = await syncSubscriber(merchantId, ref.id);
-      if (r && (r.status === "active" || (r.charges_processed || 0) > 0 || r.shopify_order_id)) continue;
-    } catch (_) {}
+    //    Los leads puros (capture:true, sin plan MP) no tienen nada que sincronizar
+    //    —el cliente ni tocó Pagar— así que salteamos el sync para ellos.
+    if (!s.capture) {
+      try {
+        const r = await syncSubscriber(merchantId, ref.id);
+        if (r && (r.status === "active" || (r.charges_processed || 0) > 0 || r.shopify_order_id)) continue;
+      } catch (_) {}
+    }
     // 2) ¿Ya compró en Shopify (suscripción O compra única)? → no emailar. Marcamos
     //    para no volver a intentarlo con esta persona.
     try {
