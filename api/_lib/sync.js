@@ -409,6 +409,9 @@ export async function linkPaymentToSubscriber(merchantId, subscriberId, paymentI
   const subSnap = await subRef.get();
   if (!subSnap.exists) return { status: "error", error: "subscriber_not_found" };
   const sub = subSnap.data();
+  // ¿Es el PRIMER cobro? (antes de marcar last_charge_at más abajo). Se usa para
+  // reportar el Purchase a Meta solo en la primera venta, igual que syncSubscriber.
+  const wasFirstCharge = !sub.last_charge_at;
 
   // Traer el payment directo por ID — es más confiable que /search.
   let payment;
@@ -489,6 +492,35 @@ export async function linkPaymentToSubscriber(merchantId, subscriberId, paymentI
   };
   if (orderStatusUrl) update.last_shopify_order_status_url = orderStatusUrl;
   await subRef.update(update);
+
+  // ── Meta CAPI Purchase — este camino (recuperación por payment_id, ej. cuando
+  // MP devuelve collection_id en el redirect, o link manual) también reporta la
+  // venta a Meta. Mismo eventId que webhook/syncSubscriber → Meta deduplica, así
+  // que aunque dos caminos procesen la misma venta, cuenta UNA sola. Solo primer
+  // cobro (las renovaciones no se reportan). Best-effort.
+  if (wasFirstCharge && merchant.meta_pixel_id && merchant.meta_capi_token) {
+    try {
+      const partes = String(sub.customer_name || "").trim().split(" ");
+      const r = await sendMetaPurchase({
+        pixelId: merchant.meta_pixel_id,
+        token: merchant.meta_capi_token,
+        value: sub.plan_snapshot?.total_per_charge_ars || payment.transaction_amount || 0,
+        currency: payment.currency_id || "ARS",
+        email: sub.customer_email,
+        phone: sub.customer_phone,
+        firstName: partes[0] || "",
+        lastName: partes.slice(1).join(" ") || "",
+        city: sub.shipping_address?.city || "",
+        zip: sub.shipping_address?.zip || "",
+        fbc: sub.fb_data?.fbc || undefined,
+        fbp: sub.fb_data?.fbp || undefined,
+        clientUa: sub.fb_data?.user_agent || undefined,
+        eventId: "rec_sub_" + subscriberId, // mismo dedup estable por suscriptor
+        eventSourceUrl: sub.fb_data?.event_source_url || sub.plan_snapshot?.product_url || (merchant.shopify_shop ? `https://${merchant.shopify_shop}` : undefined),
+      });
+      console.log(`[link] Meta CAPI Purchase sub=${subscriberId}: ${r.ok ? "ok" : "FALLO " + r.error}`);
+    } catch (e) { console.warn("[link] Meta CAPI falló:", e.message); }
+  }
 
   return {
     status: "linked",
