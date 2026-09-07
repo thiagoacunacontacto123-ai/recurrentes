@@ -403,11 +403,13 @@ export default async function handler(req, res) {
   }
 
   // URL del checkout del plan. NO adjuntamos payer_email → MP usa el mail de la
-  // cuenta logueada del cliente. external_reference linkea el preapproval al sub.
-  const planBase = preapprovalPlan.init_point
+  // cuenta logueada del cliente.
+  // ⚠️ NO agregar &external_reference a esta URL: MP empezó a devolver "página no
+  // existe" (404) cuando el checkout de plan lleva parámetros extra. El sub se
+  // resuelve igual por el mp_preapproval_plan_id ÚNICO (el external_reference de la
+  // URL nunca se propagaba al preapproval, era redundante). Usamos el init_point tal cual.
+  const checkoutUrl = preapprovalPlan.init_point
     || `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=${encodeURIComponent(preapprovalPlan.id)}`;
-  const checkoutUrl = planBase + (planBase.indexOf("?") >= 0 ? "&" : "?")
-    + "external_reference=" + encodeURIComponent(`${merchant_id}:${subscriberId}`);
 
   await subRef.update({
     mp_preapproval_plan_id: preapprovalPlan.id,
@@ -426,14 +428,6 @@ export default async function handler(req, res) {
     init_point: checkoutUrl,
     preapproval_plan_id: preapprovalPlan.id,
     portal_token: portalToken,
-    _debug: {
-      mp_init_point: preapprovalPlan.init_point || null,
-      mp_status: preapprovalPlan.status || null,
-      used_fallback: !preapprovalPlan.init_point,
-      amount: preapprovalPlan.auto_recurring?.transaction_amount ?? null,
-      freq: preapprovalPlan.auto_recurring?.frequency ?? null,
-      back_url: preapprovalPlan.back_url || null,
-    },
   });
 }
 

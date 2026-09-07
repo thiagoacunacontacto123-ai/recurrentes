@@ -209,6 +209,7 @@ function HomeTab({ onGoSubscribers, onGoCarts }) {
         <div style={{display:"flex",gap:18,flexWrap:"wrap",fontSize:12}}>
           <StateBadge label="Activos" value={totals.active||0} color="var(--accent)"/>
           <StateBadge label="Pausados" value={totals.paused||0} color="var(--yellow)"/>
+          <StateBadge label="Cancelados" value={totals.cancelled||0} color="var(--red)"/>
         </div>
       </div>
     </div>
