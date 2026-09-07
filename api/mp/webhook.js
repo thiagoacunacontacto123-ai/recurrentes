@@ -14,6 +14,7 @@ import { shFindOrCreateCustomer, shCreatePaidOrder } from "../_lib/shopify.js";
 import { emailSubscriptionActivated, emailPaymentFailed } from "../_lib/email.js";
 import { sendMetaPurchase } from "../_lib/meta.js";
 import { logEmail } from "../_lib/emaillog.js";
+import { claimCharge } from "../_lib/chargeclaim.js";
 
 export default async function handler(req, res) {
   // MP a veces hace HEAD/GET de healthcheck — siempre 200.
@@ -186,10 +187,13 @@ async function processPaymentForMerchant(merchantId, merchant, payment) {
   // dejamos que este webhook (o un reintento de MP) vuelva a crear la orden. Sin
   // esto, un fallo transitorio al crear la orden dejaba la venta trabada para
   // siempre (el cobro quedaba guardado y bloqueaba el reintento).
-  const chargeRef = db().collection("merchants").doc(merchantId).collection("charges").doc(String(payment.id));
-  const existingCharge = await chargeRef.get();
-  if (existingCharge.exists && existingCharge.data().shopify_order_id) {
-    console.log(`[mp-webhook] payment ${payment.id} ya tiene orden — skip`);
+  // Claim ATÓMICO: solo UN proceso (webhook/polling/self-heal) crea la orden de
+  // este pago. Evita órdenes Shopify duplicadas por entregas repetidas del
+  // webhook de MP o carreras con el polling de CheckoutSuccess.
+  const claim = await claimCharge(db().collection("merchants").doc(merchantId), payment.id, { subscriber_id: subscriberId });
+  const chargeRef = claim.chargeRef;
+  if (!claim.proceed) {
+    console.log(`[mp-webhook] payment ${payment.id} ${claim.existingOrderId ? "ya tiene orden" : "lo está creando otro proceso"} — skip`);
     return;
   }
 

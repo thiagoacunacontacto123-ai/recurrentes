@@ -19,6 +19,7 @@ import { shFindOrCreateCustomer, shCreatePaidOrder } from "./shopify.js";
 import { emailSubscriptionActivated, emailPaymentFailed } from "./email.js";
 import { sendMetaPurchase } from "./meta.js";
 import { logEmail } from "./emaillog.js";
+import { claimCharge } from "./chargeclaim.js";
 
 const MP_BASE = "https://api.mercadopago.com";
 
@@ -203,27 +204,30 @@ export async function syncSubscriber(merchantId, subscriberId) {
     // y la orden del segundo se salta como "ya procesada" → quedaba sin orden
     // Shopify. Con payment.id nunca colisiona entre subs. Fallback al esquema viejo
     // solo si el payment no trae id (caso synthetic/summarized).
-    const chargeKey = payment.id ? String(payment.id) : `${pre.id}-${chargeNumber}`;
-    const chargeRef = merchantRef.collection("charges").doc(chargeKey);
-    const existingCharge = await chargeRef.get();
-    // Re-intentamos si el charge existe pero NO tiene shopify_order_id —
-    // significa que el cobro se procesó OK pero la creación de orden Shopify
-    // falló antes. Si ya tiene order_id, idempotente: skip.
-    if (existingCharge.exists && existingCharge.data().shopify_order_id) continue;
-    // Dedup CROSS-KEY por mp_payment_id — CLAVE para no duplicar la orden cuando
-    // el mismo pago quedó guardado con la clave vieja (pre.id-N) y la nueva
-    // (payment.id). Firestore compara por TIPO, y datos viejos guardaron
-    // mp_payment_id como NÚMERO mientras el nuevo lo manda como texto → hay que
-    // consultar AMBOS tipos, si no se escapa y crea una orden duplicada.
+    let chargeRef;
     if (payment.id != null) {
+      // Dedup CROSS-KEY por mp_payment_id — para no duplicar cuando el mismo pago
+      // quedó guardado con la clave vieja (pre.id-N) y la nueva (payment.id).
+      // Firestore compara por TIPO, y datos viejos guardaron mp_payment_id como
+      // NÚMERO mientras el nuevo lo manda como texto → consultar AMBOS tipos.
       const pidStr = String(payment.id);
       const pidNum = Number(payment.id);
       const [qs, qn] = await Promise.all([
         merchantRef.collection("charges").where("mp_payment_id", "==", pidStr).limit(3).get(),
         isFinite(pidNum) ? merchantRef.collection("charges").where("mp_payment_id", "==", pidNum).limit(3).get() : Promise.resolve({ docs: [] }),
       ]);
-      const yaConOrden = [...qs.docs, ...(qn.docs || [])].some(d => d.data().shopify_order_id);
-      if (yaConOrden) continue; // este pago ya tiene su orden Shopify — no duplicar
+      if ([...qs.docs, ...(qn.docs || [])].some(d => d.data().shopify_order_id)) continue; // ya tiene orden — no duplicar
+      // Claim ATÓMICO sobre charges/{payment.id}: evita que webhook + polling +
+      // self-heal creen DOS órdenes cuando corren a la vez sobre el mismo pago.
+      const claim = await claimCharge(merchantRef, payment.id, { subscriber_id: subscriberId });
+      chargeRef = claim.chargeRef;
+      if (!claim.proceed) continue; // otro proceso ya la tiene / la está creando ahora
+    } else {
+      // Pago sin id (synthetic/summarized): esquema viejo por preapproval+N.
+      const chargeRef0 = merchantRef.collection("charges").doc(`${pre.id}-${chargeNumber}`);
+      const existingCharge = await chargeRef0.get();
+      if (existingCharge.exists && existingCharge.data().shopify_order_id) continue;
+      chargeRef = chargeRef0;
     }
 
     // Crear orden Shopify si tenemos todo
@@ -423,11 +427,12 @@ export async function linkPaymentToSubscriber(merchantId, subscriberId, paymentI
   if (!payment?.id) return { status: "error", error: "payment_not_found_in_mp" };
   if (payment.status !== "approved") return { status: "error", error: `payment_status=${payment.status} (no approved)` };
 
-  // Idempotencia: si ya existe charge con este payment_id, no duplicamos orden Shopify.
-  const chargeRef = merchantRef.collection("charges").doc(String(payment.id));
-  const existingCharge = await chargeRef.get();
-  if (existingCharge.exists && existingCharge.data().shopify_order_id) {
-    return { status: "already_linked", shopify_order_id: existingCharge.data().shopify_order_id };
+  // Idempotencia ATÓMICA: reclama el charge para no duplicar la orden si el
+  // webhook o el polling corren a la vez sobre el mismo pago.
+  const claim = await claimCharge(merchantRef, payment.id, { subscriber_id: subscriberId });
+  const chargeRef = claim.chargeRef;
+  if (!claim.proceed) {
+    return { status: "already_linked", shopify_order_id: claim.existingOrderId || null };
   }
 
   let shopifyOrderId = null;
