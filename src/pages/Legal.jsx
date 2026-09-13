@@ -4,14 +4,14 @@ import React from "react";
 // Páginas legales públicas (#/terminos · #/privacidad).
 // Adaptadas de public/terminos.html y public/privacidad.html de Growith
 // al producto Recurrentes. BORRADOR: falta revisión legal y completar
-// los placeholders [CUIT] y [email de contacto].
+// Datos del responsable: constantes de arriba (sin CUIT ni email por ahora).
 // Si el shell no pasa T, se usan las CSS vars de index.css.
 // ─────────────────────────────────────────────────────────────────
 
 const ULTIMA_ACTUALIZACION = "septiembre 2026";
-const RESPONSABLE = "Thiago Acuña";
-const CUIT = "[CUIT]";
-const EMAIL_CONTACTO = "[email de contacto]";
+const RESPONSABLE = "Recurrentes App";
+const DOMICILIO = "Ezeiza, Buenos Aires, Argentina";
+const EMAIL_CONTACTO = "el formulario de contacto de la aplicación";
 
 const FALLBACK_T = {
   bg: "var(--bg)", surface: "var(--surface)", card: "var(--card)", border: "var(--border)", borderL: "var(--border-light)",
@@ -52,7 +52,7 @@ function Frame({ T, title, children }) {
         <div style={s.foot}>
           <a href="#/terminos" style={s.a}>Términos y condiciones</a>
           <a href="#/privacidad" style={s.a}>Política de privacidad</a>
-          <span>Contacto: {EMAIL_CONTACTO}</span>
+          <span>© {new Date().getFullYear()} Recurrentes App — Todos los derechos reservados · {DOMICILIO}</span>
         </div>
       </div>
     </div>
@@ -71,7 +71,7 @@ export function TerminosPage({ T }) {
 
       <h2 style={s.h2}>1. Quién presta el servicio</h2>
       <p style={s.p}>
-        El servicio es operado por <S>{RESPONSABLE}</S>, persona humana, CUIT {CUIT}, con domicilio en la República Argentina ("el responsable", "nosotros"). Contacto: {EMAIL_CONTACTO}.
+        El servicio es operado por <S>{RESPONSABLE}</S>, con domicilio en {DOMICILIO} ("el responsable", "nosotros"). Todos los derechos reservados. Contacto: {EMAIL_CONTACTO}.
       </p>
 
       <h2 style={s.h2}>2. Etapa beta y gratuidad</h2>
@@ -146,7 +146,7 @@ export function PrivacidadPage({ T }) {
 
       <h2 style={s.h2}>1. Responsable del tratamiento</h2>
       <p style={s.p}>
-        <S>{RESPONSABLE}</S>, persona humana, CUIT {CUIT}, República Argentina. Contacto para temas de privacidad: {EMAIL_CONTACTO}.
+        <S>{RESPONSABLE}</S>, con domicilio en {DOMICILIO}. Contacto para temas de privacidad: {EMAIL_CONTACTO}.
       </p>
 
       <h2 style={s.h2}>2. Dos tipos de datos, dos roles</h2>
