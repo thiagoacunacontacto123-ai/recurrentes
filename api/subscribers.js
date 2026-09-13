@@ -2,12 +2,54 @@
 //
 //   GET                                  → lista de subs (con filtros opcionales)
 //   GET /api/subscribers?id=<subId>      → detalle de un sub
-//   PATCH /api/subscribers?id=<subId>    → actualizar estado (pause | resume | cancel)
+//   GET ?action=abandoned                → checkouts abandonados
+//   GET ?action=export                   → CSV de suscriptores
+//   PATCH /api/subscribers?id=<subId>    → actualizar estado (pause | resume | cancel | resync)
+//   POST ?action=sync|simulate-charge|link-payment|retry-order|reprice
 //
 // Las acciones pause/cancel se reflejan en MP via mpUpdatePreapproval.
 import { db, requireAuth } from "./_lib/firebase.js";
 import { mpUpdatePreapproval, mpGetPreapproval } from "./_lib/mp.js";
 import { syncSubscriber } from "./_lib/sync.js";
+import { API_VERSION } from "./_lib/shopify.js";
+import { fetchWithTimeout } from "./_lib/http.js";
+import { logEmail } from "./_lib/emaillog.js";
+
+const nowIso = () => new Date().toISOString();
+
+// Busca en MP el preapproval de un sub que no tiene mp_preapproval_id (flujo
+// de plan: MP crea el preapproval solo y no siempre nos llega el id). Filtra
+// por preapproval_plan_id + authorized; desempata por payer_email. Si lo
+// encuentra lo persiste y lo devuelve; si no, null.
+async function ensurePreapprovalId(merchant, subRef, sub) {
+  if (sub.mp_preapproval_id) return sub.mp_preapproval_id;
+  if (!merchant.mp_access_token) return null;
+  const planId = sub.mp_preapproval_plan_id || sub.mp_adhoc_plan_id || null;
+  const headers = { Authorization: `Bearer ${merchant.mp_access_token}` };
+  const urls = [];
+  if (planId) urls.push(`https://api.mercadopago.com/preapproval/search?preapproval_plan_id=${encodeURIComponent(planId)}&status=authorized`);
+  if (sub.customer_email) urls.push(`https://api.mercadopago.com/preapproval/search?payer_email=${encodeURIComponent(sub.customer_email)}&status=authorized`);
+  for (const url of urls) {
+    try {
+      const r = await fetchWithTimeout(url, { headers }, 8000);
+      if (!r.ok) continue;
+      const s = await r.json().catch(() => ({}));
+      const results = (s?.results || []).filter(p => p.status === "authorized");
+      if (!results.length) continue;
+      const email = String(sub.customer_email || "").toLowerCase();
+      const hit = results.find(p => String(p.payer_email || "").toLowerCase() === email && (!planId || p.preapproval_plan_id === planId))
+        || results.find(p => !planId || p.preapproval_plan_id === planId)
+        || null;
+      if (hit) {
+        await subRef.update({ mp_preapproval_id: hit.id, mp_preapproval_status: hit.status, updated_at: nowIso() });
+        return hit.id;
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
+const csvCell = (v) => { const s = v == null ? "" : String(v); return /[",;\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
@@ -75,7 +117,7 @@ export default async function handler(req, res) {
       ...(customer_name ? { customer_name: customer_name.trim() } : {}),
       ...(phone ? { customer_phone: phone.trim() } : {}),
       ...(cleanTaxId ? { customer_tax_id: cleanTaxId, customer_tax_id_kind: cleanTaxIdKind } : {}),
-      updated_at: new Date().toISOString(),
+      updated_at: nowIso(),
     };
     await subRef.update(subUpdates);
 
@@ -88,8 +130,8 @@ export default async function handler(req, res) {
     if (merchant.shopify_token && merchant.shopify_shop && orderIds.length > 0) {
       for (const orderId of orderIds) {
         try {
-          const url = `https://${merchant.shopify_shop}/admin/api/2024-10/orders/${orderId}.json`;
-          const r = await fetch(url, {
+          const url = `https://${merchant.shopify_shop}/admin/api/${API_VERSION}/orders/${orderId}.json`;
+          const r = await fetchWithTimeout(url, {
             method: "PUT",
             headers: {
               "X-Shopify-Access-Token": merchant.shopify_token,
@@ -102,7 +144,7 @@ export default async function handler(req, res) {
                 billing_address: newAddr,
               },
             }),
-          });
+          }, 10000);
           if (r.ok) updatedOrders.push(orderId);
           else failedOrders.push({ orderId, status: r.status });
         } catch (e) {
@@ -128,32 +170,88 @@ export default async function handler(req, res) {
     }
   }
 
-  // POST ?action=link-payment&id=SUB&payment_id=PID
+  // POST ?action=link-payment&id=SUB  (body { payment_id })
+  // POST ?action=retry-order          (body { id, payment_id })
   // Escape hatch para cuando MP indexa mal y el sync no encuentra el payment
-  // pero el merchant lo ve en su panel. Pega el ID y procesamos directo.
-  if (req.method === "POST" && req.query.action === "link-payment" && req.query.id) {
-    const { payment_id } = req.body || {};
+  // pero el merchant lo ve en su panel, o para reintentar la orden Shopify de
+  // un charge que quedó con error. Pega el ID y procesamos directo.
+  if (req.method === "POST" && (req.query.action === "link-payment" || req.query.action === "retry-order")) {
+    const { payment_id, id: bodyId } = req.body || {};
+    const subId = String(req.query.id || bodyId || "");
+    if (!subId) return res.status(400).json({ error: "Falta id" });
     if (!payment_id) return res.status(400).json({ error: "Falta payment_id" });
     try {
       const { linkPaymentToSubscriber } = await import("./_lib/sync.js");
-      const r = await linkPaymentToSubscriber(uid, String(req.query.id), String(payment_id));
+      const r = await linkPaymentToSubscriber(uid, subId, String(payment_id));
       return res.json({ ok: true, ...r });
     } catch (e) {
       return res.status(500).json({ error: e.message });
     }
   }
 
+  // POST ?action=reprice  body { id, new_amount } | { plan_id, new_amount }
+  // Cambia el monto del preapproval en MP (PUT auto_recurring.transaction_amount)
+  // para una sub o para todas las activas de un plan (máx 200). Solo si MP
+  // confirma se actualiza plan_snapshot.total_per_charge_ars.
+  if (req.method === "POST" && req.query.action === "reprice") {
+    const { id, plan_id } = req.body || {};
+    const newAmount = Math.round(Number(req.body?.new_amount) || 0);
+    if (!(newAmount > 0)) return res.status(400).json({ error: "new_amount debe ser > 0" });
+    if (!id && !plan_id) return res.status(400).json({ error: "Falta id o plan_id" });
+    const merchant = (await merchantRef.get()).data() || {};
+    if (!merchant.mp_access_token) return res.status(400).json({ error: "Conectá Mercado Pago primero" });
+
+    let docs;
+    if (id) {
+      const s = await subsCol.doc(String(id)).get();
+      if (!s.exists) return res.status(404).json({ error: "Subscriber no encontrado" });
+      docs = [s];
+    } else {
+      const q = await subsCol.where("plan_id", "==", String(plan_id)).where("status", "==", "active").limit(200).get();
+      docs = q.docs;
+    }
+    let updated = 0;
+    const failed = [];
+    for (const d of docs) {
+      const sub = d.data();
+      try {
+        const preId = await ensurePreapprovalId(merchant, d.ref, sub);
+        if (!preId) throw new Error("sin mp_preapproval_id (no se ubicó en MP)");
+        await mpUpdatePreapproval(merchant.mp_access_token, preId, { auto_recurring: { transaction_amount: newAmount, currency_id: "ARS" } });
+        await d.ref.update({
+          "plan_snapshot.total_per_charge_ars": newAmount,
+          repriced_at: nowIso(),
+          repriced_from: sub.plan_snapshot?.total_per_charge_ars ?? null,
+          updated_at: nowIso(),
+        });
+        updated++;
+      } catch (e) {
+        failed.push({ id: d.id, error: e.message });
+      }
+    }
+    return res.json({ ok: true, updated, failed, total: docs.length, new_amount: newAmount });
+  }
+
   // ── GET ?action=abandoned — lista de checkouts ABANDONADOS ────────────────
   // Suscriptores en "pending" (iniciaron el checkout de suscripción y NO pagaron)
   // de hace +45 min (les dimos tiempo a completar) y hasta 30 días atrás, sin
   // orden. Deduplicados por email (queda el intento MÁS RECIENTE). Devuelve los
-  // datos para el follow-up + el link de MP para retomar el pago. Base del flujo
-  // de carrito abandonado.
+  // datos para el follow-up + paso de mail enviado. El link de recupero solo se
+  // devuelve si apunta a un dominio de la tienda (nunca una URL cruda del lead).
   if (req.method === "GET" && req.query.action === "abandoned") {
     const now = Date.now();
     const minAgeMs = 45 * 60 * 1000;
     const maxAgeMs = 30 * 24 * 60 * 60 * 1000;
-    const snap = await subsCol.where("status", "==", "pending").get();
+    const [snap, mSnap] = await Promise.all([subsCol.where("status", "==", "pending").get(), merchantRef.get()]);
+    const merchant = mSnap.data() || {};
+    const okHosts = new Set([
+      ...(Array.isArray(merchant.shopify_domains) ? merchant.shopify_domains : []),
+      merchant.store_domain, merchant.shopify_shop,
+    ].map(h => String(h || "").toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "")).filter(Boolean));
+    const safeUrl = (u) => {
+      try { const x = new URL(String(u || "")); return x.protocol === "https:" && okHosts.has(x.host.toLowerCase()) ? x.toString() : null; }
+      catch (_) { return null; }
+    };
     const rows = [];
     for (const doc of snap.docs) {
       const s = doc.data();
@@ -162,6 +260,8 @@ export default async function handler(req, res) {
       const age = now - created;
       if (age < minAgeMs || age > maxAgeMs) continue;
       if ((s.shopify_orders || []).length > 0) continue;
+      if (s.abandoned_step === 99) continue; // ya compró por otro lado
+      if (s.mp_preapproval_status === "authorized") continue; // tarjeta autorizada: no es abandono
       rows.push({
         id: doc.id,
         email: s.customer_email || null,
@@ -172,7 +272,10 @@ export default async function handler(req, res) {
         value_ars: s.plan_snapshot?.total_per_charge_ars || s.plan_snapshot?.subscription_price_ars || 0,
         frequency_days: s.plan_snapshot?.frequency_days || null,
         created_at: s.created_at,
-        recover_url: s.fb_data?.event_source_url || s.mp_init_point || null,
+        abandoned_step: s.abandoned_step || 0,
+        abandoned_step_at: s.abandoned_step_at || null,
+        capture: s.capture === true,
+        recover_url: safeUrl(s.fb_data?.event_source_url),
       });
     }
     const byEmail = {};
@@ -182,6 +285,30 @@ export default async function handler(req, res) {
     }
     const list = Object.values(byEmail).sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
     return res.json({ abandoned: list, count: list.length });
+  }
+
+  // ── GET ?action=export — CSV de suscriptores (opcional ?status=) ──────────
+  if (req.method === "GET" && req.query.action === "export") {
+    let q = subsCol;
+    if (req.query.status) q = q.where("status", "==", String(req.query.status));
+    const snap = await q.get();
+    const subs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+    const header = ["id", "email", "nombre", "telefono", "estado", "plan", "cantidad", "monto_por_cobro", "frecuencia_dias", "proximo_cobro", "ultimo_cobro", "ordenes", "alta"];
+    const lines = [header.join(";")];
+    for (const s of subs) {
+      lines.push([
+        s.id, s.customer_email, s.customer_name, s.customer_phone, s.status,
+        s.plan_snapshot?.product_title, s.quantity || s.plan_snapshot?.units_per_shipment || 1,
+        s.plan_snapshot?.total_per_charge_ars ?? s.plan_snapshot?.subscription_price_ars ?? "",
+        s.plan_snapshot?.frequency_days, s.next_charge_at, s.last_charge_at,
+        (s.shopify_orders || []).length, s.created_at,
+      ].map(csvCell).join(";"));
+    }
+    const fname = `suscriptores-${nowIso().slice(0, 10)}.csv`;
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${fname}"`);
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(200).send("\uFEFF" + lines.join("\n"));
   }
 
   if (req.method === "GET") {
@@ -249,15 +376,16 @@ export default async function handler(req, res) {
 
       if (merchant.mp_access_token) {
         const headers = { Authorization: `Bearer ${merchant.mp_access_token}` };
-        // Search por external_reference + por payer_email; nos quedamos con
+        // Search por external_reference + plan + payer_email; nos quedamos con
         // el primer authorized que encontremos.
         const queries = [
           `https://api.mercadopago.com/preapproval/search?external_reference=${encodeURIComponent(extRef)}`,
+          sub.mp_preapproval_plan_id ? `https://api.mercadopago.com/preapproval/search?preapproval_plan_id=${encodeURIComponent(sub.mp_preapproval_plan_id)}&status=authorized` : null,
           sub.customer_email ? `https://api.mercadopago.com/preapproval/search?payer_email=${encodeURIComponent(sub.customer_email)}` : null,
         ].filter(Boolean);
         for (const url of queries) {
           try {
-            const r = await fetch(url, { headers });
+            const r = await fetchWithTimeout(url, { headers }, 8000);
             const s = await r.json().catch(() => ({}));
             const authorized = (s?.results || []).find(p => p.status === "authorized");
             if (authorized) {
@@ -271,10 +399,10 @@ export default async function handler(req, res) {
 
       await subRef.update({
         status: "active",
-        ...(linkedPreapproval ? { mp_preapproval_id: linkedPreapproval.id } : {}),
+        ...(linkedPreapproval ? { mp_preapproval_id: linkedPreapproval.id, mp_preapproval_status: "authorized" } : {}),
         ...(nextChargeAt ? { next_charge_at: nextChargeAt } : {}),
         cancelled_at: null,
-        updated_at: new Date().toISOString(),
+        updated_at: nowIso(),
       });
 
       return res.json({
@@ -291,36 +419,75 @@ export default async function handler(req, res) {
 
     // Sincronizar con MP. Antes era "best effort silencioso" — eso causó que
     // local quedara cancelled mientras MP seguía cobrando recurrencias. Ahora:
+    //   - Sin mp_preapproval_id lo buscamos en MP; si no aparece y la sub ya
+    //     estuvo activa → 409 (no tocamos local).
     //   - Si MP confirma el update → seguimos con cambio local.
     //   - Si MP dice "ya está en ese estado" → seguimos (idempotente).
     //   - Si MP devuelve OTRO error → ABORTAMOS y le decimos al merchant.
-    //     El local NO cambia, así no queda inconsistente con la realidad MP.
-    if (merchant.mp_access_token && sub.mp_preapproval_id) {
-      try {
-        await mpUpdatePreapproval(merchant.mp_access_token, sub.mp_preapproval_id, { status: newMpStatus });
-      } catch (e) {
-        const msg = String(e.message || "");
-        // MP es idempotente sobre cancelled — si decimos "cancel" sobre algo
-        // ya cancelled, devuelve error pero igual está en el estado objetivo.
-        const alreadyTarget = /already|cancelled preapproval|paused preapproval|same status/i.test(msg);
-        if (!alreadyTarget) {
-          console.error(`[subscribers] MP update falló (${msg}). ABORT — no cambiamos local.`);
-          return res.status(502).json({
-            error: `Mercado Pago no confirmó el cambio: ${msg}. El sub NO se modificó localmente. Probá "Volver a sincronizar con MP" para reconciliar.`,
-          });
+    let mpSynced = false;
+    let preData = null;
+    if (merchant.mp_access_token) {
+      const preId = await ensurePreapprovalId(merchant, subRef, sub);
+      if (!preId) {
+        // Lead que nunca autorizó: no hay nada en MP, permitimos el cambio local.
+        const neverActive = sub.status === "pending" && !sub.last_charge_at && !(sub.shopify_orders || []).length;
+        if (!neverActive) {
+          return res.status(409).json({ error: "No se pudo ubicar la suscripción en Mercado Pago; no se cambió el estado local" });
         }
-        console.warn(`[subscribers] MP ya estaba en target status (${msg}) — continuamos con cambio local.`);
+      } else {
+        try {
+          await mpUpdatePreapproval(merchant.mp_access_token, preId, { status: newMpStatus });
+          mpSynced = true;
+        } catch (e) {
+          const msg = String(e.message || "");
+          // MP es idempotente sobre cancelled — si decimos "cancel" sobre algo
+          // ya cancelled, devuelve error pero igual está en el estado objetivo.
+          const alreadyTarget = /already|cancelled preapproval|paused preapproval|same status/i.test(msg);
+          if (!alreadyTarget) {
+            console.error(`[subscribers] MP update falló (${msg}). ABORT — no cambiamos local.`);
+            return res.status(502).json({
+              error: `Mercado Pago no confirmó el cambio: ${msg}. El sub NO se modificó localmente. Probá "Volver a sincronizar con MP" para reconciliar.`,
+            });
+          }
+          console.warn(`[subscribers] MP ya estaba en target status (${msg}) — continuamos con cambio local.`);
+          mpSynced = true;
+        }
+        // Releer el preapproval para guardar next_charge_at real + status MP.
+        try { preData = await mpGetPreapproval(merchant.mp_access_token, preId); } catch (_) {}
       }
     }
 
     const localStatus = action === "cancel" ? "cancelled" : action === "pause" ? "paused" : "active";
+    const nextChargeAt = preData?.next_payment_date || null;
     await subRef.update({
       status: localStatus,
-      updated_at: new Date().toISOString(),
-      ...(action === "cancel" ? { cancelled_at: new Date().toISOString() } : {}),
+      updated_at: nowIso(),
+      ...(preData?.status ? { mp_preapproval_status: preData.status } : {}),
+      ...(action !== "cancel" && nextChargeAt ? { next_charge_at: nextChargeAt } : {}),
+      ...(action === "cancel" ? { cancelled_at: nowIso() } : {}),
       ...(action === "resume" ? { cancelled_at: null } : {}),
     });
-    return res.json({ ok: true, status: localStatus });
+
+    // Mail de cancelación (best-effort) + log.
+    if (action === "cancel" && sub.customer_email) {
+      let r = null;
+      try {
+        const { emailSubscriptionCancelled } = await import("./_lib/email.js");
+        r = await emailSubscriptionCancelled({
+          to: sub.customer_email,
+          customerName: sub.customer_name || "",
+          productTitle: sub.plan_snapshot?.product_title || "tu suscripción",
+          merchant,
+        });
+      } catch (e) { r = { error: e.message }; }
+      await logEmail(uid, {
+        type: "cancellation", subscriber_id: String(id), to: sub.customer_email,
+        customer_name: sub.customer_name || null, product_title: sub.plan_snapshot?.product_title || null,
+        status: r?.error ? "error" : (r?.skipped ? "skipped" : "sent"), error: r?.error || null,
+      });
+    }
+
+    return res.json({ ok: true, status: localStatus, mp_synced: mpSynced, next_charge_at: nextChargeAt || sub.next_charge_at || null, mp_preapproval_status: preData?.status || null });
   }
 
   // DELETE /api/subscribers?id=X — borra el subscriber del Firestore

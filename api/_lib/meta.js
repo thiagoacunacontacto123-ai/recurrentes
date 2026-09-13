@@ -38,7 +38,7 @@ function hashPhone(phone) {
  * @param {string} [o.firstName] / {string} [o.lastName] / {string} [o.city] / {string} [o.zip]
  * @param {string} o.eventId     - ID único del evento (dedup con el pixel si lo hubiera)
  * @param {string} [o.eventSourceUrl]
- * @param {string} [o.clientIp]  / {string} [o.clientUa]
+ * @param {string} [o.clientIp]  / {string} [o.client_ip_address] / {string} [o.clientUa]
  * @returns {Promise<{ok:boolean, error?:string}>}
  */
 // Emisor genérico de eventos CAPI. eventName = "Purchase" | "InitiateCheckout" | …
@@ -56,7 +56,8 @@ export async function sendMetaEvent(eventName, o) {
     // señalador más fuerte para atribuir la venta al anuncio correcto.
     fbc: o.fbc || undefined,
     fbp: o.fbp || undefined,
-    client_ip_address: o.clientIp || undefined,
+    // IP del cliente (viene de fb_data.client_ip_address capturada en el checkout).
+    client_ip_address: o.clientIp || o.client_ip_address || undefined,
     client_user_agent: o.clientUa || undefined,
   };
   // Limpiar undefined

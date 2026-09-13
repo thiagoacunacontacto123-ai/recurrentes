@@ -31,6 +31,8 @@ export function db() {
 // Verifica el Bearer token del header Authorization y devuelve el uid.
 // Tira 401 si falta o es inválido — handlers deben llamar requireAuth(req,res)
 // y usar el uid para scopear todas las queries de Firestore.
+// Merchants nuevos (requires_email_verification) necesitan email verificado
+// → 403 code "email_unverified". Los viejos siguen igual.
 export async function requireAuth(req, res) {
   initAdmin();
   const auth = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
@@ -38,13 +40,23 @@ export async function requireAuth(req, res) {
     res.status(401).json({ error: "Falta token de auth" });
     return null;
   }
+  let decoded;
   try {
-    const decoded = await getAuth().verifyIdToken(auth);
-    return decoded.uid;
+    decoded = await getAuth().verifyIdToken(auth);
   } catch (e) {
     res.status(401).json({ error: "Token inválido" });
     return null;
   }
+  if (decoded.email_verified === false) {
+    try {
+      const snap = await db().collection("merchants").doc(decoded.uid).get();
+      if (snap.exists && snap.data()?.requires_email_verification === true) {
+        res.status(403).json({ error: "Verificá tu email para continuar", code: "email_unverified" });
+        return null;
+      }
+    } catch (_) { /* si Firestore falla, no bloqueamos por esto */ }
+  }
+  return decoded.uid;
 }
 
 // Devuelve el doc del merchant del uid logueado, creándolo si no existe.
@@ -57,6 +69,8 @@ export async function getOrCreateMerchant(uid, email) {
     email: email || null,
     plan: "free",
     created_at: new Date().toISOString(),
+    // Solo cuentas nuevas: exigimos verificar el mail antes de operar.
+    requires_email_verification: true,
   };
   await ref.set(data);
   return { id: uid, ...data };

@@ -106,3 +106,11 @@ Click "Suscribirme" → POST /api/checkout/init → MP preapproval link
                                                        ▼ (cada N días)
                 MP cobra → webhook → nueva orden Shopify automática
 ```
+
+## CORS de /api/*
+
+`vercel.json` deja `Access-Control-Allow-Origin: *` en todo `/api/*` porque el widget y el
+checkout se llaman desde la tienda del merchant (dominio distinto por merchant, no se conoce
+estáticamente). Los endpoints privados (`merchant`, `plans`, `subscribers`, `charges`, `stats`)
+igual exigen el Bearer de Firebase Auth en cada request, así que el `*` no expone datos; si
+algún día se separan en otra ruta, restringirlos a `APP_BASE_URL`.

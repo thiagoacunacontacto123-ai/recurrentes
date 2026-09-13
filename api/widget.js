@@ -13,6 +13,14 @@
 // El widget detecta cambios de variante en vivo (cuando el cliente cambia
 // Pequeña → Grande): refresca el plan asociado y actualiza precio del botón.
 
+// Tarifas de envío del checkout on-store cuando el merchant no configuró
+// `checkout_shipping_rates` (las históricas de Lumina). checkout/init usa el
+// MISMO default para validar el envío server-side.
+export const DEFAULT_CHECKOUT_SHIPPING_RATES = [
+  { name: "Envío a domicilio (Andreani / Flex) — Estándar", price: 0, eta: "3 a 6 días hábiles", code: "" },
+  { name: "Envío a Domicilio por Andreani / Flex DESPACHO PRIORITARIO 🚚", price: 5900, eta: "1 a 5 días hábiles", code: "" },
+];
+
 export default async function handler(req, res) {
   res.setHeader("Content-Type", "application/javascript; charset=utf-8");
   res.setHeader("Cache-Control", "public, max-age=300");
@@ -46,6 +54,8 @@ export default async function handler(req, res) {
   // Path de la PÁGINA de checkout on-store que el merchant creó en Shopify (con el
   // embed pegado). El botón del producto redirige ahí, en el dominio de la tienda.
   let checkoutPagePath = "/pages/suscripcion-form";
+  // Tarifas de envío del checkout (editables por el merchant). Sólo name/price/eta/code.
+  let checkoutShippingRates = DEFAULT_CHECKOUT_SHIPPING_RATES;
   try {
     const { db } = await import("./_lib/firebase.js");
     const snap = await db().collection("merchants").doc(merchantId).get();
@@ -62,6 +72,12 @@ export default async function handler(req, res) {
       if (!hideSelector && typeof m.widget_hide_selector === "string") hideSelector = m.widget_hide_selector;
       if (m.widget_checkout_flow === "inline") checkoutFlow = "inline";
       if (typeof m.widget_checkout_page_path === "string" && m.widget_checkout_page_path.trim()) checkoutPagePath = m.widget_checkout_page_path.trim();
+      if (Array.isArray(m.checkout_shipping_rates)) {
+        const list = m.checkout_shipping_rates
+          .filter(r => r && typeof r.name === "string" && r.name.trim())
+          .map(r => ({ name: r.name.trim().slice(0, 250), price: Math.max(0, Math.round(Number(r.price) || 0)), eta: String(r.eta || "").slice(0, 80), code: String(r.code || "").slice(0, 250) }));
+        if (list.length) checkoutShippingRates = list;
+      }
     }
   } catch (_) {}
 
@@ -88,7 +104,7 @@ export default async function handler(req, res) {
     // Cache corta para el checkout: así un deploy nuevo (ej. cambios de captura de
     // carrito) se propaga en ≤60s a la storefront, en vez de quedar 5 min viejo.
     res.setHeader("Cache-Control", "public, max-age=60");
-    return res.send(buildCheckoutEmbed({ merchantId, apiBase, color: widgetColor }));
+    return res.send(buildCheckoutEmbed({ merchantId, apiBase, color: widgetColor, shippingRates: checkoutShippingRates }));
   }
 
   const COL_DARK = shade(widgetColor, -35);           // gradient end (botones)
@@ -217,17 +233,17 @@ export default async function handler(req, res) {
         <input type="radio" name="recurrentes-mode" value="sub" ' + subSelectedAttrs + ' style="margin:2px 0 0 0;"/>\
         <div style="flex:1">\
           <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">\
-            <strong style="font-size:14px;">' + SUB_TITLE + '</strong>\
+            <strong style="font-size:14px;">' + escapeHtml(SUB_TITLE) + '</strong>\
             <span style="background:${COL};color:#fff;font-size:10px;padding:2px 7px;border-radius:4px;font-weight:700;letter-spacing:0.3px;">' + (plan.discount_pct||0) + '% OFF</span>\
           </div>\
-          <div style="font-size:12px;color:#6b7280;margin-top:2px;">' + (SUB_SUBTITLE || ("Recibilo cada " + plan.frequency_days + " días. Cancelá cuando quieras.")) + '</div>\
+          <div style="font-size:12px;color:#6b7280;margin-top:2px;">' + (SUB_SUBTITLE ? escapeHtml(SUB_SUBTITLE) : ("Recibilo cada " + escapeHtml(plan.frequency_days) + " días. Cancelá cuando quieras.")) + '</div>\
         </div>\
       </label>\
     ';
     var onceCard = '\
       <label style="display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border:2px solid ' + onceBorder + ';border-radius:8px;cursor:pointer;background:' + onceBg + ';" data-rec-mode="once">\
         <input type="radio" name="recurrentes-mode" value="once" ' + onceSelectedAttrs + ' style="margin:2px 0 0 0;"/>\
-        <div style="flex:1"><strong style="font-size:14px;">' + ONCE_TITLE + '</strong><div style="font-size:12px;color:#6b7280;margin-top:2px;">' + ONCE_SUBTITLE + '</div></div>\
+        <div style="flex:1"><strong style="font-size:14px;">' + escapeHtml(ONCE_TITLE) + '</strong><div style="font-size:12px;color:#6b7280;margin-top:2px;">' + escapeHtml(ONCE_SUBTITLE) + '</div></div>\
       </label>\
     ';
 
@@ -240,7 +256,7 @@ export default async function handler(req, res) {
   // configuró DISCLAIMER_TEXT custom, lo usamos literal (con escape de HTML).
   // Si no, armamos el texto default con frecuencia + descuento del plan.
   function escapeHtml(s) {
-    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
   function buildDisclaimerHTML(plan, initialCalc, unitPrice, defaultQty) {
     var title = DISCLAIMER_TEXT ? "Información de tu suscripción" : "Cómo funciona tu suscripción";
@@ -251,7 +267,7 @@ export default async function handler(req, res) {
       var discountLine = (plan.discount_pct || 0) > 0
         ? 'Como suscriptor, ya tenés <strong>' + plan.discount_pct + '% off</strong> sobre el precio normal — la suscripción conviene más que la compra única. '
         : '';
-      body = '<div style="margin-bottom:4px;">Te suscribís a un <strong>pago recurrente con Mercado Pago</strong>. Se cobra automáticamente cada <strong>' + plan.frequency_days + ' días</strong> en tu tarjeta de <strong>crédito</strong> (no aceptamos débito ni saldo, porque MP solo permite débitos automáticos con tarjeta de crédito).</div>'
+      body = '<div style="margin-bottom:4px;">Te suscribís a un <strong>pago recurrente con Mercado Pago</strong>. Se cobra automáticamente cada <strong>' + escapeHtml(plan.frequency_days) + ' días</strong>. Pagás con Mercado Pago (tarjeta de crédito, débito o dinero en cuenta según disponibilidad).</div>'
            + '<div style="margin-top:6px;color:${COL_TEXT_MEDIUM};">' + discountLine + 'Cancelás cuando quieras desde el portal del cliente (link te llega por email al activar).</div>';
     }
     var savingHTML = '';
@@ -298,8 +314,8 @@ export default async function handler(req, res) {
     panel.innerHTML = '\
       <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:14px;gap:10px;">\
         <div>\
-          <div style="font-size:11px;color:${COL_TEXT_MEDIUM};text-transform:uppercase;font-weight:700;letter-spacing:0.5px;">' + SUB_TITLE.toUpperCase() + '</div>\
-          <div style="font-size:15px;font-weight:700;color:${COL_TEXT_DARK};margin-top:2px;">' + plan.product_title + '</div>\
+          <div style="font-size:11px;color:${COL_TEXT_MEDIUM};text-transform:uppercase;font-weight:700;letter-spacing:0.5px;">' + escapeHtml(SUB_TITLE.toUpperCase()) + '</div>\
+          <div style="font-size:15px;font-weight:700;color:${COL_TEXT_DARK};margin-top:2px;">' + escapeHtml(plan.product_title) + '</div>\
         </div>\
         <div style="text-align:right;">\
           <div id="rec-total" style="font-size:20px;font-weight:800;color:${COL};line-height:1;">$' + initialTotal.toLocaleString("es-AR") + '</div>\
@@ -428,7 +444,8 @@ export default async function handler(req, res) {
   // width:100% + min-width:0 son clave para mobile: sin esos dos atributos,
   // los inputs dentro del grid 2-cols toman su min-content (basado en el
   // placeholder) y "estiran" el grid hacia la derecha, rompiendo la card.
-  var inputStyle = "padding:9px 11px;border:1px solid #d1d5db;border-radius:7px;font-size:13px;font-family:inherit;outline:none;background:#fff;color:#111827;box-sizing:border-box;width:100%;min-width:0;max-width:100%;";
+  // font-size 16px: iOS Safari hace zoom al enfocar inputs con letra menor.
+  var inputStyle = "padding:9px 11px;border:1px solid #d1d5db;border-radius:7px;font-size:16px;font-family:inherit;outline:none;background:#fff;color:#111827;box-sizing:border-box;width:100%;min-width:0;max-width:100%;";
 
   // ─── Acciones ─────────────────────────────────────────────────
 
@@ -766,7 +783,7 @@ export default async function handler(req, res) {
             "?product=" + encodeURIComponent(plan.shopify_product_id) +
             "&variant=" + encodeURIComponent(plan.shopify_variant_id || variantId || "") +
             "&qty=" + q +
-            "&freq_value=1&freq_type=months";
+            "&freq_days=" + encodeURIComponent(plan.frequency_days || 30);
           window.location.href = u;
           return;
         }
@@ -835,12 +852,13 @@ export default async function handler(req, res) {
 // Como corre en el dominio de la tienda, usa /cart/shipping_rates.json para
 // traer los envíos REALES por CP (los mismos del checkout normal) y termina en MP.
 // ─────────────────────────────────────────────────────────────────────────
-function buildCheckoutEmbed({ merchantId, apiBase, color }) {
+function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates }) {
   return `(function(){
   "use strict";
   var MERCHANT_ID = ${JSON.stringify(merchantId)};
   var API_BASE = ${JSON.stringify(apiBase)};
   var COL = ${JSON.stringify(color || "#10b981")};
+  var SHIPPING_RATES = ${JSON.stringify(Array.isArray(shippingRates) && shippingRates.length ? shippingRates : DEFAULT_CHECKOUT_SHIPPING_RATES)};
   if (!MERCHANT_ID) { console.error("[Recurrentes checkout] falta ?merchant en el <script>"); return; }
 
   var q = new URLSearchParams(window.location.search);
@@ -860,12 +878,23 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
   // manda para cobrar pack × (1 − descuento). Descuento fijo por bundle.
   var BASE = Math.round(parseFloat(q.get("base") || "0")) || 0;
   var SUB_OFF = (function(){ var d = parseFloat(q.get("sub_off")); return (isFinite(d) && d >= 0 && d <= 90) ? d : null; })();
+  // Cupón de recupero firmado (?rc=<token>) que traen los mails de abandono. El
+  // server lo verifica; acá sólo lo reenviamos y leemos el email del payload para
+  // prellenar (tiene que coincidir con el del checkout).
+  var RC_TOKEN = q.get("rc") || "";
+  var RC_EMAIL = (function(){
+    try { var p = RC_TOKEN.split(".")[0]; if (!p) return ""; var j = JSON.parse(atob(p.replace(/-/g, "+").replace(/_/g, "/"))); return String(j.e || ""); } catch (e) { return ""; }
+  })();
 
   var mount = document.getElementById("recurrentes-checkout");
   if (!mount) { mount = document.createElement("div"); mount.id = "recurrentes-checkout"; document.body.appendChild(mount); }
 
   var plan = null, rateIdx = 0, submitting = false, ratesMsg = "";
   var RC_DISC = { code: "", pct: 0 }; // código de descuento aplicado (ej. HOLA5 → 5)
+  // Código que viene dentro del token de recupero (payload.c), sólo para mostrarlo.
+  var RC_DISC_RC_CODE = (function(){
+    try { var p = RC_TOKEN.split(".")[0]; if (!p) return ""; var j = JSON.parse(atob(p.replace(/-/g, "+").replace(/_/g, "/"))); return String(j.c || "").toUpperCase(); } catch (e) { return ""; }
+  })();
   // Meta "InitiateCheckout" (pago iniciado): se dispara UNA vez, apenas carga el
   // checkout (no al tocar Pagar), con el Pixel del navegador de la tienda.
   var _icFired = false;
@@ -873,14 +902,10 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
     if (_icFired) return; _icFired = true;
     try { var p = prices(); if (window.fbq) window.fbq("track", "InitiateCheckout", { value: p.total || 0, currency: "ARS", num_items: QTY }); } catch(e){}
   }
-  // ENVÍOS FIJOS para la suscripción (sin sucursal — Envialo no toma el punto de
-  // retiro vía API, es read-only). Solo domicilio, que sale como orden normal:
-  //  1) Domicilio estándar Andreani/Flex GRATIS (beneficio suscriptor).
-  //  2) Despacho prioritario 24/48hs (tarifa ya existente, $5.900).
-  var rates = [
-    { name: "Envío a domicilio (Andreani / Flex) — Estándar", price: 0, eta: "3 a 6 días hábiles" },
-    { name: "Envío a Domicilio por Andreani / Flex DESPACHO PRIORITARIO 🚚", price: 5900, eta: "1 a 5 días hábiles" }
-  ];
+  // ENVÍOS FIJOS para la suscripción: los configura el merchant
+  // (checkout_shipping_rates) o el default histórico. El server sólo acepta el
+  // nombre/code y toma el precio de SU lista (nunca del navegador).
+  var rates = SHIPPING_RATES;
   var sumOpen = !(typeof window !== "undefined" && window.innerWidth < 760);  // resumen: abierto en desktop, colapsado en mobile
 
   function money(n){ return "$" + Math.round(Number(n) || 0).toLocaleString("es-AR"); }
@@ -904,8 +929,10 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
     if (!plan) return { subtotal:0, disc:0, ship:0, shipName:"", total:0, loading:true };
     var disc, subtotal;
     if (BASE > 0) {
-      // Bundle con descuento fijo: cobra pack × (1 − descuento).
-      disc = (SUB_OFF != null) ? SUB_OFF : (parseFloat(plan.discount_pct) || 0);
+      // Bundle con descuento fijo: cobra pack × (1 − descuento). El descuento
+      // nunca supera el del plan (mismo tope que aplica el server).
+      var maxOff = Math.max(0, Math.min(90, parseFloat(plan.discount_pct) || 0));
+      disc = (SUB_OFF != null) ? Math.min(SUB_OFF, maxOff) : maxOff;
       subtotal = Math.round(BASE * (1 - disc / 100));
     } else {
       var unit = plan.subscription_price_ars || 0;
@@ -938,7 +965,14 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
     if (m) return m[1] + " " + (/h/.test(m[2]) ? "hs" : "días hábiles");
     return "";
   }
-  function effFreqDays(){ return (FREQ_DAYS >= 1) ? FREQ_DAYS : (plan.frequency_days || 30); }
+  // Frecuencia efectiva: la de la URL sólo si el plan permite frecuencia custom o
+  // coincide con la del plan (misma regla que el server).
+  function effFreqDays(){
+    var pf = parseInt(plan.frequency_days, 10) || 30;
+    if (FREQ_DAYS >= 1 && (plan.allow_custom_frequency === true || FREQ_DAYS === pf)) return FREQ_DAYS;
+    if (FREQ_DAYS >= 1 && FREQ_DAYS % pf === 0 && FREQ_DAYS / pf <= 12) return FREQ_DAYS; // múltiplo (pack N)
+    return pf;
+  }
   function freqTxt(){ var d = effFreqDays(); if (d===30) return "mensual"; if (d===60) return "cada 2 meses"; if (d===90) return "cada 3 meses"; if (d % 30 === 0) return "cada " + (d/30) + " meses"; return "cada " + d + " días"; }
 
   // Traer envíos reales de Shopify por CP. Corre en el dominio de la tienda:
@@ -1034,13 +1068,16 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
     var code = ((el && el.value) || "").trim().toUpperCase();
     if (!code) return;
     var btn = document.getElementById("rc-disc-btn"); if (btn){ btn.disabled = true; btn.textContent = "…"; }
-    fetch(API_BASE + "/api/public?action=discount&merchant=" + encodeURIComponent(MERCHANT_ID) + "&code=" + encodeURIComponent(code))
+    // Si el código es el del token de recupero, validamos con rc (los códigos
+    // recovery_only sólo se aceptan así). Si el cliente tipea otro, va en claro.
+    var useRc = RC_TOKEN && RC_DISC_RC_CODE && code === RC_DISC_RC_CODE;
+    fetch(API_BASE + "/api/public?action=discount&merchant=" + encodeURIComponent(MERCHANT_ID) + (useRc ? "&rc=" + encodeURIComponent(RC_TOKEN) : "&code=" + encodeURIComponent(code)))
       .then(function(r){ return r.json(); })
       .then(function(d){
         if (btn){ btn.disabled = false; btn.textContent = "Aplicar"; }
         if (d && d.valid && (d.type || "percent") === "percent" && Number(d.value) > 0) {
-          RC_DISC = { code: code, pct: Number(d.value) || 0 };
-          if (msg){ msg.style.display = "block"; msg.style.color = "#0a8a3f"; msg.textContent = "✓ Código " + code + " aplicado — " + d.value + "% OFF"; }
+          RC_DISC = { code: String(d.code || code), pct: Number(d.value) || 0, rc: !!useRc };
+          if (msg){ msg.style.display = "block"; msg.style.color = "#0a8a3f"; msg.textContent = "✓ Código " + RC_DISC.code + " aplicado — " + d.value + "% OFF"; }
         } else {
           RC_DISC = { code: "", pct: 0 };
           if (msg){ msg.style.display = "block"; msg.style.color = "#d33"; msg.textContent = "Código inválido o vencido."; }
@@ -1069,8 +1106,9 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
         method:"POST", headers:{"Content-Type":"application/json"}, keepalive:true,
         body: JSON.stringify({
           merchant_id: MERCHANT_ID, plan_id: plan.id, capture: true,
-          quantity: QTY, frequency_days: effFreqDays(),
+          quantity: QTY, frequency_days: effFreqDays(), shopify_variant_id: VARIANT || undefined,
           base_price: (BASE > 0 ? BASE : undefined), sub_discount: (SUB_OFF != null ? SUB_OFF : undefined),
+          rc_hp_9: val("rc-website"),
           fb: fbData(),
           customer: { email: email, name: name, phone: phone }
         })
@@ -1102,8 +1140,11 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({
         merchant_id: MERCHANT_ID, plan_id: plan.id, quantity: QTY, frequency_days: effFreqDays(),
+        shopify_variant_id: VARIANT || undefined,
         base_price: (BASE > 0 ? BASE : undefined), sub_discount: (SUB_OFF != null ? SUB_OFF : undefined),
         discount_code: (RC_DISC.code || undefined),
+        recovery_token: (RC_DISC.rc && RC_TOKEN) ? RC_TOKEN : undefined,
+        rc_hp_9: val("rc-website"),
         fb: fbData(),
         customer: { email: email, name: name, phone: phone, tax_id: val("rc-tax") },
         shipping_address: {
@@ -1135,6 +1176,8 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
       + '<div>'
         + '<div style="' + card + '"><h3 style="' + h + '">Contacto</h3>'
           + '<div style="margin-bottom:12px;"><label style="' + lbl + '">Email</label><input id="rc-email" type="email" style="' + inp + '" placeholder="tu@email.com"/>' + eslot("rc-email") + '</div>'
+          // Honeypot anti-bots: oculto, sin tab, sin autocompletar. Si viene lleno, el server lo ignora.
+          + '<div style="position:absolute;left:-9999px;top:-9999px;height:0;overflow:hidden;" aria-hidden="true"><input id="rc-website" name="rc_hp_9" type="text" tabindex="-1" autocomplete="off" style="display:none;"/></div>'
           + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;"><div><label style="' + lbl + '">Nombre</label><input id="rc-name" style="' + inp + '" placeholder="Juan"/>' + eslot("rc-name") + '</div><div><label style="' + lbl + '">Apellido</label><input id="rc-last" style="' + inp + '" placeholder="Pérez"/>' + eslot("rc-last") + '</div></div>'
           + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"><div><label style="' + lbl + '">Teléfono</label><input id="rc-phone" style="' + inp + '" placeholder="11 2345 6789"/>' + eslot("rc-phone") + '</div><div><label style="' + lbl + '">DNI / CUIL</label><input id="rc-tax" style="' + inp + '" placeholder="20123456789"/>' + eslot("rc-tax") + '</div></div>'
         + '</div>'
@@ -1147,7 +1190,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
         + '</div>'
         + '<div style="' + card + '"><h3 style="' + h + '">Envío</h3><div id="rc-rates"></div></div>'
         + '<div style="' + card + '"><h3 style="' + h + '">Pago</h3>'
-          + '<div style="font-size:13px;color:#555;margin-bottom:12px;">Vas a completar el pago de forma segura en <b>Mercado Pago</b>.</div>'
+          + '<div style="font-size:13px;color:#555;margin-bottom:12px;">Pagás con <b>Mercado Pago</b> (tarjeta de crédito, débito o dinero en cuenta según disponibilidad).</div>'
           + '<div style="display:flex;gap:8px;margin-bottom:8px;">'
             + '<input id="rc-disc" placeholder="Código de descuento" style="' + inp + 'text-transform:uppercase;"/>'
             + '<button id="rc-disc-btn" type="button" style="flex-shrink:0;padding:0 16px;font-size:13px;font-weight:700;color:' + COL + ';background:#fff;border:1.5px solid ' + COL + ';border-radius:9px;cursor:pointer;font-family:inherit;">Aplicar</button>'
@@ -1164,10 +1207,12 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
     document.getElementById("rc-pay").addEventListener("click", pagar);
     var _db = document.getElementById("rc-disc-btn"); if (_db) _db.addEventListener("click", applyDiscount);
     var _di = document.getElementById("rc-disc"); if (_di) _di.addEventListener("keydown", function(e){ if (e.key === "Enter") { e.preventDefault(); applyDiscount(); } });
-    // Cupón por URL (?code=VUELVO5): lo autocompleta y aplica solo — usado por los
-    // mails de carrito abandonado (pasos 2 y 3) para que llegue con el descuento puesto.
+    // Cupón por URL: ?rc=<token firmado> (mails de abandono nuevos) o ?code=X en
+    // claro (legacy). Lo autocompleta y aplica solo. Con rc también prellenamos el
+    // email del lead (el cupón sólo vale para ese email).
     try {
-      var _uc = new URLSearchParams(window.location.search).get("code");
+      if (RC_EMAIL) { var _em = document.getElementById("rc-email"); if (_em && !_em.value) _em.value = RC_EMAIL; }
+      var _uc = RC_DISC_RC_CODE || new URLSearchParams(window.location.search).get("code");
       if (_uc && _di) { _di.value = _uc.trim().toUpperCase(); applyDiscount(); }
     } catch (e) {}
     // Captura de lead: apenas el mail queda válido (blur) → registra el carrito.
@@ -1193,7 +1238,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color }) {
   // (ms después) y ahí se hidratan precios + envío. Antes esto esperaba el fetch
   // completo antes de dibujar nada → pantalla blanca de varios segundos en frío.
   render();
-  fetch(API_BASE + "/api/public?action=plan&merchant=" + encodeURIComponent(MERCHANT_ID) + "&product=" + encodeURIComponent(PRODUCT))
+  fetch(API_BASE + "/api/public?action=plan&merchant=" + encodeURIComponent(MERCHANT_ID) + "&product=" + encodeURIComponent(PRODUCT) + (VARIANT ? "&variant=" + encodeURIComponent(VARIANT) : ""))
     .then(function(r){ return r.json(); })
     .then(function(d){ if (!d || !d.plan) { mount.innerHTML = errBox("No encontramos una suscripción activa para este producto."); return; } plan = d.plan; renderRates(); renderSummary(); fireIC(); })
     .catch(function(){ mount.innerHTML = errBox("No pudimos cargar el plan. Revisá tu conexión."); });

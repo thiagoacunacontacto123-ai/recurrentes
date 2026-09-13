@@ -6,6 +6,7 @@
 //   DELETE → ?id=<planId>
 import { db, requireAuth } from "./_lib/firebase.js";
 import { mpCreatePreapprovalPlan } from "./_lib/mp.js";
+import { appBaseUrl } from "./_lib/config.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
@@ -29,6 +30,7 @@ export default async function handler(req, res) {
       // Nuevos: envío y descuentos por cantidad
       shipping_price_ars, free_shipping_from_ars, shipping_method_name,
       qty_discount_tiers, // [{ min_qty, discount_pct }]
+      allow_custom_frequency, max_pack_discount_pct,
     } = body;
     if (!shopify_product_id || !shopify_variant_id || !product_title)
       return res.status(400).json({ error: "Faltan datos del producto" });
@@ -41,15 +43,10 @@ export default async function handler(req, res) {
 
     const subscription_price_ars = Math.round(base_price_ars * (1 - (discount_pct || 0) / 100));
 
-    // Crear preapproval_plan en MP.
-    // MP exige back_url HTTPS obligatoria. En dev local usamos un placeholder
-    // HTTPS válido (recurrentes.app) — el dominio real cuando exista. MP no
-    // valida que el dominio resuelva, solo el formato.
-    const baseUrl = process.env.APP_BASE_URL || "";
-    const isLocalhost = baseUrl.startsWith("http://localhost") || baseUrl.startsWith("http://127.");
-    const backUrl = isLocalhost
-      ? "https://recurrentes.app/checkout-success"
-      : `${baseUrl}/#/checkout-success`;
+    // Crear preapproval_plan en MP. MP exige back_url HTTPS: sale de APP_BASE_URL.
+    const baseUrl = appBaseUrl();
+    if (!/^https:\/\//.test(baseUrl)) return res.status(500).json({ error: "APP_BASE_URL debe ser https para crear planes en MP" });
+    const backUrl = `${baseUrl}/#/checkout-success`;
     const planBody = {
       reason: `${product_title} — cada ${frequency_days} días`,
       auto_recurring: {
@@ -106,6 +103,9 @@ export default async function handler(req, res) {
       shipping_method_name: (shipping_method_name || "Envío a domicilio").trim().slice(0, 60),
       // Descuentos por cantidad
       qty_discount_tiers: tiers,
+      // El cliente puede elegir otra frecuencia (default no) / tope de descuento por pack.
+      allow_custom_frequency: allow_custom_frequency === true,
+      max_pack_discount_pct: clampPct(max_pack_discount_pct, 35),
       mp_preapproval_plan_id: mpPlan.id,
       active: true,
       created_at: new Date().toISOString(),
@@ -136,6 +136,8 @@ export default async function handler(req, res) {
     if (patch.free_shipping_from_ars != null) out.free_shipping_from_ars = num(patch.free_shipping_from_ars);
     if (patch.shipping_method_name != null) out.shipping_method_name = String(patch.shipping_method_name).trim().slice(0, 60) || "Envío a domicilio";
     if (patch.active != null) out.active = !!patch.active;
+    if (patch.allow_custom_frequency != null) out.allow_custom_frequency = patch.allow_custom_frequency === true;
+    if (patch.max_pack_discount_pct != null) out.max_pack_discount_pct = clampPct(patch.max_pack_discount_pct, 35);
     if (Array.isArray(patch.qty_discount_tiers)) {
       out.qty_discount_tiers = patch.qty_discount_tiers
         .map(t => ({ min_qty: Math.max(2, parseInt(t.min_qty) || 0), discount_pct: Math.max(0, Math.min(100, parseInt(t.discount_pct) || 0)) }))
@@ -150,7 +152,7 @@ export default async function handler(req, res) {
     }
     out.updated_at = new Date().toISOString();
     await ref.update(out);
-    return res.json({ ok: true, plan: { id, ...cur, ...out } });
+    return res.json({ ok: true, plan: { id, ...cur, ...out }, note: "Los cambios de precio no afectan suscripciones existentes; usá Repreciar." });
   }
 
   if (req.method === "DELETE") {
@@ -168,4 +170,10 @@ export default async function handler(req, res) {
   }
 
   return res.status(405).json({ error: "Method not allowed" });
+}
+
+// Entero 0-80 con default.
+function clampPct(v, def) {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) ? Math.max(0, Math.min(80, n)) : def;
 }

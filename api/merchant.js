@@ -2,15 +2,23 @@
 //
 //   GET    → doc del merchant logueado (con tokens enmascarados)
 //   PATCH  ?action=save-mp-token  body { access_token }
-//          → guarda el access_token de MP del merchant (modo paste, MVP).
+//          → guarda el access_token de MP del merchant (modo paste, manual).
 //            Valida contra /users/me antes de persistir; si el token no es
 //            legítimo tira 400 sin escribir nada.
-//
-// Antes el save-mp-token vivía en /api/mp/save-token.js — se consolidó acá
-// para entrar en el límite de 12 funciones del plan Hobby de Vercel.
+//   PATCH  ?action=save-widget-settings → apariencia del widget (todos los campos)
+//   PATCH  ?action=save-settings        → settings operativos (parcial: solo lo que viene)
+//   PATCH  ?action=save-discount-codes  → códigos de descuento
+//   POST   ?action=test-email           → mail de prueba (solo al dueño, 10/día)
+//   POST   ?action=mp-oauth-start       → { url } para conectar MP por OAuth
+//   POST   ?action=disconnect-mp | disconnect-shopify
+import { FieldValue } from "firebase-admin/firestore";
 import { db, requireAuth, getOrCreateMerchant } from "./_lib/firebase.js";
 import { mpMe } from "./_lib/mp.js";
 import { emailAbandonedCheckout } from "./_lib/email.js";
+import { logEmail } from "./_lib/emaillog.js";
+import { signToken } from "./_lib/token.js";
+import { appBaseUrl } from "./_lib/config.js";
+import { rateLimit } from "./_lib/ratelimit.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
@@ -29,9 +37,13 @@ export default async function handler(req, res) {
         shopify_shop: merchant.shopify_shop || null,
         shopify_token: merchant.shopify_token ? "•••••" : null,
         shopify_connected_at: merchant.shopify_connected_at || null,
+        shopify_has_own_app: !!(merchant.shopify_client_id && merchant.shopify_client_secret),
+        shopify_env_app: !!(process.env.SHOPIFY_API_KEY && process.env.SHOPIFY_API_SECRET),
         mp_user_id: merchant.mp_user_id || null,
         mp_access_token: merchant.mp_access_token ? "•••••" : null,
         mp_connected_at: merchant.mp_connected_at || null,
+        mp_method: merchant.mp_method || (merchant.mp_access_token ? "manual" : null),
+        mp_oauth_available: !!process.env.MP_APP_ID,
         // Meta CAPI: solo flags/pixel (nunca el token)
         meta_pixel_id: merchant.meta_pixel_id || null,
         meta_connected: !!(merchant.meta_pixel_id && merchant.meta_capi_token),
@@ -45,8 +57,22 @@ export default async function handler(req, res) {
         widget_once_title:    merchant.widget_once_title    || "Compra única",
         widget_once_subtitle: merchant.widget_once_subtitle || "Comprá una vez al precio normal.",
         widget_disclaimer_text: merchant.widget_disclaimer_text || "",   // vacío = usar default explicativo
+        widget_hide_selector: merchant.widget_hide_selector || "",
+        widget_checkout_flow: merchant.widget_checkout_flow || "redirect",
+        widget_checkout_page_path: merchant.widget_checkout_page_path || "",
         // Códigos de descuento del merchant (para el checkout de suscripción)
         discount_codes: Array.isArray(merchant.discount_codes) ? merchant.discount_codes : [],
+        // Settings operativos (mails, abandono, envíos del checkout)
+        abandoned_enabled: merchant.abandoned_enabled === true,
+        abandoned_coupons: merchant.abandoned_coupons || null,
+        email_from: merchant.email_from || "",
+        email_brand: merchant.email_brand || "",
+        email_reply_to: merchant.email_reply_to || "",
+        email_accent: merchant.email_accent || "",
+        checkout_shipping_rates: Array.isArray(merchant.checkout_shipping_rates) ? merchant.checkout_shipping_rates : [],
+        store_domain: merchant.store_domain || "",
+        dev_mode: merchant.dev_mode === true,
+        requires_email_verification: merchant.requires_email_verification === true,
       };
       return res.json({ merchant: safe });
     } catch (e) {
@@ -58,14 +84,42 @@ export default async function handler(req, res) {
     const action = String(req.query.action || "");
     if (action === "save-mp-token")        return saveMpToken(uid, req, res);
     if (action === "save-widget-settings") return saveWidgetSettings(uid, req, res);
+    if (action === "save-settings")        return saveSettings(uid, req, res);
     if (action === "save-meta")            return saveMeta(uid, req, res);
     if (action === "save-discount-codes")  return saveDiscountCodes(uid, req, res);
     if (action === "test-email")           return testEmail(uid, req, res);
     if (action === "backfill-email-log")   return backfillEmailLog(uid, req, res);
+    if (action === "mp-oauth-start")       return mpOauthStart(uid, req, res);
+    if (action === "disconnect-mp")        return disconnect(uid, "mp", res);
+    if (action === "disconnect-shopify")   return disconnect(uid, "shopify", res);
     return res.status(400).json({ error: "action no reconocida" });
   }
 
   return res.status(405).json({ error: "Method not allowed" });
+}
+
+// ─── OAuth MP: arma la URL de autorización. El callback vive en /api/mp/oauth-callback.
+async function mpOauthStart(uid, req, res) {
+  const appId = process.env.MP_APP_ID;
+  if (!appId) return res.status(400).json({ error: "OAuth MP no configurado" });
+  const redirect = process.env.MP_REDIRECT_URI || `${appBaseUrl()}/api/mp/oauth-callback`;
+  const state = signToken({ uid }, 600);
+  const url = `https://auth.mercadopago.com.ar/authorization?client_id=${encodeURIComponent(appId)}&response_type=code&platform_id=mp&state=${encodeURIComponent(state)}&redirect_uri=${encodeURIComponent(redirect)}`;
+  return res.json({ url });
+}
+
+// ─── Desconectar: borra tokens y marca la fecha. Las subs siguen en MP.
+async function disconnect(uid, which, res) {
+  const now = new Date().toISOString();
+  const patch = which === "mp"
+    ? { mp_access_token: FieldValue.delete(), mp_refresh_token: FieldValue.delete(), mp_token_expires_at: FieldValue.delete(), mp_public_key: FieldValue.delete(), mp_disconnected_at: now }
+    : { shopify_token: FieldValue.delete(), shopify_scope: FieldValue.delete(), shopify_disconnected_at: now };
+  try {
+    await db().collection("merchants").doc(uid).set(patch, { merge: true });
+    return res.json({ ok: true });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
 }
 
 async function saveMeta(uid, req, res) {
@@ -126,6 +180,92 @@ async function saveWidgetSettings(uid, req, res) {
   }
 }
 
+const EMAIL_RE = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
+// "Nombre <mail@dominio>"
+const FROM_RE = /^[^<>]{1,60}<([^\s@<>]+@[^\s@<>]+\.[^\s@<>]+)>$/;
+const normHost = (v) => String(v || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/:\d+$/, "");
+
+// ─── Settings operativos. PARCIAL: solo escribe las claves que vienen en el
+// body, así el front puede guardar una sección sin pisar las demás.
+async function saveSettings(uid, req, res) {
+  const b = req.body || {};
+  const out = {};
+  const bad = (msg) => res.status(400).json({ error: msg });
+
+  if ("abandoned_enabled" in b) out.abandoned_enabled = b.abandoned_enabled === true;
+  if ("dev_mode" in b) out.dev_mode = b.dev_mode === true;
+
+  if ("abandoned_coupons" in b) {
+    if (b.abandoned_coupons == null) out.abandoned_coupons = null;
+    else {
+      const codes = (await getOrCreateMerchant(uid, null)).discount_codes || [];
+      const byCode = Object.fromEntries(codes.map(c => [String(c.code || "").toUpperCase(), c]));
+      const clean = {};
+      for (const step of ["step2", "step3"]) {
+        const c = b.abandoned_coupons[step];
+        if (!c || !String(c.code || "").trim()) { clean[step] = null; continue; }
+        const code = String(c.code).trim().toUpperCase().slice(0, 40);
+        const hit = byCode[code];
+        if (!hit) return bad(`El código ${code} no existe en tus códigos de descuento`);
+        const pct = Number.isFinite(Number(c.pct)) ? Math.max(0, Math.min(100, parseInt(c.pct, 10) || 0)) : (hit.type === "percent" ? hit.value : 0);
+        clean[step] = { code, pct };
+      }
+      out.abandoned_coupons = clean;
+    }
+  }
+
+  if ("email_from" in b) {
+    const v = String(b.email_from || "").trim();
+    if (v && !FROM_RE.test(v)) return bad("email_from debe tener formato: Nombre <mail@dominio>");
+    out.email_from = v.slice(0, 120);
+  }
+  if ("email_brand" in b) out.email_brand = String(b.email_brand || "").trim().slice(0, 40);
+  if ("email_reply_to" in b) {
+    const v = String(b.email_reply_to || "").trim().toLowerCase();
+    if (v && !EMAIL_RE.test(v)) return bad("email_reply_to inválido");
+    out.email_reply_to = v.slice(0, 120);
+  }
+  if ("email_accent" in b) {
+    const v = String(b.email_accent || "").trim();
+    if (v && !/^#[0-9a-fA-F]{6}$/.test(v)) return bad("email_accent debe ser #RRGGBB");
+    out.email_accent = v;
+  }
+  if ("checkout_shipping_rates" in b) {
+    if (!Array.isArray(b.checkout_shipping_rates)) return bad("checkout_shipping_rates debe ser un array");
+    if (b.checkout_shipping_rates.length > 6) return bad("Máximo 6 tarifas de envío");
+    const rates = [];
+    for (const r of b.checkout_shipping_rates) {
+      const name = String(r?.name || "").trim().slice(0, 250);
+      const price = parseInt(r?.price, 10);
+      if (!name) return bad("Cada tarifa necesita nombre");
+      if (!Number.isInteger(price) || price < 0) return bad(`Precio inválido en "${name}" (entero ≥ 0)`);
+      const code = String(r?.code || "").trim().slice(0, 50);
+      rates.push({ name, price, ...(code ? { code } : {}) });
+    }
+    out.checkout_shipping_rates = rates;
+  }
+  if ("store_domain" in b) {
+    const v = normHost(b.store_domain);
+    if (v && !/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(v)) return bad("store_domain debe ser un host (ej: www.mitienda.com)");
+    out.store_domain = v;
+  }
+  if ("widget_hide_selector" in b) out.widget_hide_selector = String(b.widget_hide_selector || "").trim().slice(0, 300);
+  if ("widget_checkout_flow" in b) out.widget_checkout_flow = b.widget_checkout_flow === "inline" ? "inline" : "redirect";
+  if ("widget_checkout_page_path" in b) {
+    const v = String(b.widget_checkout_page_path || "").trim().slice(0, 120);
+    if (v && !v.startsWith("/")) return bad("widget_checkout_page_path debe empezar con /");
+    out.widget_checkout_page_path = v;
+  }
+
+  if (!Object.keys(out).length) return bad("Nada para guardar");
+  try {
+    await db().collection("merchants").doc(uid).set({ ...out, updated_at: new Date().toISOString() }, { merge: true });
+    return res.json({ ok: true, ...out });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
 async function backfillEmailLog(uid, req, res) {
   // Reconstrucción ONE-TIME del historial de mails en email_log a partir de datos
   // reales, para que la tab Actividad no arranque vacía:
@@ -135,10 +275,12 @@ async function backfillEmailLog(uid, req, res) {
   try {
     const mRef = db().collection("merchants").doc(uid);
     const col = mRef.collection("email_log");
-    const [subsSnap, logSnap] = await Promise.all([
+    const [mSnap, subsSnap, logSnap] = await Promise.all([
+      mRef.get(),
       mRef.collection("subscribers").get(),
       col.get(),
     ]);
+    const m = mSnap.data() || {};
     // Idempotente: borrar la corrida de backfill previa (backfilled:true) y NO
     // pisar mails reales logueados por el sistema (subscriber ya con log real).
     const realActivation = new Set(), realAbandoned = new Set();
@@ -161,7 +303,8 @@ async function backfillEmailLog(uid, req, res) {
       return res.json({ ok: true, cleared: toDelete.length });
     }
 
-    const COUPON = { 2: "VUELVO5", 3: "ULTIMACHANCE15" };
+    // Cupones por paso: los configurados por el merchant (si no, sin cupón).
+    const COUPON = { 2: m.abandoned_coupons?.step2?.code || null, 3: m.abandoned_coupons?.step3?.code || null };
     const batchWrites = [];
     let activation = 0, abandoned = 0;
     for (const doc of subsSnap.docs) {
@@ -207,40 +350,67 @@ async function backfillEmailLog(uid, req, res) {
 }
 
 async function testEmail(uid, req, res) {
-  // Envía el mail de carrito abandonado de PRUEBA a una dirección, para verificar
-  // que Resend + el remitente + la marca quedaron bien antes de mandarlo a clientes.
-  const to = String(req.body?.to || "").trim();
-  if (!to) return res.status(400).json({ error: "Falta 'to'" });
-  const step = Math.min(3, Math.max(1, parseInt(req.body?.step, 10) || 1));
-  const COUPONS = { 1: { code: null, pct: 0 }, 2: { code: "VUELVO5", pct: 5 }, 3: { code: "ULTIMACHANCE15", pct: 15 } };
-  const cp = COUPONS[step];
+  // Envía el mail de carrito abandonado de PRUEBA para verificar que Resend +
+  // el remitente + la marca quedaron bien antes de mandarlo a clientes.
+  // Solo al mail del merchant o a un mail del dominio de email_from; 10/día.
+  const to = String(req.body?.to || "").trim().toLowerCase();
+  if (!to || !EMAIL_RE.test(to)) return res.status(400).json({ error: "Falta 'to' (email válido)" });
   const merchant = await getOrCreateMerchant(uid, null);
-  const brand = merchant?.email_brand || (process.env.EMAIL_FROM || "").split("<")[0].trim().replace(/^["']|["']$/g, "") || "";
-  let recoverUrl = "https://www.luminalabs-arg.com/pages/suscripcion-form";
-  if (cp.code) recoverUrl += "?code=" + encodeURIComponent(cp.code);
+  const fromDomain = ((merchant.email_from || "").match(/@([^>\s]+)>?$/) || [])[1]?.toLowerCase() || "";
+  const ownerEmail = String(merchant.email || "").toLowerCase();
+  const toDomain = to.split("@")[1] || "";
+  if (to !== ownerEmail && !(fromDomain && toDomain === fromDomain)) {
+    return res.status(400).json({ error: "El mail de prueba solo puede ir a tu email de cuenta o a una casilla del dominio de tu remitente" });
+  }
+  const rl = await rateLimit(`testmail:${uid}`, { limit: 10, windowSec: 86400 });
+  if (!rl.ok) return res.status(429).json({ error: "Tope de 10 mails de prueba por día alcanzado" });
+
+  const step = Math.min(3, Math.max(1, parseInt(req.body?.step, 10) || 1));
+  const cfg = merchant.abandoned_coupons || {};
+  const COUPONS = { 1: { code: null, pct: 0 }, 2: cfg.step2 || { code: null, pct: 0 }, 3: cfg.step3 || { code: null, pct: 0 } };
+  const cp = COUPONS[step];
+  const brand = merchant.email_brand || (process.env.EMAIL_FROM || "").split("<")[0].trim().replace(/^["']|["']$/g, "") || "";
+
+  // Datos reales del merchant: primer plan activo + dominio de la tienda.
+  let productTitle = "Tu producto", amount = 0;
+  try {
+    const plansSnap = await db().collection("merchants").doc(uid).collection("plans").where("active", "==", true).limit(1).get();
+    if (!plansSnap.empty) {
+      const p = plansSnap.docs[0].data();
+      productTitle = p.product_title || productTitle;
+      amount = p.subscription_price_ars || 0;
+    }
+  } catch (_) {}
+  const host = merchant.store_domain || merchant.shopify_shop || "";
+  const path = String(merchant.widget_checkout_page_path || "/pages/suscripcion-form").trim();
+  let recoverUrl = host ? `https://${host}${path}` : `${appBaseUrl()}/#/dashboard`;
+  if (cp.code) recoverUrl += (recoverUrl.includes("?") ? "&" : "?") + "code=" + encodeURIComponent(cp.code);
   // name opcional: si mandan name:"" se ve el saludo sin nombre ("¡Hola! 👋").
   const customerName = req.body?.name !== undefined ? String(req.body.name) : "Nombre de prueba";
   const r = await emailAbandonedCheckout({
     to,
     customerName,
-    productTitle: "Cápsulas LuminaLabs",
-    amount: 50992,
+    productTitle,
+    amount,
     recoverUrl,
     brand,
-    accent: merchant?.widget_color || "",
-    from: merchant?.email_from || undefined,
+    accent: merchant.email_accent || merchant.widget_color || "",
+    from: merchant.email_from || undefined,
     step,
     couponCode: cp.code,
     couponPct: cp.pct,
   });
+  await logEmail(uid, { type: "abandoned", to, customer_name: customerName, product_title: productTitle, step, coupon: cp.code, status: r?.error ? "error" : (r?.skipped ? "skipped" : "sent"), error: r?.error || null, test: true });
   if (r?.skipped) return res.status(400).json({ error: "RESEND_API_KEY no configurada (o no tomó el redeploy todavía)" });
   if (r?.error) return res.status(502).json({ error: r.error });
-  return res.json({ ok: true, id: r.id, step, coupon: cp.code, from: merchant?.email_from || process.env.EMAIL_FROM || null, brand });
+  return res.json({ ok: true, id: r.id, step, coupon: cp.code, from: merchant.email_from || process.env.EMAIL_FROM || null, brand, remaining: rl.remaining });
 }
 
 async function saveDiscountCodes(uid, req, res) {
   // Guarda los códigos de descuento del merchant para el checkout de suscripción.
-  // Formato: [{ code, type:"percent"|"fixed", value, active }]. Se sanitiza todo.
+  // Formato: [{ code, type:"percent"|"fixed", value, active, recovery_only?, first_charge_only? }].
+  //   recovery_only     → solo aplica con token de recupero (mail de abandono).
+  //   first_charge_only → descuenta solo el primer cobro; las renovaciones van a precio pleno.
   const { discount_codes } = req.body || {};
   const arr = Array.isArray(discount_codes) ? discount_codes : [];
   const clean = arr.map(c => ({
@@ -248,6 +418,8 @@ async function saveDiscountCodes(uid, req, res) {
     type: c.type === "fixed" ? "fixed" : "percent",
     value: Math.max(0, parseFloat(c.value) || 0),
     active: c.active !== false,
+    recovery_only: c.recovery_only === true,
+    first_charge_only: c.first_charge_only === true,
   })).filter(c => c.code && c.value > 0).slice(0, 100);
   try {
     await db().collection("merchants").doc(uid).set({
@@ -260,6 +432,7 @@ async function saveDiscountCodes(uid, req, res) {
   }
 }
 
+// Modo manual (pegar token). Sigue vigente además del OAuth.
 async function saveMpToken(uid, req, res) {
   const { access_token } = req.body || {};
   if (!access_token?.trim()) return res.status(400).json({ error: "Falta access_token" });
@@ -278,6 +451,8 @@ async function saveMpToken(uid, req, res) {
       mp_email: me.email || null,
       mp_country: me.country_id || null,
       mp_connected_at: new Date().toISOString(),
+      mp_method: "manual",
+      mp_disconnected_at: null,
     }, { merge: true });
     return res.json({ ok: true, mp_user_id: me.id, email: me.email });
   } catch (e) {

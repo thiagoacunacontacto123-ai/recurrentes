@@ -4,14 +4,15 @@ import React, { useEffect, useState } from "react";
 // link que le mandamos por email después de activar la sub:
 //   https://recurrentes.app/#/portal?token=<JWT>
 //
-// El JWT está firmado HMAC con MP_WEBHOOK_SECRET y contiene { mid, sid, exp }.
-// El backend lo valida en cada llamada — acá solo lo reenviamos en cada request.
+// El JWT está firmado HMAC y contiene { mid, sid, exp }. El backend lo valida
+// en cada llamada — acá solo lo reenviamos en cada request.
 export default function Portal() {
   const [token, setToken] = useState(null);
-  const [data, setData] = useState(null);   // { sub, charges }
+  const [data, setData] = useState(null);   // { sub, charges, merchant_brand? }
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [busyAction, setBusyAction] = useState(null);
+  const [editingAddr, setEditingAddr] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.split("?")[1] || window.location.search.slice(1));
@@ -25,8 +26,8 @@ export default function Portal() {
     load(t);
   }, []);
 
-  async function load(t) {
-    setLoading(true);
+  async function load(t, silent = false) {
+    if (!silent) setLoading(true);
     setErr("");
     try {
       const r = await fetch(`/api/public?action=sub&token=${encodeURIComponent(t)}`);
@@ -62,7 +63,9 @@ export default function Portal() {
       if (d.error) {
         alert("Error: " + d.error);
       } else {
-        await load(token);
+        // Aplicamos el próximo cobro que devuelve MP y recargamos el resto.
+        if (d.next_charge_at !== undefined) setData(prev => prev ? { ...prev, sub: { ...prev.sub, next_charge_at: d.next_charge_at, status: d.status || prev.sub.status } } : prev);
+        await load(token, true);
       }
     } catch (e) {
       alert("Error: " + e.message);
@@ -88,6 +91,7 @@ export default function Portal() {
   if (!data?.sub) return null;
 
   const { sub, charges } = data;
+  const brand = data.merchant_brand || sub.merchant_brand || "";
   const status = sub.status || "unknown";
   const statusMeta = {
     active:        { label:"Activa",     color:"var(--accent)",     bg:"rgba(16,185,129,0.15)" },
@@ -103,10 +107,13 @@ export default function Portal() {
   return (
     <div style={{minHeight:"100vh",background:"linear-gradient(180deg, var(--bg) 0%, #0d1311 100%)",padding:"32px 20px"}}>
       <div style={{maxWidth:680,margin:"0 auto"}}>
-        {/* Header */}
+        {/* Header: marca de la tienda si la tenemos, si no Recurrentes */}
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:22}}>
           <div style={{width:34,height:34,borderRadius:8,background:"linear-gradient(135deg, var(--green), var(--green-dark))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,boxShadow:"0 2px 8px rgba(16,185,129,0.3)"}}>🔁</div>
-          <span style={{fontWeight:800,fontSize:18,letterSpacing:-0.3}}>Recurrentes</span>
+          <div>
+            <div style={{fontWeight:800,fontSize:18,letterSpacing:-0.3}}>{brand || "Recurrentes"}</div>
+            {brand && <div style={{fontSize:10,color:"var(--text-sm)"}}>Suscripciones con Recurrentes</div>}
+          </div>
         </div>
 
         {/* Card principal — estado + plan */}
@@ -126,17 +133,27 @@ export default function Portal() {
             <Stat label="Total por cobro" value={`$${(plan.total_per_charge_ars||plan.subscription_price_ars||0).toLocaleString("es-AR")}`}/>
             <Stat label="Frecuencia" value={`cada ${plan.frequency_days||"-"} días`}/>
             <Stat label="Paquetes por envío" value={sub.quantity || plan.units_per_shipment || 1}/>
-            {formattedNext && <Stat label="Próximo cobro" value={formattedNext}/>}
+            {formattedNext && status !== "cancelled" && <Stat label={status === "paused" ? "Próximo cobro (al reactivar)" : "Próximo cobro"} value={formattedNext}/>}
           </div>
 
           {/* Dirección */}
-          {sub.shipping_address && (
-            <div style={{padding:"12px 14px",background:"var(--surface)",borderRadius:10,fontSize:12,color:"var(--text-md)",lineHeight:1.55,marginBottom:18}}>
-              <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5,marginBottom:5}}>Dirección de envío</div>
-              <div>{sub.shipping_address.address1}{sub.shipping_address.address2?", "+sub.shipping_address.address2:""}</div>
-              <div>{sub.shipping_address.city}{sub.shipping_address.zip?" — CP "+sub.shipping_address.zip:""}</div>
+          <div style={{padding:"12px 14px",background:"var(--surface)",borderRadius:10,fontSize:12,color:"var(--text-md)",lineHeight:1.55,marginBottom:18}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+              <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5}}>Dirección de envío</div>
+              {status !== "cancelled" && (
+                <button onClick={()=>setEditingAddr(v=>!v)} style={{...btnSecondary,padding:"4px 10px",fontSize:11}}>{editingAddr ? "Cerrar" : "✏️ Cambiar"}</button>
+              )}
             </div>
-          )}
+            {sub.shipping_address?.address1 ? (
+              <>
+                <div>{sub.shipping_address.address1}{sub.shipping_address.address2?", "+sub.shipping_address.address2:""}</div>
+                <div>{sub.shipping_address.city}{sub.shipping_address.province?", "+sub.shipping_address.province:""}{sub.shipping_address.zip?" — CP "+sub.shipping_address.zip:""}</div>
+              </>
+            ) : <div style={{color:"var(--yellow)"}}>Todavía no tenemos tu dirección — cargala para recibir tus envíos.</div>}
+            {editingAddr && (
+              <AddressForm sub={sub} token={token} onSaved={async()=>{ setEditingAddr(false); await load(token, true); }}/>
+            )}
+          </div>
 
           {/* Acciones */}
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
@@ -189,6 +206,56 @@ export default function Portal() {
   );
 }
 
+// Cambiar dirección de envío — POST public?action=update-address (token en query + body).
+function AddressForm({ sub, token, onSaved }) {
+  const a = sub.shipping_address || {};
+  const [f, setF] = useState({ address1: a.address1 || "", address2: a.address2 || "", city: a.city || "", province: a.province || "", zip: a.zip || "", phone: a.phone || sub.customer_phone || "" });
+  const [saving, setSaving] = useState(false);
+  const set = (k) => (e) => setF(prev => ({ ...prev, [k]: e.target.value }));
+
+  async function save() {
+    if (!f.address1.trim()) return alert("Falta la dirección (calle y número)");
+    if (!f.city.trim()) return alert("Falta la ciudad");
+    if (!f.province) return alert("Falta la provincia");
+    if (!f.zip.trim()) return alert("Falta el código postal");
+    if (!f.phone.trim()) return alert("Falta el teléfono");
+    setSaving(true);
+    try {
+      const r = await fetch(`/api/public?action=update-address&token=${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // Shape que espera public.js: { shipping_address:{...}, customer_phone }.
+        body: JSON.stringify({ token, shipping_address: { address1: f.address1, address2: f.address2, city: f.city, province: f.province, zip: f.zip }, customer_phone: f.phone }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || d.error) { alert("Error: " + (d.error || `HTTP ${r.status}`)); return; }
+      alert("✓ Dirección actualizada. Se usa en tus próximos envíos.");
+      onSaved?.();
+    } catch (e) {
+      alert("Error: " + e.message);
+    } finally { setSaving(false); }
+  }
+
+  return (
+    <div style={{marginTop:12,display:"grid",gap:8}}>
+      <input value={f.address1} onChange={set("address1")} placeholder="Calle y número *" style={inp}/>
+      <input value={f.address2} onChange={set("address2")} placeholder="Piso / depto (opcional)" style={inp}/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+        <input value={f.city} onChange={set("city")} placeholder="Ciudad *" style={inp}/>
+        <input value={f.zip} onChange={set("zip")} placeholder="Código postal *" style={inp}/>
+      </div>
+      <select value={f.province} onChange={set("province")} style={inp}>
+        <option value="">Provincia *</option>
+        {PROVINCIAS.map(p => <option key={p} value={p}>{p}</option>)}
+      </select>
+      <input value={f.phone} onChange={set("phone")} placeholder="Teléfono *" style={inp}/>
+      <button onClick={save} disabled={saving} style={{...btnPrimary,opacity:saving?0.6:1}}>{saving ? "Guardando…" : "Guardar dirección"}</button>
+    </div>
+  );
+}
+
+const PROVINCIAS = ["Buenos Aires","Ciudad Autónoma de Buenos Aires","Catamarca","Chaco","Chubut","Córdoba","Corrientes","Entre Ríos","Formosa","Jujuy","La Pampa","La Rioja","Mendoza","Misiones","Neuquén","Río Negro","Salta","San Juan","San Luis","Santa Cruz","Santa Fe","Santiago del Estero","Tierra del Fuego","Tucumán"];
+
 function Stat({ label, value }) {
   return (
     <div>
@@ -206,6 +273,8 @@ function FullScreenCenter({ children }) {
   );
 }
 
+// 16px: evita el zoom automático de iOS al enfocar inputs.
+const inp = { width:"100%", background:"var(--card)", border:"1px solid var(--border)", color:"var(--text)", borderRadius:8, padding:"10px 12px", fontSize:16, outline:"none", fontFamily:"inherit", boxSizing:"border-box" };
 const btnBase = {
   border: "none", padding: "9px 16px", borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
 };

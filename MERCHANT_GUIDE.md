@@ -45,6 +45,8 @@ Vas a ver dos campos:
 
 Entrá a tu dashboard de Recurrentes → tab **Integraciones** → click **"Pegar Access Token"** → pegás el `TEST-...` → Guardar.
 
+> Alternativa más simple: si está habilitado, el botón **"Conectar Mercado Pago (OAuth)"** te lleva a MP para autorizar a Recurrentes sin copiar nada.
+
 Listo. Recurrentes valida el token contra MP y queda conectado.
 
 ### 5. Cuando estés listo para cobrar real (producción)
@@ -60,7 +62,7 @@ Cuando termines de testear con MP TEST y quieras procesar pagos reales:
 ## Preguntas frecuentes
 
 **¿Recurrentes puede ver mi clave?**  
-Sí — el Access Token se guarda encriptado en nuestra base de datos para poder hacer llamadas a MP en tu nombre. **Es como darle la llave del banco al contador**: necesario para que opere, pero la cuidamos al máximo. Si en algún momento querés revocarlo, podés regenerar el token desde MP y dejaríamos de tener acceso.
+Sí — el Access Token se guarda en nuestra base con acceso restringido (solo lo usan los procesos del servidor para llamar a MP en tu nombre). **Es como darle la llave del banco al contador**: necesario para que opere, pero la cuidamos al máximo. Podés desconectar cuando quieras desde Integraciones → "Desconectar" (borra el token de nuestra base) y, si querés, además regenerarlo desde MP.
 
 **¿Si cancelo mi cuenta de Recurrentes, qué pasa con mis suscripciones activas?**  
 Las suscripciones siguen funcionando en MP (los cobros recurrentes los procesa MP, no nosotros). Pero ya no se van a generar órdenes en Shopify automáticamente. Te recomendamos pausar las subs antes de irte.

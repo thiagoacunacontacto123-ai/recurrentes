@@ -1,19 +1,39 @@
 import React, { useState, useEffect } from "react";
 import { apiGet, apiPost, apiPatch, apiDelete, apiSend } from "../lib/api.js";
+import { auth } from "../lib/firebase.js";
+import { sendEmailVerification } from "firebase/auth";
 
 // Dashboard del comerciante — Integraciones, Planes, Suscriptores, Cobros.
 export default function Dashboard({ user, onLogout }) {
   const [tab, setTab] = useState("inicio");
   const [merchant, setMerchant] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [unverified, setUnverified] = useState(false);
 
   async function reloadMerchant() {
     const d = await apiGet("merchant");
+    // Cuenta nueva sin verificar el mail → el backend responde 403 email_unverified.
+    if (d?.code === "email_unverified") { setUnverified(true); setLoading(false); return; }
+    setUnverified(false);
     setMerchant(d?.merchant || null);
     setLoading(false);
   }
 
   useEffect(() => { reloadMerchant(); }, []);
+
+  // Volvimos de OAuth (MP: ?mp=ok|error · Shopify: ?shopify_ok=1) → aviso + limpiar URL.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.hash.split("?")[1] || window.location.search.slice(1));
+    const mp = q.get("mp");
+    const shopifyOk = q.get("shopify_ok");
+    if (!mp && !shopifyOk) return;
+    if (mp === "ok") alert("✓ Mercado Pago conectado.");
+    else if (mp === "error") alert("No se pudo conectar Mercado Pago: " + (q.get("msg") || "error desconocido"));
+    else if (shopifyOk) alert("✓ Shopify conectado.");
+    window.history.replaceState(null, "", window.location.pathname + "#/dashboard");
+    setTab("integraciones");
+    reloadMerchant();
+  }, []);
 
   // Si volvimos de OAuth Shopify (callback nos puso ?shopify_pending=<state>),
   // reclamamos el token para asociarlo al uid actual y limpiamos la URL.
@@ -32,6 +52,8 @@ export default function Dashboard({ user, onLogout }) {
   }, []);
 
   const integrationsReady = Boolean(merchant?.shopify_token && merchant?.mp_access_token);
+
+  if (unverified) return <VerifyEmailScreen user={user} onLogout={onLogout} onRetry={reloadMerchant}/>;
 
   return (
     <div style={{minHeight:"100vh",display:"flex",background:"var(--bg)"}}>
@@ -75,11 +97,11 @@ export default function Dashboard({ user, onLogout }) {
             : <NeedsIntegrations title="Planes" onGo={()=>setTab("integraciones")}/>
         ) : tab === "suscriptores" ? (
           integrationsReady
-            ? <SubscribersTab mode="active"/>
+            ? <SubscribersTab mode="active" devMode={merchant?.dev_mode === true}/>
             : <NeedsIntegrations title="Suscriptores activos" onGo={()=>setTab("integraciones")}/>
         ) : tab === "carritos" ? (
           integrationsReady
-            ? <SubscribersTab mode="carts"/>
+            ? <SubscribersTab mode="carts" devMode={merchant?.dev_mode === true}/>
             : <NeedsIntegrations title="Carritos de suscripción" onGo={()=>setTab("integraciones")}/>
         ) : tab === "abandonados" ? (
           integrationsReady
@@ -307,14 +329,18 @@ function IntegrationsTab({ merchant, onChange }) {
   const [shopifyBusy, setShopifyBusy] = useState(false);
   const [shopifyGuide, setShopifyGuide] = useState(false);
 
+  // Con app única de Recurrentes (SHOPIFY_API_KEY en env) no hace falta app propia.
+  const envApp = Boolean(merchant?.shopify_env_app);
+  const shopifyFormOk = shopifyShop.trim() && (envApp || (shopifyClientId.trim() && shopifyClientSecret.trim()));
+
   async function connectShopify() {
     const shop = shopifyShop.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
     if (!shop || !shop.endsWith(".myshopify.com")) {
       alert("Ingresá el dominio .myshopify.com (ej: mitienda.myshopify.com)");
       return;
     }
-    if (!shopifyClientId.trim()) { alert("Pegá el Client ID (ID de cliente)"); return; }
-    if (!shopifyClientSecret.trim()) { alert("Pegá el Client Secret (Secreto)"); return; }
+    if (!envApp && !shopifyClientId.trim()) { alert("Pegá el Client ID (ID de cliente)"); return; }
+    if (!envApp && !shopifyClientSecret.trim()) { alert("Pegá el Client Secret (Secreto)"); return; }
     setShopifyBusy(true);
     // 1) Guardamos las creds del merchant en Firestore
     const d = await apiPost("shopify", { shop, client_id: shopifyClientId.trim(), client_secret: shopifyClientSecret.trim() }, { action: "save-creds" });
@@ -323,10 +349,28 @@ function IntegrationsTab({ merchant, onChange }) {
       alert("Error: " + d.error);
       return;
     }
-    // 2) Redirigimos al OAuth start con el uid del user (Shopify pide consent)
-    const uid = (await import("../lib/firebase.js")).auth.currentUser?.uid;
-    if (!uid) { setShopifyBusy(false); alert("Sesión expirada, recargá la página"); return; }
-    window.location.href = `/api/shopify?action=oauth-start&uid=${encodeURIComponent(uid)}`;
+    // 2) oauth-start (autenticado) devuelve la URL de consent de Shopify.
+    const o = await apiGet("shopify", { action: "oauth-start" });
+    if (!o?.url) { setShopifyBusy(false); alert("Error: " + (o?.error || "no se pudo iniciar OAuth")); return; }
+    window.location.href = o.url;
+  }
+
+  async function disconnectShopify() {
+    if (!window.confirm("¿Desconectar Shopify? Se borra el token de acceso; las suscripciones siguen en MP pero no se van a generar órdenes hasta reconectar.")) return;
+    const d = await apiPost("merchant", {}, { action: "disconnect-shopify" });
+    if (d?.error) alert("Error: " + d.error); else onChange?.();
+  }
+
+  async function connectMPOauth() {
+    const d = await apiPost("merchant", {}, { action: "mp-oauth-start" });
+    if (d?.url) window.location.href = d.url;
+    else alert("Error: " + (d?.error || "OAuth MP no disponible"));
+  }
+
+  async function disconnectMP() {
+    if (!window.confirm("¿Desconectar Mercado Pago? Se borra el token de nuestra base. Las suscripciones siguen cobrándose en MP, pero no vamos a poder procesarlas hasta reconectar.")) return;
+    const d = await apiPost("merchant", {}, { action: "disconnect-mp" });
+    if (d?.error) alert("Error: " + d.error); else onChange?.();
   }
 
   async function connectMP() {
@@ -378,9 +422,12 @@ function IntegrationsTab({ merchant, onChange }) {
           </div>
 
           {shopifyOk ? (
-            <button onClick={()=>{setShopifyShop("");setShopifyClientId("");setShopifyClientSecret("");onChange?.();}} style={{background:"transparent",border:"1px solid var(--border)",color:"var(--text-md)",padding:"9px 16px",borderRadius:9,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
-              Reconectar otra tienda
-            </button>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <button onClick={()=>{setShopifyShop("");setShopifyClientId("");setShopifyClientSecret("");onChange?.();}} style={{background:"transparent",border:"1px solid var(--border)",color:"var(--text-md)",padding:"9px 16px",borderRadius:9,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+                Reconectar
+              </button>
+              <button onClick={disconnectShopify} style={{background:"transparent",border:"1px solid var(--border)",color:"var(--text-sm)",padding:"9px 16px",borderRadius:9,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Desconectar</button>
+            </div>
           ) : (
             <>
               <label style={lblSmall}>Dominio Shopify</label>
@@ -388,7 +435,8 @@ function IntegrationsTab({ merchant, onChange }) {
                 placeholder="mitienda.myshopify.com"
                 style={{width:"100%",background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",borderRadius:9,padding:"9px 12px",fontSize:13,marginBottom:10,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
 
-              <label style={lblSmall}>Client ID <span style={{color:"var(--text-sm)",fontWeight:400}}>(ID de cliente)</span></label>
+              {envApp && <div style={{fontSize:11,color:"var(--text-sm)",marginBottom:10,lineHeight:1.5}}>Recurrentes ya tiene su app de Shopify: con el dominio alcanza. Client ID/Secret son opcionales (solo si querés usar una app propia).</div>}
+              <label style={lblSmall}>Client ID <span style={{color:"var(--text-sm)",fontWeight:400}}>(ID de cliente{envApp ? ", opcional" : ""})</span></label>
               <input value={shopifyClientId} onChange={e=>setShopifyClientId(e.target.value)}
                 placeholder="b4ca9a62b9e9bf0bd79deba391333d22"
                 style={{width:"100%",background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",borderRadius:9,padding:"9px 12px",fontSize:12,marginBottom:10,outline:"none",fontFamily:"'Cascadia Code',monospace",boxSizing:"border-box"}}/>
@@ -398,7 +446,7 @@ function IntegrationsTab({ merchant, onChange }) {
                 placeholder="•••••••••••••••••••••••••••••••••"
                 style={{width:"100%",background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",borderRadius:9,padding:"9px 12px",fontSize:12,marginBottom:12,outline:"none",fontFamily:"'Cascadia Code',monospace",boxSizing:"border-box"}}/>
 
-              <button onClick={connectShopify} disabled={!shopifyShop.trim()||!shopifyClientId.trim()||!shopifyClientSecret.trim()||shopifyBusy} style={{width:"100%",background:"linear-gradient(135deg, var(--green), var(--green-dark))",border:"none",color:"#fff",padding:"10px 16px",borderRadius:9,fontSize:13,fontWeight:700,cursor:(shopifyShop.trim()&&shopifyClientId.trim()&&shopifyClientSecret.trim()&&!shopifyBusy)?"pointer":"not-allowed",fontFamily:"inherit",opacity:(shopifyShop.trim()&&shopifyClientId.trim()&&shopifyClientSecret.trim()&&!shopifyBusy)?1:0.5,marginBottom:10}}>
+              <button onClick={connectShopify} disabled={!shopifyFormOk||shopifyBusy} style={{width:"100%",background:"linear-gradient(135deg, var(--green), var(--green-dark))",border:"none",color:"#fff",padding:"10px 16px",borderRadius:9,fontSize:13,fontWeight:700,cursor:(shopifyFormOk&&!shopifyBusy)?"pointer":"not-allowed",fontFamily:"inherit",opacity:(shopifyFormOk&&!shopifyBusy)?1:0.5,marginBottom:10}}>
                 {shopifyBusy ? "Conectando…" : "Conectar tienda →"}
               </button>
 
@@ -423,9 +471,18 @@ function IntegrationsTab({ merchant, onChange }) {
           <div style={{fontSize:12,color:"var(--text-md)",lineHeight:1.55,marginBottom:14}}>
             Para crear suscripciones y procesar cobros recurrentes.
           </div>
-          <button onClick={connectMP} style={{background:mpOk?"transparent":"linear-gradient(135deg, var(--green), var(--green-dark))",border:mpOk?"1px solid var(--border)":"none",color:mpOk?"var(--text-md)":"#fff",padding:"9px 16px",borderRadius:9,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-            {mpOk ? "Cambiar Access Token" : "Pegar Access Token"}
-          </button>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            {merchant?.mp_oauth_available && (
+              <button onClick={connectMPOauth} style={{background:mpOk?"transparent":"linear-gradient(135deg, var(--green), var(--green-dark))",border:mpOk?"1px solid var(--border)":"none",color:mpOk?"var(--text-md)":"#fff",padding:"9px 16px",borderRadius:9,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                {mpOk ? "Reconectar con OAuth" : "Conectar Mercado Pago (OAuth)"}
+              </button>
+            )}
+            <button onClick={connectMP} style={{background:(mpOk||merchant?.mp_oauth_available)?"transparent":"linear-gradient(135deg, var(--green), var(--green-dark))",border:(mpOk||merchant?.mp_oauth_available)?"1px solid var(--border)":"none",color:(mpOk||merchant?.mp_oauth_available)?"var(--text-md)":"#fff",padding:"9px 16px",borderRadius:9,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+              {mpOk ? "Cambiar Access Token" : "Pegar Access Token"}
+            </button>
+            {mpOk && <button onClick={disconnectMP} style={{background:"transparent",border:"1px solid var(--border)",color:"var(--text-sm)",padding:"9px 16px",borderRadius:9,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Desconectar</button>}
+          </div>
+          {mpOk && merchant?.mp_method && <div style={{fontSize:10,color:"var(--text-sm)",marginTop:8}}>Método: {merchant.mp_method === "oauth" ? "OAuth" : "token pegado"}</div>}
         </div>
       </div>
 
@@ -461,6 +518,7 @@ function IntegrationsTab({ merchant, onChange }) {
       </div>
 
       <WidgetSettingsCard merchant={merchant} onChange={onChange}/>
+      <OperationalSettingsCard merchant={merchant} onChange={onChange}/>
     </div>
   );
 }
@@ -630,6 +688,22 @@ function PlansTab({ merchant }) {
   }
   useEffect(() => { loadAll(); }, []);
 
+  // Repreciar TODAS las subs activas del plan al mismo monto (PUT preapproval en MP).
+  async function repricePlan(p) {
+    const suggested = (p.subscription_price_ars || 0) + (p.shipping_price_ars || 0);
+    const v = window.prompt(
+      `Repreciar suscriptores de "${p.product_title}"\n\nNuevo monto TOTAL por cobro (producto + envío, 1 paquete) que MP va a cobrar a TODAS las subs activas de este plan.\n⚠ Si tenés subs con varios paquetes, repreciarlas una por una desde el detalle del suscriptor.`,
+      String(suggested || "")
+    );
+    if (v === null) return;
+    const amount = Math.round(Number(v));
+    if (!(amount > 0)) return alert("Monto inválido");
+    if (!window.confirm(`¿Confirmás repreciar a $${amount.toLocaleString("es-AR")} por cobro? Aplica desde el próximo cobro.`)) return;
+    const d = await apiPost("subscribers", { plan_id: p.id, new_amount: amount }, { action: "reprice" });
+    if (d?.error) return alert("Error: " + d.error);
+    alert(`✓ Repreciadas: ${d.updated} de ${d.total}` + (d.failed?.length ? `\n✗ Fallaron ${d.failed.length}:\n` + d.failed.slice(0, 5).map(f => `· ${f.id}: ${f.error}`).join("\n") : ""));
+  }
+
   return (
     <div>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,gap:14}}>
@@ -637,6 +711,9 @@ function PlansTab({ merchant }) {
           <h1 style={{fontSize:24,fontWeight:800,margin:"0 0 6px",letterSpacing:-0.5}}>Planes de suscripción</h1>
           <p style={{fontSize:13,color:"var(--text-sm)",margin:0,lineHeight:1.55}}>
             Convertí cualquier producto Shopify en suscripción recurrente.
+          </p>
+          <p style={{fontSize:11,color:"var(--yellow)",margin:"6px 0 0",lineHeight:1.5}}>
+            ⚠ Cambiar el precio de un plan NO afecta a las suscripciones existentes (MP mantiene el monto autorizado). Usá "Repreciar suscriptores" para actualizarlas.
           </p>
         </div>
         <button onClick={()=>setCreating(true)} style={{background:"linear-gradient(135deg, var(--green), var(--green-dark))",border:"none",color:"#fff",padding:"10px 16px",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 12px rgba(16,185,129,0.3)"}}>
@@ -676,6 +753,7 @@ function PlansTab({ merchant }) {
               <div style={{display:"flex",gap:6,marginTop:10}}>
                 <button onClick={()=>setEditing(p)} style={{flex:1,background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",borderRadius:7,padding:"7px 10px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✏️ Editar</button>
                 <button onClick={()=>setEmbedFor(p)} style={{flex:1,background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",borderRadius:7,padding:"7px 10px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>📋 Snippet</button>
+                <button onClick={()=>repricePlan(p)} title="Repreciar suscriptores de este plan" style={{background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",borderRadius:7,padding:"7px 10px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>💲</button>
                 {/* Desactivar (soft): el plan deja de mostrarse pero las
                     subs ya creadas con ese plan siguen vivas. */}
                 <button onClick={async()=>{
@@ -718,6 +796,8 @@ function NewPlanModal({ products, onClose, editPlan }) {
   const [shippingName, setShippingName] = useState(editPlan?.shipping_method_name ?? "Envío a domicilio");
   // Descuentos por cantidad — array de { min_qty, discount_pct }
   const [qtyTiers, setQtyTiers] = useState(editPlan?.qty_discount_tiers ? editPlan.qty_discount_tiers.map(t=>({min_qty:t.min_qty,discount_pct:t.discount_pct})) : []);
+  const [allowCustomFreq, setAllowCustomFreq] = useState(editPlan?.allow_custom_frequency === true);
+  const [maxPackDisc, setMaxPackDisc] = useState(editPlan?.max_pack_discount_pct ?? 35);
   const [saving, setSaving] = useState(false);
 
   const product = products.find(p => p.id === productId);
@@ -760,10 +840,12 @@ function NewPlanModal({ products, onClose, editPlan }) {
         free_shipping_from_ars: parseFloat(freeShipFrom) || 0,
         shipping_method_name: shippingName.trim() || "Envío a domicilio",
         qty_discount_tiers: tiers,
+        allow_custom_frequency: allowCustomFreq,
+        max_pack_discount_pct: parseInt(maxPackDisc) || 0,
       }, { id: editPlan.id });
       setSaving(false);
       if (d.error) alert("Error: " + d.error);
-      else onClose();
+      else { if (d.note) alert(d.note); onClose(); }
       return;
     }
     if (!productId || !variantId) return alert("Elegí producto y variante");
@@ -781,6 +863,8 @@ function NewPlanModal({ products, onClose, editPlan }) {
       free_shipping_from_ars: parseFloat(freeShipFrom) || 0,
       shipping_method_name: shippingName.trim() || "Envío a domicilio",
       qty_discount_tiers: tiers,
+      allow_custom_frequency: allowCustomFreq,
+      max_pack_discount_pct: parseInt(maxPackDisc) || 0,
     });
     setSaving(false);
     if (d.error) alert("Error: " + d.error);
@@ -836,6 +920,17 @@ function NewPlanModal({ products, onClose, editPlan }) {
 
         <label style={lbl}>Unidades por envío (default cuando el cliente abre)</label>
         <input type="number" min="1" value={units} onChange={e=>setUnits(e.target.value)} style={inp}/>
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,alignItems:"end"}}>
+          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"var(--text-md)",marginTop:12}}>
+            <input type="checkbox" checked={allowCustomFreq} onChange={e=>setAllowCustomFreq(e.target.checked)}/>
+            El cliente puede elegir otra frecuencia
+          </label>
+          <div>
+            <label style={lbl}>Tope de descuento por pack (%)</label>
+            <input type="number" min="0" max="80" value={maxPackDisc} onChange={e=>setMaxPackDisc(e.target.value)} style={inp}/>
+          </div>
+        </div>
 
         {/* ─── Envío ─────────────────────────────────────────────── */}
         <div style={{marginTop:18,paddingTop:14,borderTop:"1px solid var(--border)"}}>
@@ -936,7 +1031,7 @@ function EmbedSnippetModal({ plan, merchant, onClose }) {
 
 // ─── Tab: Suscriptores ──────────────────────────────────────────
 
-function SubscribersTab({ mode = "active" }) {
+function SubscribersTab({ mode = "active", devMode = false }) {
   // mode="active" → Tab "Suscriptores activos": solo status === "active"
   // mode="carts"  → Tab "Carritos de suscripción": el resto (pending,
   //                  cancelled, paused, payment_failed). Son intentos /
@@ -971,6 +1066,24 @@ function SubscribersTab({ mode = "active" }) {
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [filter, isCarts]);
 
+  // CSV: fetch con Bearer (apiGet parsea JSON) → blob → descarga.
+  async function exportCsv() {
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const params = new URLSearchParams({ action: "export" });
+      if (!isCarts) params.set("status", "active");
+      else if (filter !== "all") params.set("status", filter);
+      const r = await fetch(`/api/subscribers?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) { const d = await r.json().catch(() => ({})); return alert("Error: " + (d.error || r.status)); }
+      const blob = await r.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `suscriptores-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    } catch (e) { alert("Error: " + e.message); }
+  }
+
   const filtered = subs;
   const title = isCarts ? "Carritos de suscripción" : "Suscriptores activos";
   const subtitle = isCarts
@@ -999,6 +1112,7 @@ function SubscribersTab({ mode = "active" }) {
             </select>
           )}
           <input type="text" placeholder="🔍 Buscar email…" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")load();}} style={{...inp2,minWidth:180}}/>
+          <button onClick={exportCsv} style={{background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text-md)",borderRadius:8,padding:"7px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>⬇ Exportar CSV</button>
           <button onClick={load} style={{background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text-md)",borderRadius:8,padding:"7px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>↻</button>
         </div>
       </div>
@@ -1036,7 +1150,7 @@ function SubscribersTab({ mode = "active" }) {
         </div>
       )}
 
-      {detail && <SubscriberDetailModal sub={detail} onClose={()=>{setDetail(null); load();}}/>}
+      {detail && <SubscriberDetailModal sub={detail} devMode={devMode} onClose={()=>{setDetail(null); load();}}/>}
     </div>
   );
 }
@@ -1061,7 +1175,7 @@ function StatusBadge({ status, orderCount = 0 }) {
   );
 }
 
-function SubscriberDetailModal({ sub, onClose }) {
+function SubscriberDetailModal({ sub, onClose, devMode = false }) {
   const [data, setData] = useState({ subscriber: sub, charges: [] });
   const [busyAction, setBusyAction] = useState(null);
   const [editingAddress, setEditingAddress] = useState(false);
@@ -1097,6 +1211,24 @@ function SubscriberDetailModal({ sub, onClose }) {
         alert("Error: " + e.message);
         setBusyAction(null);
       }
+      return;
+    }
+    if (action === "reprice") {
+      const cur = data.subscriber?.plan_snapshot?.total_per_charge_ars || 0;
+      const v = window.prompt(`Nuevo monto TOTAL por cobro para este suscriptor (hoy $${cur.toLocaleString("es-AR")}). Se actualiza en Mercado Pago y aplica desde el próximo cobro.`, String(cur || ""));
+      if (v === null) return;
+      const amount = Math.round(Number(v));
+      if (!(amount > 0)) return alert("Monto inválido");
+      setBusyAction("reprice");
+      try {
+        const d = await apiPost("subscribers", { id: sub.id, new_amount: amount }, { action: "reprice" });
+        if (d?.error) alert("Error: " + d.error);
+        else if (d.failed?.length) alert("No se pudo repreciar: " + d.failed[0].error);
+        else alert(`✓ Repreciado a $${amount.toLocaleString("es-AR")} por cobro.`);
+        const refreshed = await apiGet("subscribers", { id: sub.id });
+        if (refreshed?.subscriber) setData(refreshed);
+      } catch (e) { alert("Error: " + e.message); }
+      finally { setBusyAction(null); }
       return;
     }
     if (action === "simulate-charge") {
@@ -1332,7 +1464,13 @@ function SubscriberDetailModal({ sub, onClose }) {
           </button>
           {/* Simulador del próximo cobro recurrente — crea orden Shopify SIN
               pasar por MP. Útil para validar mes 2, 3, etc sin esperar 30 días. */}
-          {status === "active" && (
+          {(status === "active" || status === "paused") && (
+            <button onClick={()=>doAction("reprice")} disabled={busyAction} style={{...btnSec,opacity:busyAction?0.6:1}}>
+              {busyAction==="reprice"?"Repreciando…":"💲 Repreciar"}
+            </button>
+          )}
+          {/* Solo en modo desarrollador (Integraciones → Configuración): crea una orden SIMULADA (sin mails ni pago). */}
+          {status === "active" && devMode && (
             <button onClick={()=>doAction("simulate-charge")} disabled={busyAction} style={{...btnSec,opacity:busyAction?0.6:1}}>
               {busyAction==="simulate-charge"?"Simulando…":"🧪 Simular próximo cobro"}
             </button>
@@ -1367,7 +1505,7 @@ function SubscriberDetailModal({ sub, onClose }) {
               </div>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
                 {c.shopify_order_id && <span style={{fontSize:10,color:"var(--text-sm)",fontFamily:"'Cascadia Code',monospace"}}>orden #{c.shopify_order_id}</span>}
-                <span style={{fontSize:9,padding:"2px 6px",borderRadius:4,background:c.error?"rgba(239,68,68,0.15)":"rgba(16,185,129,0.15)",color:c.error?"var(--red)":"var(--accent)",fontWeight:700,letterSpacing:0.4,textTransform:"uppercase"}}>
+                <span title={c.error || ""} style={{fontSize:9,padding:"2px 6px",borderRadius:4,background:c.error?"rgba(239,68,68,0.15)":"rgba(16,185,129,0.15)",color:c.error?"var(--red)":"var(--accent)",fontWeight:700,letterSpacing:0.4,textTransform:"uppercase",cursor:c.error?"help":"default"}}>
                   {c.error?"✗ ERROR":"✓ OK"}
                 </span>
               </div>
@@ -1430,9 +1568,12 @@ function AbandonedTab() {
               <div style={{flex:1,minWidth:0}}>
                 <div style={{fontSize:14,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name || a.email}</div>
                 <div style={{fontSize:12,color:"var(--text-sm)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.email}{a.phone ? ` · ${a.phone}` : ""}</div>
-                <div style={{fontSize:12,color:"var(--text-md)",marginTop:4}}>{a.product_title || "—"}{a.quantity>1 ? ` × ${a.quantity}` : ""} · ${(a.value_ars||0).toLocaleString("es-AR")} · {fmtDate(a.created_at)}</div>
+                <div style={{fontSize:12,color:"var(--text-md)",marginTop:4}}>{a.product_title || "—"}{a.quantity>1 ? ` × ${a.quantity}` : ""} · ${(a.value_ars||0).toLocaleString("es-AR")} · {fmtDate(a.created_at)}{a.capture ? " · lead" : ""}</div>
+                <div style={{fontSize:11,color:a.abandoned_step ? "#8b5cf6" : "var(--text-sm)",marginTop:3}}>
+                  {a.abandoned_step ? `📭 Mail paso ${a.abandoned_step} enviado ${a.abandoned_step_at ? fmtDate(a.abandoned_step_at) : ""}` : "Sin mails de recupero enviados"}
+                </div>
               </div>
-              {a.recover_url && <a href={a.recover_url} target="_blank" rel="noreferrer" style={{...btnSec,textDecoration:"none"}}>Link de pago →</a>}
+              {a.recover_url && <a href={a.recover_url} target="_blank" rel="noreferrer" style={{...btnSec,textDecoration:"none"}} title={a.recover_url}>Ver en la tienda →</a>}
             </div>
           ))}
         </div>
@@ -1590,15 +1731,36 @@ function ChargesTab() {
   const [charges, setCharges] = useState([]);
   const [totals, setTotals] = useState({ amount_ars:0, ok:0, failed:0, total:0 });
   const [loading, setLoading] = useState(true);
+  const [cursor, setCursor] = useState(null);
+  const [retrying, setRetrying] = useState(null);
 
-  async function load() {
+  async function load(more = false) {
     setLoading(true);
-    const d = await apiGet("charges", { limit: 200 });
-    setCharges(d?.charges || []);
-    setTotals(d?.totals || { amount_ars:0, ok:0, failed:0, total:0 });
+    const params = { limit: 200 };
+    if (more && cursor) params.cursor = cursor;
+    const d = await apiGet("charges", params);
+    const list = d?.charges || [];
+    setCharges(prev => more ? [...prev, ...list] : list);
+    setCursor(d?.next_cursor || null);
+    if (!more) setTotals(d?.totals || { amount_ars:0, ok:0, failed:0, total:0 });
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
+
+  // Reintenta la orden Shopify de un charge que quedó con error (mismo payment_id).
+  async function retryOrder(c) {
+    if (!c.subscriber_id || !c.mp_payment_id) return alert("Este cobro no tiene suscriptor o payment_id asociado.");
+    if (!window.confirm(`¿Reintentar la orden Shopify del cobro MP ${c.mp_payment_id}?`)) return;
+    setRetrying(c.id);
+    try {
+      const d = await apiPost("subscribers", { id: c.subscriber_id, payment_id: String(c.mp_payment_id) }, { action: "retry-order" });
+      if (d?.error) alert("Error: " + d.error);
+      else if (d.shopify_order_id) alert(`✓ Orden Shopify #${d.shopify_order_id} creada.`);
+      else alert(`No se pudo crear la orden: ${d.shopify_error || d.error || d.status || "sin detalle"}`);
+      load();
+    } catch (e) { alert("Error: " + e.message); }
+    finally { setRetrying(null); }
+  }
 
   return (
     <div>
@@ -1641,13 +1803,24 @@ function ChargesTab() {
                 {c.shopify_order_id && <div>Shopify #{c.shopify_order_id}</div>}
               </div>
               {c.error ? (
-                <span title={c.error} style={{fontSize:9,padding:"2px 7px",borderRadius:4,background:"rgba(239,68,68,0.15)",color:"var(--red)",fontWeight:700,letterSpacing:0.4,textTransform:"uppercase",cursor:"help"}}>✗ Falló</span>
+                <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,maxWidth:260}}>
+                  <span title={c.error} style={{fontSize:9,padding:"2px 7px",borderRadius:4,background:"rgba(239,68,68,0.15)",color:"var(--red)",fontWeight:700,letterSpacing:0.4,textTransform:"uppercase",cursor:"help"}}>✗ Falló</span>
+                  <span style={{fontSize:10,color:"var(--red)",textAlign:"right",lineHeight:1.3,overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}} title={c.error}>{c.error}</span>
+                  {!c.shopify_order_id && (
+                    <button onClick={()=>retryOrder(c)} disabled={retrying===c.id} style={{...btnSec,padding:"4px 9px",fontSize:10,opacity:retrying===c.id?0.6:1}}>{retrying===c.id ? "Reintentando…" : "↻ Reintentar orden"}</button>
+                  )}
+                </div>
               ) : (
                 <span style={{fontSize:9,padding:"2px 7px",borderRadius:4,background:"rgba(16,185,129,0.15)",color:"var(--accent)",fontWeight:700,letterSpacing:0.4,textTransform:"uppercase"}}>✓ OK</span>
               )}
               <span style={{fontSize:10,color:"var(--text-sm)"}}>{c.status || ""}</span>
             </div>
           ))}
+          {cursor && (
+            <div style={{padding:12,textAlign:"center"}}>
+              <button onClick={()=>load(true)} disabled={loading} style={btnSec}>{loading ? "Cargando…" : "Cargar más"}</button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -1792,6 +1965,245 @@ function EditAddressModal({ sub, onClose, onSaved }) {
         <button onClick={save} disabled={saving} style={{width:"100%",marginTop:18,background:"linear-gradient(135deg, var(--green), var(--green-dark))",border:"none",color:"#fff",padding:"11px",borderRadius:10,fontSize:14,fontWeight:700,cursor:saving?"wait":"pointer",fontFamily:"inherit",opacity:saving?0.6:1}}>
           {saving ? "Guardando…" : "Guardar y sincronizar con Shopify"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+
+// ─── Pantalla "Verificá tu email" (403 email_unverified del backend) ────────
+function VerifyEmailScreen({ user, onLogout, onRetry }) {
+  const [sent, setSent] = React.useState(() => { try { return sessionStorage.getItem("rec_verify_sent") === "1"; } catch (_) { return false; } });
+  const [busy, setBusy] = React.useState(false);
+  async function resend() {
+    setBusy(true);
+    try { await sendEmailVerification(auth.currentUser); setSent(true); try { sessionStorage.setItem("rec_verify_sent", "1"); } catch (_) {} }
+    catch (e) { alert("No se pudo reenviar: " + (e.message || e.code)); }
+    finally { setBusy(false); }
+  }
+  async function check() {
+    setBusy(true);
+    try { await auth.currentUser?.reload(); await auth.currentUser?.getIdToken(true); await onRetry?.(); }
+    finally { setBusy(false); }
+  }
+  return (
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:24,background:"var(--bg)"}}>
+      <div style={{maxWidth:440,width:"100%",background:"var(--card)",border:"1px solid var(--border)",borderRadius:16,padding:"28px 26px",textAlign:"center"}}>
+        <div style={{fontSize:40,marginBottom:12}}>📬</div>
+        <h1 style={{fontSize:20,fontWeight:800,margin:"0 0 8px"}}>Verificá tu email</h1>
+        <p style={{fontSize:13,color:"var(--text-md)",lineHeight:1.55,margin:"0 0 18px"}}>
+          {sent ? "Te mandamos un mail para verificar tu cuenta a " : "Para operar necesitamos verificar "}<strong style={{color:"var(--text)"}}>{user?.email}</strong>. Abrí el link del mail y después tocá "Ya verifiqué".
+        </p>
+        <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
+          <button onClick={check} disabled={busy} style={btnPri}>{busy ? "…" : "Ya verifiqué"}</button>
+          <button onClick={resend} disabled={busy} style={btnSec}>Reenviar mail</button>
+          <button onClick={onLogout} style={btnSec}>Salir</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Configuración operativa: mails, abandono, envíos del checkout, cupones, dev ──
+// Guarda PARCIAL por sección con merchant?action=save-settings (solo lo que se manda).
+function OperationalSettingsCard({ merchant, onChange }) {
+  const m = merchant || {};
+  const [emailFrom, setEmailFrom]     = React.useState(m.email_from || "");
+  const [emailBrand, setEmailBrand]   = React.useState(m.email_brand || "");
+  const [emailReply, setEmailReply]   = React.useState(m.email_reply_to || "");
+  const [emailAccent, setEmailAccent] = React.useState(m.email_accent || "");
+  const [storeDomain, setStoreDomain] = React.useState(m.store_domain || "");
+  const [rates, setRates]             = React.useState(Array.isArray(m.checkout_shipping_rates) ? m.checkout_shipping_rates : []);
+  const [abandoned, setAbandoned]     = React.useState(m.abandoned_enabled === true);
+  const [cp2, setCp2]                 = React.useState(m.abandoned_coupons?.step2?.code || "");
+  const [cp3, setCp3]                 = React.useState(m.abandoned_coupons?.step3?.code || "");
+  const [devMode, setDevMode]         = React.useState(m.dev_mode === true);
+  const [hideSel, setHideSel]         = React.useState(m.widget_hide_selector || "");
+  const [flow, setFlow]               = React.useState(m.widget_checkout_flow || "redirect");
+  const [pagePath, setPagePath]       = React.useState(m.widget_checkout_page_path || "");
+  const [codes, setCodes]             = React.useState(Array.isArray(m.discount_codes) ? m.discount_codes : []);
+  const [busy, setBusy]               = React.useState("");
+  const [testTo, setTestTo]           = React.useState(m.email || "");
+
+  React.useEffect(() => {
+    setEmailFrom(m.email_from || ""); setEmailBrand(m.email_brand || ""); setEmailReply(m.email_reply_to || ""); setEmailAccent(m.email_accent || "");
+    setStoreDomain(m.store_domain || ""); setRates(Array.isArray(m.checkout_shipping_rates) ? m.checkout_shipping_rates : []);
+    setAbandoned(m.abandoned_enabled === true); setCp2(m.abandoned_coupons?.step2?.code || ""); setCp3(m.abandoned_coupons?.step3?.code || "");
+    setDevMode(m.dev_mode === true); setHideSel(m.widget_hide_selector || ""); setFlow(m.widget_checkout_flow || "redirect"); setPagePath(m.widget_checkout_page_path || "");
+    setCodes(Array.isArray(m.discount_codes) ? m.discount_codes : []);
+    // eslint-disable-next-line
+  }, [merchant]);
+
+  async function save(section, body) {
+    setBusy(section);
+    const d = await apiPatch("merchant", body, { action: "save-settings" });
+    setBusy("");
+    if (d?.error) return alert("Error: " + d.error);
+    onChange?.();
+  }
+  async function saveCodes() {
+    setBusy("codes");
+    const d = await apiPatch("merchant", { discount_codes: codes }, { action: "save-discount-codes" });
+    setBusy("");
+    if (d?.error) return alert("Error: " + d.error);
+    onChange?.();
+  }
+  async function sendTest(step) {
+    if (!testTo.trim()) return alert("Ingresá el mail destino (tu mail de cuenta o uno del dominio del remitente)");
+    setBusy("test");
+    const d = await apiPost("merchant", { to: testTo.trim(), step }, { action: "test-email" });
+    setBusy("");
+    if (d?.error) return alert("Error: " + d.error);
+    alert(`✓ Mail de prueba (paso ${step}) enviado a ${testTo.trim()}. Quedan ${d.remaining ?? "?"} pruebas hoy.`);
+  }
+  const updRate = (i, k, v) => setRates(rs => rs.map((r, j) => j === i ? { ...r, [k]: v } : r));
+  const updCode = (i, k, v) => setCodes(cs => cs.map((c, j) => j === i ? { ...c, [k]: v } : c));
+  const activeCodes = codes.filter(c => c.code && c.active !== false);
+  const sec = { marginTop:18, paddingTop:14, borderTop:"1px solid var(--border)" };
+  const h = { fontSize:13, fontWeight:700, marginBottom:4 };
+  const saveBtn = (section, body) => (
+    <button onClick={()=>save(section, body)} disabled={!!busy} style={{...btnPri,marginTop:10,opacity:busy?0.6:1}}>{busy===section ? "Guardando…" : "Guardar"}</button>
+  );
+
+  return (
+    <div style={{marginTop:24,padding:"18px 22px",background:"var(--card)",border:"1px solid var(--border)",borderRadius:12}}>
+      <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>Configuración</div>
+      <div style={{fontSize:12,color:"var(--text-sm)",lineHeight:1.55}}>Remitente de mails, tienda, envíos del checkout, cupones y recupero de carritos.</div>
+
+      {/* Tienda */}
+      <div style={sec}>
+        <div style={h}>Tienda</div>
+        <label style={lbl}>Dominio público de la tienda (sin https://)</label>
+        <input value={storeDomain} onChange={e=>setStoreDomain(e.target.value)} style={inp} placeholder="www.mitienda.com"/>
+        <label style={lbl}>Ruta de la página de checkout de suscripción</label>
+        <input value={pagePath} onChange={e=>setPagePath(e.target.value)} style={inp} placeholder="/pages/suscripcion-form"/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div>
+            <label style={lbl}>Flujo del checkout del widget</label>
+            <select value={flow} onChange={e=>setFlow(e.target.value)} style={inp}>
+              <option value="redirect">Redirigir a la página de checkout</option>
+              <option value="inline">Inline (formulario en el producto)</option>
+            </select>
+          </div>
+          <div>
+            <label style={lbl}>Selector CSS a ocultar en modo suscripción</label>
+            <input value={hideSel} onChange={e=>setHideSel(e.target.value)} style={inp} placeholder=".product-form__buttons, ..."/>
+          </div>
+        </div>
+        {saveBtn("store", { store_domain: storeDomain, widget_checkout_page_path: pagePath, widget_checkout_flow: flow, widget_hide_selector: hideSel })}
+      </div>
+
+      {/* Envíos del checkout */}
+      <div style={sec}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={h}>Métodos de envío del checkout</div>
+          {rates.length < 6 && <button type="button" onClick={()=>setRates(rs=>[...rs,{name:"",price:0,code:""}])} style={{...btnSec,padding:"5px 10px",fontSize:11}}>+ Agregar</button>}
+        </div>
+        <div style={{fontSize:11,color:"var(--text-sm)",lineHeight:1.5,marginBottom:8}}>Lo que el cliente elige al suscribirse y queda en cada orden recurrente. Sin tarifas → se usa el envío del plan.</div>
+        {rates.map((r, i) => (
+          <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr auto",gap:6,alignItems:"center",marginBottom:6}}>
+            <input value={r.name} onChange={e=>updRate(i,"name",e.target.value)} style={{...inp,marginBottom:0}} placeholder="Nombre (ej. Andreani a domicilio)"/>
+            <input type="number" min="0" value={r.price} onChange={e=>updRate(i,"price",e.target.value)} style={{...inp,marginBottom:0}} placeholder="Precio $"/>
+            <input value={r.code || ""} onChange={e=>updRate(i,"code",e.target.value)} style={{...inp,marginBottom:0}} placeholder="Código (opcional)"/>
+            <button type="button" onClick={()=>setRates(rs=>rs.filter((_,j)=>j!==i))} style={{background:"transparent",border:"none",color:"var(--red)",cursor:"pointer",fontSize:14}}>✕</button>
+          </div>
+        ))}
+        {saveBtn("rates", { checkout_shipping_rates: rates.map(r => ({ name: r.name, price: parseInt(r.price, 10) || 0, code: r.code || "" })) })}
+      </div>
+
+      {/* Códigos de descuento */}
+      <div style={sec}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={h}>Códigos de descuento</div>
+          <button type="button" onClick={()=>setCodes(cs=>[...cs,{code:"",type:"percent",value:10,active:true,recovery_only:false,first_charge_only:false}])} style={{...btnSec,padding:"5px 10px",fontSize:11}}>+ Agregar</button>
+        </div>
+        <div style={{fontSize:11,color:"var(--text-sm)",lineHeight:1.5,marginBottom:8}}>"Solo recupero" = solo aplica desde el link del mail de abandono. "Solo 1er cobro" = las renovaciones van a precio pleno.</div>
+        {codes.map((c, i) => (
+          <div key={i} style={{display:"grid",gridTemplateColumns:"1.4fr 1fr 0.8fr auto auto auto auto",gap:6,alignItems:"center",marginBottom:6,fontSize:11}}>
+            <input value={c.code} onChange={e=>updCode(i,"code",e.target.value.toUpperCase())} style={{...inp,marginBottom:0,fontFamily:"monospace"}} placeholder="CODIGO"/>
+            <select value={c.type || "percent"} onChange={e=>updCode(i,"type",e.target.value)} style={{...inp,marginBottom:0}}>
+              <option value="percent">% off</option>
+              <option value="fixed">$ fijo</option>
+            </select>
+            <input type="number" min="0" value={c.value} onChange={e=>updCode(i,"value",e.target.value)} style={{...inp,marginBottom:0}}/>
+            <label style={{display:"flex",gap:4,alignItems:"center",whiteSpace:"nowrap"}}><input type="checkbox" checked={c.active !== false} onChange={e=>updCode(i,"active",e.target.checked)}/>Activo</label>
+            <label style={{display:"flex",gap:4,alignItems:"center",whiteSpace:"nowrap"}}><input type="checkbox" checked={c.recovery_only === true} onChange={e=>updCode(i,"recovery_only",e.target.checked)}/>Solo recupero</label>
+            <label style={{display:"flex",gap:4,alignItems:"center",whiteSpace:"nowrap"}}><input type="checkbox" checked={c.first_charge_only === true} onChange={e=>updCode(i,"first_charge_only",e.target.checked)}/>Solo 1er cobro</label>
+            <button type="button" onClick={()=>setCodes(cs=>cs.filter((_,j)=>j!==i))} style={{background:"transparent",border:"none",color:"var(--red)",cursor:"pointer",fontSize:14}}>✕</button>
+          </div>
+        ))}
+        <button onClick={saveCodes} disabled={!!busy} style={{...btnPri,marginTop:10,opacity:busy?0.6:1}}>{busy==="codes" ? "Guardando…" : "Guardar códigos"}</button>
+      </div>
+
+      {/* Mails */}
+      <div style={sec}>
+        <div style={h}>Mails a tus clientes</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div>
+            <label style={lbl}>Remitente (Nombre &lt;mail@tudominio&gt;)</label>
+            <input value={emailFrom} onChange={e=>setEmailFrom(e.target.value)} style={inp} placeholder="Mi Tienda <hola@mitienda.com>"/>
+          </div>
+          <div>
+            <label style={lbl}>Marca (título en los mails, máx 40)</label>
+            <input value={emailBrand} onChange={e=>setEmailBrand(e.target.value)} style={inp} maxLength={40} placeholder="Mi Tienda"/>
+          </div>
+          <div>
+            <label style={lbl}>Responder a</label>
+            <input value={emailReply} onChange={e=>setEmailReply(e.target.value)} style={inp} placeholder="ayuda@mitienda.com"/>
+          </div>
+          <div>
+            <label style={lbl}>Color de acento (#hex, vacío = color del widget)</label>
+            <input value={emailAccent} onChange={e=>setEmailAccent(e.target.value)} style={{...inp,fontFamily:"monospace"}} placeholder="#10b981"/>
+          </div>
+        </div>
+        <div style={{fontSize:10,color:"var(--text-sm)",lineHeight:1.5,marginTop:-6}}>El dominio del remitente tiene que estar verificado en Resend; si no, los mails salen con el remitente por defecto.</div>
+        {saveBtn("email", { email_from: emailFrom, email_brand: emailBrand, email_reply_to: emailReply, email_accent: emailAccent })}
+        <div style={{display:"flex",gap:6,alignItems:"center",marginTop:10,flexWrap:"wrap"}}>
+          <input value={testTo} onChange={e=>setTestTo(e.target.value)} style={{...inp,marginBottom:0,maxWidth:260}} placeholder="mail de prueba"/>
+          {[1,2,3].map(st => <button key={st} onClick={()=>sendTest(st)} disabled={!!busy} style={{...btnSec,padding:"6px 10px",fontSize:11}}>Probar paso {st}</button>)}
+          <span style={{fontSize:10,color:"var(--text-sm)"}}>Máx 10 por día · solo a tu mail o al dominio del remitente</span>
+        </div>
+      </div>
+
+      {/* Abandono */}
+      <div style={sec}>
+        <div style={h}>Recupero de carritos abandonados</div>
+        <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"var(--text)",marginTop:8}}>
+          <input type="checkbox" checked={abandoned} onChange={e=>setAbandoned(e.target.checked)}/>
+          Enviar la secuencia de 3 mails (15 min · 2 hs · 24 hs) a quienes no completan el pago
+        </label>
+        {abandoned && (
+          <div style={{fontSize:11,color:"var(--yellow)",lineHeight:1.5,marginTop:6,padding:"8px 10px",background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.3)",borderRadius:8}}>
+            ⚠ Al activarlo salen mails reales a tus clientes desde el remitente configurado arriba. Los pasos 2 y 3 son marketing con cupón: incluyen link de baja. Probá primero con "Probar paso N".
+          </div>
+        )}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div>
+            <label style={lbl}>Cupón del paso 2 (2 hs)</label>
+            <select value={cp2} onChange={e=>setCp2(e.target.value)} style={inp}>
+              <option value="">Sin cupón</option>
+              {activeCodes.map(c => <option key={c.code} value={c.code}>{c.code} ({c.type === "fixed" ? `$${c.value}` : `${c.value}%`})</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={lbl}>Cupón del paso 3 (24 hs)</label>
+            <select value={cp3} onChange={e=>setCp3(e.target.value)} style={inp}>
+              <option value="">Sin cupón</option>
+              {activeCodes.map(c => <option key={c.code} value={c.code}>{c.code} ({c.type === "fixed" ? `$${c.value}` : `${c.value}%`})</option>)}
+            </select>
+          </div>
+        </div>
+        {saveBtn("abandoned", { abandoned_enabled: abandoned, abandoned_coupons: { step2: cp2 ? { code: cp2 } : null, step3: cp3 ? { code: cp3 } : null } })}
+      </div>
+
+      {/* Dev */}
+      <div style={sec}>
+        <div style={h}>Modo desarrollador</div>
+        <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"var(--text)",marginTop:8}}>
+          <input type="checkbox" checked={devMode} onChange={e=>setDevMode(e.target.checked)}/>
+          Habilitar herramientas de prueba (ej. "Simular próximo cobro": crea una orden Shopify SIMULADA, sin cobro ni mails)
+        </label>
+        {saveBtn("dev", { dev_mode: devMode })}
       </div>
     </div>
   );

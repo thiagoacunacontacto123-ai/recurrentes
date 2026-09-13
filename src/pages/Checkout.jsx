@@ -152,7 +152,8 @@ export default function Checkout() {
     card: { background: "#fff", border: "1px solid #e5e5e7", borderRadius: 14, padding: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" },
     h: { fontSize: 15, fontWeight: 700, margin: "0 0 14px" },
     label: { fontSize: 12, fontWeight: 600, color: "#555", margin: "0 0 5px", display: "block" },
-    input: { width: "100%", padding: "11px 12px", fontSize: 14, border: "1px solid #d6d6d8", borderRadius: 9, boxSizing: "border-box", outline: "none", background: "#fff", fontFamily: "inherit" },
+    // 16px: iOS Safari hace zoom al enfocar inputs con letra menor.
+    input: { width: "100%", padding: "11px 12px", fontSize: 16, border: "1px solid #d6d6d8", borderRadius: 9, boxSizing: "border-box", outline: "none", background: "#fff", fontFamily: "inherit" },
     row2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 },
     field: { marginBottom: 12 },
   };
@@ -232,7 +233,7 @@ export default function Checkout() {
           {/* Pago */}
           <div style={st.card}>
             <h3 style={st.h}>Pago</h3>
-            <div style={{ fontSize: 13, color: "#555", marginBottom: 12 }}>Vas a completar el pago de forma segura en <b>Mercado Pago</b> (tarjeta, débito o dinero en cuenta).</div>
+            <div style={{ fontSize: 13, color: "#555", marginBottom: 12 }}>Pagás con <b>Mercado Pago</b> (tarjeta de crédito, débito o dinero en cuenta según disponibilidad).</div>
             {formErr ? <div style={{ background: "#fde8e8", border: "1px solid #f5b5b5", color: "#b42318", fontSize: 13, padding: "10px 12px", borderRadius: 9, marginBottom: 12 }}>{formErr}</div> : null}
             <button onClick={pagar} disabled={submitting} style={{ width: "100%", padding: "14px", fontSize: 15, fontWeight: 700, color: "#fff", background: accent, border: "none", borderRadius: 11, cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.7 : 1 }}>
               {submitting ? "Redirigiendo a Mercado Pago…" : `Suscribirme y pagar ${money(total)}`}

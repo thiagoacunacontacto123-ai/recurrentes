@@ -3,15 +3,18 @@ import React, { useEffect, useState } from "react";
 // Página de GRACIAS que ve el cliente final al volver del checkout de MP.
 // MP redirige acá (back_url) con ?sub=<id>&token=<jwt>.
 //
-// CLAVE: MP solo redirige DESPUÉS de que el pago fue aprobado. O sea, llegar
-// a esta página ya significa "pagado". Por eso mostramos la confirmación
-// LINDA al instante — nada de pantalla de "procesando".
-//
-// La orden Shopify se crea server-side (webhook MP). Igual, como respaldo,
-// disparamos un sync SILENCIOSO en segundo plano (por si el webhook tarda o
-// no está configurado) — pero el cliente NUNCA ve un spinner: ve su gracias.
+// Tres estados, NUNCA decimos "pago confirmado" antes de tener la orden:
+//   confirming → "Confirmando tu pago con Mercado Pago…" (polling al sync).
+//   active     → "¡Listo! Tu suscripción está activa" (llegó la orden Shopify).
+//   pending    → tras el timeout: "Tu pago está en proceso. Te avisamos por mail…"
+// Siempre: botón "Volver a la tienda" (merchant_store_url) y link al portal.
+const POLL_MS = 3000;
+const MAX_POLLS = 60; // ~3 min: el primer cobro de MP se procesa async (~60s)
+
 export default function CheckoutSuccess() {
   const [portalToken, setPortalToken] = useState(null);
+  const [phase, setPhase] = useState("confirming"); // confirming | active | pending
+  const [storeUrl, setStoreUrl] = useState(null);
   const [info, setInfo] = useState(null); // { product_title, frequency_days, next_charge_at }
 
   useEffect(() => {
@@ -24,41 +27,39 @@ export default function CheckoutSuccess() {
     const mpPaymentId = searchParams.get("collection_id") || hashParams.get("collection_id");
     const mpStatus = searchParams.get("collection_status") || hashParams.get("collection_status");
     setPortalToken(tkn);
-    if (!tkn) return;
+    if (!tkn) { setPhase("pending"); return; }
 
     let cancelled = false;
 
-    // Respaldo del webhook: dispara el sync unas cuantas veces en silencio para
-    // asegurar que la orden Shopify se cree, aunque el webhook MP no esté. No
-    // bloquea NADA de la UI — el cliente ya ve su página de gracias.
-    async function backgroundSync() {
-      // El primer cobro de MP se procesa async (~60s tras autorizar). Chequeamos
-      // en silencio hasta ~3 min (cada 3s) para que la orden Shopify se cree
-      // mientras el cliente aún tiene la página abierta — sin spinner ni loading.
-      // (Antes cortaba a 20s → dejaba de chequear ANTES del cobro y la orden no
-      // caía si el cliente no volvía. Este es el fix.)
-      for (let i = 0; i < 60 && !cancelled; i++) {
+    // Polling al sync (respaldo del webhook) hasta que aparezca la orden Shopify.
+    async function poll() {
+      for (let i = 0; i < MAX_POLLS && !cancelled; i++) {
         try {
           if (sid) {
             let url = `/api/checkout/init?sub=${encodeURIComponent(sid)}&token=${encodeURIComponent(tkn)}`;
             if (mpPaymentId && mpStatus === "approved") url += `&payment_id=${encodeURIComponent(mpPaymentId)}`;
-            await fetch(url).catch(() => {});
+            const sr = await fetch(url).catch(() => null);
+            const sd = sr ? await sr.json().catch(() => null) : null;
+            if (sd?.merchant_store_url && !cancelled) setStoreUrl(sd.merchant_store_url);
           }
           const r = await fetch(`/api/public?action=sub&token=${encodeURIComponent(tkn)}`);
           const d = await r.json().catch(() => null);
           if (d?.sub && !cancelled) {
+            if (d.merchant_store_url) setStoreUrl(d.merchant_store_url);
             setInfo({
               product_title: d.sub.plan_snapshot?.product_title || d.sub.product_title,
               frequency_days: d.sub.plan_snapshot?.frequency_days,
               next_charge_at: d.sub.next_charge_at,
             });
-            if (d.sub.shopify_order_status_url) return; // orden ya creada, listo
+            const hasOrder = !!d.sub.shopify_order_status_url || (d.sub.shopify_orders_count || 0) > 0;
+            if (hasOrder && (d.sub.status === "active" || d.sub.shopify_order_status_url)) { setPhase("active"); return; }
           }
         } catch (_) {}
-        await new Promise((res) => setTimeout(res, 3000));
+        await new Promise((res) => setTimeout(res, POLL_MS));
       }
+      if (!cancelled) setPhase((p) => (p === "active" ? p : "pending"));
     }
-    backgroundSync();
+    poll();
     return () => { cancelled = true; };
   }, []);
 
@@ -80,21 +81,46 @@ export default function CheckoutSuccess() {
     } catch (_) { return null; }
   })();
 
+  const portalUrl = portalToken ? `#/portal?token=${encodeURIComponent(portalToken)}` : null;
+
+  const copy = {
+    confirming: {
+      h1: "Confirmando tu pago con Mercado Pago…",
+      sub: "Esto puede tardar un minuto. No cierres esta página ni vuelvas a pagar.",
+    },
+    active: {
+      h1: "¡Listo! Tu suscripción está activa",
+      sub: "Ya está todo en marcha. No tenés que hacer nada más. 💜",
+    },
+    pending: {
+      h1: "Tu pago está en proceso",
+      sub: "Te avisamos por mail apenas se confirme; no hace falta que hagas nada.",
+    },
+  }[phase];
+
   return (
     <div style={S.page}>
       <style>{CSS}</style>
       <div style={S.card} className="tk-card">
         <div style={S.checkWrap}>
-          <div style={S.check} className="tk-check">
-            <svg viewBox="0 0 52 52" width="46" height="46" aria-hidden="true">
-              <path className="tk-check-path" fill="none" stroke="#fff" strokeWidth="5"
-                    strokeLinecap="round" strokeLinejoin="round" d="M14 27l8 8 16-18"/>
-            </svg>
-          </div>
+          {phase === "active" ? (
+            <div style={S.check} className="tk-check">
+              <svg viewBox="0 0 52 52" width="46" height="46" aria-hidden="true">
+                <path className="tk-check-path" fill="none" stroke="#fff" strokeWidth="5"
+                      strokeLinecap="round" strokeLinejoin="round" d="M14 27l8 8 16-18"/>
+              </svg>
+            </div>
+          ) : phase === "confirming" ? (
+            <div style={S.spinner} aria-label="Confirmando" />
+          ) : (
+            <div style={{ ...S.check, background: "linear-gradient(135deg,#f59e0b,#d97706)", boxShadow: "0 12px 26px -8px rgba(217,119,6,.45)" }}>
+              <span style={{ fontSize: 34, lineHeight: 1 }}>⏳</span>
+            </div>
+          )}
         </div>
 
-        <h1 style={S.h1}>¡Gracias por tu suscripción!</h1>
-        <p style={S.sub}>Tu pago fue confirmado. Ya estás suscripto y no tenés que hacer nada más. 💜</p>
+        <h1 style={S.h1}>{copy.h1}</h1>
+        <p style={S.sub}>{copy.sub}</p>
 
         {(info?.product_title || freqTxt) && (
           <div style={S.detail}>
@@ -110,7 +136,7 @@ export default function CheckoutSuccess() {
                 <b style={S.detailVal}>{freqTxt}</b>
               </div>
             )}
-            {nextTxt && (
+            {phase === "active" && nextTxt && (
               <div style={S.detailRow}>
                 <span style={S.detailLabel}>Próximo envío</span>
                 <b style={S.detailVal}>{nextTxt}</b>
@@ -119,14 +145,27 @@ export default function CheckoutSuccess() {
           </div>
         )}
 
-        <div style={S.mailNote}>
-          📩 En <b>2 a 10 minutos</b> te va a llegar el email con la confirmación de tu compra.
-        </div>
+        {phase === "active" && (
+          <>
+            <div style={S.mailNote}>
+              📩 En unos minutos te llega el email con la confirmación de tu compra.
+            </div>
+            <div style={S.steps}>
+              <Step icon="📦" text="Preparamos tu envío y te avisamos por email cuando salga en camino." />
+              <Step icon="🔁" text="Se renueva automáticamente. Cancelás cuando quieras." />
+            </div>
+          </>
+        )}
+        {phase === "pending" && (
+          <div style={S.mailNote}>
+            📩 Cuando Mercado Pago confirme el cobro te mandamos el email de confirmación con el link para gestionar tu suscripción.
+          </div>
+        )}
 
-        <div style={S.steps}>
-          <Step icon="📦" text="Preparamos tu envío y te avisamos por email cuando salga en camino." />
-          <Step icon="🔁" text="Se renueva automáticamente. Cancelás cuando quieras." />
-        </div>
+        <a href={storeUrl || "/"} style={S.btn} className="tk-btn">Volver a la tienda</a>
+        {portalUrl && (
+          <a href={portalUrl} style={S.link}>Gestionar mi suscripción</a>
+        )}
 
         <p style={S.foot}>Cualquier duda, respondé el email de confirmación y te ayudamos.</p>
       </div>
@@ -147,6 +186,7 @@ const CSS = `
 @keyframes tk-pop { 0%{transform:scale(.6);opacity:0} 60%{transform:scale(1.08)} 100%{transform:scale(1);opacity:1} }
 @keyframes tk-draw { to { stroke-dashoffset: 0; } }
 @keyframes tk-rise { from{transform:translateY(14px);opacity:0} to{transform:translateY(0);opacity:1} }
+@keyframes tk-spin { to { transform: rotate(360deg); } }
 .tk-card { animation: tk-rise .5s cubic-bezier(.2,.8,.2,1) both; }
 .tk-check { animation: tk-pop .5s cubic-bezier(.2,1.4,.5,1) both; }
 .tk-check-path { stroke-dasharray: 60; stroke-dashoffset: 60; animation: tk-draw .5s .35s ease forwards; }
@@ -174,6 +214,11 @@ const S = {
     display: "flex", alignItems: "center", justifyContent: "center",
     boxShadow: "0 12px 26px -8px rgba(16,150,100,.55)",
   },
+  spinner: {
+    width: 72, height: 72, borderRadius: "50%", boxSizing: "border-box",
+    border: "6px solid #e3ede7", borderTopColor: "#12b981",
+    animation: "tk-spin .9s linear infinite",
+  },
   h1: { fontSize: 25, fontWeight: 800, color: "#16241d", margin: "0 0 10px", letterSpacing: "-.3px", lineHeight: 1.2 },
   sub: { fontSize: 15, color: "#5c6b64", lineHeight: 1.55, margin: "0 0 24px" },
   mailNote: { background: "#eef6f1", border: "1px solid #d5e8dd", borderRadius: 12, padding: "12px 16px", marginBottom: 22, fontSize: 13.5, color: "#2f5545", lineHeight: 1.5 },
@@ -192,5 +237,6 @@ const S = {
     textDecoration: "none", transition: "transform .12s, box-shadow .12s",
     boxShadow: "0 6px 18px -8px rgba(20,30,25,.5)",
   },
+  link: { display: "inline-block", marginTop: 14, fontSize: 13.5, color: "#0a8a54", fontWeight: 600, textDecoration: "underline" },
   foot: { fontSize: 12, color: "#95a29c", lineHeight: 1.5, margin: "16px 0 0" },
 };

@@ -1,9 +1,14 @@
 // Helpers Shopify Admin API. Cada merchant tiene su `shopify_shop` (myshopify
 // domain) + `shopify_token` (access token de la app instalada).
+import { fetchRetry } from "./http.js";
+
+// Versión REST vigente. subscribers.js la importa para no hardcodearla.
+export const API_VERSION = "2025-07";
 
 async function call(shop, token, method, path, body = null) {
-  const url = `https://${shop}/admin/api/2024-10${path}`;
-  const r = await fetch(url, {
+  const url = `https://${shop}/admin/api/${API_VERSION}${path}`;
+  // Timeout 10s + 2 reintentos en 429/5xx (respeta Retry-After).
+  const r = await fetchRetry(url, {
     method,
     headers: {
       "X-Shopify-Access-Token": token,
@@ -11,7 +16,7 @@ async function call(shop, token, method, path, body = null) {
       "Accept": "application/json",
     },
     body: body ? JSON.stringify(body) : undefined,
-  });
+  }, { ms: 10000, retries: 2 });
   const data = await r.json().catch(() => ({}));
   if (!r.ok) {
     // Reportamos el error de Shopify lo más detallado posible — incluye el
@@ -50,16 +55,43 @@ export async function shListProducts(shop, token) {
   return data.products || [];
 }
 
+// Precio de lista actual de una variante (Number) o null si falla. Lo usa el
+// checkout para calcular server-side y no confiar en el precio del body.
+export async function shGetVariantPrice(shop, token, variantId) {
+  try {
+    const data = await call(shop, token, "GET", `/variants/${encodeURIComponent(String(variantId))}.json?fields=id,price`);
+    const p = Number(data?.variant?.price);
+    return Number.isFinite(p) ? p : null;
+  } catch (_) { return null; }
+}
+
+// Hosts (lowercase) que pertenecen a la tienda: el myshopify + el dominio
+// principal (shop.json). Sirve para validar URLs de recupero. Fallo → [shop].
+export async function shGetShopDomains(shop, token) {
+  const out = new Set([String(shop || "").toLowerCase()]);
+  try {
+    const data = await call(shop, token, "GET", "/shop.json?fields=domain,myshopify_domain,primary_domain");
+    const s = data?.shop || {};
+    for (const h of [s.domain, s.myshopify_domain, s.primary_domain?.host]) {
+      const host = String(h || "").toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+      if (host) out.add(host);
+    }
+  } catch (_) {}
+  return [...out].filter(Boolean);
+}
+
 // ¿El cliente (por email) tiene una orden PAGA reciente en Shopify? Se usa para
 // NO mandar el flujo de abandono a quien YA compró — sea suscripción o COMPRA
 // ÚNICA (one-time). Si no puede consultar, devuelve false (mejor no bloquear).
 export async function shHasRecentPaidOrder(shop, token, email, days = 14) {
   if (!email) return false;
+  const emailNorm = String(email).trim().toLowerCase();
   try {
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
     const data = await call(shop, token, "GET",
-      `/orders.json?email=${encodeURIComponent(email)}&status=any&financial_status=paid&created_at_min=${encodeURIComponent(since)}&limit=1&fields=id`);
-    return (data.orders || []).length > 0;
+      `/orders.json?email=${encodeURIComponent(emailNorm)}&status=any&financial_status=paid&created_at_min=${encodeURIComponent(since)}&limit=50&fields=id,email`);
+    // `?email=` no está documentado: confirmamos en memoria que el mail sea EXACTO.
+    return (data.orders || []).some(o => String(o.email || "").toLowerCase() === emailNorm);
   } catch (_) { return false; }
 }
 
@@ -126,10 +158,12 @@ export async function shGetShippingRates(shop, token, { province = "", subtotal 
 // y exportarlo a facturadores.
 export async function shFindOrCreateCustomer(shop, token, { email, first_name, last_name, phone, tax_id, tax_id_kind }) {
   const taxTag = tax_id ? `${tax_id_kind || "DNI"}:${tax_id}` : null;
+  const emailNorm = String(email || "").trim().toLowerCase();
   try {
-    const search = await call(shop, token, "GET", `/customers/search.json?query=email:${encodeURIComponent(email)}`);
-    if (search.customers?.length) {
-      const existing = search.customers[0];
+    const search = await call(shop, token, "GET", `/customers/search.json?query=email:${encodeURIComponent(emailNorm)}`);
+    // El search puede matchear parcial: nos quedamos con el email EXACTO.
+    const existing = (search.customers || []).find(c => String(c.email || "").toLowerCase() === emailNorm);
+    if (existing) {
       // SIEMPRE actualizamos nombre + phone si vino info distinta — la última
       // suscripción es el dato más confiable. El nombre del customer Shopify
       // se usa también para shipping/billing address y la factura.
@@ -162,7 +196,7 @@ export async function shFindOrCreateCustomer(shop, token, { email, first_name, l
   // de acá el identificador fiscal del cliente.
   const companyTax = tax_id ? `${tax_id_kind || "DNI"} ${tax_id}` : null;
   const customerBody = {
-    email,
+    email: emailNorm || email,
     first_name: first_name || "",
     last_name: last_name || "",
     phone: phone || null,
@@ -174,20 +208,52 @@ export async function shFindOrCreateCustomer(shop, token, { email, first_name, l
     const created = await call(shop, token, "POST", "/customers.json", { customer: customerBody });
     return created.customer;
   } catch (e) {
+    if (!(/phone/i.test(e.message) && phone)) throw e;
     // SOLO si Shopify lo rechaza ("phone is invalid"), lo normalizamos (15→11) y
-    // reintentamos. Nunca lo dejamos vacío — el teléfono siempre viaja.
-    if (/phone/i.test(e.message) && phone) {
+    // reintentamos.
+    try {
       const created = await call(shop, token, "POST", "/customers.json", { customer: { ...customerBody, phone: normalizeArPhone(phone) || phone } });
       return created.customer;
+    } catch (e2) {
+      // 3er intento: "phone has already been taken" (otro customer ya lo tiene).
+      // El customer se crea sin phone; el teléfono igual viaja en shipping_address.
+      if (/phone/i.test(e2.message)) {
+        const created = await call(shop, token, "POST", "/customers.json", { customer: { ...customerBody, phone: null } });
+        return created.customer;
+      }
+      throw e2;
     }
-    throw e;
   }
+}
+
+// Redondeo a centavos sin drift de float.
+const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+
+// ¿Ya existe una orden con este mp_payment_id (creada en las últimas 48h)?
+// Evita la orden duplicada cuando la función murió después del POST y antes
+// de guardar el charge. Devuelve la orden o null. Fallo → null (se crea igual).
+async function findRecentOrderByPaymentId(shop, token, mpPaymentId) {
+  try {
+    const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+    const data = await call(shop, token, "GET",
+      `/orders.json?status=any&created_at_min=${encodeURIComponent(since)}&fields=id,order_status_url,note_attributes&limit=50`);
+    const want = String(mpPaymentId);
+    return (data.orders || []).find(o =>
+      (o.note_attributes || []).some(a => a.name === "mp_payment_id" && String(a.value) === want)
+    ) || null;
+  } catch (_) { return null; }
 }
 
 // Crear orden PAGA con los items del plan. Marcada como `financial_status:
 // paid` para que aparezca en el panel del merchant lista para empaquetar.
 // note_attributes guarda referencias a Recurrentes (subscriber_id, plan_id,
 // charge_number) para trazabilidad.
+//
+// Params opcionales nuevos (todos con default = comportamiento anterior):
+//   simulated            → orden de prueba: sin mails, tag SIMULADA, pending.
+//   discount_code +
+//   discount_amount +
+//   list_price_per_unit  → items a precio de lista + discount_codes fixed_amount.
 export async function shCreatePaidOrder(shop, token, params) {
   const {
     customer_id, line_items, shipping_address, billing_address,
@@ -196,12 +262,31 @@ export async function shCreatePaidOrder(shop, token, params) {
     tax_id, tax_id_kind,
     mp_fee_real, // comisión REAL que cobró MP (fee_details del pago). Se guarda en
                  // la orden para que herramientas de márgenes usen el fee exacto.
+    simulated = false,
+    discount_code, discount_amount, list_price_per_unit,
   } = params;
+
+  // Dedup: si ya hay una orden con este mp_payment_id, la devolvemos en vez
+  // de crear otra (la función pudo morir antes de persistir el charge).
+  if (mp_payment_id && !simulated) {
+    const prev = await findRecentOrderByPaymentId(shop, token, mp_payment_id);
+    if (prev) {
+      console.warn(`[shopify] orden ${prev.id} ya existía para mp_payment_id=${mp_payment_id}; no se crea otra`);
+      return { id: prev.id, order_status_url: prev.order_status_url || null, reused: true };
+    }
+  }
 
   // shipping_lines: Shopify rechaza `source` con valores no estándar. Solo
   // mandamos title + price + code, que es lo que necesita para mostrar bien.
   const shippingTitle = (shipping_method_name || "Envío a domicilio").trim() || "Envío a domicilio";
-  const shippingPriceNum = Number(shipping_price || 0);
+  const totalNum = r2(total_price);
+  let shippingPriceNum = r2(shipping_price);
+  // Guard: si el cobro no cubre el envío (cupón fijo, snapshot viejo), la orden
+  // sale con envío $0 en vez de abortar y dejar al cliente sin pedido.
+  if (shippingPriceNum > 0 && totalNum < shippingPriceNum) {
+    console.warn(`[shopify] total ${totalNum} < envío ${shippingPriceNum} (sub ${subscriber_id}); se usa envío 0`);
+    shippingPriceNum = 0;
+  }
   const shippingPriceStr = shippingPriceNum.toFixed(2);
   const shippingLines = [{
     title: shippingTitle,
@@ -217,24 +302,47 @@ export async function shCreatePaidOrder(shop, token, params) {
   // comisión de Shopify sobre un monto inexistente. Calculamos:
   //   subtotal_items = total_cobrado - envío
   //   price_por_unidad = subtotal_items / sum(quantity de todos los items)
-  const totalNum = Number(total_price || 0);
-  const subtotalItems = totalNum - shippingPriceNum;
-  const totalQty = (line_items || []).reduce((acc, li) => acc + (Number(li.quantity) || 1), 0) || 1;
-  const pricePerUnit = subtotalItems / totalQty;
+  const subtotalItems = r2(totalNum - shippingPriceNum);
+  const items = (line_items || []).map(li => ({ variant_id: li.variant_id, quantity: Number(li.quantity) || 1 }));
+  const totalQty = items.reduce((acc, li) => acc + li.quantity, 0) || 1;
 
-  // GUARD: si los datos son incoherentes (shipping >= total, o pricePerUnit <= 0),
-  // ABORTAMOS la creación de orden. Esto evita órdenes basura con $0 producto
-  // + shipping inflado, que pueden aparecer cuando el plan_snapshot del sub
-  // tiene shipping mal configurado o cuando el simulator usa datos corruptos.
-  if (pricePerUnit <= 0 || subtotalItems <= 0) {
-    throw new Error(`Datos incoherentes: total=${totalNum}, shipping=${shippingPriceNum}, qty=${totalQty}. pricePerUnit=${pricePerUnit}. Orden NO creada.`);
+  // GUARD: si los datos son incoherentes (subtotal <= 0), ABORTAMOS la creación
+  // de orden. Evita órdenes basura con $0 producto.
+  if (subtotalItems <= 0) {
+    throw new Error(`Datos incoherentes: total=${totalNum}, shipping=${shippingPriceNum}, qty=${totalQty}. Orden NO creada.`);
   }
 
-  const adjustedLineItems = (line_items || []).map(li => ({
-    variant_id: li.variant_id,
-    quantity: li.quantity,
-    price: pricePerUnit.toFixed(2),
-  }));
+  // Modo cupón: items a precio de lista + discount_codes. Solo si vino el
+  // precio de lista (si no, no cierra la cuenta y seguimos con precio neto).
+  const listUnit = r2(list_price_per_unit);
+  const discAmt = r2(discount_amount);
+  const useDiscountCode = !!(discount_code && discAmt > 0 && listUnit > 0 && r2(listUnit * totalQty) > subtotalItems);
+
+  let adjustedLineItems;
+  let discountCodes;
+  if (useDiscountCode) {
+    adjustedLineItems = items.map(li => ({ ...li, price: listUnit.toFixed(2) }));
+    // El descuento cierra EXACTO contra lo cobrado (absorbe centavos).
+    const exactDisc = r2(listUnit * totalQty - subtotalItems);
+    discountCodes = [{ code: String(discount_code).slice(0, 40), amount: exactDisc.toFixed(2), type: "fixed_amount" }];
+  } else {
+    // Centavos: unidad truncada a 2 decimales; el residuo va al primer item.
+    const unit = Math.floor((subtotalItems / totalQty) * 100) / 100;
+    const residue = r2(subtotalItems - unit * totalQty);
+    adjustedLineItems = items.map(li => ({ ...li, price: unit.toFixed(2) }));
+    if (residue !== 0 && adjustedLineItems.length) {
+      const first = adjustedLineItems[0];
+      if (first.quantity === 1) {
+        first.price = r2(unit + residue).toFixed(2);
+      } else {
+        // qty>1: 1 unidad con el ajuste + el resto al precio unitario.
+        adjustedLineItems.splice(0, 1,
+          { variant_id: first.variant_id, quantity: 1, price: r2(unit + residue).toFixed(2) },
+          { variant_id: first.variant_id, quantity: first.quantity - 1, price: unit.toFixed(2) },
+        );
+      }
+    }
+  }
 
   // Sanitizar shipping_address: aseguramos que no se mande con campos
   // ausentes o malformados que Shopify rechazaría.
@@ -264,25 +372,34 @@ export async function shCreatePaidOrder(shop, token, params) {
     company: companyTax,
   };
 
-  const totalPriceStr = String(total_price);
+  const totalPriceStr = totalNum.toFixed(2);
+  const baseTags = (cleanShipping.address1 && cleanShipping.city) ? "RECURRENTE" : "RECURRENTE, FALTA-DIRECCION";
 
   const body = {
     order: {
       customer: { id: customer_id },
       line_items: adjustedLineItems,
+      ...(discountCodes ? { discount_codes: discountCodes } : {}),
       shipping_address: cleanShipping,
       billing_address: billing_address ? {
         ...cleanShipping, ...billing_address,
       } : cleanShipping,
       shipping_lines: shippingLines,
-      financial_status: "paid",
+      // Simulada: queda pendiente de pago (sin transacción), no es plata real.
+      financial_status: simulated ? "pending" : "paid",
       fulfillment_status: null,
       // Que Shopify mande los mails como en una venta normal:
       //  · send_receipt → mail de CONFIRMACIÓN de compra al crear la orden.
       //  · send_fulfillment_receipt → mail de SEGUIMIENTO cuando se despacha/fulfilla.
       // (El cliente recibe la misma experiencia de mails que una compra común.)
-      send_receipt: true,
-      send_fulfillment_receipt: true,
+      // En simuladas NO se manda nada al cliente.
+      send_receipt: !simulated,
+      send_fulfillment_receipt: !simulated,
+      // Descontar stock aunque la variante no permita sobreventa: el cobro ya
+      // se hizo, la orden tiene que existir sí o sí.
+      inventory_behaviour: "decrement_ignoring_policy",
+      // Precios AR incluyen IVA.
+      taxes_included: true,
       currency: "ARS",
       // Identifica el origen del pedido en Shopify Admin (filtro "Source").
       source_name: "Recurrentes",
@@ -290,24 +407,28 @@ export async function shCreatePaidOrder(shop, token, params) {
       // Si la dirección está vacía sumamos FALTA-DIRECCION para que el
       // merchant pueda filtrar "tag:FALTA-DIRECCION" desde Shopify y
       // cargar las direcciones de esas órdenes desde Recurrentes.
-      tags: (cleanShipping.address1 && cleanShipping.city) ? "RECURRENTE" : "RECURRENTE, FALTA-DIRECCION",
-      transactions: [{
-        kind: "sale",
-        status: "success",
-        amount: totalPriceStr,
-        currency: "ARS",
-        // El cobro es real por Mercado Pago (suscripción). Marcamos el gateway
-        // como "Mercado Pago" para que herramientas de márgenes (ej. Growith)
-        // detecten el método de pago y le apliquen la comisión de MP, no una
-        // genérica ni $0.
-        gateway: "Mercado Pago",
-      }],
-      note: `Suscripción Recurrentes · Charge #${charge_number || 1}` + (tax_id ? `\n${tax_id_kind || "DNI"}: ${tax_id}` : ""),
+      tags: simulated ? `${baseTags}, SIMULADA` : baseTags,
+      ...(simulated ? {} : {
+        transactions: [{
+          kind: "sale",
+          status: "success",
+          amount: totalPriceStr,
+          currency: "ARS",
+          // El cobro es real por Mercado Pago (suscripción). Marcamos el gateway
+          // como "Mercado Pago" para que herramientas de márgenes (ej. Growith)
+          // detecten el método de pago y le apliquen la comisión de MP, no una
+          // genérica ni $0.
+          gateway: "Mercado Pago",
+        }],
+      }),
+      note: `Suscripción Recurrentes · Charge #${charge_number || 1}` + (simulated ? " · SIMULADA (prueba, sin cobro)" : "") + (tax_id ? `\n${tax_id_kind || "DNI"}: ${tax_id}` : ""),
       note_attributes: [
         { name: "recurrentes_subscriber_id", value: String(subscriber_id) },
         { name: "recurrentes_plan_id",       value: String(plan_id) },
         { name: "recurrentes_charge_number", value: String(charge_number || 1) },
         { name: "mp_payment_id",             value: String(mp_payment_id) },
+        ...(simulated ? [{ name: "recurrentes_simulated", value: "true" }] : []),
+        ...(discountCodes ? [{ name: "recurrentes_discount_code", value: discountCodes[0].code }] : []),
         ...(mp_fee_real != null && isFinite(mp_fee_real) ? [
           { name: "mp_fee_real", value: String(Math.round(mp_fee_real * 100) / 100) },
         ] : []),

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { auth } from "../lib/firebase.js";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
 
 // Landing pública + form de login/signup. Estilo limpio verde — al loguearse
 // el state de App.jsx detecta el user vía onAuthStateChanged y rendea Dashboard.
@@ -10,14 +10,20 @@ export default function Landing({ onLogin }) {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [verifySent, setVerifySent] = useState(false);
 
   async function submit(e) {
     e.preventDefault();
     setBusy(true);
     setErr("");
     try {
-      if (mode === "signup") await createUserWithEmailAndPassword(auth, email.trim(), password);
-      else await signInWithEmailAndPassword(auth, email.trim(), password);
+      if (mode === "signup") {
+        const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        // Verificación de email: el backend exige email verificado a cuentas nuevas.
+        try { await sendEmailVerification(cred.user); setVerifySent(true); sessionStorage.setItem("rec_verify_sent", "1"); } catch (_) {}
+      } else {
+        await signInWithEmailAndPassword(auth, email.trim(), password);
+      }
       onLogin?.();
     } catch (ex) {
       const code = ex.code || "";
@@ -97,12 +103,22 @@ export default function Landing({ onLogin }) {
                 {err}
               </div>
             )}
+            {verifySent && (
+              <div style={{marginTop:14,padding:"9px 12px",background:"rgba(16,185,129,0.1)",border:"1px solid rgba(16,185,129,0.3)",color:"var(--accent)",borderRadius:8,fontSize:12,lineHeight:1.45}}>
+                Te mandamos un mail para verificar tu cuenta. Revisá tu casilla (y spam).
+              </div>
+            )}
 
             <button type="submit" disabled={busy || !email || password.length < 6}
               style={{...btnStyle,width:"100%",marginTop:18,opacity:(busy||!email||password.length<6)?0.6:1,cursor:(busy||!email||password.length<6)?"not-allowed":"pointer"}}>
               {busy ? "Cargando…" : (mode === "signup" ? "Crear cuenta gratis" : "Entrar")}
             </button>
 
+            {mode === "signup" && (
+              <div style={{fontSize:10,color:"var(--text-sm)",marginTop:10,textAlign:"center",lineHeight:1.5}}>
+                Al crear la cuenta aceptás los <a href="#/terminos" style={{color:"var(--accent)"}}>Términos</a> y la <a href="#/privacidad" style={{color:"var(--accent)"}}>Política de privacidad</a>.
+              </div>
+            )}
             <div style={{fontSize:11,color:"var(--text-sm)",marginTop:12,textAlign:"center"}}>
               {mode === "signup" ? "¿Ya tenés cuenta?" : "¿No tenés cuenta?"}{" "}
               <button type="button" onClick={()=>{setMode(m => m === "signup" ? "login" : "signup");setErr("");}} style={{background:"none",border:"none",color:"var(--accent)",cursor:"pointer",padding:0,fontSize:11,fontWeight:600,textDecoration:"underline"}}>
@@ -114,7 +130,7 @@ export default function Landing({ onLogin }) {
       </div>
 
       <footer style={{padding:"20px 28px",borderTop:"1px solid var(--border)",fontSize:11,color:"var(--text-sm)",textAlign:"center"}}>
-        Recurrentes — gestión de suscripciones para ecommerce
+        Recurrentes — gestión de suscripciones para ecommerce · <a href="#/terminos" style={{color:"var(--text-sm)"}}>Términos</a> · <a href="#/privacidad" style={{color:"var(--text-sm)"}}>Privacidad</a>
       </footer>
     </div>
   );

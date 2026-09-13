@@ -1,14 +1,14 @@
 // Firestore Security Rules para Recurrentes.
 //
 // Modelo de acceso:
-//   - Las escrituras de "negocio" (subscribers, charges, plans, merchants)
-//     pasan TODAS por endpoints serverless de /api/*, que usan el Admin SDK
-//     y bypassan estas rules. Por eso podemos cerrar el acceso público a 0.
-//   - El cliente Firebase Web SDK del comerciante solo necesita poder leer
-//     su propio doc merchants/{uid} y subcollections (para el Dashboard).
+//   - TODAS las escrituras (merchants, plans, subscribers, charges, email_log,
+//     etc.) pasan por endpoints serverless de /api/* con el Admin SDK, que
+//     bypassea estas rules. Por eso el cliente NUNCA escribe: así el merchant
+//     no puede setear plan:"pro", abandoned_enabled, inventar charges, etc.
+//   - El cliente Firebase Web SDK del comerciante solo puede LEER su propio
+//     doc merchants/{uid} y subcollections.
 //   - El widget del storefront y el portal del cliente final NO usan Firebase
-//     Web SDK directamente — todo pasa por /api/public/* con tokens custom.
-//   - shopify_pending se usa solo internamente desde server — cerrado al cliente.
+//     Web SDK directamente — todo pasa por /api/public/* con tokens firmados.
 //
 // Después de editar este archivo, copialo al Firebase Console:
 //   Firestore Database → Rules → Pegá el contenido → Publish.
@@ -17,18 +17,21 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // El merchant logueado puede leer y escribir SOLO su propio doc + subcols.
+    // El merchant logueado puede LEER solo su propio doc + subcols. Escritura: nunca.
     match /merchants/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
 
-      // Subcollections (plans, subscribers, charges, etc) — mismo dueño.
       match /{subcol}/{docId=**} {
-        allow read, write: if request.auth != null && request.auth.uid == uid;
+        allow read: if request.auth != null && request.auth.uid == uid;
+        allow write: if false;
       }
     }
 
-    // shopify_pending guarda tokens OAuth temporales entre el callback y el
-    // claim del front. Cerrado a clientes — solo Admin SDK escribe / lee.
+    // Internos (rate limits, tokens temporales): solo Admin SDK.
+    match /ratelimits/{key} {
+      allow read, write: if false;
+    }
     match /shopify_pending/{state} {
       allow read, write: if false;
     }

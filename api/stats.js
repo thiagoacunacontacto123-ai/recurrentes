@@ -10,8 +10,8 @@
 //     los próximos 7 días)
 //   - Subs nuevos en los últimos 7 / 30 días
 //
-// Sin cache — recalcula en cada request. Para merchants con miles de subs
-// habría que indexar por status + cachear, pero MVP no necesita.
+// Sin cache — recalcula en cada request. Charges acotados a los últimos 400
+// (o al rango ?from&to): revenue.all_time es "de esa ventana", no histórico.
 import { db, requireAuth } from "./_lib/firebase.js";
 
 export default async function handler(req, res) {
@@ -21,15 +21,17 @@ export default async function handler(req, res) {
   const uid = await requireAuth(req, res);
   if (!uid) return;
 
-  if (req.query.action === "activity") return activity(uid, res);
+  if (req.query.action === "activity") return activity(uid, req, res);
 
   try {
     const merchantRef = db().collection("merchants").doc(uid);
 
-    // Traer todos los subs + charges en paralelo
+    // Subs completos + charges acotados: por rango (?from&to) o últimos 400.
+    // Requiere índice charges (created_at desc) — ver firestore.indexes.json.
+    const chargesQ = chargesRange(merchantRef.collection("charges"), req.query);
     const [subsSnap, chargesSnap] = await Promise.all([
       merchantRef.collection("subscribers").get(),
-      merchantRef.collection("charges").get(),
+      chargesQ.get(),
     ]);
     const subs = subsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
     const charges = chargesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -140,14 +142,15 @@ export default async function handler(req, res) {
 //   mails  → cada email enviado (abandono paso 1/2/3, activación, cancelación, pago fallido)
 //   envios → cada orden Shopify generada por un cobro
 //   cobros → cada cobro MP (facturación) con totales hoy / mes
-async function activity(uid, res) {
+async function activity(uid, req, res) {
   try {
     const mRef = db().collection("merchants").doc(uid);
+    // Lecturas acotadas: charges por rango o últimos 400, mails últimos 200.
     const [mSnap, subsSnap, chargesSnap, mailsSnap] = await Promise.all([
       mRef.get(),
       mRef.collection("subscribers").get(),
-      mRef.collection("charges").get(),
-      mRef.collection("email_log").get(),
+      chargesRange(mRef.collection("charges"), req.query).get(),
+      mRef.collection("email_log").orderBy("created_at", "desc").limit(200).get(),
     ]);
     const merchant = mSnap.data() || {};
     const shop = merchant.shopify_shop || null;
@@ -164,11 +167,12 @@ async function activity(uid, res) {
       id: d.id, type: m.type, step: m.step || null, coupon: m.coupon || null,
       to: m.to, customer_name: m.customer_name || subMap[m.subscriber_id]?.name || "",
       product_title: m.product_title || subMap[m.subscriber_id]?.product || "",
-      status: m.status || "sent", created_at: m.created_at || "",
+      status: m.status || "sent", error: m.error || null, created_at: m.created_at || "",
     }; }).sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
-    const mailSummary = { total: 0, abandoned_1: 0, abandoned_2: 0, abandoned_3: 0, activation: 0, cancellation: 0, payment_failed: 0 };
+    const mailSummary = { total: 0, abandoned_1: 0, abandoned_2: 0, abandoned_3: 0, activation: 0, cancellation: 0, payment_failed: 0, error: 0 };
     for (const m of mails) {
-      if (m.status === "error") continue;
+      // Errores de envío: columna aparte, no se cuentan como mandados.
+      if (m.status === "error") { mailSummary.error++; continue; }
       mailSummary.total++;
       if (m.type === "abandoned") {
         // Solo pasos reales de mail (1/2/3). Cualquier otro valor (ej. 99 = comprador
@@ -227,4 +231,15 @@ async function activity(uid, res) {
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
+}
+
+// Charges acotados: si vienen ?from=YYYY-MM-DD&to=YYYY-MM-DD filtra por
+// created_at (ISO string, comparación lexicográfica); si no, últimos 400.
+function chargesRange(col, query = {}) {
+  const from = String(query.from || "").slice(0, 10);
+  const to = String(query.to || "").slice(0, 10);
+  let q = col.orderBy("created_at", "desc");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(from)) q = q.where("created_at", ">=", from);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(to)) q = q.where("created_at", "<=", to + "T23:59:59.999Z");
+  return q.limit(from || to ? 2000 : 400);
 }

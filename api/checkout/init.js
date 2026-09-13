@@ -20,10 +20,176 @@
 // con el monto ya multiplicado. MP no cobra por plans, así que escala bien.
 // El external_reference se propaga del checkout al preapproval que MP crea
 // al confirmar, así el webhook puede resolver el subscriber correcto.
+//
+// SEGURIDAD (auditoría 2026-09-12): el server NO confía en el cliente para el
+// precio. `base_price` (modelo bundle) se valida contra el precio de lista de la
+// variante en Shopify, `sub_discount` se capea al del plan, el envío se toma de
+// la tarifa configurada por el merchant y la frecuencia sólo si el plan lo permite.
 import { db } from "../_lib/firebase.js";
-import { mpCreatePreapproval, mpCreatePreapprovalPlan } from "../_lib/mp.js";
-import { generatePortalToken, verifyPortalToken } from "../public.js";
+import { mpCreatePreapprovalPlan } from "../_lib/mp.js";
+import { generatePortalToken, verifyPortalToken, merchantStoreUrl } from "../public.js";
 import { syncSubscriber } from "../_lib/sync.js";
+import { verifyToken } from "../_lib/token.js";
+import { rateLimit, clientIp } from "../_lib/ratelimit.js";
+// Namespace import: shGetVariantPrice / shGetShopDomains los agrega otro agente.
+// Si todavía no existen, el módulo carga igual y caemos al precio del plan.
+import * as shopifyLib from "../_lib/shopify.js";
+import { DEFAULT_CHECKOUT_SHIPPING_RATES } from "../widget.js";
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const normEmail = (e) => String(e || "").trim().toLowerCase();
+// Tope duro para lecturas a Shopify dentro del checkout: si tarda más, seguimos
+// con el fallback (precio del plan / dominios cacheados). Pagar no depende de Shopify.
+const withDeadline = (promise, ms, label) => Promise.race([
+  promise,
+  new Promise((_, rej) => setTimeout(() => rej(new Error(`${label} > ${ms}ms`)), ms)),
+]);
+const normHost = (h) => String(h || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+
+// Precio de lista de la variante en Shopify, cacheado 10 min en
+// merchants/{uid}/variant_prices/{variantId} para no pegarle a Shopify por checkout.
+async function getVariantUnitPrice(merchantId, merchant, variantId) {
+  if (!variantId || !merchant.shopify_shop || !merchant.shopify_token) return null;
+  const ref = db().collection("merchants").doc(merchantId).collection("variant_prices").doc(String(variantId));
+  try {
+    const snap = await ref.get();
+    if (snap.exists) {
+      const c = snap.data();
+      const age = Date.now() - new Date(c.fetched_at || 0).getTime();
+      if (Number(c.price) > 0 && age < 10 * 60 * 1000) return Number(c.price);
+    }
+  } catch (_) {}
+  if (typeof shopifyLib.shGetVariantPrice !== "function") return null;
+  try {
+    const p = Number(await withDeadline(shopifyLib.shGetVariantPrice(merchant.shopify_shop, merchant.shopify_token, String(variantId)), 4000, "shGetVariantPrice"));
+    if (Number.isFinite(p) && p > 0) {
+      await ref.set({ price: p, fetched_at: new Date().toISOString() }, { merge: true }).catch(() => {});
+      return p;
+    }
+  } catch (e) { console.warn("[checkout/init] shGetVariantPrice falló:", e.message); }
+  return null;
+}
+
+// Hosts confiables del merchant (myshopify + dominio primario). Cache 24h en
+// merchant.shopify_domains / shopify_domains_at; se refresca si no matchea.
+async function getShopDomains(merchantId, merchant, { force = false } = {}) {
+  const cached = (Array.isArray(merchant.shopify_domains) ? merchant.shopify_domains : []).map(normHost).filter(Boolean);
+  const at = new Date(merchant.shopify_domains_at || 0).getTime();
+  const ageMs = Date.now() - at;
+  if (cached.length && ageMs < 24 * 3600 * 1000 && !force) return cached;
+  if (force && ageMs < 10 * 60 * 1000) return cached; // no refrescar más de 1 vez cada 10 min
+  if (!merchant.shopify_shop || !merchant.shopify_token || typeof shopifyLib.shGetShopDomains !== "function") return cached;
+  try {
+    const list = ((await withDeadline(shopifyLib.shGetShopDomains(merchant.shopify_shop, merchant.shopify_token), 4000, "shGetShopDomains")) || []).map(normHost).filter(Boolean);
+    // (#13) Si Shopify falló y solo volvió el myshopify, no cacheamos: así el
+    // dominio primario se reintenta en el próximo checkout.
+    const onlyMyshopify = list.length <= 1 && list.every(h => h.endsWith(".myshopify.com"));
+    if (list.length && !onlyMyshopify) {
+      const now = new Date().toISOString();
+      await db().collection("merchants").doc(merchantId).set({ shopify_domains: list, shopify_domains_at: now }, { merge: true });
+      merchant.shopify_domains = list; merchant.shopify_domains_at = now;
+    }
+    if (list.length) return list;
+  } catch (e) { console.warn("[checkout/init] shGetShopDomains falló:", e.message); }
+  return cached;
+}
+
+// event_source_url del navegador: sólo se guarda si el host es de la tienda
+// (evita que un tercero use nuestros mails de abandono para phishing).
+async function safeEventSourceUrl(merchantId, merchant, raw) {
+  const url = String(raw || "").slice(0, 500);
+  if (!url) return null;
+  let host;
+  try { host = new URL(url).hostname.toLowerCase(); } catch (_) { return null; }
+  const shop = normHost(merchant.shopify_shop);
+  const matches = (list) =>
+    (shop && (host === shop || host.endsWith("." + shop))) ||
+    list.some(d => host === d || host.endsWith("." + d));
+  if (matches(await getShopDomains(merchantId, merchant))) return url;
+  if (matches(await getShopDomains(merchantId, merchant, { force: true }))) return url;
+  console.warn("[checkout/init] event_source_url rechazada:", host, "merchant", merchantId);
+  return null;
+}
+
+// Subtotal del producto calculado server-side.
+//  · Modelo BUNDLE (Lumina): el cliente manda `base_price` (precio del pack) +
+//    `sub_discount`. Aceptamos base_price sólo si está dentro de la banda
+//    [ref × (1 − max_pack_discount_pct), ref × 1.05], con ref = precio de lista
+//    de la variante en Shopify × qty (o plan.base_price_ars × qty si Shopify falla).
+//    sub_discount nunca supera plan.discount_pct.
+//  · Modelo por unidad: subscription_price_ars × qty × tier por cantidad.
+// Devuelve { subtotal, qtyDiscountPct, basePrice, subOff } o { error }.
+async function computeSubtotal({ merchantId, merchant, plan, qty, base_price, sub_discount, variantId }) {
+  const maxOff = Math.max(0, Math.min(90, parseFloat(plan.discount_pct) || 0));
+  const subOffParsed = parseFloat(sub_discount);
+  const subOff = Number.isFinite(subOffParsed) ? Math.max(0, Math.min(maxOff, subOffParsed)) : maxOff;
+  const basePrice = Math.round(parseFloat(base_price) || 0);
+
+  if (basePrice > 0) {
+    // Referencias posibles: precio de lista de la variante en Shopify × qty y
+    // plan.base_price_ars × qty. Alcanza con que la banda cierre contra UNA (si
+    // el merchant baja el precio en Shopify en una promo, el plan sigue cubriendo).
+    const refs = [];
+    const unit = await getVariantUnitPrice(merchantId, merchant, variantId);
+    if (unit > 0) refs.push({ ref: unit * qty, src: "shopify" });
+    if ((parseFloat(plan.base_price_ars) || 0) > 0) refs.push({ ref: parseFloat(plan.base_price_ars) * qty, src: "plan" });
+    if (!refs.length) {
+      console.warn("[checkout/init] precio no verificable", { merchantId, planId: plan.id, variantId, basePrice, qty });
+      return { error: "No pudimos verificar el precio del producto. Recargá la página e intentá de nuevo." };
+    }
+    // Default 50%: los packs reales (ej. Lumina 3 potes) descuentan hasta ~45%
+    // sobre unidad × qty. El merchant puede ajustarlo por plan.
+    const maxPackOff = Math.max(0, Math.min(90, parseFloat(plan.max_pack_discount_pct ?? 50) || 0));
+    const okAgainst = refs.find(({ ref }) => basePrice >= Math.floor(ref * (1 - maxPackOff / 100)) && basePrice <= Math.ceil(ref * 1.05));
+    if (!okAgainst) {
+      console.warn("[checkout/init] base_price RECHAZADO", { merchantId, planId: plan.id, variantId, basePrice, qty, refs, maxPackOff });
+      return { error: "El precio del pack no coincide con el de la tienda. Recargá la página e intentá de nuevo." };
+    }
+    return { subtotal: Math.round(basePrice * (1 - subOff / 100)), qtyDiscountPct: subOff, basePrice, subOff };
+  }
+
+  const unitPrice = parseFloat(plan.subscription_price_ars) || 0;
+  const tiers = Array.isArray(plan.qty_discount_tiers) ? plan.qty_discount_tiers : [];
+  let qtyDiscountPct = 0, bestMin = -1;
+  for (const t of tiers) {
+    const mq = parseInt(t && t.min_qty) || 0;
+    if (qty >= mq && mq > bestMin) { bestMin = mq; qtyDiscountPct = Math.max(0, Math.min(90, parseFloat(t.discount_pct) || 0)); }
+  }
+  return { subtotal: Math.round(unitPrice * qty * (1 - qtyDiscountPct / 100)), qtyDiscountPct, basePrice: 0, subOff: 0 };
+}
+
+// Frecuencia: la del cliente sólo si el plan lo permite, coincide con la del
+// plan, o es un múltiplo entero (1..12×) de la del plan (modelo bundle: el pack
+// de N unidades se cobra cada N × frecuencia; Lumina manda qty × 60).
+function resolveFrequency(plan, frequency_days) {
+  const planFreq = parseInt(plan.frequency_days) || 30;
+  const f = parseInt(frequency_days);
+  const valid = Number.isFinite(f) && f >= 1 && f <= 365;
+  if (!valid) return planFreq;
+  if (plan.allow_custom_frequency === true || f === planFreq) return f;
+  if (f % planFreq === 0 && f / planFreq <= 12) return f;
+  return planFreq;
+}
+
+// Tarifas de envío del checkout del merchant (o el default histórico de Lumina).
+function merchantShippingRates(merchant) {
+  const list = Array.isArray(merchant.checkout_shipping_rates) ? merchant.checkout_shipping_rates.filter(r => r && r.name) : [];
+  return list.length ? list : DEFAULT_CHECKOUT_SHIPPING_RATES;
+}
+
+// Path (sin host) para volver al checkout con el mismo pack. abandoned.js le
+// antepone el dominio confiable de la tienda.
+function buildRecoverPath(merchant, plan, planId, qty, extra = {}) {
+  const base = String(merchant.widget_checkout_page_path || "/pages/suscripcion-form").trim() || "/pages/suscripcion-form";
+  const sp = new URLSearchParams();
+  sp.set("product", String(plan.shopify_product_id || ""));
+  sp.set("variant", String(plan.shopify_variant_id || ""));
+  sp.set("qty", String(qty));
+  sp.set("plan", String(planId));
+  if (extra.freq_days) sp.set("freq_days", String(extra.freq_days));
+  if (extra.base > 0) { sp.set("base", String(extra.base)); sp.set("sub_off", String(extra.sub_off || 0)); }
+  return `${base}?${sp.toString()}`;
+}
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -40,49 +206,81 @@ export default async function handler(req, res) {
     const paymentHint = String(req.query.payment_id || "");
     const payload = verifyPortalToken(token);
     if (!payload || payload.sid !== subId) return res.status(403).json({ error: "Token inválido" });
+    let storeUrl = null;
+    try {
+      const mSnap = await db().collection("merchants").doc(payload.mid).get();
+      storeUrl = merchantStoreUrl(mSnap.exists ? mSnap.data() : null);
+    } catch (_) {}
     try {
       // Si hay payment_id hint, hacemos link directo PRIMERO (más rápido).
-      // Si no funciona, caemos al sync normal.
+      // Rate limit por sub (10/h): la verificación fuerte del pago la hace sync.js.
       if (paymentHint) {
-        const { linkPaymentToSubscriber } = await import("../_lib/sync.js");
-        try {
-          const linkResult = await linkPaymentToSubscriber(payload.mid, subId, paymentHint);
-          if (linkResult.status === "linked" || linkResult.status === "already_linked") {
-            return res.json({ ok: true, ...linkResult });
-          }
-        } catch (_) { /* fallback al sync normal */ }
+        const rl = await rateLimit(`link:${subId}`, { limit: 10, windowSec: 3600 });
+        if (rl.ok) {
+          const { linkPaymentToSubscriber } = await import("../_lib/sync.js");
+          try {
+            const linkResult = await linkPaymentToSubscriber(payload.mid, subId, paymentHint);
+            if (linkResult.status === "linked" || linkResult.status === "already_linked") {
+              return res.json({ ok: true, merchant_store_url: storeUrl, ...linkResult });
+            }
+          } catch (_) { /* fallback al sync normal */ }
+        }
       }
       const r = await syncSubscriber(payload.mid, subId);
-      return res.json({ ok: true, ...r });
+      return res.json({ ok: true, merchant_store_url: storeUrl, ...r });
     } catch (e) {
       console.error("[checkout/sync] error:", e.message);
-      return res.status(500).json({ error: e.message });
+      return res.status(500).json({ error: e.message, merchant_store_url: storeUrl });
     }
   }
 
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { merchant_id, plan_id, customer, shipping_address, quantity, shipping_method, frequency_days, base_price, sub_discount, discount_code } = req.body || {};
+  const { merchant_id, plan_id, customer, shipping_address, quantity, shipping_method, frequency_days, base_price, sub_discount, discount_code, recovery_token } = req.body || {};
   if (!merchant_id || !plan_id) return res.status(400).json({ error: "Faltan merchant_id o plan_id" });
   if (!customer?.email) return res.status(400).json({ error: "Falta customer.email" });
+  const merchantId = String(merchant_id);
+  const ip = clientIp(req);
+  // Email normalizado (trim + lowercase) en TODOS los caminos.
+  const email = normEmail(customer.email);
+  if (!EMAIL_RE.test(email)) return res.status(400).json({ error: "Email inválido" });
+
+  // Cantidad capada 1..10 (0 = usar units_per_shipment del plan).
+  const qtyReq = Math.max(0, Math.min(10, parseInt(quantity) || 0));
+
+  // Cargar merchant + plan (plan tiene que existir y estar activo, también para leads).
+  const merchantRef = db().collection("merchants").doc(merchantId);
+  const merchantSnap = await merchantRef.get();
+  if (!merchantSnap.exists) return res.status(404).json({ error: "Merchant no encontrado" });
+  const merchant = merchantSnap.data();
+  const planSnap = await merchantRef.collection("plans").doc(String(plan_id)).get();
+  if (!planSnap.exists) return res.status(404).json({ error: "Plan no encontrado" });
+  const plan = { id: planSnap.id, ...planSnap.data() };
+  if (!plan.active) return res.status(400).json({ error: "Plan inactivo" });
+  const subsCol = merchantRef.collection("subscribers");
+
+  const finalQty = qtyReq || parseInt(plan.units_per_shipment) || 1;
+  const freqDays = resolveFrequency(plan, frequency_days);
+  // La variante que se factura es SIEMPRE la del plan (la orden Shopify se crea
+  // con plan_snapshot.shopify_variant_id). El body sólo sirve si el plan no tiene.
+  const variantId = String(plan.shopify_variant_id || req.body.shopify_variant_id || "");
 
   // ── CAPTURA DE LEAD (carrito abandonado ANTES de tocar Pagar) ────────────────
   // El widget llama esto apenas el cliente escribe un email válido en el checkout.
   // Guardamos un subscriber "pending" liviano (capture:true) con lo que haya + el
-  // link de recupero (la URL del checkout con su pack). Así, si NO paga, el flujo
-  // de carrito abandonado lo levanta igual — no necesitamos que haya tocado Pagar.
-  // NO crea plan MP ni exige dirección/teléfono. Reusa el lead del mismo mail para
-  // no duplicar por cada tecla. Si ya hay un checkout "real" (con plan MP) de ese
-  // mail, no hace nada.
+  // path de recupero (server-side). Así, si NO paga, el flujo de carrito abandonado
+  // lo levanta igual. NO crea plan MP ni exige dirección/teléfono. Reusa el lead del
+  // mismo mail para no duplicar por cada tecla. Si ya hay un checkout "real" (con
+  // plan MP) de ese mail, no hace nada.
   if (req.body.capture === true) {
-    const email = String(customer.email || "").trim();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: "Email inválido" });
+    // Honeypot: campo oculto "rc_hp_9" — si viene lleno es un bot. 200 sin guardar.
+    if (String(req.body.rc_hp_9 || "").trim()) return res.json({ ok: true });
+    // Rate limit por IP y por merchant → 429 silencioso (200 ok:false).
+    const rlIp = await rateLimit(`capture:${merchantId}:${ip}`, { limit: 60, windowSec: 3600 });
+    if (!rlIp.ok) return res.json({ ok: false });
+    const rlM = await rateLimit(`capture:${merchantId}`, { limit: 600, windowSec: 3600 });
+    if (!rlM.ok) return res.json({ ok: false });
     try {
-      const mSnap = await db().collection("merchants").doc(merchant_id).get();
-      if (!mSnap.exists) return res.status(404).json({ error: "Merchant no encontrado" });
-      const plSnap = await db().collection("merchants").doc(merchant_id).collection("plans").doc(plan_id).get();
-      const pl = plSnap.exists ? plSnap.data() : {};
-      const subsCol = db().collection("merchants").doc(merchant_id).collection("subscribers");
       // Buscar subs pending del mismo mail (query 1 campo → sin índice compuesto).
       const q = await subsCol.where("customer_email", "==", email).get();
       let leadRef = null, hasReal = false;
@@ -94,31 +292,30 @@ export default async function handler(req, res) {
       });
       if (hasReal) return res.json({ ok: true, skipped: "already_in_checkout" });
 
-      const bp = Math.round(parseFloat(base_price) || 0);
-      const soP = parseFloat(sub_discount);
-      const so = Number.isFinite(soP) ? Math.max(0, Math.min(90, soP)) : (parseFloat(pl.discount_pct) || 0);
-      const qn = Math.max(1, Math.min(10, parseInt(quantity) || pl.units_per_shipment || 1));
-      const totalCapture = bp > 0 ? Math.round(bp * (1 - so / 100)) : Math.round((pl.subscription_price_ars || 0) * qn);
-      const fp = parseInt(frequency_days);
-      const freqCapture = (Number.isFinite(fp) && fp >= 1 && fp <= 365) ? fp : (pl.frequency_days || 30);
-      const eventUrl = String(req.body.fb?.event_source_url || "").slice(0, 500);
+      // Precio para el mail de abandono: misma validación que Pagar; si no pasa,
+      // caemos al precio del plan (el lead no cobra nada).
+      let pr = await computeSubtotal({ merchantId, merchant, plan, qty: finalQty, base_price, sub_discount, variantId });
+      if (pr.error) pr = await computeSubtotal({ merchantId, merchant, plan, qty: finalQty, base_price: 0, sub_discount, variantId });
+      const totalCapture = pr.subtotal || 0;
+      const eventUrl = await safeEventSourceUrl(merchantId, merchant, req.body.fb?.event_source_url);
 
       const data = {
         customer_email: email,
-        customer_name: String(customer.name || "").trim(),
-        customer_phone: String(customer.phone || "").trim(),
-        plan_id,
-        quantity: qn,
+        customer_name: String(customer.name || "").trim().slice(0, 120),
+        customer_phone: String(customer.phone || "").trim().slice(0, 40),
+        plan_id: plan.id,
+        quantity: finalQty,
         plan_snapshot: {
-          shopify_variant_id: pl.shopify_variant_id || null,
-          shopify_product_id: pl.shopify_product_id || null,
-          product_title: pl.product_title || "Suscripción",
-          frequency_days: freqCapture,
+          shopify_variant_id: plan.shopify_variant_id || null,
+          shopify_product_id: plan.shopify_product_id || null,
+          product_title: plan.product_title || "Suscripción",
+          frequency_days: freqDays,
           total_per_charge_ars: totalCapture,
         },
         status: "pending",
         capture: true,
         fb_data: eventUrl ? { event_source_url: eventUrl } : null,
+        recover_path: buildRecoverPath(merchant, plan, plan.id, finalQty, { freq_days: freqDays, base: pr.basePrice, sub_off: pr.subOff }),
         updated_at: new Date().toISOString(),
       };
       if (leadRef) { await leadRef.update(data); return res.json({ ok: true, lead_id: leadRef.id, updated: true }); }
@@ -126,9 +323,15 @@ export default async function handler(req, res) {
       await ref.set({ ...data, created_at: new Date().toISOString(), shopify_orders: [] });
       return res.json({ ok: true, lead_id: ref.id, created: true });
     } catch (e) {
-      return res.status(500).json({ error: e.message });
+      console.error("[checkout/init] capture error:", e.message);
+      return res.status(500).json({ error: "No se pudo registrar el carrito" });
     }
   }
+
+  // ── PAGAR ───────────────────────────────────────────────────────────────────
+  const rlInit = await rateLimit(`init:${merchantId}:${ip}`, { limit: 30, windowSec: 3600 });
+  if (!rlInit.ok) return res.status(429).json({ error: "Demasiados intentos. Esperá unos minutos y volvé a intentar." });
+  if (!merchant.mp_access_token) return res.status(400).json({ error: "El comerciante no conectó MP" });
 
   // VALIDACIÓN ESTRICTA — bloqueamos avance a MP si falta cualquier dato de
   // contacto/dirección. Esto previene que un cliente complete el pago y
@@ -153,112 +356,6 @@ export default async function handler(req, res) {
     });
   }
 
-  // Cantidad de paquetes que eligió el cliente. Capada entre 1 y 10 para
-  // evitar abusos / errores. Si no viene, usamos units_per_shipment del plan.
-  const qty = Math.max(1, Math.min(10, parseInt(quantity) || 0));
-
-  // Cargar merchant + plan
-  const merchantSnap = await db().collection("merchants").doc(merchant_id).get();
-  if (!merchantSnap.exists) return res.status(404).json({ error: "Merchant no encontrado" });
-  const merchant = merchantSnap.data();
-  if (!merchant.mp_access_token) return res.status(400).json({ error: "El comerciante no conectó MP" });
-
-  const planSnap = await db().collection("merchants").doc(merchant_id).collection("plans").doc(plan_id).get();
-  if (!planSnap.exists) return res.status(404).json({ error: "Plan no encontrado" });
-  const plan = planSnap.data();
-  if (!plan.active) return res.status(400).json({ error: "Plan inactivo" });
-
-  // Cantidad final: elección del cliente, o units_per_shipment del plan como default.
-  const finalQty = qty || plan.units_per_shipment || 1;
-  const unitPrice = plan.subscription_price_ars || 0;
-
-  // Frecuencia efectiva. El bundle puede mandar frequency_days (ej. "N potes cada
-  // N×2 meses" → 60·qty días). Si viene y es válida, MANDA sobre la del plan.
-  // Rango 1..365 para no romper el preapproval de MP.
-  const freqParsed = parseInt(frequency_days);
-  const freqDays = (Number.isFinite(freqParsed) && freqParsed >= 1 && freqParsed <= 365)
-    ? freqParsed
-    : (plan.frequency_days || 30);
-
-  // ── Precio de la suscripción ──────────────────────────────────────────
-  // Modelo BUNDLE (el que usa Lumina): el bundle manda el precio del PACK
-  // (compra única) en `base_price` + el % de descuento de suscripción en
-  // `sub_discount`. La suscripción cobra pack × (1 − descuento). Descuento fijo
-  // por bundle (ej. 15% en 1/2/3 potes), sin depender del precio por unidad.
-  //   → sub_discount: si no viene, usa plan.discount_pct.
-  // Modelo por-unidad (legacy / sin bundle): precio_1_pote × cantidad × tier.
-  const basePrice = Math.round(parseFloat(base_price) || 0);
-  const subOffParsed = parseFloat(sub_discount);
-  const subOff = Number.isFinite(subOffParsed) ? Math.max(0, Math.min(90, subOffParsed)) : (parseFloat(plan.discount_pct) || 0);
-  let subtotal, qtyDiscountPct;
-  if (basePrice > 0) {
-    qtyDiscountPct = subOff;
-    subtotal = Math.round(basePrice * (1 - subOff / 100));
-  } else {
-    const tiers = Array.isArray(plan.qty_discount_tiers) ? plan.qty_discount_tiers : [];
-    qtyDiscountPct = 0; let _bestMin = -1;
-    for (const t of tiers) { const mq = parseInt(t && t.min_qty) || 0; if (finalQty >= mq && mq > _bestMin) { _bestMin = mq; qtyDiscountPct = parseFloat(t.discount_pct) || 0; } }
-    subtotal = Math.round(unitPrice * finalQty * (1 - qtyDiscountPct / 100));
-  }
-
-  // ── Código de descuento (opcional) ────────────────────────────────────────
-  // El cliente puede ingresar un código en el checkout (ej. HOLA5). Los códigos
-  // los define el comerciante en su cuenta (merchant.discount_codes). Validamos
-  // SIEMPRE server-side (no confiamos en el cliente) y aplicamos sobre el subtotal
-  // del producto (no sobre el envío). Aplica a TODOS los cobros (queda en el monto
-  // del preapproval de MP). Si el código no existe/está inactivo, se ignora.
-  let discountCodeApplied = null, discountCodePct = 0;
-  const rawCode = String(discount_code || "").trim().toUpperCase();
-  if (rawCode) {
-    const codes = Array.isArray(merchant.discount_codes) ? merchant.discount_codes : [];
-    const hit = codes.find(c => String(c.code || "").trim().toUpperCase() === rawCode && c.active !== false);
-    if (hit) {
-      const type = hit.type || "percent";
-      if (type === "percent") {
-        const pct = Math.max(0, Math.min(90, parseFloat(hit.value) || 0));
-        if (pct > 0) { discountCodePct = pct; subtotal = Math.round(subtotal * (1 - pct / 100)); }
-      } else if (type === "fixed") {
-        const off = Math.max(0, Math.round(parseFloat(hit.value) || 0));
-        subtotal = Math.max(0, subtotal - off);
-      }
-      discountCodeApplied = rawCode;
-    }
-  }
-
-  // Envío. Si el checkout mandó un método elegido (shipping_method, traído de los
-  // envíos configurados en Shopify), se usa ESE precio y nombre. Si no, se cae al
-  // envío del plan (fijo + regla de envío gratis desde $X) — compat hacia atrás.
-  const freeShippingFrom = plan.free_shipping_from_ars || 0;
-  let shippingCost, shippingName, shippingCode = "";
-  if (shipping_method && typeof shipping_method === "object" && shipping_method.name) {
-    shippingCost = Math.max(0, Math.round(Number(shipping_method.price) || 0));
-    // Nombre EXACTO de la tarifa (hasta 250 = límite de Shopify). Las apps de
-    // envío como Envialo matchean el método/sucursal por el nombre + code exacto;
-    // si lo cortábamos a 60 no lo reconocían. Guardamos también el code original.
-    shippingName = String(shipping_method.name).slice(0, 250);
-    shippingCode = String(shipping_method.code || "").slice(0, 250);
-  } else {
-    const shippingPrice = plan.shipping_price_ars || 0;
-    shippingCost = (freeShippingFrom > 0 && subtotal >= freeShippingFrom) ? 0 : shippingPrice;
-    shippingName = plan.shipping_method_name || "Envío a domicilio";
-  }
-
-  const totalPerCharge = subtotal + shippingCost;
-
-  // Crear subscriber en estado pending. Si el pago no se confirma, queda
-  // huérfano hasta limpieza periódica (cron F3).
-  // Reuso: si ya existe un "lead" (capture:true) pending del mismo mail —creado
-  // cuando el cliente escribió el email antes de tocar Pagar—, lo REUSO y lo
-  // convierto en el sub real, para no duplicar el carrito. El set() de abajo
-  // reemplaza el doc completo (el flag capture desaparece → pasa a ser real).
-  let subRef = null;
-  try {
-    const dq = await db().collection("merchants").doc(merchant_id).collection("subscribers")
-      .where("customer_email", "==", customer.email).get();
-    dq.forEach(d => { const x = d.data(); if (!subRef && x.status === "pending" && x.capture === true && !x.mp_preapproval_plan_id) subRef = d.ref; });
-  } catch (_) {}
-  if (!subRef) subRef = db().collection("merchants").doc(merchant_id).collection("subscribers").doc();
-  const subscriberId = subRef.id;
   // Sanitizar tax_id: solo dígitos. DNI (7-8) o CUIL/CUIT (11). Es obligatorio
   // para facturación AR — lo guardamos en el subscriber + lo pasamos a la
   // orden Shopify (note_attributes + customer tag) cuando se cree.
@@ -268,17 +365,133 @@ export default async function handler(req, res) {
   }
   const taxIdKind = taxIdClean.length === 11 ? "CUIT" : "DNI";
 
-  await subRef.set({
-    customer_email: customer.email,
-    customer_name: customer.name || "",
-    customer_phone: customer.phone || "",
+  const unitPrice = parseFloat(plan.subscription_price_ars) || 0;
+
+  // ── Precio de la suscripción (server-side, ver computeSubtotal) ────────────
+  const pr = await computeSubtotal({ merchantId, merchant, plan, qty: finalQty, base_price, sub_discount, variantId });
+  if (pr.error) return res.status(400).json({ error: pr.error });
+  let subtotal = pr.subtotal;
+  const qtyDiscountPct = pr.qtyDiscountPct;
+  const subtotalBeforeCode = subtotal;
+
+  // ── Código de descuento (opcional) ────────────────────────────────────────
+  // Los códigos los define el comerciante (merchant.discount_codes). Se validan
+  // SIEMPRE server-side y aplican sobre el subtotal del producto (no el envío).
+  //  · `recovery_only:true` → sólo con `recovery_token` (rc firmado del mail de
+  //    abandono, atado a merchant + email), nunca por ?code= en claro.
+  //  · `first_charge_only:true` → guardamos el precio pleno para que sync lo
+  //    suba después del primer cobro.
+  let discountCodeApplied = null, discountCodePct = 0, discountFirstOnly = false;
+  let rawCode = String(discount_code || "").trim().toUpperCase().slice(0, 40);
+  let viaRecovery = false;
+  if (recovery_token) {
+    const rc = verifyToken(String(recovery_token));
+    if (!rc || rc.m !== merchantId || !rc.c) {
+      return res.status(400).json({ error: "El link de recupero venció o no es válido. Podés continuar sin el cupón." });
+    }
+    if (normEmail(rc.e) !== email) {
+      return res.status(400).json({ error: "El cupón de recupero es para otro email. Usá el mismo email al que te llegó el mail." });
+    }
+    rawCode = String(rc.c).trim().toUpperCase().slice(0, 40);
+    viaRecovery = true;
+  }
+  if (rawCode) {
+    const codes = Array.isArray(merchant.discount_codes) ? merchant.discount_codes : [];
+    const hit = codes.find(c => String(c.code || "").trim().toUpperCase() === rawCode && c.active !== false);
+    if (hit && (!hit.recovery_only || viaRecovery)) {
+      const type = hit.type || "percent";
+      if (type === "percent") {
+        const pct = Math.max(0, Math.min(90, parseFloat(hit.value) || 0));
+        if (pct > 0) { discountCodePct = pct; subtotal = Math.round(subtotal * (1 - pct / 100)); }
+      } else if (type === "fixed") {
+        const off = Math.max(0, Math.round(parseFloat(hit.value) || 0));
+        subtotal = Math.max(0, subtotal - off);
+      }
+      discountCodeApplied = rawCode;
+      discountFirstOnly = hit.first_charge_only === true;
+    } else if (hit && hit.recovery_only) {
+      console.warn("[checkout/init] código recovery_only sin rc:", rawCode, merchantId);
+    }
+  }
+
+  // ── Envío ─────────────────────────────────────────────────────────────────
+  // El método viene del body sólo como NOMBRE/CODE: el precio se toma SIEMPRE de
+  // la tarifa configurada del merchant (checkout_shipping_rates o el default).
+  // Si no matchea ninguna, cae al envío del plan (fijo + envío gratis desde $X).
+  const freeShippingFrom = parseFloat(plan.free_shipping_from_ars) || 0;
+  let shippingCost, shippingName, shippingCode = "";
+  let matchedRate = null;
+  if (shipping_method && typeof shipping_method === "object" && (shipping_method.name || shipping_method.code)) {
+    const wantName = String(shipping_method.name || "").trim().toLowerCase();
+    const wantCode = String(shipping_method.code || "").trim();
+    const rates = merchantShippingRates(merchant);
+    matchedRate = rates.find(r => wantCode && String(r.code || "").trim() && String(r.code).trim() === wantCode)
+      || rates.find(r => wantName && String(r.name || "").trim().toLowerCase() === wantName)
+      || null;
+    if (!matchedRate) console.warn("[checkout/init] shipping_method sin match, uso envío del plan:", { merchantId, name: wantName, code: wantCode, bodyPrice: shipping_method.price });
+  }
+  if (matchedRate) {
+    shippingCost = Math.max(0, Math.round(Number(matchedRate.price) || 0));
+    // Nombre EXACTO de la tarifa (hasta 250 = límite de Shopify). Las apps de
+    // envío como Envialo matchean el método por nombre + code exacto.
+    shippingName = String(matchedRate.name).slice(0, 250);
+    shippingCode = String(matchedRate.code || "").slice(0, 250);
+  } else {
+    const shippingPrice = parseFloat(plan.shipping_price_ars) || 0;
+    shippingCost = (freeShippingFrom > 0 && subtotal >= freeShippingFrom) ? 0 : shippingPrice;
+    shippingName = plan.shipping_method_name || "Envío a domicilio";
+  }
+
+  // Subtotal 0 o menor al envío (cupón fijo) → MP cobraría algo que Shopify no
+  // puede facturar. Rechazamos.
+  if (!(subtotal > 0) || subtotal <= shippingCost) {
+    console.warn("[checkout/init] subtotal inválido", { merchantId, subtotal, shippingCost, code: discountCodeApplied });
+    return res.status(400).json({ error: "El total de la suscripción no es válido con ese descuento. Sacá el cupón e intentá de nuevo." });
+  }
+
+  const totalPerCharge = subtotal + shippingCost;
+  const fullPricePerCharge = subtotalBeforeCode + shippingCost;
+
+  // ── Subscriber pending ────────────────────────────────────────────────────
+  // Reuso (en este orden), para no duplicar carritos ni planes MP:
+  //  1) sub REAL pending del mismo mail + plan, sin cobro, creada hace < 24h con
+  //     plan MP → mismo doc (regeneramos el plan MP si cambió monto/frecuencia y
+  //     guardamos el anterior en mp_preapproval_plan_id_prev).
+  //  2) lead (capture:true) del mismo mail → se convierte en sub real.
+  //  3) doc nuevo.
+  // Siempre update() (o set merge): NO pisamos created_at / abandoned_step /
+  // abandoned_step_at para no reiniciar la secuencia de abandono.
+  let subRef = null, existing = null, isNew = false;
+  try {
+    const dq = await subsCol.where("customer_email", "==", email).get();
+    let real = null, lead = null;
+    dq.forEach(d => {
+      const x = d.data();
+      if (x.status !== "pending") return;
+      if (x.mp_preapproval_plan_id) {
+        const ageMs = Date.now() - new Date(x.created_at || 0).getTime();
+        // Solo reusamos intentos que NUNCA llegaron a autorizar en MP: si ya hay
+        // preapproval (o forzamos cobro), ese doc tiene que seguir su vida sola.
+        const untouched = !x.mp_preapproval_id && x.mp_preapproval_status !== "authorized" && !x.sync_force_attempted;
+        if (untouched && x.plan_id === plan.id && !x.last_charge_at && ageMs < 24 * 3600 * 1000 && (!real || (x.created_at || "") > (real.data.created_at || ""))) real = { ref: d.ref, data: x };
+      } else if (x.capture === true && !lead) lead = { ref: d.ref, data: x };
+    });
+    if (real) { subRef = real.ref; existing = real.data; }
+    else if (lead) { subRef = lead.ref; existing = lead.data; }
+  } catch (_) {}
+  if (!subRef) { subRef = subsCol.doc(); isNew = true; }
+  const subscriberId = subRef.id;
+
+  const eventUrl = await safeEventSourceUrl(merchantId, merchant, req.body.fb?.event_source_url);
+  const nowIso = new Date().toISOString();
+  const subData = {
+    customer_email: email,
+    customer_name: customerName.slice(0, 120),
+    customer_phone: customerPhone.slice(0, 40),
     customer_tax_id: taxIdClean,
     customer_tax_id_kind: taxIdKind, // "DNI" | "CUIT"
-    // Shipping address sanitizada — usamos el objeto validado arriba (addr),
-    // garantizando que address1/city/province/zip nunca sean undefined o ""
-    // (la validación previa rechazaría el request). first_name/last_name/phone
-    // los rellenamos del nombre/teléfono del customer para que la orden
-    // Shopify quede con todos los campos.
+    // Shipping address sanitizada — la validación previa garantiza que
+    // address1/city/province/zip nunca sean undefined o "".
     shipping_address: {
       address1:   String(addr.address1).trim(),
       address2:   String(addr.address2 || "").trim(),
@@ -290,16 +503,16 @@ export default async function handler(req, res) {
       last_name:  customerName.split(" ").slice(1).join(" ") || "",
       phone:      customerPhone,
     },
-    plan_id,
+    plan_id: plan.id,
     quantity: finalQty,
     plan_snapshot: {
-      shopify_variant_id: plan.shopify_variant_id,
-      shopify_product_id: plan.shopify_product_id,
-      product_title: plan.product_title,
+      shopify_variant_id: plan.shopify_variant_id || null,
+      shopify_product_id: plan.shopify_product_id || null,
+      product_title: plan.product_title || "Suscripción",
       frequency_days: freqDays,
       subscription_price_ars: unitPrice,
       units_per_shipment: finalQty,
-      // Desglose snapshot — los uso para mostrar al cliente y para crear orden
+      // Desglose snapshot — se usa para mostrar al cliente y para crear la orden
       // Shopify con shipping_lines acorde. Si el plan cambia después, este
       // snapshot preserva el cobro original del subscriber.
       subtotal_ars: subtotal,
@@ -311,23 +524,34 @@ export default async function handler(req, res) {
       discount_code_pct: discountCodePct,
       total_per_charge_ars: totalPerCharge,
     },
+    // Cupón sólo primer cobro: sync sube el monto a full_price_per_charge_ars después.
+    discount_first_charge_only: discountFirstOnly,
+    full_price_per_charge_ars: discountFirstOnly ? fullPricePerCharge : null,
     status: "pending",
-    created_at: new Date().toISOString(),
-    shopify_orders: [],
+    capture: false, // deja de ser lead
+    checkout_started_at: nowIso, // reloj del cron (created_at se preserva del lead)
+    recover_path: buildRecoverPath(merchant, plan, plan.id, finalQty, { freq_days: freqDays, base: pr.basePrice, sub_off: pr.subOff }),
+    updated_at: nowIso,
     // Datos de atribución de Meta capturados en el navegador (fbc/fbp/UA/URL).
     // Se usan en el evento Purchase de CAPI para atribuir la venta al anuncio.
     fb_data: (req.body.fb && typeof req.body.fb === "object") ? {
       fbc: String(req.body.fb.fbc || "").slice(0, 255),
       fbp: String(req.body.fb.fbp || "").slice(0, 255),
-      event_source_url: String(req.body.fb.event_source_url || "").slice(0, 500),
+      event_source_url: eventUrl,
       user_agent: String(req.body.fb.user_agent || "").slice(0, 500),
     } : null,
-  });
+  };
+  if (isNew) {
+    await subRef.set({ ...subData, created_at: nowIso, shopify_orders: [] });
+  } else {
+    // Preserva created_at / abandoned_step / abandoned_step_at del doc original.
+    await subRef.set({ ...subData, ...(existing?.created_at ? {} : { created_at: nowIso }), ...(Array.isArray(existing?.shopify_orders) ? {} : { shopify_orders: [] }) }, { merge: true });
+  }
 
-  // JWT del portal — vive 365 días, le permite al cliente gestionar la sub
+  // Token del portal — 180 días, le permite al cliente gestionar la sub
   // (ver detalle, pausar, cancelar) sin loguearse en Firebase Auth. Va en
   // back_url para que CheckoutSuccess pueda linkear al portal directamente.
-  const portalToken = generatePortalToken(merchant_id, subscriberId, 365);
+  const portalToken = generatePortalToken(merchantId, subscriberId, 180);
 
   const baseUrl = process.env.APP_BASE_URL || "";
   const isLocalhost = baseUrl.startsWith("http://localhost") || baseUrl.startsWith("http://127.");
@@ -336,29 +560,38 @@ export default async function handler(req, res) {
     : `${baseUrl}/#/checkout-success?sub=${subscriberId}&token=${encodeURIComponent(portalToken)}`;
   // notification_url: a dónde MP nos avisa cuando haya un cobro. Incluimos
   // ?mid=X&sid=Y como query params para que el webhook handler sepa DIRECTO
-  // a qué merchant pertenece sin iterar todos los merchants intentando
-  // mpGetPayment con cada token (el approach viejo fallaba con MP 404).
+  // a qué merchant pertenece sin iterar todos los merchants.
   const notificationUrl = isLocalhost
     ? undefined
-    : `${baseUrl}/api/mp/webhook?mid=${encodeURIComponent(merchant_id)}&sid=${encodeURIComponent(subscriberId)}`;
+    : `${baseUrl}/api/mp/webhook?mid=${encodeURIComponent(merchantId)}&sid=${encodeURIComponent(subscriberId)}`;
 
-  // Crear preapproval_plan AD-HOC en MP, específico para esta sub.
-  // payment_methods_allowed: solo credit_card → MP filtra dinero+débito en el
-  // checkout. external_reference se hereda al preapproval que MP cree cuando
-  // el cliente confirme — el webhook lo usa para resolver subscriber.
+  // Si reusamos una sub real con el MISMO monto y frecuencia, reusamos también su
+  // plan MP (no creamos otro).
+  const prevPlanId = existing?.mp_preapproval_plan_id || null;
+  const sameCharge = !!(prevPlanId && existing?.mp_init_point
+    && Number(existing?.plan_snapshot?.total_per_charge_ars) === totalPerCharge
+    && Number(existing?.plan_snapshot?.frequency_days) === freqDays);
+  if (sameCharge) {
+    await subRef.update({ portal_token: portalToken });
+    return res.json({
+      ok: true,
+      subscriber_id: subscriberId,
+      init_point: existing.mp_init_point,
+      preapproval_plan_id: prevPlanId,
+      portal_token: portalToken,
+      reused: true,
+    });
+  }
+
   // ── Flujo de PLAN (preapproval_plan) — MP pide el mail en SU pantalla ───────
   // MP no permite tener "dinero en cuenta" (solo lo da el preapproval directo) Y
   // a la vez liberar el mail (el directo EXIGE payer_email y obliga a que coincida
-  // → "tu email no coincide con la suscripción"). Comprobado: MP rechaza el
-  // preapproval sin payer_email. Como muchos clientes no recuerdan el mail de su
-  // cuenta MP o pagan con la de otra persona, priorizamos que TODOS puedan pagar:
-  // en el flujo de plan MP pide el login en su pantalla y toma el mail de esa
-  // cuenta. El mail del checkout queda SOLO para seguimiento (orden Shopify +
-  // emails), NO viaja a MP. Costo: el checkout de plan no ofrece dinero en cuenta
-  // (queda tarjeta crédito/débito), que igual es lo confiable para lo recurrente.
-  // El monto ya viene multiplicado por qty → un plan ad-hoc por sub escala bien.
-  // external_reference se propaga al preapproval que MP crea al confirmar, así el
-  // sync/webhook resuelven el subscriber (primer cobro: polling de CheckoutSuccess).
+  // → "tu email no coincide con la suscripción"). Como muchos clientes no recuerdan
+  // el mail de su cuenta MP o pagan con la de otra persona, priorizamos que TODOS
+  // puedan pagar: en el flujo de plan MP pide el login en su pantalla y toma el mail
+  // de esa cuenta. El mail del checkout queda SOLO para seguimiento (orden Shopify +
+  // emails), NO viaja a MP. El monto ya viene multiplicado por qty → un plan ad-hoc
+  // por sub escala bien.
   const planBodyBase = {
     reason: `${plan.product_title} × ${finalQty} — cada ${freqDays} días`,
     auto_recurring: {
@@ -374,10 +607,7 @@ export default async function handler(req, res) {
   // Por defecto el checkout de plan sale SOLO crédito. Intentamos habilitar la
   // mayor cantidad de métodos con payment_methods_allowed, en CASCADA de más a
   // menos inclusivo: 1) crédito+débito+dinero en cuenta, 2) crédito+débito,
-  // 3) sin restricción (crédito). Nos quedamos con el PRIMERO que MP acepte, así
-  // sumamos dinero en cuenta si MP lo permite sin arriesgar perder débito. (MP
-  // suele NO permitir dinero en cuenta para lo recurrente porque no puede
-  // auto-debitar un saldo; si lo rechaza, cae solo a la opción siguiente.)
+  // 3) sin restricción (crédito). Nos quedamos con el PRIMERO que MP acepte.
   const pmaAttempts = [
     { payment_types: [{ id: "credit_card" }, { id: "debit_card" }, { id: "account_money" }], payment_methods: [] },
     { payment_types: [{ id: "credit_card" }, { id: "debit_card" }], payment_methods: [] },
@@ -393,21 +623,21 @@ export default async function handler(req, res) {
       break;
     } catch (e) { lastPlanErr = e; }
   }
-  if (!preapprovalPlan) {
-    await subRef.update({ status: "error", error: lastPlanErr?.message || "MP plan" });
-    return res.status(502).json({ error: `MP: ${lastPlanErr?.message || "no se pudo crear el plan"}` });
-  }
-  if (!preapprovalPlan?.id) {
-    await subRef.update({ status: "error", error: "MP no devolvió el plan" });
-    return res.status(502).json({ error: "MP no devolvió el link de pago" });
+  if (!preapprovalPlan || !preapprovalPlan.id) {
+    // No exponemos el error crudo de MP al comprador: lo logueamos y lo dejamos
+    // en el merchant para que lo vea en el dashboard.
+    const detail = lastPlanErr?.message || "MP no devolvió el plan";
+    console.error("[checkout/init] MP preapproval_plan falló:", { merchantId, subscriberId, detail });
+    await subRef.update({ status: "error", error: detail }).catch(() => {});
+    await merchantRef.set({ mp_last_error: String(detail).slice(0, 500), mp_last_error_at: new Date().toISOString() }, { merge: true }).catch(() => {});
+    return res.status(502).json({ error: "La tienda tiene un problema con Mercado Pago. Avisale al vendedor e intentá más tarde." });
   }
 
   // URL del checkout del plan. NO adjuntamos payer_email → MP usa el mail de la
   // cuenta logueada del cliente.
-  // ⚠️ NO agregar &external_reference a esta URL: MP empezó a devolver "página no
-  // existe" (404) cuando el checkout de plan lleva parámetros extra. El sub se
-  // resuelve igual por el mp_preapproval_plan_id ÚNICO (el external_reference de la
-  // URL nunca se propagaba al preapproval, era redundante). Usamos el init_point tal cual.
+  // ⚠️ NO agregar &external_reference a esta URL: MP devuelve 404 cuando el
+  // checkout de plan lleva parámetros extra. El sub se resuelve por el
+  // mp_preapproval_plan_id ÚNICO. Usamos el init_point tal cual.
   const checkoutUrl = preapprovalPlan.init_point
     || `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=${encodeURIComponent(preapprovalPlan.id)}`;
 
@@ -415,12 +645,12 @@ export default async function handler(req, res) {
     mp_preapproval_plan_id: preapprovalPlan.id,
     mp_init_point: checkoutUrl,
     portal_token: portalToken,
+    ...(prevPlanId && prevPlanId !== preapprovalPlan.id ? { mp_preapproval_plan_id_prev: prevPlanId } : {}),
   });
 
-  // NOTA: el "InitiateCheckout" (pago iniciado) ahora se dispara del lado del
-  // navegador APENAS CARGA el checkout (fbq en widget.js), no acá al tocar Pagar,
-  // porque el evento correcto es "llegó al checkout". El "Purchase" se sigue
-  // disparando server-side (sync/webhook) cuando MP confirma el cobro.
+  // NOTA: el "InitiateCheckout" se dispara del lado del navegador APENAS CARGA el
+  // checkout (fbq en widget.js). El "Purchase" se sigue disparando server-side
+  // (sync/webhook) cuando MP confirma el cobro.
 
   return res.json({
     ok: true,
@@ -430,4 +660,3 @@ export default async function handler(req, res) {
     portal_token: portalToken,
   });
 }
-

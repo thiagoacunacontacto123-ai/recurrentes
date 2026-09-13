@@ -1,21 +1,22 @@
 // /api/shopify — endpoint consolidado para operaciones de Shopify del merchant.
 //
 // Combina tres endpoints previos (save-creds, oauth-start, products) en un
-// solo archivo para entrar dentro del límite de 12 funciones del plan Hobby
-// de Vercel. El callback OAuth queda en su path original
+// solo archivo. El callback OAuth queda en su path original
 // (/api/shopify/oauth-callback) porque está hardcodeado en la app Shopify
 // del merchant — no se puede mover sin que actualicen su Dev Dashboard.
 //
-//   GET  ?action=oauth-start&uid=<uid>   → redirige al consent de Shopify
-//   GET  ?action=products                → lista productos del merchant
-//   POST ?action=save-creds              → guarda client_id + secret + shop
-//
-// Todos los endpoints (excepto oauth-start, que recibe uid por query
-// para que funcione como redirect desde el browser) requieren Firebase Auth.
+//   GET  ?action=oauth-start   (auth) → { url } del consent de Shopify
+//   GET  ?action=products      (auth) → lista productos del merchant
+//   POST ?action=save-creds    (auth) → guarda client_id + secret + shop
+//   GET  ?action=shipping-rates (público, rate-limited) → tarifas de envío
 import { db, requireAuth } from "./_lib/firebase.js";
 import { shListProducts, shGetShippingRates } from "./_lib/shopify.js";
+import { signToken } from "./_lib/token.js";
+import { appBaseUrl } from "./_lib/config.js";
+import { rateLimit, clientIp } from "./_lib/ratelimit.js";
 
 const productsCache = new Map();
+const SHOP_RE = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i;
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
@@ -35,6 +36,9 @@ export default async function handler(req, res) {
 async function handleShippingRates(req, res) {
   const merchantId = String(req.query.merchant || req.query.uid || "");
   if (!merchantId) return res.status(400).json({ error: "Falta merchant" });
+  // 60/h por merchant+IP: que nadie queme el bucket de Shopify del merchant.
+  const rl = await rateLimit(`rates:${merchantId}:${clientIp(req)}`, { limit: 60, windowSec: 3600 });
+  if (!rl.ok) return res.status(429).json({ rates: [], error: "Demasiadas consultas, probá en unos minutos" });
   try {
     const snap = await db().collection("merchants").doc(merchantId).get();
     const m = snap.exists ? snap.data() : null;
@@ -51,36 +55,33 @@ async function handleShippingRates(req, res) {
 }
 
 // ─── action=oauth-start ────────────────────────────────────────
-// Acceso sin Bearer — el merchant lo abre via window.location desde el browser.
-// Validamos por uid en query + merchant doc existente en Firestore.
+// Requiere auth (Bearer). Devuelve { url } y el front redirige. El `state`
+// es un token firmado {uid, shop} (10 min) + cookie de respaldo: el callback
+// no confía en ningún uid que venga suelto por query.
 async function handleOauthStart(req, res) {
-  const uid = req.query.uid;
-  if (!uid) return res.status(400).send("Falta uid del merchant");
+  const uid = await requireAuth(req, res);
+  if (!uid) return;
 
-  const merchantSnap = await db().collection("merchants").doc(String(uid)).get();
-  if (!merchantSnap.exists) return res.status(404).send("Merchant no encontrado");
+  const merchantSnap = await db().collection("merchants").doc(uid).get();
+  if (!merchantSnap.exists) return res.status(404).json({ error: "Merchant no encontrado" });
   const merchant = merchantSnap.data();
 
-  const shop = merchant.shopify_shop;
-  const clientId = merchant.shopify_client_id;
-  if (!shop || !clientId) {
-    return res.status(400).send(`
-      <h2>Falta configurar las credenciales</h2>
-      <p>Volvé a Recurrentes → Integraciones → Shopify, completá Client ID + Secret + Shop y volvé a hacer click en "Conectar tienda".</p>
-    `);
+  const shop = String(merchant.shopify_shop || "").toLowerCase();
+  // App única de Recurrentes (env) si el merchant no cargó una app propia.
+  const clientId = merchant.shopify_client_id || process.env.SHOPIFY_API_KEY || "";
+  if (!shop || !SHOP_RE.test(shop)) return res.status(400).json({ error: "Shop inválido — formato: mitienda.myshopify.com" });
+  if (!clientId) {
+    return res.status(400).json({ error: "Falta configurar las credenciales: completá Client ID + Secret + Shop en Integraciones → Shopify y volvé a tocar \"Conectar tienda\"." });
   }
 
-  const scopes = "read_products,write_orders,read_orders,read_customers,write_customers,write_draft_orders";
-  const redirect = `${process.env.APP_BASE_URL || "http://localhost:3000"}/api/shopify/oauth-callback`;
+  const scopes = process.env.SHOPIFY_SCOPES || "read_products,write_orders,read_orders,read_customers,write_customers,write_draft_orders";
+  const redirect = `${appBaseUrl() || "http://localhost:3000"}/api/shopify/oauth-callback`;
 
-  // State opaco — incluye uid para mapear el callback al merchant.
-  const nonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
-  const state = `${uid}:${nonce}`;
+  const state = signToken({ uid, shop }, 600);
   res.setHeader("Set-Cookie", `shopify_oauth_state=${encodeURIComponent(state)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600`);
 
   const url = `https://${shop}/admin/oauth/authorize?client_id=${encodeURIComponent(clientId)}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(redirect)}&state=${encodeURIComponent(state)}`;
-  res.writeHead(302, { Location: url });
-  res.end();
+  return res.json({ url });
 }
 
 // ─── action=products ───────────────────────────────────────────
@@ -124,6 +125,8 @@ async function handleProducts(req, res) {
 }
 
 // ─── action=save-creds ─────────────────────────────────────────
+// client_id/secret son opcionales si Recurrentes tiene app única en env
+// (SHOPIFY_API_KEY/SECRET): en ese caso alcanza con el shop.
 async function handleSaveCreds(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
@@ -131,20 +134,21 @@ async function handleSaveCreds(req, res) {
   if (!uid) return;
 
   let { shop, client_id, client_secret } = req.body || {};
+  const hasEnvApp = !!(process.env.SHOPIFY_API_KEY && process.env.SHOPIFY_API_SECRET);
   if (!shop?.trim()) return res.status(400).json({ error: "Falta shop (mitienda.myshopify.com)" });
-  if (!client_id?.trim()) return res.status(400).json({ error: "Falta Client ID" });
-  if (!client_secret?.trim()) return res.status(400).json({ error: "Falta Client Secret" });
+  if (!hasEnvApp && !client_id?.trim()) return res.status(400).json({ error: "Falta Client ID" });
+  if (!hasEnvApp && !client_secret?.trim()) return res.status(400).json({ error: "Falta Client Secret" });
 
   shop = shop.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-  if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shop)) {
+  if (!SHOP_RE.test(shop)) {
     return res.status(400).json({ error: "Shop inválido — formato: mitienda.myshopify.com" });
   }
 
   try {
     await db().collection("merchants").doc(uid).set({
       shopify_shop: shop,
-      shopify_client_id: client_id.trim(),
-      shopify_client_secret: client_secret.trim(),
+      shopify_client_id: (client_id || "").trim() || null,
+      shopify_client_secret: (client_secret || "").trim() || null,
       shopify_creds_saved_at: new Date().toISOString(),
       shopify_token: null,
     }, { merge: true });
