@@ -6,7 +6,8 @@
 //     bypassea estas rules. Por eso el cliente NUNCA escribe: así el merchant
 //     no puede setear plan:"pro", abandoned_enabled, inventar charges, etc.
 //   - El cliente Firebase Web SDK del comerciante solo puede LEER su propio
-//     doc merchants/{uid} y subcollections.
+//     doc merchants/{uid} y subcollections (+ el doc de tiendas donde es dueño
+//     o miembro: ownerUid / teamUids; sus subcolecciones van por API).
 //   - El widget del storefront y el portal del cliente final NO usan Firebase
 //     Web SDK directamente — todo pasa por /api/public/* con tokens firmados.
 //
@@ -17,13 +18,21 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // El merchant logueado puede LEER solo su propio doc + subcols. Escritura: nunca.
-    match /merchants/{uid} {
-      allow read: if request.auth != null && request.auth.uid == uid;
+    // Multi-tienda: el doc merchants/{mid} lo puede LEER su propio login
+    // (mid == uid, caso clásico), el PERFIL dueño (ownerUid, tiendas m_xxx) y
+    // los miembros del equipo (teamUids). Escritura: nunca.
+    match /merchants/{mid} {
+      allow read: if request.auth != null && (
+        request.auth.uid == mid
+        || request.auth.uid == resource.data.get('ownerUid', '')
+        || request.auth.uid in resource.data.get('teamUids', [])
+      );
       allow write: if false;
 
+      // Subcolecciones (plans, subscribers, charges, email_log…): solo el login
+      // cuyo uid es el id del doc. Dueños de tiendas extra y equipo las leen por API.
       match /{subcol}/{docId=**} {
-        allow read: if request.auth != null && request.auth.uid == uid;
+        allow read: if request.auth != null && request.auth.uid == mid;
         allow write: if false;
       }
     }

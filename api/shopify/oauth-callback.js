@@ -29,7 +29,8 @@ export default async function handler(req, res) {
     return res.status(403).send("State inválido o vencido — volvé a Recurrentes y reiniciá la conexión.");
   }
   if (String(payload.shop).toLowerCase() !== shopNorm) return res.status(403).send("El shop no coincide con el flow iniciado.");
-  const uid = String(payload.uid);
+  // Multi-tienda: `mid` = merchant destino (tienda activa al iniciar el flow); sin mid → uid (tokens viejos).
+  const uid = String(payload.mid || payload.uid);
 
   // Cookie de respaldo: si está, tiene que coincidir.
   const cookies = parseCookies(req.headers.cookie || "");

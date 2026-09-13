@@ -13,13 +13,42 @@
 // El widget detecta cambios de variante en vivo (cuando el cliente cambia
 // Pequeña → Grande): refresca el plan asociado y actualiza precio del botón.
 
-// Tarifas de envío del checkout on-store cuando el merchant no configuró
-// `checkout_shipping_rates` (las históricas de Lumina). checkout/init usa el
-// MISMO default para validar el envío server-side.
+// Tarifas de envío del checkout on-store para merchants LEGACY (creados antes
+// del corte multi-tienda) que no configuraron `checkout_shipping_rates`: son las
+// históricas de Lumina. checkout/init usa la MISMA resolución server-side.
 export const DEFAULT_CHECKOUT_SHIPPING_RATES = [
   { name: "Envío a domicilio (Andreani / Flex) — Estándar", price: 0, eta: "3 a 6 días hábiles", code: "" },
   { name: "Envío a Domicilio por Andreani / Flex DESPACHO PRIORITARIO 🚚", price: 5900, eta: "1 a 5 días hábiles", code: "" },
 ];
+// Merchants creados desde esta fecha NO heredan las tarifas de Lumina.
+export const LEGACY_SHIPPING_CUTOFF = "2026-09-13";
+// Código de la tarifa sintética "envío del plan" (shipping_price_ars +
+// free_shipping_from_ars del plan). El embed la manda con este code cuando el
+// merchant no tiene lista de tarifas; init.js la resuelve con el envío del plan.
+export const PLAN_SHIPPING_CODE = "PLAN";
+
+function merchantCreatedAtIso(m) {
+  const v = m?.created_at;
+  if (typeof v === "string") return v;
+  try { return v?.toDate ? v.toDate().toISOString() : ""; } catch (_) { return ""; }
+}
+// Legacy = sin created_at (docs viejos) o creado antes del corte.
+export function isLegacyMerchant(m) {
+  const iso = merchantCreatedAtIso(m);
+  return !iso || iso < LEGACY_SHIPPING_CUTOFF;
+}
+// Lista de tarifas efectiva del merchant:
+//   1) checkout_shipping_rates configuradas (saneadas) si hay alguna;
+//   2) legacy sin tarifas → DEFAULT_CHECKOUT_SHIPPING_RATES (Lumina);
+//   3) merchant nuevo sin tarifas → [] (el checkout usa el envío del plan, code PLAN).
+export function resolveCheckoutShippingRates(m) {
+  const raw = Array.isArray(m?.checkout_shipping_rates) ? m.checkout_shipping_rates : [];
+  const list = raw
+    .filter(r => r && typeof r.name === "string" && r.name.trim())
+    .map(r => ({ name: r.name.trim().slice(0, 250), price: Math.max(0, Math.round(Number(r.price) || 0)), eta: String(r.eta || "").slice(0, 80), code: String(r.code || "").slice(0, 250) }));
+  if (list.length) return list;
+  return isLegacyMerchant(m) ? DEFAULT_CHECKOUT_SHIPPING_RATES : [];
+}
 
 export default async function handler(req, res) {
   res.setHeader("Content-Type", "application/javascript; charset=utf-8");
@@ -55,7 +84,8 @@ export default async function handler(req, res) {
   // embed pegado). El botón del producto redirige ahí, en el dominio de la tienda.
   let checkoutPagePath = "/pages/suscripcion-form";
   // Tarifas de envío del checkout (editables por el merchant). Sólo name/price/eta/code.
-  let checkoutShippingRates = DEFAULT_CHECKOUT_SHIPPING_RATES;
+  // [] = sin lista → el embed ofrece el envío del plan (code PLAN).
+  let checkoutShippingRates = [];
   try {
     const { db } = await import("./_lib/firebase.js");
     const snap = await db().collection("merchants").doc(merchantId).get();
@@ -72,12 +102,7 @@ export default async function handler(req, res) {
       if (!hideSelector && typeof m.widget_hide_selector === "string") hideSelector = m.widget_hide_selector;
       if (m.widget_checkout_flow === "inline") checkoutFlow = "inline";
       if (typeof m.widget_checkout_page_path === "string" && m.widget_checkout_page_path.trim()) checkoutPagePath = m.widget_checkout_page_path.trim();
-      if (Array.isArray(m.checkout_shipping_rates)) {
-        const list = m.checkout_shipping_rates
-          .filter(r => r && typeof r.name === "string" && r.name.trim())
-          .map(r => ({ name: r.name.trim().slice(0, 250), price: Math.max(0, Math.round(Number(r.price) || 0)), eta: String(r.eta || "").slice(0, 80), code: String(r.code || "").slice(0, 250) }));
-        if (list.length) checkoutShippingRates = list;
-      }
+      checkoutShippingRates = resolveCheckoutShippingRates(m);
     }
   } catch (_) {}
 
@@ -858,7 +883,8 @@ function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates }) {
   var MERCHANT_ID = ${JSON.stringify(merchantId)};
   var API_BASE = ${JSON.stringify(apiBase)};
   var COL = ${JSON.stringify(color || "#10b981")};
-  var SHIPPING_RATES = ${JSON.stringify(Array.isArray(shippingRates) && shippingRates.length ? shippingRates : DEFAULT_CHECKOUT_SHIPPING_RATES)};
+  var SHIPPING_RATES = ${JSON.stringify(Array.isArray(shippingRates) ? shippingRates : [])};
+  var PLAN_RATE_CODE = ${JSON.stringify(PLAN_SHIPPING_CODE)};
   if (!MERCHANT_ID) { console.error("[Recurrentes checkout] falta ?merchant en el <script>"); return; }
 
   var q = new URLSearchParams(window.location.search);
@@ -903,9 +929,20 @@ function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates }) {
     try { var p = prices(); if (window.fbq) window.fbq("track", "InitiateCheckout", { value: p.total || 0, currency: "ARS", num_items: QTY }); } catch(e){}
   }
   // ENVÍOS FIJOS para la suscripción: los configura el merchant
-  // (checkout_shipping_rates) o el default histórico. El server sólo acepta el
-  // nombre/code y toma el precio de SU lista (nunca del navegador).
+  // (checkout_shipping_rates) o el default histórico (merchants legacy). Si el
+  // merchant no tiene lista, la única opción es el ENVÍO DEL PLAN (code PLAN:
+  // shipping_price_ars, gratis desde free_shipping_from_ars). El server sólo
+  // acepta el nombre/code y toma el precio de SU lista / del plan (nunca del navegador).
   var rates = SHIPPING_RATES;
+  function planRate(){ return { name: (plan && plan.shipping_method_name) || "Envío a domicilio", price: (plan && plan.shipping_price_ars) || 0, code: PLAN_RATE_CODE }; }
+  // Precio efectivo de una tarifa para un subtotal dado (la del plan respeta "gratis desde $X").
+  function ratePrice(rt, subtotal){
+    if (rt && rt.code === PLAN_RATE_CODE && plan) {
+      var freeFrom = parseFloat(plan.free_shipping_from_ars) || 0;
+      return (freeFrom > 0 && subtotal >= freeFrom) ? 0 : (Number(rt.price) || 0);
+    }
+    return Number(rt && rt.price) || 0;
+  }
   var sumOpen = !(typeof window !== "undefined" && window.innerWidth < 760);  // resumen: abierto en desktop, colapsado en mobile
 
   function money(n){ return "$" + Math.round(Number(n) || 0).toLocaleString("es-AR"); }
@@ -943,8 +980,9 @@ function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates }) {
     // Código de descuento (ej. HOLA5): se aplica sobre el subtotal del producto.
     var codeOff = 0;
     if (RC_DISC.pct > 0) { codeOff = Math.round(subtotal * RC_DISC.pct / 100); subtotal = subtotal - codeOff; }
-    var sel = rates[rateIdx] || { name: (plan.shipping_method_name||"Envío"), price: (plan.shipping_price_ars||0) };
-    return { subtotal: subtotal, disc: disc, codeOff: codeOff, codePct: RC_DISC.pct, code: RC_DISC.code, ship: Number(sel.price)||0, shipName: sel.name, total: subtotal + (Number(sel.price)||0) };
+    var sel = rates[rateIdx] || planRate();
+    var shipCost = ratePrice(sel, subtotal);
+    return { subtotal: subtotal, disc: disc, codeOff: codeOff, codePct: RC_DISC.pct, code: RC_DISC.code, ship: shipCost, shipName: sel.name, total: subtotal + shipCost };
   }
   // Días hábiles (lun-vie) entre hoy y una fecha ISO — para el "X a Y días hábiles".
   function bizDaysUntil(iso){
@@ -1025,13 +1063,15 @@ function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates }) {
   function renderRates(){
     var box = document.getElementById("rc-rates"); if (!box) return;
     if (ratesMsg) { box.innerHTML = '<div style="font-size:13px;color:#888;padding:10px 0;">' + esc(ratesMsg) + '</div>'; return; }
+    var curSub = plan ? prices().subtotal : 0;
     box.innerHTML = rates.map(function(rt,i){
-      var free = (Number(rt.price)||0) === 0;
+      var shown = ratePrice(rt, curSub);
+      var free = shown === 0;
       return '<label style="display:flex;align-items:flex-start;gap:10px;padding:11px 13px;border:1.5px solid ' + (i===rateIdx?COL:"#e0e0e2") + ';border-radius:10px;cursor:pointer;margin-bottom:8px;background:' + (i===rateIdx?(COL+"0d"):"#fff") + ';">'
         + '<input type="radio" name="rc-rate" ' + (i===rateIdx?"checked":"") + ' data-i="' + i + '" style="accent-color:' + COL + ';margin-top:2px;"/>'
         + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:13px;font-weight:500;line-height:1.35;">' + esc(rt.name) + '</span>'
         + (rt.eta ? '<span style="display:block;font-size:11.5px;color:#888;margin-top:2px;">' + esc(rt.eta) + '</span>' : '') + '</span>'
-        + '<b style="font-size:13px;color:' + (free?"#0a8a3f":"#1a1a1a") + ';white-space:nowrap;">' + (free?"Gratis":money(rt.price)) + '</b></label>';
+        + '<b style="font-size:13px;color:' + (free?"#0a8a3f":"#1a1a1a") + ';white-space:nowrap;">' + (free?"Gratis":money(shown)) + '</b></label>';
     }).join("");
     Array.prototype.forEach.call(box.querySelectorAll('input[name="rc-rate"]'), function(inp){
       inp.addEventListener("change", function(){ rateIdx = parseInt(inp.getAttribute("data-i"),10)||0; renderRates(); renderSummary(); });
@@ -1135,7 +1175,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates }) {
     if (firstBad) { var fe = document.getElementById(firstBad); if (fe) { if (fe.scrollIntoView) fe.scrollIntoView({ behavior: "smooth", block: "center" }); try { fe.focus(); } catch (e) {} } return; }
     if (submitting) return; submitting = true;
     var btn = document.getElementById("rc-pay"); if (btn){ btn.disabled = true; btn.textContent = "Redirigiendo a Mercado Pago…"; }
-    var sel = rates[rateIdx] || { name: (plan.shipping_method_name||"Envío"), price: (plan.shipping_price_ars||0) };
+    var sel = rates[rateIdx] || planRate();
     fetch(API_BASE + "/api/checkout/init", {
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({
@@ -1240,7 +1280,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates }) {
   render();
   fetch(API_BASE + "/api/public?action=plan&merchant=" + encodeURIComponent(MERCHANT_ID) + "&product=" + encodeURIComponent(PRODUCT) + (VARIANT ? "&variant=" + encodeURIComponent(VARIANT) : ""))
     .then(function(r){ return r.json(); })
-    .then(function(d){ if (!d || !d.plan) { mount.innerHTML = errBox("No encontramos una suscripción activa para este producto."); return; } plan = d.plan; renderRates(); renderSummary(); fireIC(); })
+    .then(function(d){ if (!d || !d.plan) { mount.innerHTML = errBox("No encontramos una suscripción activa para este producto."); return; } plan = d.plan; if (!rates.length) { rates = [planRate()]; rateIdx = 0; } renderRates(); renderSummary(); fireIC(); })
     .catch(function(){ mount.innerHTML = errBox("No pudimos cargar el plan. Revisá tu conexión."); });
 })();`;
 }

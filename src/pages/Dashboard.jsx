@@ -1,22 +1,68 @@
-import React, { useState, useEffect } from "react";
-import { apiGet, apiPost, apiPatch, apiDelete, apiSend } from "../lib/api.js";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { apiGet, apiPost, apiPatch, apiDelete, apiSend, setActiveMerchantId } from "../lib/api.js";
 import { auth } from "../lib/firebase.js";
 import { sendEmailVerification } from "firebase/auth";
+import { DS, useTheme } from "../ui/theme.js";
+import { ToastContainer, PageView, toast, ErrorBoundary } from "../ui/components.jsx";
+import { Sidebar, AppTopbar, MobileBottomNav, NewStoreModal, ManageStoreModal, NAV } from "../ui/Shell.jsx";
+import SettingsPage from "./Settings.jsx";
+import OnboardingWizard from "./Onboarding.jsx";
 
-// Dashboard del comerciante — Integraciones, Planes, Suscriptores, Cobros.
+// Dashboard del comerciante — shell de Growith (sidebar + switcher de tiendas +
+// topbar) con branding verde. La lógica de cada tab vive más abajo, intacta.
 export default function Dashboard({ user, onLogout }) {
-  const [tab, setTab] = useState("inicio");
+  const { T, darkMode, setDarkMode } = useTheme();
+  const [tab, setTab] = useState(() => {
+    try { const h = window.location.hash.replace(/^#\/?/, "").split("?")[0]; const t = h.split("/")[1]; return NAV.some(n => n.id === t) ? t : "inicio"; } catch (_) { return "inicio"; }
+  });
   const [merchant, setMerchant] = useState(null);
+  const [workspace, setWorkspace] = useState(null);
   const [loading, setLoading] = useState(true);
   const [unverified, setUnverified] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem("rec_sidebar_collapsed") === "1"; } catch (_) { return false; } });
+  const [newStoreOpen, setNewStoreOpen] = useState(false);
+  const [manageStoreId, setManageStoreId] = useState(null);
+  const [onbDoneTick, setOnbDoneTick] = useState(0);
 
+  useEffect(() => { try { localStorage.setItem("rec_sidebar_collapsed", collapsed ? "1" : "0"); } catch (_) {} }, [collapsed]);
+
+  // Tab ↔ hash (#/dashboard/<tab>) para que el back del navegador y los links
+  // internos funcionen. No se rompe el manejo de ?mp=ok / ?shopify_ok de abajo.
+  const goTab = useCallback((id) => {
+    setTab(id);
+    try { window.history.replaceState(null, "", window.location.pathname + "#/dashboard/" + id); } catch (_) {}
+    try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch (_) {}
+  }, []);
+
+  async function reloadWorkspace() {
+    try {
+      const w = await apiGet("merchant", { action: "workspace" });
+      if (w && Array.isArray(w.stores)) setWorkspace(w);
+    } catch (_) {}
+  }
+
+  const [loadError, setLoadError] = useState(null);
   async function reloadMerchant() {
-    const d = await apiGet("merchant");
-    // Cuenta nueva sin verificar el mail → el backend responde 403 email_unverified.
-    if (d?.code === "email_unverified") { setUnverified(true); setLoading(false); return; }
-    setUnverified(false);
-    setMerchant(d?.merchant || null);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const d = await apiGet("merchant");
+      // Cuenta nueva sin verificar el mail → el backend responde 403 email_unverified.
+      if (d?.code === "email_unverified") { setUnverified(true); setLoading(false); return; }
+      setUnverified(false);
+      if (d?.error && !d?.merchant) {
+        // 403/500: no es una cuenta vacía, es un error. Mostramos reintentar.
+        setLoadError(d.error);
+        setMerchant(null);
+        setLoading(false);
+        return;
+      }
+      setMerchant(d?.merchant || null);
+      setLoading(false);
+      reloadWorkspace();
+    } catch (e) {
+      setLoadError(e?.message || "No se pudo cargar tu cuenta");
+      setLoading(false);
+    }
   }
 
   useEffect(() => { reloadMerchant(); }, []);
@@ -27,10 +73,10 @@ export default function Dashboard({ user, onLogout }) {
     const mp = q.get("mp");
     const shopifyOk = q.get("shopify_ok");
     if (!mp && !shopifyOk) return;
-    if (mp === "ok") alert("✓ Mercado Pago conectado.");
-    else if (mp === "error") alert("No se pudo conectar Mercado Pago: " + (q.get("msg") || "error desconocido"));
-    else if (shopifyOk) alert("✓ Shopify conectado.");
-    window.history.replaceState(null, "", window.location.pathname + "#/dashboard");
+    if (mp === "ok") toast("Mercado Pago conectado", "success");
+    else if (mp === "error") toast("No se pudo conectar Mercado Pago: " + (q.get("msg") || "error desconocido"), "error", 7000);
+    else if (shopifyOk) toast("Shopify conectado", "success");
+    window.history.replaceState(null, "", window.location.pathname + "#/dashboard/integraciones");
     setTab("integraciones");
     reloadMerchant();
   }, []);
@@ -43,94 +89,153 @@ export default function Dashboard({ user, onLogout }) {
     if (!pending) return;
     apiPost("shopify/claim-pending", { state: pending }).then(d => {
       if (d?.ok) {
-        window.history.replaceState(null, "", window.location.pathname + "#/dashboard");
+        window.history.replaceState(null, "", window.location.pathname + "#/dashboard/integraciones");
+        setTab("integraciones");
         reloadMerchant();
       } else if (d?.error) {
-        alert("Error conectando Shopify: " + d.error);
+        toast("Error conectando Shopify: " + d.error, "error", 7000);
       }
     });
   }, []);
 
-  const integrationsReady = Boolean(merchant?.shopify_token && merchant?.mp_access_token);
+  // ── Multi-tienda ──────────────────────────────────────────────────────
+  const merchantId = merchant?.id || workspace?.active_merchant_id || user?.uid || null;
+  // Sin workspace (backend viejo / error) → una sola tienda armada desde el merchant.
+  const effectiveWorkspace = useMemo(() => {
+    // La tienda activa que se muestra es SIEMPRE la que estamos consultando
+    // (merchantId), no la que el perfil tenga guardada desde otro dispositivo.
+    if (workspace?.stores?.length) return { ...workspace, active_merchant_id: merchantId || workspace.active_merchant_id };
+    if (!merchant) return null;
+    return { stores: [{ id: merchantId, name: merchant.store_name || merchant.shopify_shop || "Mi tienda", color: merchant.store_color || "#10b981", role: merchant.role || "owner", is_primary: merchant.is_primary !== false, shopify_shop: merchant.shopify_shop || null }], active_merchant_id: merchantId };
+  }, [workspace, merchant, merchantId]);
 
-  if (unverified) return <VerifyEmailScreen user={user} onLogout={onLogout} onRetry={reloadMerchant}/>;
+  async function switchStore(mid) {
+    if (!mid || mid === merchantId) return;
+    try {
+      const r = await apiPost("merchant", { merchant_id: mid }, { action: "store-activate" });
+      if (r?.error) throw new Error(r.error);
+    } catch (e) { toast("No se pudo cambiar de tienda: " + e.message, "error"); return; }
+    setActiveMerchantId(user.uid, mid);
+    window.location.reload();
+  }
+  async function createStore({ name, color }) {
+    try {
+      const r = await apiPost("merchant", { name, color }, { action: "store-create" });
+      if (!r?.ok || r?.error) throw new Error(r?.error || "No se pudo crear la tienda");
+      const mid = r.store?.id;
+      if (mid) { try { await apiPost("merchant", { merchant_id: mid }, { action: "store-activate" }); } catch (_) {} setActiveMerchantId(user.uid, mid); }
+      toast("Tienda creada", "success");
+      setTimeout(() => window.location.reload(), 300);
+      return true;
+    } catch (e) { toast(e.message, "error"); return false; }
+  }
+  async function saveStore(store) {
+    try {
+      const r = await apiPost("merchant", { merchant_id: store.id, name: store.name, color: store.color, ...(store.photo !== undefined ? { photo: store.photo } : {}) }, { action: "store-rename" });
+      if (r?.error) throw new Error(r.error);
+      toast("Tienda actualizada", "success");
+      await reloadWorkspace();
+      if (store.id === merchantId) reloadMerchant();
+      return true;
+    } catch (e) { toast(e.message, "error"); return false; }
+  }
+  async function deleteStore(mid) {
+    try {
+      const r = await apiPost("merchant", { merchant_id: mid }, { action: "store-delete" });
+      if (r?.error) throw new Error(r.error);
+      toast("Tienda eliminada", "warning");
+      if (mid === merchantId) { setActiveMerchantId(user.uid, null); setTimeout(() => window.location.reload(), 300); }
+      else await reloadWorkspace();
+      return true;
+    } catch (e) { toast(e.message, "error"); return false; }
+  }
+  const manageStore = manageStoreId ? (effectiveWorkspace?.stores || []).find(s => s.id === manageStoreId) : null;
+
+  const integrationsReady = Boolean(merchant?.shopify_token && merchant?.mp_access_token);
+  // Onboarding: mientras falte Shopify o MP y no lo haya cerrado para esta tienda.
+  const onbDone = useMemo(() => { try { return localStorage.getItem("rec_onb_done_" + merchantId) === "1"; } catch (_) { return false; } }, [merchantId, onbDoneTick]);
+  const showOnboarding = !!merchant && !integrationsReady && !onbDone;
+  const finishOnboarding = () => { try { localStorage.setItem("rec_onb_done_" + merchantId, "1"); } catch (_) {} setOnbDoneTick(t => t + 1); };
+
+  if (unverified) return <><VerifyEmailScreen user={user} onLogout={onLogout} onRetry={reloadMerchant}/><ToastContainer T={T}/></>;
+
+  const navItem = NAV.find(n => n.id === tab) || NAV[0];
+  const shellProps = { T, nav: NAV, activeTab: tab, onTab: goTab, user, merchant, workspace: effectiveWorkspace, onSwitchStore: switchStore, onCreateStore: () => setNewStoreOpen(true), onManageStore: (id) => setManageStoreId(id), darkMode, setDarkMode, onLogout, alerts: {} };
 
   return (
-    <div style={{minHeight:"100vh",display:"flex",background:"var(--bg)"}}>
-      <aside style={{width:230,background:"var(--surface)",borderRight:"1px solid var(--border)",display:"flex",flexDirection:"column",position:"sticky",top:0,height:"100vh"}}>
-        <div style={{padding:"18px 18px 14px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",gap:9}}>
-          <div style={{width:30,height:30,borderRadius:8,background:"linear-gradient(135deg, var(--green), var(--green-dark))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>🔁</div>
-          <span style={{fontWeight:800,fontSize:16,letterSpacing:-0.3}}>Recurrentes</span>
-        </div>
-        <nav style={{flex:1,padding:8,display:"flex",flexDirection:"column",gap:2}}>
-          {NAV.map(item => (
-            <button key={item.id} onClick={()=>setTab(item.id)} style={{
-              display:"flex",alignItems:"center",gap:9,padding:"9px 11px",border:"none",borderRadius:8,cursor:"pointer",
-              background: tab === item.id ? "rgba(16,185,129,0.12)" : "transparent",
-              color: tab === item.id ? "var(--accent)" : "var(--text-md)",
-              fontWeight: tab === item.id ? 700 : 500,
-              fontSize:13,fontFamily:"inherit",textAlign:"left",
-            }}>
-              <span style={{fontSize:15}}>{item.icon}</span>
-              {item.label}
-            </button>
-          ))}
-        </nav>
-        <div style={{padding:12,borderTop:"1px solid var(--border)"}}>
-          <div style={{fontSize:11,color:"var(--text-sm)",marginBottom:4,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.email}</div>
-          <button onClick={onLogout} style={{background:"transparent",border:"1px solid var(--border)",color:"var(--text-md)",borderRadius:6,padding:"5px 10px",fontSize:11,width:"100%",cursor:"pointer",fontFamily:"inherit"}}>Salir</button>
-        </div>
-      </aside>
+    <div style={{minHeight:"100vh",display:"flex",background:T.bg,color:T.text,fontFamily:"'Inter',system-ui,sans-serif"}}>
+      <Sidebar {...shellProps} collapsed={collapsed} setCollapsed={setCollapsed}/>
 
-      <main style={{flex:1,padding:"28px 32px",maxWidth:1200}}>
-        {loading ? (
-          <div style={{color:"var(--text-sm)",fontSize:14}}>Cargando…</div>
-        ) : tab === "inicio" ? (
-          integrationsReady
-            ? <HomeTab onGoSubscribers={()=>setTab("suscriptores")} onGoCarts={()=>setTab("carritos")}/>
-            : <FirstStepsTab merchant={merchant} onGo={()=>setTab("integraciones")}/>
-        ) : tab === "integraciones" ? (
-          <IntegrationsTab merchant={merchant} onChange={reloadMerchant}/>
-        ) : tab === "planes" ? (
-          integrationsReady
-            ? <PlansTab merchant={merchant}/>
-            : <NeedsIntegrations title="Planes" onGo={()=>setTab("integraciones")}/>
-        ) : tab === "suscriptores" ? (
-          integrationsReady
-            ? <SubscribersTab mode="active" devMode={merchant?.dev_mode === true}/>
-            : <NeedsIntegrations title="Suscriptores activos" onGo={()=>setTab("integraciones")}/>
-        ) : tab === "carritos" ? (
-          integrationsReady
-            ? <SubscribersTab mode="carts" devMode={merchant?.dev_mode === true}/>
-            : <NeedsIntegrations title="Carritos de suscripción" onGo={()=>setTab("integraciones")}/>
-        ) : tab === "abandonados" ? (
-          integrationsReady
-            ? <AbandonedTab/>
-            : <NeedsIntegrations title="Abandonados" onGo={()=>setTab("integraciones")}/>
-        ) : tab === "actividad" ? (
-          integrationsReady
-            ? <ActivityTab/>
-            : <NeedsIntegrations title="Actividad" onGo={()=>setTab("integraciones")}/>
-        ) : tab === "cobros" ? (
-          integrationsReady
-            ? <ChargesTab/>
-            : <NeedsIntegrations title="Cobros" onGo={()=>setTab("integraciones")}/>
-        ) : null}
-      </main>
+      <div className="main-content" style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}>
+        <AppTopbar T={T} section={navItem.label} sectionId={navItem.id}>
+          {effectiveWorkspace?.stores?.length > 1 && (
+            <span className="hide-mobile" style={{fontSize:11,color:T.textSm,whiteSpace:"nowrap",padding:"0 4px"}}>
+              Tienda: <strong style={{color:T.textMd}}>{(effectiveWorkspace.stores.find(s=>s.id===effectiveWorkspace.active_merchant_id)||effectiveWorkspace.stores[0]).name}</strong>
+            </span>
+          )}
+        </AppTopbar>
+
+        <PageView pageKey={tab} T={T}>
+          <ErrorBoundary T={T}>
+            <main style={{padding:"28px 32px 48px",maxWidth:1200,width:"100%"}} className="pad-mobile">
+              {loading ? (
+                <div style={{color:T.textSm,fontSize:14}}>Cargando…</div>
+              ) : loadError ? (
+                <div style={{maxWidth:520,margin:"40px auto",textAlign:"center"}}>
+                  <div style={{fontSize:17,fontWeight:700,color:T.text,marginBottom:8}}>No pudimos cargar tu cuenta</div>
+                  <div style={{fontSize:13,color:T.textSm,marginBottom:18}}>{String(loadError)}</div>
+                  <div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}}>
+                    <button onClick={()=>{setLoading(true);reloadMerchant();}} style={{background:T.accentSolid,color:"#fff",border:"none",borderRadius:10,padding:"10px 16px",fontWeight:600,cursor:"pointer"}}>Reintentar</button>
+                    <button onClick={()=>{setActiveMerchantId(user?.uid,null);window.location.reload();}} style={{background:"transparent",color:T.textMd,border:`1px solid ${T.border}`,borderRadius:10,padding:"10px 16px",fontWeight:600,cursor:"pointer"}}>Volver a mi tienda principal</button>
+                  </div>
+                </div>
+              ) : tab === "inicio" ? (
+                showOnboarding
+                  ? <OnboardingWizard T={T} DS={DS} merchant={merchant} goTab={goTab} onDone={finishOnboarding}/>
+                  : integrationsReady
+                    ? <HomeTab onGoSubscribers={()=>goTab("suscriptores")} onGoCarts={()=>goTab("carritos")}/>
+                    : <FirstStepsTab merchant={merchant} onGo={()=>goTab("integraciones")}/>
+              ) : tab === "integraciones" ? (
+                <IntegrationsTab merchant={merchant} onChange={reloadMerchant}/>
+              ) : tab === "planes" ? (
+                integrationsReady
+                  ? <PlansTab merchant={merchant}/>
+                  : <NeedsIntegrations title="Planes" onGo={()=>goTab("integraciones")}/>
+              ) : tab === "suscriptores" ? (
+                integrationsReady
+                  ? <SubscribersTab mode="active" devMode={merchant?.dev_mode === true}/>
+                  : <NeedsIntegrations title="Suscriptores activos" onGo={()=>goTab("integraciones")}/>
+              ) : tab === "carritos" ? (
+                integrationsReady
+                  ? <SubscribersTab mode="carts" devMode={merchant?.dev_mode === true}/>
+                  : <NeedsIntegrations title="Carritos de suscripción" onGo={()=>goTab("integraciones")}/>
+              ) : tab === "abandonados" ? (
+                integrationsReady
+                  ? <AbandonedTab/>
+                  : <NeedsIntegrations title="Abandonados" onGo={()=>goTab("integraciones")}/>
+              ) : tab === "actividad" ? (
+                integrationsReady
+                  ? <ActivityTab/>
+                  : <NeedsIntegrations title="Actividad" onGo={()=>goTab("integraciones")}/>
+              ) : tab === "cobros" ? (
+                integrationsReady
+                  ? <ChargesTab/>
+                  : <NeedsIntegrations title="Cobros" onGo={()=>goTab("integraciones")}/>
+              ) : tab === "configuracion" ? (
+                <SettingsPage T={T} DS={DS} user={user} merchant={merchant} workspace={effectiveWorkspace} reloadMerchant={reloadMerchant} toast={toast} goTab={goTab}/>
+              ) : null}
+            </main>
+          </ErrorBoundary>
+        </PageView>
+      </div>
+
+      <MobileBottomNav {...shellProps}/>
+      {newStoreOpen && <NewStoreModal T={T} onClose={()=>setNewStoreOpen(false)} onCreate={createStore}/>}
+      {manageStore && <ManageStoreModal T={T} store={manageStore} totalStores={effectiveWorkspace?.stores?.length||1} onClose={()=>setManageStoreId(null)} onSave={saveStore} onDelete={deleteStore}/>}
+      <ToastContainer T={T}/>
     </div>
   );
 }
-
-const NAV = [
-  { id:"inicio",        label:"Inicio",                  icon:"📊" },
-  { id:"integraciones", label:"Integraciones",           icon:"🔌" },
-  { id:"planes",        label:"Planes",                  icon:"🎯" },
-  { id:"suscriptores",  label:"Suscriptores activos",    icon:"👥" },
-  { id:"carritos",      label:"Carritos de suscripción", icon:"🛒" },
-  { id:"abandonados",   label:"Abandonados",             icon:"📭" },
-  { id:"actividad",     label:"Actividad",               icon:"🗂️" },
-  { id:"cobros",        label:"Cobros",                  icon:"💸" },
-];
 
 // ─── Tab: Inicio (KPIs) ─────────────────────────────────────────
 
@@ -2006,7 +2111,7 @@ function VerifyEmailScreen({ user, onLogout, onRetry }) {
 
 // ─── Configuración operativa: mails, abandono, envíos del checkout, cupones, dev ──
 // Guarda PARCIAL por sección con merchant?action=save-settings (solo lo que se manda).
-function OperationalSettingsCard({ merchant, onChange }) {
+export function OperationalSettingsCard({ merchant, onChange }) {
   const m = merchant || {};
   const [emailFrom, setEmailFrom]     = React.useState(m.email_from || "");
   const [emailBrand, setEmailBrand]   = React.useState(m.email_brand || "");

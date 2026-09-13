@@ -5,16 +5,18 @@
 // asociada. Sirve para auditoría y resolución de problemas.
 // Paginado: orderBy created_at desc, limit (≤200) + cursor (= created_at del
 // último). Devuelve `error` del charge para mostrarlo en el dashboard.
-import { db, requireAuth } from "./_lib/firebase.js";
+import { db, requireMerchant } from "./_lib/firebase.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
-  const uid = await requireAuth(req, res);
-  if (!uid) return;
+  // Multi-tienda: merchantId = tienda activa (header X-Merchant-Id) o el uid del login.
+  const ctx = await requireMerchant(req, res);
+  if (!ctx) return;
+  const { merchantId } = ctx;
 
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
-  const merchantRef = db().collection("merchants").doc(uid);
+  const merchantRef = db().collection("merchants").doc(merchantId);
   const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 200);
   let q = merchantRef.collection("charges");
   if (req.query.subscriber_id) {

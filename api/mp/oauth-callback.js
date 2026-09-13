@@ -19,7 +19,8 @@ export default async function handler(req, res) {
 
   const payload = verifyToken(String(state));
   if (!payload?.uid) return fail("State inválido o vencido. Volvé a intentar desde Integraciones.");
-  const uid = String(payload.uid);
+  // Multi-tienda: `mid` = merchant destino (tienda activa al iniciar el flow); sin mid → uid (tokens viejos).
+  const uid = String(payload.mid || payload.uid);
 
   const clientId = process.env.MP_APP_ID;
   const clientSecret = process.env.MP_CLIENT_SECRET;

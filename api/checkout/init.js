@@ -34,7 +34,7 @@ import { rateLimit, clientIp } from "../_lib/ratelimit.js";
 // Namespace import: shGetVariantPrice / shGetShopDomains los agrega otro agente.
 // Si todavía no existen, el módulo carga igual y caemos al precio del plan.
 import * as shopifyLib from "../_lib/shopify.js";
-import { DEFAULT_CHECKOUT_SHIPPING_RATES } from "../widget.js";
+import { resolveCheckoutShippingRates, PLAN_SHIPPING_CODE } from "../widget.js";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const normEmail = (e) => String(e || "").trim().toLowerCase();
@@ -171,10 +171,11 @@ function resolveFrequency(plan, frequency_days) {
   return planFreq;
 }
 
-// Tarifas de envío del checkout del merchant (o el default histórico de Lumina).
+// Tarifas de envío del checkout del merchant: configuradas > default histórico
+// (solo merchants legacy, anteriores al corte) > [] (merchants nuevos: el envío
+// sale del plan, code PLAN). Misma resolución que usa el embed (widget.js).
 function merchantShippingRates(merchant) {
-  const list = Array.isArray(merchant.checkout_shipping_rates) ? merchant.checkout_shipping_rates.filter(r => r && r.name) : [];
-  return list.length ? list : DEFAULT_CHECKOUT_SHIPPING_RATES;
+  return resolveCheckoutShippingRates(merchant);
 }
 
 // Path (sin host) para volver al checkout con el mismo pack. abandoned.js le
@@ -416,8 +417,9 @@ export default async function handler(req, res) {
 
   // ── Envío ─────────────────────────────────────────────────────────────────
   // El método viene del body sólo como NOMBRE/CODE: el precio se toma SIEMPRE de
-  // la tarifa configurada del merchant (checkout_shipping_rates o el default).
-  // Si no matchea ninguna, cae al envío del plan (fijo + envío gratis desde $X).
+  // la tarifa configurada del merchant (checkout_shipping_rates o el default legacy).
+  // code PLAN (o sin match) → envío del plan (fijo + envío gratis desde $X), con
+  // el MISMO nombre que muestra el embed (plan.shipping_method_name || "Envío a domicilio").
   const freeShippingFrom = parseFloat(plan.free_shipping_from_ars) || 0;
   let shippingCost, shippingName, shippingCode = "";
   let matchedRate = null;
@@ -425,10 +427,13 @@ export default async function handler(req, res) {
     const wantName = String(shipping_method.name || "").trim().toLowerCase();
     const wantCode = String(shipping_method.code || "").trim();
     const rates = merchantShippingRates(merchant);
-    matchedRate = rates.find(r => wantCode && String(r.code || "").trim() && String(r.code).trim() === wantCode)
-      || rates.find(r => wantName && String(r.name || "").trim().toLowerCase() === wantName)
-      || null;
-    if (!matchedRate) console.warn("[checkout/init] shipping_method sin match, uso envío del plan:", { merchantId, name: wantName, code: wantCode, bodyPrice: shipping_method.price });
+    const wantsPlanRate = wantCode === PLAN_SHIPPING_CODE;
+    if (!wantsPlanRate) {
+      matchedRate = rates.find(r => wantCode && String(r.code || "").trim() && String(r.code).trim() === wantCode)
+        || rates.find(r => wantName && String(r.name || "").trim().toLowerCase() === wantName)
+        || null;
+    }
+    if (!matchedRate && !wantsPlanRate && rates.length) console.warn("[checkout/init] shipping_method sin match, uso envío del plan:", { merchantId, name: wantName, code: wantCode, bodyPrice: shipping_method.price });
   }
   if (matchedRate) {
     shippingCost = Math.max(0, Math.round(Number(matchedRate.price) || 0));

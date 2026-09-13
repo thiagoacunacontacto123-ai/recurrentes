@@ -9,7 +9,7 @@
 //   GET  ?action=products      (auth) → lista productos del merchant
 //   POST ?action=save-creds    (auth) → guarda client_id + secret + shop
 //   GET  ?action=shipping-rates (público, rate-limited) → tarifas de envío
-import { db, requireAuth } from "./_lib/firebase.js";
+import { db, requireMerchant } from "./_lib/firebase.js";
 import { shListProducts, shGetShippingRates } from "./_lib/shopify.js";
 import { signToken } from "./_lib/token.js";
 import { appBaseUrl } from "./_lib/config.js";
@@ -56,13 +56,16 @@ async function handleShippingRates(req, res) {
 
 // ─── action=oauth-start ────────────────────────────────────────
 // Requiere auth (Bearer). Devuelve { url } y el front redirige. El `state`
-// es un token firmado {uid, shop} (10 min) + cookie de respaldo: el callback
+// es un token firmado {uid, mid, shop} (10 min) + cookie de respaldo: el callback
 // no confía en ningún uid que venga suelto por query.
 async function handleOauthStart(req, res) {
-  const uid = await requireAuth(req, res);
-  if (!uid) return;
+  const ctx = await requireMerchant(req, res);
+  if (!ctx) return;
+  const { uid, merchantId } = ctx;
+  // Solo el DUEÑO conecta integraciones (un miembro del equipo no).
+  if (merchantId !== uid && !(ctx.role === "owner" || ctx.viaOwner)) return res.status(403).json({ error: "Solo el dueño de la tienda puede conectar Shopify." });
 
-  const merchantSnap = await db().collection("merchants").doc(uid).get();
+  const merchantSnap = await db().collection("merchants").doc(merchantId).get();
   if (!merchantSnap.exists) return res.status(404).json({ error: "Merchant no encontrado" });
   const merchant = merchantSnap.data();
 
@@ -77,7 +80,8 @@ async function handleOauthStart(req, res) {
   const scopes = process.env.SHOPIFY_SCOPES || "read_products,write_orders,read_orders,read_customers,write_customers,write_draft_orders";
   const redirect = `${appBaseUrl() || "http://localhost:3000"}/api/shopify/oauth-callback`;
 
-  const state = signToken({ uid, shop }, 600);
+  // `mid` = merchant destino (tienda activa); `uid` se mantiene por compat con el callback.
+  const state = signToken({ uid, mid: merchantId, shop }, 600);
   res.setHeader("Set-Cookie", `shopify_oauth_state=${encodeURIComponent(state)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600`);
 
   const url = `https://${shop}/admin/oauth/authorize?client_id=${encodeURIComponent(clientId)}&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(redirect)}&state=${encodeURIComponent(state)}`;
@@ -86,17 +90,18 @@ async function handleOauthStart(req, res) {
 
 // ─── action=products ───────────────────────────────────────────
 async function handleProducts(req, res) {
-  const uid = await requireAuth(req, res);
-  if (!uid) return;
+  const ctx = await requireMerchant(req, res);
+  if (!ctx) return;
+  const { merchantId } = ctx;
 
   const fresh = req.query.fresh === "1";
   const TTL = 60 * 1000;
-  if (!fresh && productsCache.has(uid)) {
-    const c = productsCache.get(uid);
+  if (!fresh && productsCache.has(merchantId)) {
+    const c = productsCache.get(merchantId);
     if (Date.now() - c.ts < TTL) return res.json({ products: c.products, _cached: true });
   }
 
-  const merchantSnap = await db().collection("merchants").doc(uid).get();
+  const merchantSnap = await db().collection("merchants").doc(merchantId).get();
   const merchant = merchantSnap.data() || {};
   if (!merchant.shopify_token || !merchant.shopify_shop)
     return res.status(400).json({ error: "Conectá Shopify primero" });
@@ -117,7 +122,7 @@ async function handleProducts(req, res) {
         inventory_quantity: v.inventory_quantity ?? null,
       })),
     }));
-    productsCache.set(uid, { products, ts: Date.now() });
+    productsCache.set(merchantId, { products, ts: Date.now() });
     return res.json({ products });
   } catch (e) {
     return res.status(502).json({ error: e.message });
@@ -130,8 +135,10 @@ async function handleProducts(req, res) {
 async function handleSaveCreds(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const uid = await requireAuth(req, res);
-  if (!uid) return;
+  const ctx = await requireMerchant(req, res);
+  if (!ctx) return;
+  const { uid, merchantId } = ctx;
+  if (merchantId !== uid && !(ctx.role === "owner" || ctx.viaOwner)) return res.status(403).json({ error: "Solo el dueño de la tienda puede configurar Shopify." });
 
   let { shop, client_id, client_secret } = req.body || {};
   const hasEnvApp = !!(process.env.SHOPIFY_API_KEY && process.env.SHOPIFY_API_SECRET);
@@ -145,7 +152,7 @@ async function handleSaveCreds(req, res) {
   }
 
   try {
-    await db().collection("merchants").doc(uid).set({
+    await db().collection("merchants").doc(merchantId).set({
       shopify_shop: shop,
       shopify_client_id: (client_id || "").trim() || null,
       shopify_client_secret: (client_secret || "").trim() || null,

@@ -269,3 +269,29 @@ export async function emailPaymentFailed({ to, customerName, productTitle, porta
   });
   return sendEmail({ from: snd.from, replyTo: snd.replyTo, to, subject: `Hubo un problema con tu pago — ${prodTxt}`, html, tags: { type: "payment_failed" } });
 }
+
+// ─── Equipo: invitación a una tienda ─────────────────────────────
+// Lo recibe la persona invitada por el dueño desde Configuración → Equipo. El
+// claim es por email: tiene que crear su cuenta / loguearse en Recurrentes con
+// ESTE mismo mail y la invitación se convierte en membresía al entrar.
+export async function emailTeamInvite({ to, inviterEmail, storeName, merchant, appUrl, from, brand, accent, replyTo }) {
+  const snd = resolveSender({ merchant, from, brand, accent, replyTo });
+  const store = plain(storeName, 60) || snd.brand || "una tienda";
+  const inviter = plain(inviterEmail, 120);
+  const link = appUrl || `${appBaseUrl()}/#/login`;
+  const title = `Te invitaron a ${store} en Recurrentes`;
+  const body = `
+    <p>${inviter ? `<b>${escapeHtml(inviter)}</b> te invitó` : "Te invitaron"} a formar parte del equipo de <b>${escapeHtml(store)}</b> en Recurrentes.</p>
+    <p>Para aceptar, entrá a Recurrentes e iniciá sesión (o creá tu cuenta) usando <b>este mismo email</b>: <b>${escapeHtml(to)}</b>. Si usás otra dirección, la invitación no se va a reconocer.</p>
+    <p style="margin-top:14px;color:#6b7280;font-size:13px;">Si no esperabas esta invitación, podés ignorar este mail.</p>`;
+  const html = baseTemplate({
+    title,
+    body,
+    ctaLabel: "Aceptar invitación",
+    ctaUrl: link,
+    brand: "Recurrentes",
+    accent: snd.accent,
+    footerNote: `Invitación enviada desde la cuenta de ${escapeHtml(store)}.`,
+  });
+  return sendEmail({ from: snd.from, replyTo: snd.replyTo || inviterEmail || undefined, to, subject: title, html, tags: { type: "team_invite" } });
+}

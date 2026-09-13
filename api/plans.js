@@ -4,16 +4,18 @@
 //   POST   → crear plan (+ crear preapproval_plan en MP)
 //   PATCH  → update plan (active, descuento, etc)
 //   DELETE → ?id=<planId>
-import { db, requireAuth } from "./_lib/firebase.js";
+import { db, requireMerchant } from "./_lib/firebase.js";
 import { mpCreatePreapprovalPlan } from "./_lib/mp.js";
 import { appBaseUrl } from "./_lib/config.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
-  const uid = await requireAuth(req, res);
-  if (!uid) return;
+  // Multi-tienda: merchantId = tienda activa (header X-Merchant-Id) o el uid del login.
+  const ctx = await requireMerchant(req, res);
+  if (!ctx) return;
+  const { merchantId } = ctx;
 
-  const merchantRef = db().collection("merchants").doc(uid);
+  const merchantRef = db().collection("merchants").doc(merchantId);
   const plansCol = merchantRef.collection("plans");
 
   if (req.method === "GET") {

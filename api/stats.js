@@ -12,19 +12,21 @@
 //
 // Sin cache — recalcula en cada request. Charges acotados a los últimos 400
 // (o al rango ?from&to): revenue.all_time es "de esa ventana", no histórico.
-import { db, requireAuth } from "./_lib/firebase.js";
+import { db, requireMerchant } from "./_lib/firebase.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
-  const uid = await requireAuth(req, res);
-  if (!uid) return;
+  // Multi-tienda: merchantId = tienda activa (header X-Merchant-Id) o el uid del login.
+  const ctx = await requireMerchant(req, res);
+  if (!ctx) return;
+  const { merchantId } = ctx;
 
-  if (req.query.action === "activity") return activity(uid, req, res);
+  if (req.query.action === "activity") return activity(merchantId, req, res);
 
   try {
-    const merchantRef = db().collection("merchants").doc(uid);
+    const merchantRef = db().collection("merchants").doc(merchantId);
 
     // Subs completos + charges acotados: por rango (?from&to) o últimos 400.
     // Requiere índice charges (created_at desc) — ver firestore.indexes.json.
@@ -142,9 +144,9 @@ export default async function handler(req, res) {
 //   mails  → cada email enviado (abandono paso 1/2/3, activación, cancelación, pago fallido)
 //   envios → cada orden Shopify generada por un cobro
 //   cobros → cada cobro MP (facturación) con totales hoy / mes
-async function activity(uid, req, res) {
+async function activity(merchantId, req, res) {
   try {
-    const mRef = db().collection("merchants").doc(uid);
+    const mRef = db().collection("merchants").doc(merchantId);
     // Lecturas acotadas: charges por rango o últimos 400, mails últimos 200.
     const [mSnap, subsSnap, chargesSnap, mailsSnap] = await Promise.all([
       mRef.get(),

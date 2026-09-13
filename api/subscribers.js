@@ -8,7 +8,7 @@
 //   POST ?action=sync|simulate-charge|link-payment|retry-order|reprice
 //
 // Las acciones pause/cancel se reflejan en MP via mpUpdatePreapproval.
-import { db, requireAuth } from "./_lib/firebase.js";
+import { db, requireMerchant } from "./_lib/firebase.js";
 import { mpUpdatePreapproval, mpGetPreapproval } from "./_lib/mp.js";
 import { syncSubscriber } from "./_lib/sync.js";
 import { API_VERSION } from "./_lib/shopify.js";
@@ -53,10 +53,12 @@ const csvCell = (v) => { const s = v == null ? "" : String(v); return /[",;\n]/.
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
-  const uid = await requireAuth(req, res);
-  if (!uid) return;
+  // Multi-tienda: merchantId = tienda activa (header X-Merchant-Id) o el uid del login.
+  const ctx = await requireMerchant(req, res);
+  if (!ctx) return;
+  const { merchantId } = ctx;
 
-  const merchantRef = db().collection("merchants").doc(uid);
+  const merchantRef = db().collection("merchants").doc(merchantId);
   const subsCol = merchantRef.collection("subscribers");
 
   // POST ?action=sync&id=X — sincronización MANUAL de UN sub específico. Solo
@@ -65,7 +67,7 @@ export default async function handler(req, res) {
   // activación de subs es siempre el webhook MP a nivel cuenta del merchant.
   if (req.method === "POST" && req.query.action === "sync" && req.query.id) {
     try {
-      const r = await syncSubscriber(uid, String(req.query.id));
+      const r = await syncSubscriber(merchantId, String(req.query.id));
       return res.json({ ok: true, ...r });
     } catch (e) {
       return res.status(500).json({ error: e.message });
@@ -163,7 +165,7 @@ export default async function handler(req, res) {
   if (req.method === "POST" && req.query.action === "simulate-charge" && req.query.id) {
     try {
       const { simulateNextCharge } = await import("./_lib/sync.js");
-      const r = await simulateNextCharge(uid, String(req.query.id));
+      const r = await simulateNextCharge(merchantId, String(req.query.id));
       return res.json({ ok: true, ...r });
     } catch (e) {
       return res.status(500).json({ error: e.message });
@@ -182,7 +184,7 @@ export default async function handler(req, res) {
     if (!payment_id) return res.status(400).json({ error: "Falta payment_id" });
     try {
       const { linkPaymentToSubscriber } = await import("./_lib/sync.js");
-      const r = await linkPaymentToSubscriber(uid, subId, String(payment_id));
+      const r = await linkPaymentToSubscriber(merchantId, subId, String(payment_id));
       return res.json({ ok: true, ...r });
     } catch (e) {
       return res.status(500).json({ error: e.message });
@@ -370,7 +372,7 @@ export default async function handler(req, res) {
       // guardamos su mp_preapproval_id para que sea otra ruta de match en el
       // webhook (más confiable). Pero si no lo encontramos, igual marcamos
       // active y confiamos en external_reference.
-      const extRef = `${uid}:${id}`;
+      const extRef = `${merchantId}:${id}`;
       let linkedPreapproval = null;
       let nextChargeAt = sub.next_charge_at || null;
 
@@ -480,7 +482,7 @@ export default async function handler(req, res) {
           merchant,
         });
       } catch (e) { r = { error: e.message }; }
-      await logEmail(uid, {
+      await logEmail(merchantId, {
         type: "cancellation", subscriber_id: String(id), to: sub.customer_email,
         customer_name: sub.customer_name || null, product_title: sub.plan_snapshot?.product_title || null,
         status: r?.error ? "error" : (r?.skipped ? "skipped" : "sent"), error: r?.error || null,

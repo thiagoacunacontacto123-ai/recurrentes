@@ -1,6 +1,9 @@
 // /api/merchant
 //
-//   GET    → doc del merchant logueado (con tokens enmascarados)
+//   GET    → doc del merchant ACTIVO (con tokens enmascarados) + role/is_primary
+//   GET    ?action=me          → idem GET
+//   GET    ?action=workspace   → tiendas del PERFIL (propias + equipo) y la activa
+//   GET    ?action=members     → miembros + invitaciones de la tienda activa (solo dueño)
 //   PATCH  ?action=save-mp-token  body { access_token }
 //          → guarda el access_token de MP del merchant (modo paste, manual).
 //            Valida contra /users/me antes de persistir; si el token no es
@@ -11,10 +14,26 @@
 //   POST   ?action=test-email           → mail de prueba (solo al dueño, 10/día)
 //   POST   ?action=mp-oauth-start       → { url } para conectar MP por OAuth
 //   POST   ?action=disconnect-mp | disconnect-shopify
+//
+//   Multi-tienda (actúan sobre el PERFIL = uid del token, no sobre la tienda activa):
+//   POST   ?action=store-create   { name, color }             → crea merchants/m_xxx
+//   POST   ?action=store-activate { merchant_id }             → setea active_merchant_id
+//   POST   ?action=store-rename   { merchant_id, name, color, photo? }
+//   POST   ?action=store-delete   { merchant_id }             → soft delete (30 días)
+//   POST   ?action=account-delete { confirm:"ELIMINAR" }
+//   Equipo (sobre la tienda ACTIVA, solo dueño):
+//   POST   ?action=member-invite  { email, name, secciones? }
+//   POST   ?action=member-update  { member_uid, secciones }
+//   POST   ?action=member-remove  { member_uid | email }
+//
+// Todas las requests pasan por requireMerchant: el merchant activo sale del
+// header X-Merchant-Id (o el uid del login si no viene → sin cambios para
+// cuentas históricas como Lumina).
 import { FieldValue } from "firebase-admin/firestore";
-import { db, requireAuth, getOrCreateMerchant } from "./_lib/firebase.js";
+import { getAuth } from "firebase-admin/auth";
+import { db, requireMerchant, resolveMerchantAccess, clearMerchantCache, getOrCreateMerchant } from "./_lib/firebase.js";
 import { mpMe } from "./_lib/mp.js";
-import { emailAbandonedCheckout } from "./_lib/email.js";
+import { emailAbandonedCheckout, emailTeamInvite } from "./_lib/email.js";
 import { logEmail } from "./_lib/emaillog.js";
 import { signToken } from "./_lib/token.js";
 import { appBaseUrl } from "./_lib/config.js";
@@ -22,18 +41,35 @@ import { rateLimit } from "./_lib/ratelimit.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
-  const uid = await requireAuth(req, res);
-  if (!uid) return;
+  const ctx = await requireMerchant(req, res);
+  if (!ctx) return;
+  // uid = login (perfil). merchantId = tienda activa (== uid si no hay header).
+  const { uid, merchantId } = ctx;
 
   if (req.method === "GET") {
+    const gAction = String(req.query.action || "");
+    if (gAction === "workspace") return workspace(ctx, req, res);
+    if (gAction === "members")   return membersList(ctx, req, res);
+    if (gAction && gAction !== "me") return res.status(400).json({ error: "action no reconocida" });
     try {
-      const merchant = await getOrCreateMerchant(uid, null);
+      // El doc del perfil se crea acá (primer login). Tiendas ajenas/extra ya existen
+      // (requireMerchant las validó), así que el create solo aplica a merchantId === uid.
+      const merchant = await getOrCreateMerchant(merchantId, merchantId === uid ? ctx.email : null);
       // No devolvemos tokens raw — solo flags de "conectado".
       const safe = {
         id: merchant.id,
         email: merchant.email,
         plan: merchant.plan,
         created_at: merchant.created_at,
+        // Multi-tienda
+        role: ctx.role,                                  // "owner" | "member"
+        is_primary: merchant.is_store !== true,          // doc principal de un login (no m_xxx)
+        is_self: merchant.id === uid,                    // es MI doc de perfil
+        store_name: merchant.store_name || "",
+        store_color: merchant.store_color || merchant.widget_color || "#10b981",
+        store_photo: merchant.store_photo || null,
+        owner_uid: merchant.ownerUid || merchant.id,
+        member_secciones: ctx.role === "member" ? (ctx.member?.secciones || null) : null, // null = acceso total (legacy)
         shopify_shop: merchant.shopify_shop || null,
         shopify_token: merchant.shopify_token ? "•••••" : null,
         shopify_connected_at: merchant.shopify_connected_at || null,
@@ -82,16 +118,31 @@ export default async function handler(req, res) {
 
   if (req.method === "PATCH" || req.method === "POST") {
     const action = String(req.query.action || "");
-    if (action === "save-mp-token")        return saveMpToken(uid, req, res);
-    if (action === "save-widget-settings") return saveWidgetSettings(uid, req, res);
-    if (action === "save-settings")        return saveSettings(uid, req, res);
-    if (action === "save-meta")            return saveMeta(uid, req, res);
-    if (action === "save-discount-codes")  return saveDiscountCodes(uid, req, res);
-    if (action === "test-email")           return testEmail(uid, req, res);
-    if (action === "backfill-email-log")   return backfillEmailLog(uid, req, res);
-    if (action === "mp-oauth-start")       return mpOauthStart(uid, req, res);
-    if (action === "disconnect-mp")        return disconnect(uid, "mp", res);
-    if (action === "disconnect-shopify")   return disconnect(uid, "shopify", res);
+    // Integraciones: solo el dueño (propio o viaOwner). Un miembro del equipo no
+    // conecta/desconecta MP ni Shopify de una tienda ajena.
+    const ownerOnly = ["save-mp-token", "mp-oauth-start", "disconnect-mp", "disconnect-shopify", "save-meta"];
+    if (ownerOnly.includes(action) && ctx.role !== "owner") return res.status(403).json({ error: "Solo el dueño de la tienda puede administrar las integraciones." });
+
+    if (action === "save-mp-token")        return saveMpToken(merchantId, req, res);
+    if (action === "save-widget-settings") return saveWidgetSettings(merchantId, req, res);
+    if (action === "save-settings")        return saveSettings(merchantId, req, res);
+    if (action === "save-meta")            return saveMeta(merchantId, req, res);
+    if (action === "save-discount-codes")  return saveDiscountCodes(merchantId, req, res);
+    if (action === "test-email")           return testEmail(merchantId, req, res);
+    if (action === "backfill-email-log")   return backfillEmailLog(merchantId, req, res);
+    if (action === "mp-oauth-start")       return mpOauthStart(merchantId, req, res);
+    if (action === "disconnect-mp")        return disconnect(merchantId, "mp", res);
+    if (action === "disconnect-shopify")   return disconnect(merchantId, "shopify", res);
+
+    // Multi-tienda / equipo
+    if (action === "store-create")   return storeCreate(ctx, req, res);
+    if (action === "store-activate") return storeActivate(ctx, req, res);
+    if (action === "store-rename")   return storeRename(ctx, req, res);
+    if (action === "store-delete")   return storeDelete(ctx, req, res);
+    if (action === "account-delete") return accountDelete(ctx, req, res);
+    if (action === "member-invite")  return memberInvite(ctx, req, res);
+    if (action === "member-update")  return memberUpdate(ctx, req, res);
+    if (action === "member-remove")  return memberRemove(ctx, req, res);
     return res.status(400).json({ error: "action no reconocida" });
   }
 
@@ -99,30 +150,31 @@ export default async function handler(req, res) {
 }
 
 // ─── OAuth MP: arma la URL de autorización. El callback vive en /api/mp/oauth-callback.
-async function mpOauthStart(uid, req, res) {
+async function mpOauthStart(merchantId, req, res) {
   const appId = process.env.MP_APP_ID;
   if (!appId) return res.status(400).json({ error: "OAuth MP no configurado" });
   const redirect = process.env.MP_REDIRECT_URI || `${appBaseUrl()}/api/mp/oauth-callback`;
-  const state = signToken({ uid }, 600);
+  // `mid` = merchant destino (tienda activa). `uid` se mantiene por compat con el callback.
+  const state = signToken({ uid: merchantId, mid: merchantId }, 600);
   const url = `https://auth.mercadopago.com.ar/authorization?client_id=${encodeURIComponent(appId)}&response_type=code&platform_id=mp&state=${encodeURIComponent(state)}&redirect_uri=${encodeURIComponent(redirect)}`;
   return res.json({ url });
 }
 
 // ─── Desconectar: borra tokens y marca la fecha. Las subs siguen en MP.
-async function disconnect(uid, which, res) {
+async function disconnect(merchantId, which, res) {
   const now = new Date().toISOString();
   const patch = which === "mp"
     ? { mp_access_token: FieldValue.delete(), mp_refresh_token: FieldValue.delete(), mp_token_expires_at: FieldValue.delete(), mp_public_key: FieldValue.delete(), mp_disconnected_at: now }
     : { shopify_token: FieldValue.delete(), shopify_scope: FieldValue.delete(), shopify_disconnected_at: now };
   try {
-    await db().collection("merchants").doc(uid).set(patch, { merge: true });
+    await db().collection("merchants").doc(merchantId).set(patch, { merge: true });
     return res.json({ ok: true });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
 }
 
-async function saveMeta(uid, req, res) {
+async function saveMeta(merchantId, req, res) {
   // Guarda el Pixel ID + token de la API de Conversiones (CAPI) del merchant,
   // para reportar a Meta la PRIMERA venta de cada suscripción (server-side).
   // Pasar strings vacíos desconecta (borra las credenciales).
@@ -130,7 +182,7 @@ async function saveMeta(uid, req, res) {
   const pixel = (typeof meta_pixel_id === "string" ? meta_pixel_id : "").replace(/\D/g, "").slice(0, 32);
   const token = (typeof meta_capi_token === "string" ? meta_capi_token : "").trim().slice(0, 500);
   try {
-    await db().collection("merchants").doc(uid).set({
+    await db().collection("merchants").doc(merchantId).set({
       meta_pixel_id: pixel,
       meta_capi_token: token,
       meta_connected_at: pixel && token ? new Date().toISOString() : null,
@@ -143,7 +195,7 @@ async function saveMeta(uid, req, res) {
   }
 }
 
-async function saveWidgetSettings(uid, req, res) {
+async function saveWidgetSettings(merchantId, req, res) {
   // Setea preferencias UX del widget storefront a nivel merchant. Aplica a
   // TODOS los planes del merchant — si necesitan plan-por-plan en F2, se
   // mueve a doc del plan.
@@ -163,7 +215,7 @@ async function saveWidgetSettings(uid, req, res) {
   // Disclaimer banner — texto libre, cap a 800 chars. "" = usar default armado.
   const disclaimerText = (typeof widget_disclaimer_text === "string" ? widget_disclaimer_text : "").trim().slice(0, 800);
   try {
-    await db().collection("merchants").doc(uid).set({
+    await db().collection("merchants").doc(merchantId).set({
       widget_mode_order: order,
       widget_mode_default: def,
       widget_color: color,
@@ -187,7 +239,7 @@ const normHost = (v) => String(v || "").trim().toLowerCase().replace(/^https?:\/
 
 // ─── Settings operativos. PARCIAL: solo escribe las claves que vienen en el
 // body, así el front puede guardar una sección sin pisar las demás.
-async function saveSettings(uid, req, res) {
+async function saveSettings(merchantId, req, res) {
   const b = req.body || {};
   const out = {};
   const bad = (msg) => res.status(400).json({ error: msg });
@@ -198,7 +250,7 @@ async function saveSettings(uid, req, res) {
   if ("abandoned_coupons" in b) {
     if (b.abandoned_coupons == null) out.abandoned_coupons = null;
     else {
-      const codes = (await getOrCreateMerchant(uid, null)).discount_codes || [];
+      const codes = (await getOrCreateMerchant(merchantId, null)).discount_codes || [];
       const byCode = Object.fromEntries(codes.map(c => [String(c.code || "").toUpperCase(), c]));
       const clean = {};
       for (const step of ["step2", "step3"]) {
@@ -259,21 +311,21 @@ async function saveSettings(uid, req, res) {
 
   if (!Object.keys(out).length) return bad("Nada para guardar");
   try {
-    await db().collection("merchants").doc(uid).set({ ...out, updated_at: new Date().toISOString() }, { merge: true });
+    await db().collection("merchants").doc(merchantId).set({ ...out, updated_at: new Date().toISOString() }, { merge: true });
     return res.json({ ok: true, ...out });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
 }
 
-async function backfillEmailLog(uid, req, res) {
+async function backfillEmailLog(merchantId, req, res) {
   // Reconstrucción ONE-TIME del historial de mails en email_log a partir de datos
   // reales, para que la tab Actividad no arranque vacía:
   //  · activation → un mail por cada sub que se activó (tiene orden Shopify).
   //  · abandoned  → un mail por cada sub con abandoned_email_sent_at (flujo viejo 1 paso).
   // Idempotente: saltea subs que ya tienen una entrada de ese tipo en email_log.
   try {
-    const mRef = db().collection("merchants").doc(uid);
+    const mRef = db().collection("merchants").doc(merchantId);
     const col = mRef.collection("email_log");
     const [mSnap, subsSnap, logSnap] = await Promise.all([
       mRef.get(),
@@ -349,20 +401,20 @@ async function backfillEmailLog(uid, req, res) {
   }
 }
 
-async function testEmail(uid, req, res) {
+async function testEmail(merchantId, req, res) {
   // Envía el mail de carrito abandonado de PRUEBA para verificar que Resend +
   // el remitente + la marca quedaron bien antes de mandarlo a clientes.
   // Solo al mail del merchant o a un mail del dominio de email_from; 10/día.
   const to = String(req.body?.to || "").trim().toLowerCase();
   if (!to || !EMAIL_RE.test(to)) return res.status(400).json({ error: "Falta 'to' (email válido)" });
-  const merchant = await getOrCreateMerchant(uid, null);
+  const merchant = await getOrCreateMerchant(merchantId, null);
   const fromDomain = ((merchant.email_from || "").match(/@([^>\s]+)>?$/) || [])[1]?.toLowerCase() || "";
   const ownerEmail = String(merchant.email || "").toLowerCase();
   const toDomain = to.split("@")[1] || "";
   if (to !== ownerEmail && !(fromDomain && toDomain === fromDomain)) {
     return res.status(400).json({ error: "El mail de prueba solo puede ir a tu email de cuenta o a una casilla del dominio de tu remitente" });
   }
-  const rl = await rateLimit(`testmail:${uid}`, { limit: 10, windowSec: 86400 });
+  const rl = await rateLimit(`testmail:${merchantId}`, { limit: 10, windowSec: 86400 });
   if (!rl.ok) return res.status(429).json({ error: "Tope de 10 mails de prueba por día alcanzado" });
 
   const step = Math.min(3, Math.max(1, parseInt(req.body?.step, 10) || 1));
@@ -374,7 +426,7 @@ async function testEmail(uid, req, res) {
   // Datos reales del merchant: primer plan activo + dominio de la tienda.
   let productTitle = "Tu producto", amount = 0;
   try {
-    const plansSnap = await db().collection("merchants").doc(uid).collection("plans").where("active", "==", true).limit(1).get();
+    const plansSnap = await db().collection("merchants").doc(merchantId).collection("plans").where("active", "==", true).limit(1).get();
     if (!plansSnap.empty) {
       const p = plansSnap.docs[0].data();
       productTitle = p.product_title || productTitle;
@@ -400,13 +452,13 @@ async function testEmail(uid, req, res) {
     couponCode: cp.code,
     couponPct: cp.pct,
   });
-  await logEmail(uid, { type: "abandoned", to, customer_name: customerName, product_title: productTitle, step, coupon: cp.code, status: r?.error ? "error" : (r?.skipped ? "skipped" : "sent"), error: r?.error || null, test: true });
+  await logEmail(merchantId, { type: "abandoned", to, customer_name: customerName, product_title: productTitle, step, coupon: cp.code, status: r?.error ? "error" : (r?.skipped ? "skipped" : "sent"), error: r?.error || null, test: true });
   if (r?.skipped) return res.status(400).json({ error: "RESEND_API_KEY no configurada (o no tomó el redeploy todavía)" });
   if (r?.error) return res.status(502).json({ error: r.error });
   return res.json({ ok: true, id: r.id, step, coupon: cp.code, from: merchant.email_from || process.env.EMAIL_FROM || null, brand, remaining: rl.remaining });
 }
 
-async function saveDiscountCodes(uid, req, res) {
+async function saveDiscountCodes(merchantId, req, res) {
   // Guarda los códigos de descuento del merchant para el checkout de suscripción.
   // Formato: [{ code, type:"percent"|"fixed", value, active, recovery_only?, first_charge_only? }].
   //   recovery_only     → solo aplica con token de recupero (mail de abandono).
@@ -422,7 +474,7 @@ async function saveDiscountCodes(uid, req, res) {
     first_charge_only: c.first_charge_only === true,
   })).filter(c => c.code && c.value > 0).slice(0, 100);
   try {
-    await db().collection("merchants").doc(uid).set({
+    await db().collection("merchants").doc(merchantId).set({
       discount_codes: clean,
       updated_at: new Date().toISOString(),
     }, { merge: true });
@@ -433,7 +485,7 @@ async function saveDiscountCodes(uid, req, res) {
 }
 
 // Modo manual (pegar token). Sigue vigente además del OAuth.
-async function saveMpToken(uid, req, res) {
+async function saveMpToken(merchantId, req, res) {
   const { access_token } = req.body || {};
   if (!access_token?.trim()) return res.status(400).json({ error: "Falta access_token" });
 
@@ -445,7 +497,7 @@ async function saveMpToken(uid, req, res) {
   }
 
   try {
-    await db().collection("merchants").doc(uid).set({
+    await db().collection("merchants").doc(merchantId).set({
       mp_access_token: access_token.trim(),
       mp_user_id: me.id || null,
       mp_email: me.email || null,
@@ -457,5 +509,453 @@ async function saveMpToken(uid, req, res) {
     return res.json({ ok: true, mp_user_id: me.id, email: me.email });
   } catch (e) {
     return res.status(500).json({ error: e.message });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MULTI-TIENDA + EQUIPO
+//
+// Modelo (portado de Growith, simplificado):
+//   merchants/{uid}   → perfil + tienda principal del login. Campos de perfil:
+//                       stores[] (cache de mis tiendas), active_merchant_id.
+//   merchants/m_xxx   → tienda extra: is_store:true, ownerUid, ownerEmail,
+//                       store_name/store_color/store_photo, teamUids, teamMembers.
+//   Cualquier tienda: teamUids[], teamMembers{uid:{email,name,role,secciones,since}},
+//                     teamInvites[{email,name,secciones,ts}], teamInviteEmails[].
+//   Soft delete: deleted, deleted_at, purge_at (+30d), deleted_by. La purga real
+//   (subcolecciones) NO está implementada acá (TODO cron).
+// ═══════════════════════════════════════════════════════════════════════════
+
+const SECCIONES = ["inicio", "planes", "suscriptores", "cobros", "abandonados", "actividad", "integraciones", "configuracion"];
+const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+const MAX_STORES_BETA = 5;
+const PURGE_DAYS = 30;
+const nowIso = () => new Date().toISOString();
+const purgeAtIso = () => new Date(Date.now() + PURGE_DAYS * 86400000).toISOString();
+const emailLower = (v) => String(v || "").trim().toLowerCase();
+const isStoreId = (id) => /^m_[a-z0-9]+$/i.test(String(id || ""));
+
+// Solo claves válidas con `true` (un miembro nunca recibe secciones inventadas).
+function cleanSecciones(obj) {
+  // Acepta objeto {inicio:true} o array ["inicio","cobros"] (el front manda array).
+  const src = Array.isArray(obj)
+    ? Object.fromEntries(obj.map(k => [String(k), true]))
+    : ((obj && typeof obj === "object") ? obj : {});
+  const out = {};
+  for (const k of SECCIONES) if (src[k] === true) out[k] = true;
+  return out;
+}
+
+// Nombre visible de una tienda: nombre propio > marca de mails > shop de Shopify > default.
+function storeDisplayName(d) {
+  return d?.store_name || d?.email_brand || d?.shopify_shop || "Mi tienda";
+}
+function storeEntry(id, d, { role, uid, member }) {
+  return {
+    id,
+    name: storeDisplayName(d),
+    color: (typeof d?.store_color === "string" && HEX_RE.test(d.store_color)) ? d.store_color : (d?.widget_color || "#10b981"),
+    photo: d?.store_photo || null,
+    role,                                   // "owner" | "member"
+    is_primary: d?.is_store !== true,       // doc principal de un login (no m_xxx)
+    is_self: id === uid,                    // es MI doc de perfil
+    owner_uid: d?.ownerUid || id,
+    owner_email: d?.ownerEmail || d?.email || null,
+    shopify_shop: d?.shopify_shop || null,
+    mp_connected: !!d?.mp_access_token,
+    // Miembro: permisos por sección (null = acceso total legacy vía teamUids sin teamMembers).
+    secciones: role === "member" ? (member ? cleanSecciones(member.secciones) : null) : null,
+  };
+}
+
+// Guards comunes de las acciones de PERFIL (store-*, account-delete): el actor
+// es SIEMPRE el uid del token; un miembro operando sobre una tienda ajena
+// (viaTeam) no gestiona el perfil desde ahí (misma regla que Growith).
+async function profileGuard(ctx, res, { allowViaTeam = false } = {}) {
+  if (ctx.viaTeam && !allowViaTeam) {
+    res.status(403).json({ error: "Cambiá a tu propia tienda para gestionar tu perfil." });
+    return null;
+  }
+  const myRef = db().collection("merchants").doc(ctx.uid);
+  const my = (await myRef.get()).data() || {};
+  if (my.deleted === true) { res.status(403).json({ error: "Esta cuenta está eliminada." }); return null; }
+  if (my.ownerUid && my.ownerUid !== ctx.uid) { res.status(403).json({ error: "Este usuario ya no tiene un perfil propio (su tienda fue movida)." }); return null; }
+  return { myRef, my };
+}
+
+// Entrada de `stores[]` del perfil. Si el perfil viejo (Lumina) no tiene el
+// array, lo inicializamos con su tienda principal para no perderla del cache.
+function profileStores(uid, my) {
+  const list = Array.isArray(my.stores) ? my.stores.filter(s => s && s.id) : [];
+  if (!list.some(s => s.id === uid)) {
+    list.unshift({ id: uid, name: storeDisplayName(my), color: my.store_color || my.widget_color || "#10b981", role: "owner", created_at: my.created_at || nowIso() });
+  }
+  return list;
+}
+
+// ─── GET ?action=workspace ──────────────────────────────────────────────────
+// Tiendas del PERFIL logueado + tienda activa. También hace el "claim": si hay
+// invitaciones pendientes para el email del token, se convierten en membresía.
+async function workspace(ctx, req, res) {
+  const { uid } = ctx;
+  const col = db().collection("merchants");
+  const myEmail = emailLower(ctx.email);
+  try {
+    // Asegura el doc del perfil (primer login) con los campos multi-tienda.
+    await getOrCreateMerchant(uid, myEmail || null);
+
+    // 1) Invitaciones pendientes por email → membresía real (transacción por tienda).
+    let claimed = 0;
+    if (myEmail) {
+      const qi = await col.where("teamInviteEmails", "array-contains", myEmail).get();
+      for (const doc of qi.docs) {
+        if (doc.id === uid) continue;
+        await db().runTransaction(async tx => {
+          const s = await tx.get(doc.ref); const d = s.data() || {};
+          if (d.deleted === true) return;
+          const invites = Array.isArray(d.teamInvites) ? d.teamInvites : [];
+          const inv = invites.find(i => emailLower(i.email) === myEmail);
+          if (!inv) return;
+          tx.update(doc.ref, {
+            teamMembers: { ...(d.teamMembers || {}), [uid]: { email: myEmail, name: inv.name || "", role: "member", secciones: cleanSecciones(inv.secciones), since: nowIso() } },
+            teamUids: FieldValue.arrayUnion(uid),
+            teamInvites: invites.filter(i => emailLower(i.email) !== myEmail),
+            teamInviteEmails: FieldValue.arrayRemove(myEmail),
+          });
+          claimed++;
+        }).catch(e => console.warn("[workspace] claim invite:", doc.id, e.message));
+        clearMerchantCache(doc.id);
+      }
+    }
+
+    // 2) Tiendas: la propia + donde soy dueño (ownerUid) + donde soy equipo (teamUids).
+    const myRef = col.doc(uid);
+    const my = (await myRef.get()).data() || {};
+    const selfMoved = !!(my.ownerUid && my.ownerUid !== uid);
+    const selfDeleted = my.deleted === true;
+    const stores = [];
+    const seen = new Set();
+    if (!selfMoved && !selfDeleted) { stores.push(storeEntry(uid, my, { role: "owner", uid })); seen.add(uid); }
+    const [qTeam, qOwn] = await Promise.all([
+      col.where("teamUids", "array-contains", uid).get(),
+      col.where("ownerUid", "==", uid).get(),
+    ]);
+    for (const doc of [...qOwn.docs, ...qTeam.docs]) {
+      if (seen.has(doc.id)) continue;
+      const d = doc.data() || {};
+      if (d.deleted === true) continue;
+      const m = (d.teamMembers || {})[uid] || null;
+      const role = (d.ownerUid === uid || m?.role === "owner") ? "owner" : "member";
+      stores.push(storeEntry(doc.id, d, { role, uid, member: m }));
+      seen.add(doc.id);
+    }
+
+    // 3) Activa: la guardada en el perfil si sigue en la lista; si no, la propia; si no, la primera.
+    let active = my.active_merchant_id && stores.some(s => s.id === my.active_merchant_id) ? my.active_merchant_id : null;
+    if (!active) active = (stores.find(s => s.is_self) || stores.find(s => s.role === "owner") || stores[0])?.id || uid;
+
+    return res.json({
+      ok: true,
+      stores,
+      active_merchant_id: active,
+      uid,
+      email: myEmail || null,
+      self_moved: selfMoved,
+      self_deleted: selfDeleted,
+      claimed_invites: claimed,
+      max_stores: MAX_STORES_BETA,
+    });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+// ─── POST ?action=store-create { name, color } ──────────────────────────────
+async function storeCreate(ctx, req, res) {
+  const g = await profileGuard(ctx, res); if (!g) return;
+  const { uid } = ctx; const { myRef, my } = g;
+  const body = req.body || {};
+  const name = String(body.name || "").trim().slice(0, 60);
+  const color = HEX_RE.test(String(body.color || "")) ? body.color : "#10b981";
+  if (!name) return res.status(400).json({ error: "Poné un nombre para la tienda." });
+  try {
+    // Límite beta: tiendas extra vivas (por query, no por el cache stores[]).
+    const own = await db().collection("merchants").where("ownerUid", "==", uid).get();
+    const vivas = own.docs.filter(d => d.id !== uid && d.data()?.deleted !== true).length;
+    if (vivas >= MAX_STORES_BETA) return res.status(400).json({ error: `Máximo ${MAX_STORES_BETA} tiendas por cuenta durante la beta.` });
+
+    const newId = "m_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const created_at = nowIso();
+    const email = emailLower(my.email || ctx.email) || null;
+    await db().collection("merchants").doc(newId).set({
+      is_store: true,
+      store_name: name,
+      store_color: color,
+      email,                       // mails/test-email usan `email` como "dueño"
+      ownerUid: uid,
+      ownerEmail: email,
+      teamUids: [uid],
+      teamMembers: { [uid]: { email, name: my.displayName || "", role: "owner", secciones: {}, since: created_at } },
+      plan: "free",
+      created_at,
+      requires_email_verification: false,
+    });
+    const entry = { id: newId, name, color, role: "owner", created_at };
+    const list = profileStores(uid, my).filter(s => s.id !== newId);
+    list.push(entry);
+    await myRef.set({ stores: list, active_merchant_id: newId }, { merge: true });
+    clearMerchantCache(newId);
+    return res.json({ ok: true, store: { ...entry, is_primary: false, is_self: false, photo: null, shopify_shop: null, mp_connected: false }, active_merchant_id: newId });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+// ─── POST ?action=store-activate { merchant_id } ────────────────────────────
+// Un miembro puede cambiar de tienda aunque esté parado en una ajena (viaTeam ok).
+async function storeActivate(ctx, req, res) {
+  const g = await profileGuard(ctx, res, { allowViaTeam: true }); if (!g) return;
+  const { uid } = ctx; const { myRef } = g;
+  const target = String(req.body?.merchant_id || "").trim();
+  if (!target) return res.status(400).json({ error: "Falta merchant_id" });
+  try {
+    const acc = await resolveMerchantAccess(uid, target);
+    if (!acc.ok) return res.status(acc.code || 403).json({ error: acc.error });
+    await myRef.set({ active_merchant_id: target }, { merge: true });
+    return res.json({ ok: true, active_merchant_id: target, role: acc.role });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+// ─── POST ?action=store-rename { merchant_id, name, color, photo? } ─────────
+async function storeRename(ctx, req, res) {
+  const g = await profileGuard(ctx, res); if (!g) return;
+  const { uid } = ctx; const { myRef, my } = g;
+  const body = req.body || {};
+  const tid = String(body.merchant_id || uid).trim();
+  const name = String(body.name || "").trim().slice(0, 60);
+  const color = HEX_RE.test(String(body.color || "")) ? body.color : null;
+  if (!name) return res.status(400).json({ error: "Poné un nombre." });
+  // Foto: data URL chica (el front la reduce a ~160px) o "" para quitarla.
+  let photoPatch = {};
+  if (typeof body.photo === "string") {
+    if (body.photo === "") photoPatch = { store_photo: null };
+    else if (/^data:image\/(jpeg|png|webp);base64,/.test(body.photo) && body.photo.length <= 120000) photoPatch = { store_photo: body.photo };
+    else return res.status(400).json({ error: "Foto inválida (JPG/PNG/WebP y liviana)." });
+  }
+  try {
+    const tRef = db().collection("merchants").doc(tid);
+    const d = tid === uid ? my : (await tRef.get()).data();
+    const isOwner = tid === uid ? !(d?.ownerUid && d.ownerUid !== uid) : d?.ownerUid === uid;
+    if (!d || !isOwner || d.deleted === true) return res.status(403).json({ error: "Solo el dueño puede renombrar la tienda." });
+    await tRef.set({ store_name: name, ...(color ? { store_color: color } : {}), ...photoPatch, updated_at: nowIso() }, { merge: true });
+    const list = profileStores(uid, my).map(s => s.id === tid ? { ...s, name, ...(color ? { color } : {}) } : s);
+    await myRef.set({ stores: list }, { merge: true });
+    return res.json({ ok: true, store: { id: tid, name, color: color || d.store_color || null, photo: "store_photo" in photoPatch ? photoPatch.store_photo : (d.store_photo || null) } });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+// ─── POST ?action=store-delete { merchant_id } ──────────────────────────────
+// Solo tiendas EXTRA (m_...). Soft delete 30 días; la purga real queda TODO.
+async function storeDelete(ctx, req, res) {
+  const g = await profileGuard(ctx, res); if (!g) return;
+  const { uid } = ctx; const { myRef, my } = g;
+  const tid = String(req.body?.merchant_id || "").trim();
+  if (!tid) return res.status(400).json({ error: "Falta merchant_id" });
+  if (tid === uid || !isStoreId(tid)) return res.status(400).json({ error: "La tienda principal no se puede eliminar; eliminá la cuenta." });
+  try {
+    const tRef = db().collection("merchants").doc(tid);
+    const d = (await tRef.get()).data();
+    if (!d || d.ownerUid !== uid) return res.status(403).json({ error: "Solo el dueño puede eliminar la tienda." });
+    if (d.deleted === true) return res.json({ ok: true, purge_at: d.purge_at || null, already: true });
+    const purge_at = purgeAtIso();
+    await tRef.set({ deleted: true, deleted_at: nowIso(), purge_at, deleted_by: uid }, { merge: true });
+    const list = profileStores(uid, my).map(s => s.id === tid ? { ...s, deleted: true } : s);
+    const patch = { stores: list };
+    if (my.active_merchant_id === tid) patch.active_merchant_id = uid;
+    await myRef.set(patch, { merge: true });
+    clearMerchantCache(tid);
+    // TODO: cron de purga real (subcolecciones plans/subscribers/charges/email_log) al vencer purge_at.
+    return res.json({ ok: true, purge_at, active_merchant_id: patch.active_merchant_id || my.active_merchant_id || uid });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+// ─── POST ?action=account-delete { confirm:"ELIMINAR" } ─────────────────────
+async function accountDelete(ctx, req, res) {
+  const g = await profileGuard(ctx, res); if (!g) return;
+  const { uid } = ctx; const { myRef, my } = g;
+  if (String(req.body?.confirm || "") !== "ELIMINAR") return res.status(400).json({ error: "Escribí ELIMINAR para confirmar." });
+  try {
+    const col = db().collection("merchants");
+    const now = nowIso();
+    const purge_at = purgeAtIso();
+    // ⚠️ NO cancelamos las suscripciones de MP de los clientes finales de este
+    // merchant: MP seguiría cobrando con el token del merchant y Recurrentes ya
+    // no generaría órdenes. Hay que avisarle al merchant que las cancele desde
+    // MP / desde Suscriptores ANTES de borrar la cuenta.
+    // TODO: recorrer subscribers status=active de cada tienda y mpCancelPreapproval(...)
+    //       (o al menos pausar) antes de marcar deleted.
+    console.warn(`[account-delete] ${uid}: NO se cancelan suscripciones MP de clientes finales (TODO)`);
+
+    // 1) Tiendas extra propias → soft delete.
+    const own = await col.where("ownerUid", "==", uid).get();
+    for (const doc of own.docs) {
+      if (doc.id === uid) continue;
+      await doc.ref.set({ deleted: true, deleted_at: now, purge_at, deleted_by: uid }, { merge: true }).catch(() => {});
+      clearMerchantCache(doc.id);
+    }
+    // 2) Mi doc principal (si sigue siendo mío) → soft delete.
+    if (!(my.ownerUid && my.ownerUid !== uid)) {
+      await myRef.set({ deleted: true, deleted_at: now, purge_at, deleted_by: uid }, { merge: true });
+    }
+    // 3) Salir de los equipos ajenos donde figuro.
+    const qs = await col.where("teamUids", "array-contains", uid).get();
+    for (const doc of qs.docs) {
+      const d = doc.data() || {};
+      if (doc.id === uid || d.ownerUid === uid) continue;
+      const members = { ...(d.teamMembers || {}) }; delete members[uid];
+      await doc.ref.set({ teamMembers: members, teamUids: FieldValue.arrayRemove(uid) }, { merge: true }).catch(() => {});
+      clearMerchantCache(doc.id);
+    }
+    // 4) Borrar el login. La purga total de datos queda TODO (cron) a los 30 días.
+    try { await getAuth().deleteUser(uid); } catch (e) { console.warn("[account-delete] deleteUser:", e.message); }
+    clearMerchantCache(uid);
+    return res.json({ ok: true, purge_at });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+// ─── Equipo (sobre la tienda ACTIVA, solo dueño) ─────────────────────────────
+function teamGuard(ctx, res) {
+  if (ctx.role !== "owner") { res.status(403).json({ error: "Solo el dueño de la tienda administra el equipo." }); return false; }
+  return true;
+}
+
+// GET ?action=members → { members:[{uid,email,name,role,secciones,since}], invites:[{email,name,secciones,ts}] }
+async function membersList(ctx, req, res) {
+  if (!teamGuard(ctx, res)) return;
+  try {
+    const d = (await db().collection("merchants").doc(ctx.merchantId).get()).data() || {};
+    const ownerUid = d.ownerUid || ctx.merchantId;
+    const members = Object.entries(d.teamMembers || {})
+      .filter(([mu, m]) => mu !== ownerUid && m?.role !== "owner")
+      .map(([mu, m]) => ({ uid: mu, email: m.email || "", name: m.name || "", role: "member", secciones: cleanSecciones(m.secciones), since: m.since || null }));
+    // Legacy: uids en teamUids sin entrada en teamMembers (acceso total).
+    for (const mu of (Array.isArray(d.teamUids) ? d.teamUids : [])) {
+      if (mu === ownerUid || members.some(m => m.uid === mu)) continue;
+      members.push({ uid: mu, email: "", name: "", role: "member", secciones: null, since: null, legacy: true });
+    }
+    const invites = (Array.isArray(d.teamInvites) ? d.teamInvites : []).map(i => ({ email: i.email, name: i.name || "", secciones: cleanSecciones(i.secciones), ts: i.ts || null }));
+    return res.json({ ok: true, members, invites, secciones: SECCIONES, merchant_id: ctx.merchantId });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+// POST ?action=member-invite { email, name?, secciones? }
+async function memberInvite(ctx, req, res) {
+  if (!teamGuard(ctx, res)) return;
+  const body = req.body || {};
+  const email = emailLower(body.email);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: "Email inválido" });
+  const secciones = cleanSecciones(body.secciones);
+  const name = String(body.name || "").trim().slice(0, 60);
+  const ref = db().collection("merchants").doc(ctx.merchantId);
+  let storeName = "", merchantDoc = {};
+  try {
+    await db().runTransaction(async tx => {
+      const s = await tx.get(ref); const d = s.data() || {};
+      merchantDoc = d;
+      storeName = storeDisplayName(d);
+      if (emailLower(d.email) === email || emailLower(d.ownerEmail) === email) throw Object.assign(new Error("Ese email es el del dueño de la tienda."), { status: 400 });
+      const yaMiembro = Object.values(d.teamMembers || {}).some(m => emailLower(m?.email) === email);
+      if (yaMiembro) throw Object.assign(new Error("Ese email ya es miembro."), { status: 400 });
+      const invites = (Array.isArray(d.teamInvites) ? d.teamInvites : []).filter(i => emailLower(i.email) !== email);
+      invites.push({ email, name, secciones, ts: Date.now(), invited_by: ctx.uid });
+      tx.set(ref, { teamInvites: invites, teamInviteEmails: FieldValue.arrayUnion(email) }, { merge: true });
+    });
+  } catch (e) {
+    return res.status(e.status || 500).json({ error: e.message });
+  }
+  // Mail con botón para que la persona entre con ESTE mismo email. Si Resend
+  // falla, la invitación igual queda activa (el claim es por email al login).
+  const mailRes = await emailTeamInvite({
+    to: email,
+    inviterEmail: ctx.email || merchantDoc.email || "",
+    storeName,
+    merchant: merchantDoc,
+    appUrl: `${appBaseUrl()}/#/login`,
+  });
+  return res.json({ ok: true, email, name, secciones, mail: mailRes && mailRes.ok ? "enviado" : "no_enviado" });
+}
+
+// POST ?action=member-update { member_uid, secciones }
+async function memberUpdate(ctx, req, res) {
+  if (!teamGuard(ctx, res)) return;
+  const memberUid = String(req.body?.member_uid || "").trim();
+  const secciones = cleanSecciones(req.body?.secciones);
+  if (!memberUid) return res.status(400).json({ error: "Falta member_uid" });
+  const ref = db().collection("merchants").doc(ctx.merchantId);
+  try {
+    await db().runTransaction(async tx => {
+      const s = await tx.get(ref); const d = s.data() || {};
+      const members = { ...(d.teamMembers || {}) };
+      const ownerUid = d.ownerUid || ctx.merchantId;
+      if (memberUid === ownerUid || members[memberUid]?.role === "owner") throw Object.assign(new Error("No se pueden editar los permisos del dueño."), { status: 400 });
+      const team = Array.isArray(d.teamUids) ? d.teamUids : [];
+      if (!members[memberUid] && !team.includes(memberUid)) throw Object.assign(new Error("Miembro no encontrado."), { status: 404 });
+      // Legacy (solo en teamUids): al editar permisos pasa a tener entrada con secciones.
+      members[memberUid] = { email: "", name: "", role: "member", since: nowIso(), ...(members[memberUid] || {}), secciones };
+      tx.set(ref, { teamMembers: members, teamUids: FieldValue.arrayUnion(memberUid) }, { merge: true });
+    });
+    clearMerchantCache(ctx.merchantId);
+    return res.json({ ok: true, member_uid: memberUid, secciones });
+  } catch (e) {
+    return res.status(e.status || 500).json({ error: e.message });
+  }
+}
+
+// POST ?action=member-remove { member_uid | email }
+async function memberRemove(ctx, req, res) {
+  if (!teamGuard(ctx, res)) return;
+  const memberUid = String(req.body?.member_uid || "").trim();
+  const email = emailLower(req.body?.email);
+  if (!memberUid && !email) return res.status(400).json({ error: "Falta member_uid o email" });
+  const ref = db().collection("merchants").doc(ctx.merchantId);
+  try {
+    await db().runTransaction(async tx => {
+      const s = await tx.get(ref); const d = s.data() || {};
+      const ownerUid = d.ownerUid || ctx.merchantId;
+      const members = { ...(d.teamMembers || {}) };
+      const upd = {};
+      const removeUids = [];
+      if (memberUid) {
+        if (memberUid === ownerUid || members[memberUid]?.role === "owner") throw Object.assign(new Error("No se puede quitar al dueño."), { status: 400 });
+        delete members[memberUid];
+        removeUids.push(memberUid);
+      }
+      if (email) {
+        // Quitar también un miembro por email (si no vino uid) + su invitación pendiente.
+        if (!memberUid) {
+          for (const [mu, m] of Object.entries(members)) {
+            if (emailLower(m?.email) === email && mu !== ownerUid && m?.role !== "owner") { delete members[mu]; removeUids.push(mu); }
+          }
+        }
+        upd.teamInvites = (Array.isArray(d.teamInvites) ? d.teamInvites : []).filter(i => emailLower(i.email) !== email);
+        upd.teamInviteEmails = FieldValue.arrayRemove(email);
+      }
+      if (removeUids.length) { upd.teamMembers = members; upd.teamUids = FieldValue.arrayRemove(...removeUids); }
+      tx.set(ref, upd, { merge: true });
+    });
+    clearMerchantCache(ctx.merchantId);
+    return res.json({ ok: true });
+  } catch (e) {
+    return res.status(e.status || 500).json({ error: e.message });
   }
 }

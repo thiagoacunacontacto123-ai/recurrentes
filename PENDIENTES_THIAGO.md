@@ -1,6 +1,15 @@
 # Pendientes que dependen de Thiago — 2026-09-13
 
-El código de la auditoría quedó commiteado en local (rama main, SIN push). Antes de deployar, hacé esto en orden:
+## Deploy 2 (beta pública: shell nuevo + multi-tienda + equipo)
+- **Firestore → Rules:** volver a pegar `firestore.rules` y publicar (cambió: ahora un miembro de equipo puede leer la tienda a la que fue invitado).
+- `git push origin main` y esperar el deploy.
+- Entrar al dashboard de Lumina y verificar que todo se ve igual (tabs, integraciones, planes). Si algo falla: Vercel → Deployments → Instant Rollback al anterior.
+- Probar el registro con un mail nuevo (modo incógnito): verificar mail → onboarding → conectar Shopify (app custom) y MP (token) → crear plan → pegar snippet.
+- Legales: `src/pages/Legal.jsx` tiene un borrador con `[CUIT]` y `[email de contacto]` para completar.
+- Opcional para OAuth de MP en la beta: cargar `MP_APP_ID` y `MP_CLIENT_SECRET` en Vercel y agregar el redirect en la app de MP.
+
+## Deploy 1 (auditoría) — ya hecho el 2026-09-13
+El código de la auditoría quedó commiteado y deployado. Lo que sigue pendiente de aquella lista:
 
 ## Antes del deploy (5 min)
 1. **Vercel → Environment Variables (Production):**

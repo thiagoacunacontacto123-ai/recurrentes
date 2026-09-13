@@ -28,12 +28,11 @@ export function db() {
   return getFirestore();
 }
 
-// Verifica el Bearer token del header Authorization y devuelve el uid.
-// Tira 401 si falta o es inválido — handlers deben llamar requireAuth(req,res)
-// y usar el uid para scopear todas las queries de Firestore.
+// Verifica el Bearer token y devuelve el token decodificado (uid, email,
+// email_verified). Responde 401/403 y devuelve null si no pasa.
 // Merchants nuevos (requires_email_verification) necesitan email verificado
 // → 403 code "email_unverified". Los viejos siguen igual.
-export async function requireAuth(req, res) {
+async function verifyBearer(req, res) {
   initAdmin();
   const auth = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
   if (!auth) {
@@ -56,22 +55,142 @@ export async function requireAuth(req, res) {
       }
     } catch (_) { /* si Firestore falla, no bloqueamos por esto */ }
   }
-  return decoded.uid;
+  return decoded;
 }
 
-// Devuelve el doc del merchant del uid logueado, creándolo si no existe.
-// Estructura: merchants/{uid} = { email, displayName, plan, created_at, ... }
-export async function getOrCreateMerchant(uid, email) {
-  const ref = db().collection("merchants").doc(uid);
+// Verifica el Bearer token del header Authorization y devuelve el uid.
+// Tira 401 si falta o es inválido — handlers deben llamar requireAuth(req,res)
+// y usar el uid para scopear todas las queries de Firestore.
+// (Intacto para quien solo necesite el uid del login; requireMerchant lo extiende.)
+export async function requireAuth(req, res) {
+  const decoded = await verifyBearer(req, res);
+  return decoded ? decoded.uid : null;
+}
+
+// ─── Multi-tienda ──────────────────────────────────────────────────────────
+// Un PERFIL (login, uid de Firebase Auth) puede operar sobre varios MERCHANTS:
+//   · merchants/{uid}      → su tienda principal (caso clásico: Lumina).
+//   · merchants/m_xxx      → tiendas extra creadas por el perfil (ownerUid = uid).
+//   · merchants/{otro}     → tiendas ajenas donde figura en teamMembers/teamUids.
+// El front dice sobre cuál opera con el header `X-Merchant-Id` (o ?merchant_id).
+// Sin header → merchantId = uid (comportamiento histórico, sin migración).
+
+// Cache de meta de acceso por instancia caliente (60s): evita una lectura de
+// Firestore por request en los endpoints que se llaman muchas veces seguidas.
+const _merchantMeta = new Map(); // merchantId -> { at, exists, ownerUid, deleted, team, members }
+async function merchantMeta(merchantId) {
+  const hit = _merchantMeta.get(merchantId);
+  if (hit && Date.now() - hit.at < 60000) return hit;
+  let exists = false, ownerUid = null, deleted = false, team = [], members = {};
+  try {
+    const snap = await db().collection("merchants").doc(merchantId).get();
+    if (snap.exists) {
+      const d = snap.data() || {};
+      exists = true;
+      // ownerUid ausente = el doc es dueño de sí mismo (caso clásico).
+      ownerUid = d.ownerUid ? String(d.ownerUid) : null;
+      deleted = d.deleted === true;
+      team = Array.isArray(d.teamUids) ? d.teamUids.map(String) : [];
+      // Miembros con permisos POR SECCIÓN: { uid: { email, name, role, secciones:{planes:true,...} } }
+      members = (d.teamMembers && typeof d.teamMembers === "object") ? d.teamMembers : {};
+    }
+  } catch (_) {}
+  const meta = { at: Date.now(), exists, ownerUid, deleted, team, members };
+  if (_merchantMeta.size > 500) _merchantMeta.clear();
+  _merchantMeta.set(merchantId, meta);
+  return meta;
+}
+
+/** Invalida el cache de un merchant (tras editar miembros/permisos/borrar). */
+export function clearMerchantCache(merchantId) { _merchantMeta.delete(merchantId); }
+
+/**
+ * ¿Puede `uid` operar sobre `merchantId`? No responde nada: devuelve
+ *   { ok:true, role:"owner"|"member", viaOwner?, viaTeam?, member? }
+ *   { ok:false, code, error }
+ * `seccion` (opcional): para miembros con permisos por sección exige
+ * member.secciones[seccion] === true. Dueños no tienen restricción.
+ */
+export async function resolveMerchantAccess(uid, merchantId, seccion) {
+  const target = String(merchantId || "").trim();
+  if (!target) return { ok: false, code: 400, error: "merchant_id requerido" };
+  const meta = await merchantMeta(target);
+  if (meta.deleted) return { ok: false, code: 403, error: "Esta tienda está eliminada." };
+  if (target === uid) {
+    // Tienda MOVIDA a otro perfil: el login original ya no es dueño de su
+    // propio doc — no opera aunque el id coincida.
+    if (meta.ownerUid && meta.ownerUid !== uid) return { ok: false, code: 403, error: "Esta tienda fue movida a otro perfil. Este usuario ya no tiene acceso." };
+    return { ok: true, role: "owner" };
+  }
+  if (!meta.exists) return { ok: false, code: 403, error: "No tenés acceso a esta tienda." };
+  // Perfil DUEÑO de esta tienda (multi-tienda): acceso total.
+  if (meta.ownerUid && meta.ownerUid === uid) return { ok: true, role: "owner", viaOwner: true };
+  const member = meta.members ? meta.members[uid] : null;
+  if (member) {
+    if (member.role === "owner") return { ok: true, role: "owner", viaOwner: true, member };
+    if (seccion && !(member.secciones && member.secciones[seccion] === true)) {
+      return { ok: false, code: 403, error: "Tu cuenta no tiene acceso a esta sección. Pedile al dueño que te la habilite desde Equipo." };
+    }
+    return { ok: true, role: "member", viaTeam: true, member };
+  }
+  if (meta.team.includes(uid)) return { ok: true, role: "member", viaTeam: true }; // legacy: acceso total
+  console.warn(`[auth] ${uid} intentó operar sobre ${target}`);
+  return { ok: false, code: 403, error: "No tenés acceso a esta tienda." };
+}
+
+/**
+ * requireAuth + resolución del merchant activo. Devuelve
+ *   { uid, email, merchantId, role, viaOwner?, viaTeam?, member? }
+ * o null (ya respondió 401/403). merchantId sale de `X-Merchant-Id`,
+ * `?merchant_id` o, si no viene, del uid (comportamiento histórico).
+ */
+export async function requireMerchant(req, res, seccion) {
+  const decoded = await verifyBearer(req, res);
+  if (!decoded) return null;
+  const uid = decoded.uid;
+  const hdr = req.headers["x-merchant-id"];
+  const fromHeader = String(Array.isArray(hdr) ? hdr[0] : (hdr || "")).trim();
+  const fromQuery = String(req.query?.merchant_id || "").trim();
+  const merchantId = fromHeader || fromQuery || uid;
+  const acc = await resolveMerchantAccess(uid, merchantId, seccion);
+  if (!acc.ok) {
+    res.status(acc.code || 403).json({ error: acc.error, code: "merchant_forbidden" });
+    return null;
+  }
+  return {
+    uid,
+    email: decoded.email || null,
+    merchantId,
+    role: acc.role,
+    viaOwner: acc.viaOwner === true,
+    viaTeam: acc.viaTeam === true,
+    member: acc.member || null,
+  };
+}
+
+// Devuelve el doc del merchant, creándolo si no existe.
+// Estructura: merchants/{merchantId} = { email, displayName, plan, created_at, ... }
+// Los merchants nuevos nacen con los campos multi-tienda (ownerUid = su propio
+// id, teamUids, stores[], active_merchant_id). Los viejos (Lumina) no los tienen
+// y todo funciona igual: ownerUid ausente = dueño de sí mismo.
+export async function getOrCreateMerchant(merchantId, email) {
+  const ref = db().collection("merchants").doc(merchantId);
   const snap = await ref.get();
-  if (snap.exists) return { id: uid, ...snap.data() };
+  if (snap.exists) return { id: merchantId, ...snap.data() };
+  const created_at = new Date().toISOString();
   const data = {
     email: email || null,
     plan: "free",
-    created_at: new Date().toISOString(),
+    created_at,
     // Solo cuentas nuevas: exigimos verificar el mail antes de operar.
     requires_email_verification: true,
+    // Multi-tienda
+    ownerUid: merchantId,
+    teamUids: [merchantId],
+    stores: [{ id: merchantId, name: "Mi tienda", color: "#10b981", role: "owner", created_at }],
+    active_merchant_id: merchantId,
   };
   await ref.set(data);
-  return { id: uid, ...data };
+  clearMerchantCache(merchantId);
+  return { id: merchantId, ...data };
 }
