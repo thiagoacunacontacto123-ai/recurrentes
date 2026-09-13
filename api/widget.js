@@ -13,6 +13,14 @@
 // El widget detecta cambios de variante en vivo (cuando el cliente cambia
 // Pequeña → Grande): refresca el plan asociado y actualiza precio del botón.
 
+// Packs (bundle): si el plan tiene `pricing_mode: "packs"` el widget renderiza
+// el selector de packs (shared/bundle/) en vez del toggle de dos cards. El
+// plan se conoce recién en el navegador (lo trae fetchPlan), así que el HTML
+// de TODOS los estados (modos × packs) se precalcula server-side en
+// `?view=bundle&plan=<id>` y el cliente sólo swapea innerHTML.
+import { buildBundleVM, planHasPacks, resolvePack, freqLabel, fmtARS } from "../shared/bundle/viewmodel.js";
+import { renderBundle } from "../shared/bundle/templates.js";
+
 // Tarifas de envío del checkout on-store para merchants LEGACY (creados antes
 // del corte multi-tienda) que no configuraron `checkout_shipping_rates`: son las
 // históricas de Lumina. checkout/init usa la MISMA resolución server-side.
@@ -48,6 +56,29 @@ export function resolveCheckoutShippingRates(m) {
     .map(r => ({ name: r.name.trim().slice(0, 250), price: Math.max(0, Math.round(Number(r.price) || 0)), eta: String(r.eta || "").slice(0, 80), code: String(r.code || "").slice(0, 250) }));
   if (list.length) return list;
   return isLegacyMerchant(m) ? DEFAULT_CHECKOUT_SHIPPING_RATES : [];
+}
+
+// Precalcula el selector de packs para TODOS los estados (modo × pack, máx 2×6).
+// El navegador no renderiza: sólo swapea `states[mode + ":" + idx]`.
+export function buildBundlePayload(plan, merchant) {
+  const vm = buildBundleVM({ plan, merchant });
+  const states = {};
+  let css = "";
+  for (const mode of ["once", "sub"]) {
+    for (const p of vm.packs) {
+      const r = renderBundle(vm, { mode, selectedIdx: p.idx });
+      states[mode + ":" + p.idx] = r.html;
+      css = r.css; // el CSS no depende del estado
+    }
+  }
+  return {
+    css,
+    states,
+    variant: vm.variant,
+    modeDefault: vm.modeDefault,
+    defaultIdx: vm.defaultIdx,
+    packs: vm.packs.map((p) => ({ idx: p.idx, qty: p.qty, freq_days: p.freqDays })),
+  };
 }
 
 export default async function handler(req, res) {
@@ -86,11 +117,14 @@ export default async function handler(req, res) {
   // Tarifas de envío del checkout (editables por el merchant). Sólo name/price/eta/code.
   // [] = sin lista → el embed ofrece el envío del plan (code PLAN).
   let checkoutShippingRates = [];
+  // Doc crudo del merchant (widget_variant, widget_texts, etc. los lee buildBundleVM).
+  let merchantDoc = null;
   try {
     const { db } = await import("./_lib/firebase.js");
     const snap = await db().collection("merchants").doc(merchantId).get();
     if (snap.exists) {
       const m = snap.data();
+      merchantDoc = m;
       if (m.widget_mode_order === "once_first") widgetModeOrder = "once_first";
       if (m.widget_mode_default === "once") widgetModeDefault = "once";
       if (typeof m.widget_color === "string" && /^#[0-9a-fA-F]{6}$/.test(m.widget_color)) widgetColor = m.widget_color;
@@ -121,6 +155,30 @@ export default async function handler(req, res) {
     return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
   }
   const COL = widgetColor;
+
+  // ?view=bundle&plan=<planId> → JSON con el selector de packs PRECALCULADO:
+  //   { bundle: { css, states: { "sub:0": html, "once:0": html, ... }, variant,
+  //               modeDefault, defaultIdx, packs: [{ idx, qty }] } }
+  // El widget del producto lo pide después de fetchPlan cuando el plan es de
+  // packs; el navegador no renderiza nada, sólo swapea el HTML del estado.
+  // `bundle: null` si el plan no existe / no está activo / no tiene packs.
+  if (String(req.query.view || "") === "bundle") {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=60");
+    const planId = String(req.query.plan || "").trim().slice(0, 80);
+    if (!planId || !/^[A-Za-z0-9_-]+$/.test(planId)) return res.status(400).json({ error: "Falta plan" });
+    try {
+      const { db } = await import("./_lib/firebase.js");
+      const ds = await db().collection("merchants").doc(merchantId).collection("plans").doc(planId).get();
+      if (!ds.exists || ds.data().active === false) return res.json({ bundle: null });
+      const plan = { id: ds.id, ...ds.data() };
+      if (!planHasPacks(plan)) return res.json({ bundle: null });
+      return res.json({ bundle: buildBundlePayload(plan, merchantDoc || {}) });
+    } catch (e) {
+      console.error("[widget/bundle] error:", e.message);
+      return res.status(500).json({ error: "No se pudo armar el selector de packs" });
+    }
+  }
 
   // ?view=checkout → sirve el CHECKOUT ON-STORE (página de Shopify del merchant),
   // en vez del widget del producto. Corre en el dominio de la tienda, así puede
@@ -234,6 +292,19 @@ export default async function handler(req, res) {
     var url = API_BASE + "/api/public?action=plan&merchant=" + encodeURIComponent(MERCHANT_ID) + "&product=" + encodeURIComponent(productId);
     if (variantId) url += "&variant=" + encodeURIComponent(variantId);
     return fetch(url).then(function(r){ return r.json(); }).catch(function(){ return { plan: null }; });
+  }
+
+  // ─── Packs (bundle) ───────────────────────────────────────────
+  // ¿El plan se vende por packs? (misma regla que shared/bundle/viewmodel.js)
+  function planHasPacks(plan) {
+    if (!plan) return false;
+    if (String(plan.pricing_mode || "").toLowerCase() === "theme") return false;
+    return Array.isArray(plan.packs) && plan.packs.length > 0;
+  }
+  // HTML precalculado de todos los estados del selector (ver ?view=bundle).
+  function fetchBundle(planId) {
+    var url = API_BASE + "/api/widget?merchant=" + encodeURIComponent(MERCHANT_ID) + "&view=bundle&plan=" + encodeURIComponent(planId);
+    return fetch(url).then(function(r){ return r.json(); }).catch(function(){ return { bundle: null }; });
   }
 
   // ─── Render ───────────────────────────────────────────────────
@@ -752,10 +823,188 @@ export default async function handler(req, res) {
       return;
     }
 
+    // ─── Modo PACKS: selector de packs precalculado (shared/bundle) ───
+    // El widget tiene CTA propio para AMBOS modos: "once" agrega el pack al
+    // carrito de Shopify; "sub" va a la página de checkout con plan+pack.
+    function mountBundle(plan, bundle) {
+      var host = document.createElement("div");
+      host.id = "recurrentes-widget";
+      host.className = "rc-bundle-host";
+      var styleEl = document.createElement("style");
+      styleEl.setAttribute("data-rc-bundle-css", "");
+      styleEl.textContent = bundle.css || "";
+      var root = document.createElement("div");
+      host.appendChild(styleEl);
+      host.appendChild(root);
+      if (mountPoint) mountPoint.appendChild(host);
+      else if (hideAnchor && hideAnchor.parentNode) hideAnchor.parentNode.insertBefore(host, hideAnchor);
+      else form.parentNode.insertBefore(host, form);
+
+      var state = { mode: bundle.modeDefault === "once" ? "once" : "sub", idx: parseInt(bundle.defaultIdx, 10) || 0 };
+      if (bundle.states[state.mode + ":" + state.idx] === undefined) state.idx = 0;
+      var viaKeyboard = false;
+
+      function paint() {
+        root.innerHTML = bundle.states[state.mode + ":" + state.idx] || "";
+        host.setAttribute("data-rc-mode", state.mode);
+      }
+      function packQty() {
+        var list = bundle.packs || [];
+        for (var i = 0; i < list.length; i++) if (list[i].idx === state.idx) return Math.max(1, parseInt(list[i].qty, 10) || 1);
+        return 1;
+      }
+      function applyMode() {
+        // Se esconden los botones de compra del tema (no el form entero, para
+        // no perder el selector de variantes) y el buy box custom (&hide=).
+        hideExternalBuyButtons(true);
+        hideCustomSelector(true);
+        if (!document.getElementById("rc-bundle-hide-style")) {
+          var st = document.createElement("style");
+          st.id = "rc-bundle-hide-style";
+          st.textContent = 'body.rec-bundle-active form[action*="/cart/add"] button[name="add"],body.rec-bundle-active form[action*="/cart/add"] [type="submit"],body.rec-bundle-active form[action*="/cart/add"] quantity-input,body.rec-bundle-active form[action*="/cart/add"] .product-form__quantity,body.rec-bundle-active form[action*="/cart/add"] .quantity__rules{display:none !important}';
+          document.head.appendChild(st);
+        }
+        try {
+          document.body.classList.add("rec-bundle-active");
+          document.body.classList.toggle("rec-sub-active", state.mode === "sub");
+        } catch(e){}
+        try {
+          document.dispatchEvent(new CustomEvent("recurrentes:mode-change", { detail: { mode: state.mode, packIndex: state.idx, qty: packQty(), bundle: true } }));
+        } catch(e){}
+      }
+      function showErr(msg) {
+        var box = root.querySelector(".rc-err");
+        if (box) { box.textContent = msg; box.classList.add("is-on"); }
+      }
+      function setBusy(busy, label) {
+        var btn = root.querySelector('[data-rc-action="cta"]');
+        if (!btn) return;
+        btn.disabled = !!busy;
+        if (busy) { btn.setAttribute("data-rc-label", btn.innerHTML); btn.textContent = label || "Un momento…"; }
+        else if (btn.getAttribute("data-rc-label")) { btn.innerHTML = btn.getAttribute("data-rc-label"); btn.removeAttribute("data-rc-label"); }
+      }
+      function goCheckout() {
+        var u = window.location.origin + CHECKOUT_PAGE_PATH +
+          "?merchant=" + encodeURIComponent(MERCHANT_ID) +
+          "&product=" + encodeURIComponent(plan.shopify_product_id || productId) +
+          "&variant=" + encodeURIComponent(plan.shopify_variant_id || variantId || "") +
+          "&plan=" + encodeURIComponent(plan.id) +
+          "&pack=" + encodeURIComponent(state.idx);
+        setBusy(true, "Abriendo el checkout…");
+        window.location.href = u;
+      }
+      function addToCart() {
+        var vid = plan.shopify_variant_id || variantId;
+        if (!vid) { showErr("No pudimos identificar la variante. Recargá la página."); return; }
+        var rootPath = (window.Shopify && Shopify.routes && Shopify.routes.root) || "/";
+        setBusy(true, "Agregando al carrito…");
+        fetch(rootPath + "cart/add.js", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify({ items: [{ id: parseInt(vid, 10) || vid, quantity: packQty() }] }),
+        }).then(function(r){
+          if (!r.ok) throw new Error("cart/add " + r.status);
+          window.location.href = rootPath + "cart";
+        }).catch(function(e){
+          log("cart/add falló", e);
+          setBusy(false);
+          showErr("No pudimos agregar el pack al carrito. Probá de nuevo.");
+        });
+      }
+      function handle(el) {
+        // Un click puede tocar varias acciones anidadas (ej. la celda "sub"
+        // dentro de la fila del pack en la variante Tabla): se aplican todas.
+        var changed = false, cta = false, lastAct = "";
+        for (var n = el; n && n !== root; n = n.parentNode) {
+          var act = n.getAttribute && n.getAttribute("data-rc-action");
+          if (!act) continue;
+          var v = n.getAttribute("data-rc-value");
+          if (act === "pack") {
+            var i = parseInt(v, 10);
+            if (i >= 0 && bundle.states[state.mode + ":" + i] !== undefined && i !== state.idx) { state.idx = i; changed = true; }
+            lastAct = lastAct || act;
+          } else if (act === "mode") {
+            if ((v === "sub" || v === "once") && v !== state.mode) { state.mode = v; changed = true; }
+            lastAct = lastAct || act;
+          } else if (act === "cta") {
+            cta = true;
+          }
+        }
+        if (changed) {
+          paint();
+          applyMode();
+          if (viaKeyboard) {
+            var f = root.querySelector('[data-rc-action="' + lastAct + '"][aria-checked="true"]');
+            if (f && f.focus) f.focus();
+          }
+        }
+        if (cta) { if (state.mode === "sub") goCheckout(); else addToCart(); }
+      }
+      root.addEventListener("click", function(e){
+        var el = e.target && e.target.closest ? e.target.closest("[data-rc-action]") : null;
+        if (!el || !root.contains(el)) return;
+        viaKeyboard = false;
+        handle(el);
+      });
+      root.addEventListener("keydown", function(e){
+        if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+        var el = e.target && e.target.closest ? e.target.closest("[data-rc-action]") : null;
+        if (!el || el.tagName === "BUTTON") return; // los <button> ya disparan click
+        e.preventDefault();
+        viaKeyboard = true;
+        handle(el);
+      });
+      // bfcache: al volver con "atrás" el botón puede quedar en "Agregando…".
+      window.addEventListener("pageshow", function(){ setBusy(false); });
+
+      paint();
+      applyMode();
+
+      // Cambio de variante en vivo → nuevo plan (con o sin packs).
+      var idInput = form ? form.querySelector('input[name="id"]') : null;
+      if (idInput) {
+        var obs = new MutationObserver(function(){
+          var nv = idInput.value;
+          if (!nv || nv === variantId) return;
+          variantId = nv;
+          fetchPlan(productId, nv).then(function(d2){
+            if (!d2 || !d2.plan) { host.style.display = "none"; return; }
+            plan = d2.plan;
+            if (!planHasPacks(plan)) { host.style.display = "none"; log("variante sin packs — el widget clásico no se monta en caliente"); return; }
+            fetchBundle(plan.id).then(function(b2){
+              if (!b2 || !b2.bundle) { host.style.display = "none"; return; }
+              bundle = b2.bundle;
+              styleEl.textContent = bundle.css || "";
+              state = { mode: state.mode, idx: parseInt(bundle.defaultIdx, 10) || 0 };
+              host.style.display = "";
+              paint();
+              applyMode();
+            });
+          });
+        });
+        obs.observe(idInput, { attributes: true, attributeFilter: ["value"] });
+      }
+      log("Bundle montado — plan", plan.id, "variante", bundle.variant, "packs", (bundle.packs || []).length);
+    }
+
     fetchPlan(productId, variantId).then(function(d){
       if (d.error || !d.plan) { log("Sin plan para producto", productId, d); return; }
       var plan = d.plan;
 
+      // Plan por PACKS → selector de packs precalculado en el server. Si por
+      // algún motivo no hay bundle renderizable, cae al widget clásico.
+      if (planHasPacks(plan)) {
+        fetchBundle(plan.id).then(function(b){
+          if (b && b.bundle && b.bundle.states) { mountBundle(plan, b.bundle); return; }
+          log("Plan con packs pero sin bundle renderizable — fallback al widget clásico", b);
+          mountLegacy(plan);
+        });
+        return;
+      }
+      mountLegacy(plan);
+
+      // ─── Widget clásico (plan "theme": dos cards + panel de suscripción) ───
+      function mountLegacy(plan) {
       var widget = buildWidget(plan);
       var subPanel = buildSubscribePanel(plan);
       if (mountPoint) {
@@ -855,6 +1104,7 @@ export default async function handler(req, res) {
       }
 
       log("Widget montado — producto", productId, "variante", variantId, "plan", plan.id);
+      } // mountLegacy
     });
   }
 
@@ -904,6 +1154,17 @@ function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates }) {
   // manda para cobrar pack × (1 − descuento). Descuento fijo por bundle.
   var BASE = Math.round(parseFloat(q.get("base") || "0")) || 0;
   var SUB_OFF = (function(){ var d = parseFloat(q.get("sub_off")); return (isFinite(d) && d >= 0 && d <= 90) ? d : null; })();
+  // PACKS: ?plan=<id>&pack=<idx> (widget de packs). El resumen sale del pack del
+  // plan (NO se leen base/sub_off/qty/freq_days de la URL) y el init recibe
+  // { plan_id, pack_index }; el server toma precio/qty/frecuencia del pack.
+  var PLAN_ID = (q.get("plan") || "").trim();
+  var PACK_IDX = (function(){ var s = (q.get("pack") || "").trim(); return /^\\d{1,3}$/.test(s) ? parseInt(s, 10) : -1; })();
+  var PACK_MODE = !!(PLAN_ID && PACK_IDX >= 0);
+  var PACK = null; // pack resuelto cuando llega el plan: { qty, priceOnce, priceSub, freqDays, label }
+  // Misma fórmula que el server (shared/bundle/viewmodel.js), inyectada tal cual.
+  var resolvePack = ${resolvePack.toString()};
+  var freqLabel = ${freqLabel.toString()};
+  var fmtARS = ${fmtARS.toString()};
   // Cupón de recupero firmado (?rc=<token>) que traen los mails de abandono. El
   // server lo verifica; acá sólo lo reenviamos y leemos el email del payload para
   // prellenar (tiene que coincidir con el del checkout).
@@ -965,7 +1226,12 @@ function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates }) {
   function prices(){
     if (!plan) return { subtotal:0, disc:0, ship:0, shipName:"", total:0, loading:true };
     var disc, subtotal;
-    if (BASE > 0) {
+    if (PACK) {
+      // Pack del plan: precio de suscripción del pack, tal cual lo define el
+      // merchant (el server cobra lo mismo desde el plan, no desde acá).
+      subtotal = PACK.priceSub;
+      disc = PACK.priceOnce > 0 && PACK.priceSub < PACK.priceOnce ? Math.round((1 - PACK.priceSub / PACK.priceOnce) * 100) : 0;
+    } else if (BASE > 0) {
       // Bundle con descuento fijo: cobra pack × (1 − descuento). El descuento
       // nunca supera el del plan (mismo tope que aplica el server).
       var maxOff = Math.max(0, Math.min(90, parseFloat(plan.discount_pct) || 0));
@@ -1006,12 +1272,13 @@ function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates }) {
   // Frecuencia efectiva: la de la URL sólo si el plan permite frecuencia custom o
   // coincide con la del plan (misma regla que el server).
   function effFreqDays(){
+    if (PACK) return PACK.freqDays;
     var pf = parseInt(plan.frequency_days, 10) || 30;
     if (FREQ_DAYS >= 1 && (plan.allow_custom_frequency === true || FREQ_DAYS === pf)) return FREQ_DAYS;
     if (FREQ_DAYS >= 1 && FREQ_DAYS % pf === 0 && FREQ_DAYS / pf <= 12) return FREQ_DAYS; // múltiplo (pack N)
     return pf;
   }
-  function freqTxt(){ var d = effFreqDays(); if (d===30) return "mensual"; if (d===60) return "cada 2 meses"; if (d===90) return "cada 3 meses"; if (d % 30 === 0) return "cada " + (d/30) + " meses"; return "cada " + d + " días"; }
+  function freqTxt(){ var d = effFreqDays(); if (PACK) { var fl = freqLabel(d); return "cada " + (fl || (d + " días")); } if (d===30) return "mensual"; if (d===60) return "cada 2 meses"; if (d===90) return "cada 3 meses"; if (d % 30 === 0) return "cada " + (d/30) + " meses"; return "cada " + d + " días"; }
 
   // Traer envíos reales de Shopify por CP. Corre en el dominio de la tienda:
   // agrega la variante al carrito, pide las tarifas, y saca la variante que
@@ -1085,7 +1352,9 @@ function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates }) {
     var body =
       '<div style="display:flex;gap:12px;align-items:center;margin:14px 0;">'
       + '<div style="min-width:0;"><div style="font-size:10px;font-weight:800;color:' + COL + ';text-transform:uppercase;letter-spacing:.5px;">Suscripción · ' + esc(freqTxt()) + '</div>'
-      + '<div style="font-size:14px;font-weight:700;line-height:1.3;">' + esc(plan.product_title) + ' × ' + QTY + '</div></div></div>'
+      + '<div style="font-size:14px;font-weight:700;line-height:1.3;">' + (PACK && PACK.label ? esc(PACK.label) + ' · ' : '') + esc(plan.product_title) + ' × ' + QTY + '</div>'
+      + (PACK && PACK.priceOnce > PACK.priceSub ? '<div style="font-size:11.5px;color:#888;margin-top:2px;">Precio del pack ' + esc(fmtARS(PACK.priceOnce)) + ' · con suscripción ' + esc(fmtARS(PACK.priceSub)) + '</div>' : '')
+      + '</div></div>'
       + '<div style="border-top:1px solid #eee;padding-top:12px;display:flex;flex-direction:column;gap:8px;font-size:13px;">'
       + '<div style="display:flex;justify-content:space-between;"><span style="color:#666;">Subtotal' + (p.disc>0?(" (−"+p.disc+"%)"):"") + '</span><b>' + money(p.subtotal + (p.codeOff||0)) + '</b></div>'
       + ((p.codeOff||0) > 0 ? '<div style="display:flex;justify-content:space-between;"><span style="color:#0a8a3f;">Código ' + esc(p.code) + ' (−' + p.codePct + '%)</span><b style="color:#0a8a3f;">−' + money(p.codeOff) + '</b></div>' : '')
@@ -1146,8 +1415,9 @@ function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates }) {
         method:"POST", headers:{"Content-Type":"application/json"}, keepalive:true,
         body: JSON.stringify({
           merchant_id: MERCHANT_ID, plan_id: plan.id, capture: true,
-          quantity: QTY, frequency_days: effFreqDays(), shopify_variant_id: VARIANT || undefined,
-          base_price: (BASE > 0 ? BASE : undefined), sub_discount: (SUB_OFF != null ? SUB_OFF : undefined),
+          pack_index: (PACK_MODE ? PACK_IDX : undefined),
+          quantity: QTY, frequency_days: (PACK_MODE ? undefined : effFreqDays()), shopify_variant_id: VARIANT || undefined,
+          base_price: (!PACK_MODE && BASE > 0 ? BASE : undefined), sub_discount: (!PACK_MODE && SUB_OFF != null ? SUB_OFF : undefined),
           rc_hp_9: val("rc-website"),
           fb: fbData(),
           customer: { email: email, name: name, phone: phone }
@@ -1179,9 +1449,10 @@ function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates }) {
     fetch(API_BASE + "/api/checkout/init", {
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({
-        merchant_id: MERCHANT_ID, plan_id: plan.id, quantity: QTY, frequency_days: effFreqDays(),
+        merchant_id: MERCHANT_ID, plan_id: plan.id, quantity: QTY, frequency_days: (PACK_MODE ? undefined : effFreqDays()),
+        pack_index: (PACK_MODE ? PACK_IDX : undefined),
         shopify_variant_id: VARIANT || undefined,
-        base_price: (BASE > 0 ? BASE : undefined), sub_discount: (SUB_OFF != null ? SUB_OFF : undefined),
+        base_price: (!PACK_MODE && BASE > 0 ? BASE : undefined), sub_discount: (!PACK_MODE && SUB_OFF != null ? SUB_OFF : undefined),
         discount_code: (RC_DISC.code || undefined),
         recovery_token: (RC_DISC.rc && RC_TOKEN) ? RC_TOKEN : undefined,
         rc_hp_9: val("rc-website"),
@@ -1271,16 +1542,27 @@ function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates }) {
     renderRates(); renderSummary();
   }
 
-  if (!PRODUCT) { mount.innerHTML = errBox("Faltan datos del producto en la URL. Volvé a la tienda e intentá de nuevo."); return; }
+  if (!PRODUCT && !PLAN_ID) { mount.innerHTML = errBox("Faltan datos del producto en la URL. Volvé a la tienda e intentá de nuevo."); return; }
   // Pintamos el formulario YA, sin esperar el plan → mata la pantalla blanca y el
   // cliente puede empezar a completar sus datos de contacto/entrega mientras el
   // plan carga en paralelo. El resumen muestra un spinner hasta que el plan llega
   // (ms después) y ahí se hidratan precios + envío. Antes esto esperaba el fetch
   // completo antes de dibujar nada → pantalla blanca de varios segundos en frío.
   render();
-  fetch(API_BASE + "/api/public?action=plan&merchant=" + encodeURIComponent(MERCHANT_ID) + "&product=" + encodeURIComponent(PRODUCT) + (VARIANT ? "&variant=" + encodeURIComponent(VARIANT) : ""))
+  // Con ?plan=<id> el backend busca por id (prioridad); product/variant van igual.
+  fetch(API_BASE + "/api/public?action=plan&merchant=" + encodeURIComponent(MERCHANT_ID) + "&product=" + encodeURIComponent(PRODUCT) + (VARIANT ? "&variant=" + encodeURIComponent(VARIANT) : "") + (PLAN_ID ? "&plan=" + encodeURIComponent(PLAN_ID) : ""))
     .then(function(r){ return r.json(); })
-    .then(function(d){ if (!d || !d.plan) { mount.innerHTML = errBox("No encontramos una suscripción activa para este producto."); return; } plan = d.plan; if (!rates.length) { rates = [planRate()]; rateIdx = 0; } renderRates(); renderSummary(); fireIC(); })
+    .then(function(d){
+      if (!d || !d.plan) { mount.innerHTML = errBox("No encontramos una suscripción activa para este producto."); return; }
+      plan = d.plan;
+      if (PACK_MODE) {
+        PACK = resolvePack(plan, PACK_IDX);
+        if (!PACK) { mount.innerHTML = errBox("El pack elegido ya no está disponible. Volvé a la tienda y elegilo de nuevo."); return; }
+        QTY = PACK.qty;
+      }
+      if (!rates.length) { rates = [planRate()]; rateIdx = 0; }
+      renderRates(); renderSummary(); fireIC();
+    })
     .catch(function(){ mount.innerHTML = errBox("No pudimos cargar el plan. Revisá tu conexión."); });
 })();`;
 }

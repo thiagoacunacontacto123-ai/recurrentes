@@ -96,6 +96,12 @@ export default async function handler(req, res) {
         widget_hide_selector: merchant.widget_hide_selector || "",
         widget_checkout_flow: merchant.widget_checkout_flow || "redirect",
         widget_checkout_page_path: merchant.widget_checkout_page_path || "",
+        // Widget de packs (bundle) — ver shared/bundle/SPEC.md
+        widget_variant: WIDGET_VARIANT_RE.test(String(merchant.widget_variant || "")) ? merchant.widget_variant : "v01",
+        widget_texts: sanitizeWidgetTexts(merchant.widget_texts).texts,
+        widget_show_compare: merchant.widget_show_compare !== false,
+        widget_show_per_unit: merchant.widget_show_per_unit !== false,
+        widget_radius: Number.isInteger(merchant.widget_radius) ? Math.max(0, Math.min(32, merchant.widget_radius)) : 14,
         // Códigos de descuento del merchant (para el checkout de suscripción)
         discount_codes: Array.isArray(merchant.discount_codes) ? merchant.discount_codes : [],
         // Settings operativos (mails, abandono, envíos del checkout)
@@ -237,6 +243,34 @@ const EMAIL_RE = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 const FROM_RE = /^[^<>]{1,60}<([^\s@<>]+@[^\s@<>]+\.[^\s@<>]+)>$/;
 const normHost = (v) => String(v || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/:\d+$/, "");
 
+// Widget de packs (bundle) — ver shared/bundle/SPEC.md.
+const WIDGET_VARIANT_RE = /^v(0[1-9]|10)$/;
+const WIDGET_TEXT_KEYS = ["headline", "once_label", "sub_label", "cta_once", "cta_sub", "savings_label", "per_unit_label", "freq_prefix"];
+const WIDGET_TEXT_MAX = 80, WIDGET_TRUST_MAX = 60, WIDGET_TRUST_LINES_MAX = 4;
+// Sanea `widget_texts`: solo claves conocidas, strings ≤ 80 (vacío = usar default
+// → se omite), trust_lines ≤ 4 strings ≤ 60. Devuelve { texts } (null si nada) o { error }.
+function sanitizeWidgetTexts(input) {
+  if (input == null) return { texts: null };
+  if (typeof input !== "object" || Array.isArray(input)) return { error: "widget_texts debe ser un objeto" };
+  const texts = {};
+  for (const k of WIDGET_TEXT_KEYS) {
+    if (!(k in input) || input[k] == null) continue;
+    if (typeof input[k] !== "string") return { error: `widget_texts.${k} debe ser texto` };
+    const v = input[k].trim().slice(0, WIDGET_TEXT_MAX);
+    if (v) texts[k] = v;
+  }
+  if ("trust_lines" in input && input.trust_lines != null) {
+    if (!Array.isArray(input.trust_lines)) return { error: "widget_texts.trust_lines debe ser un array" };
+    const lines = input.trust_lines
+      .filter(l => typeof l === "string")
+      .map(l => l.trim().slice(0, WIDGET_TRUST_MAX))
+      .filter(Boolean)
+      .slice(0, WIDGET_TRUST_LINES_MAX);
+    texts.trust_lines = lines; // [] explícito = sin líneas de confianza
+  }
+  return { texts: Object.keys(texts).length ? texts : null };
+}
+
 // ─── Settings operativos. PARCIAL: solo escribe las claves que vienen en el
 // body, así el front puede guardar una sección sin pisar las demás.
 async function saveSettings(merchantId, req, res) {
@@ -307,6 +341,24 @@ async function saveSettings(merchantId, req, res) {
     const v = String(b.widget_checkout_page_path || "").trim().slice(0, 120);
     if (v && !v.startsWith("/")) return bad("widget_checkout_page_path debe empezar con /");
     out.widget_checkout_page_path = v;
+  }
+  // Widget de packs (bundle)
+  if ("widget_variant" in b) {
+    const v = String(b.widget_variant || "").trim().toLowerCase();
+    if (!WIDGET_VARIANT_RE.test(v)) return bad("widget_variant debe ser v01..v10");
+    out.widget_variant = v;
+  }
+  if ("widget_texts" in b) {
+    const t = sanitizeWidgetTexts(b.widget_texts);
+    if (t.error) return bad(t.error);
+    out.widget_texts = t.texts;
+  }
+  if ("widget_show_compare" in b) out.widget_show_compare = b.widget_show_compare !== false;
+  if ("widget_show_per_unit" in b) out.widget_show_per_unit = b.widget_show_per_unit !== false;
+  if ("widget_radius" in b) {
+    const r = Number(b.widget_radius);
+    if (!Number.isInteger(r) || r < 0 || r > 32) return bad("widget_radius debe ser un entero entre 0 y 32");
+    out.widget_radius = r;
   }
 
   if (!Object.keys(out).length) return bad("Nada para guardar");

@@ -4,9 +4,15 @@
 //   POST   → crear plan (+ crear preapproval_plan en MP)
 //   PATCH  → update plan (active, descuento, etc)
 //   DELETE → ?id=<planId>
+//
+// Packs (ver shared/bundle/SPEC.md y _lib/packs.js): `pricing_mode` ("packs"|"theme"),
+// `packs` (≤ 6, validados y ordenados por qty) y `frequency_scales_with_qty`.
+// Si vienen packs sin pricing_mode → "packs". Sin packs → "theme" (Lumina: el
+// tema manda base/sub_off/freq_days por URL; ese flujo no cambia).
 import { db, requireMerchant } from "./_lib/firebase.js";
 import { mpCreatePreapprovalPlan } from "./_lib/mp.js";
 import { appBaseUrl } from "./_lib/config.js";
+import { normalizePacks, resolvePack, defaultPackIndex, withPackDefaults, planPricingMode } from "./_lib/packs.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
@@ -20,7 +26,7 @@ export default async function handler(req, res) {
 
   if (req.method === "GET") {
     const snap = await plansCol.orderBy("created_at", "desc").get();
-    const plans = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const plans = snap.docs.map(d => withPackDefaults({ id: d.id, ...d.data() }));
     return res.json({ plans });
   }
 
@@ -33,17 +39,36 @@ export default async function handler(req, res) {
       shipping_price_ars, free_shipping_from_ars, shipping_method_name,
       qty_discount_tiers, // [{ min_qty, discount_pct }]
       allow_custom_frequency, max_pack_discount_pct,
+      // Packs (bundle)
+      pricing_mode, packs, frequency_scales_with_qty,
     } = body;
     if (!shopify_product_id || !shopify_variant_id || !product_title)
       return res.status(400).json({ error: "Faltan datos del producto" });
     if (!frequency_days || frequency_days < 1)
       return res.status(400).json({ error: "frequency_days inválido" });
 
+    // Packs: validar + resolver pricing_mode.
+    const pk = normalizePacks(packs);
+    if (pk.error) return res.status(400).json({ error: pk.error });
+    const modeRes = resolvePricingMode(pricing_mode, pk.packs);
+    if (modeRes.error) return res.status(400).json({ error: modeRes.error });
+    const packsMode = modeRes.mode === "packs";
+
     const merchantSnap = await merchantRef.get();
     const merchant = merchantSnap.data() || {};
     if (!merchant.mp_access_token) return res.status(400).json({ error: "Conectá MP primero" });
 
-    const subscription_price_ars = Math.round(base_price_ars * (1 - (discount_pct || 0) / 100));
+    // En modo packs, si no mandan base_price_ars lo tomamos del pack de 1 unidad
+    // (o precio/qty del pack más chico): es la referencia del precio tachado.
+    let basePriceNum = parseFloat(base_price_ars) || 0;
+    if (packsMode && !(basePriceNum > 0)) basePriceNum = unitPriceFromPacks(pk.packs);
+    const discountNum = parseInt(discount_pct) || 0;
+    const subscription_price_ars = Math.round(basePriceNum * (1 - discountNum / 100));
+    // Monto del plan "plantilla" en MP (el real se crea ad-hoc por sub en checkout/init).
+    const planDraft = { packs: pk.packs, discount_pct: discountNum, base_price_ars: basePriceNum, frequency_days: parseInt(frequency_days), frequency_scales_with_qty: frequency_scales_with_qty !== false };
+    const defPack = packsMode ? resolvePack(planDraft, defaultPackIndex(planDraft)) : null;
+    const mpAmount = defPack ? defPack.subPrice : subscription_price_ars;
+    if (!(mpAmount > 0)) return res.status(400).json({ error: "El precio de suscripción tiene que ser mayor a 0" });
 
     // Crear preapproval_plan en MP. MP exige back_url HTTPS: sale de APP_BASE_URL.
     const baseUrl = appBaseUrl();
@@ -54,7 +79,7 @@ export default async function handler(req, res) {
       auto_recurring: {
         frequency: parseInt(frequency_days),
         frequency_type: "days",
-        transaction_amount: subscription_price_ars,
+        transaction_amount: mpAmount,
         currency_id: "ARS",
       },
       back_url: backUrl,
@@ -95,10 +120,14 @@ export default async function handler(req, res) {
       product_title,
       product_image: product_image || null,
       frequency_days: parseInt(frequency_days),
-      discount_pct: parseInt(discount_pct) || 0,
+      discount_pct: discountNum,
       units_per_shipment: parseInt(units_per_shipment) || 1,
-      base_price_ars: parseFloat(base_price_ars) || 0,
+      base_price_ars: basePriceNum,
       subscription_price_ars,
+      // Packs (bundle)
+      pricing_mode: modeRes.mode,
+      packs: pk.packs,
+      frequency_scales_with_qty: frequency_scales_with_qty !== false,
       // Envío
       shipping_price_ars: Math.max(0, parseFloat(shipping_price_ars) || 0),
       free_shipping_from_ars: Math.max(0, parseFloat(free_shipping_from_ars) || 0), // 0 = nunca gratis
@@ -114,7 +143,7 @@ export default async function handler(req, res) {
       updated_at: new Date().toISOString(),
     };
     await planRef.set(data);
-    return res.json({ ok: true, plan: { id: planRef.id, ...data } });
+    return res.json({ ok: true, plan: withPackDefaults({ id: planRef.id, ...data }) });
   }
 
   if (req.method === "PATCH") {
@@ -140,6 +169,23 @@ export default async function handler(req, res) {
     if (patch.active != null) out.active = !!patch.active;
     if (patch.allow_custom_frequency != null) out.allow_custom_frequency = patch.allow_custom_frequency === true;
     if (patch.max_pack_discount_pct != null) out.max_pack_discount_pct = clampPct(patch.max_pack_discount_pct, 35);
+    // Packs (bundle). `packs: []` vacía la lista y vuelve a "theme" salvo pricing_mode explícito.
+    let packsChanged = false;
+    if ("packs" in patch && patch.packs !== undefined) {
+      const pk = normalizePacks(patch.packs);
+      if (pk.error) return res.status(400).json({ error: pk.error });
+      out.packs = pk.packs;
+      packsChanged = JSON.stringify(pk.packs) !== JSON.stringify(Array.isArray(cur.packs) ? cur.packs : []);
+    }
+    if (patch.frequency_scales_with_qty != null) out.frequency_scales_with_qty = patch.frequency_scales_with_qty !== false;
+    if (patch.pricing_mode != null || out.packs) {
+      const effPacks = out.packs || (Array.isArray(cur.packs) ? cur.packs : []);
+      // Sin pricing_mode explícito: derivar de los packs resultantes.
+      const modeRes = resolvePricingMode(patch.pricing_mode != null ? patch.pricing_mode : undefined, effPacks);
+      if (modeRes.error) return res.status(400).json({ error: modeRes.error });
+      out.pricing_mode = modeRes.mode;
+      if (out.pricing_mode !== planPricingMode(cur)) packsChanged = true;
+    }
     if (Array.isArray(patch.qty_discount_tiers)) {
       out.qty_discount_tiers = patch.qty_discount_tiers
         .map(t => ({ min_qty: Math.max(2, parseInt(t.min_qty) || 0), discount_pct: Math.max(0, Math.min(100, parseInt(t.discount_pct) || 0)) }))
@@ -154,7 +200,14 @@ export default async function handler(req, res) {
     }
     out.updated_at = new Date().toISOString();
     await ref.update(out);
-    return res.json({ ok: true, plan: { id, ...cur, ...out }, note: "Los cambios de precio no afectan suscripciones existentes; usá Repreciar." });
+    const priceChanged = out.base_price_ars != null || out.discount_pct != null || packsChanged;
+    return res.json({
+      ok: true,
+      plan: withPackDefaults({ id, ...cur, ...out }),
+      note: packsChanged
+        ? "Los cambios de precio no afectan suscripciones existentes"
+        : (priceChanged ? "Los cambios de precio no afectan suscripciones existentes; usá Repreciar." : undefined),
+    });
   }
 
   if (req.method === "DELETE") {
@@ -172,6 +225,26 @@ export default async function handler(req, res) {
   }
 
   return res.status(405).json({ error: "Method not allowed" });
+}
+
+// pricing_mode: explícito ("packs"|"theme") o derivado de los packs.
+// "packs" explícito sin packs → error (el checkout no tendría qué cobrar).
+function resolvePricingMode(explicit, packs) {
+  const has = Array.isArray(packs) && packs.length > 0;
+  if (explicit == null || explicit === "") return { mode: has ? "packs" : "theme" };
+  const m = String(explicit).toLowerCase();
+  if (m !== "packs" && m !== "theme") return { error: 'pricing_mode debe ser "packs" o "theme"' };
+  if (m === "packs" && !has) return { error: "Modo packs requiere al menos un pack" };
+  return { mode: m };
+}
+
+// Precio unitario de referencia a partir de los packs (pack de 1 o precio/qty del más chico).
+function unitPriceFromPacks(packs) {
+  if (!Array.isArray(packs) || !packs.length) return 0;
+  const one = packs.find(p => p.qty === 1);
+  if (one) return one.price_ars;
+  const min = packs[0];
+  return Math.round(min.price_ars / Math.max(1, min.qty));
 }
 
 // Entero 0-80 con default.

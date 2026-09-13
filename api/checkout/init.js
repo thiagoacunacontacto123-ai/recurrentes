@@ -1,4 +1,4 @@
-// POST /api/checkout/init { merchant_id, plan_id, customer, shipping_address, quantity }
+// POST /api/checkout/init { merchant_id, plan_id, customer, shipping_address, quantity | pack_index }
 //
 // Endpoint PÚBLICO (sin auth) que llama el widget en la storefront del
 // comerciante. Crea un `preapproval_plan` ad-hoc en MP con el monto ajustado
@@ -25,6 +25,13 @@
 // precio. `base_price` (modelo bundle) se valida contra el precio de lista de la
 // variante en Shopify, `sub_discount` se capea al del plan, el envío se toma de
 // la tarifa configurada por el merchant y la frecuencia sólo si el plan lo permite.
+//
+// PACKS (shared/bundle/SPEC.md, _lib/packs.js): si el plan está en
+// `pricing_mode: "packs"`, el body SOLO manda `pack_index`. qty / subtotal /
+// frecuencia salen del pack del plan (server-side); `base_price`, `sub_discount`,
+// `frequency_days` y `quantity` del body se ignoran (se loguea si vinieron
+// distintos). Sin pack_index → 400 "Elegí un pack". Planes "theme" (Lumina, el
+// tema manda base/sub_off/freq_days por URL) siguen el flujo de computeSubtotal.
 import { db } from "../_lib/firebase.js";
 import { mpCreatePreapprovalPlan } from "../_lib/mp.js";
 import { generatePortalToken, verifyPortalToken, merchantStoreUrl } from "../public.js";
@@ -35,6 +42,7 @@ import { rateLimit, clientIp } from "../_lib/ratelimit.js";
 // Si todavía no existen, el módulo carga igual y caemos al precio del plan.
 import * as shopifyLib from "../_lib/shopify.js";
 import { resolveCheckoutShippingRates, PLAN_SHIPPING_CODE } from "../widget.js";
+import { isPacksPlan, resolvePack, parsePackIndex, defaultPackIndex } from "../_lib/packs.js";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const normEmail = (e) => String(e || "").trim().toLowerCase();
@@ -180,9 +188,20 @@ function merchantShippingRates(merchant) {
 
 // Path (sin host) para volver al checkout con el mismo pack. abandoned.js le
 // antepone el dominio confiable de la tienda.
+//  · Modo packs (extra.pack_index): ?merchant=&product=&variant=&plan=&pack= — sin
+//    base/sub_off/qty/freq_days (el embed los resuelve desde el plan).
+//  · Modo theme: como siempre (qty + freq_days + base/sub_off).
 function buildRecoverPath(merchant, plan, planId, qty, extra = {}) {
   const base = String(merchant.widget_checkout_page_path || "/pages/suscripcion-form").trim() || "/pages/suscripcion-form";
   const sp = new URLSearchParams();
+  if (extra.pack_index != null) {
+    if (extra.merchant_id) sp.set("merchant", String(extra.merchant_id));
+    sp.set("product", String(plan.shopify_product_id || ""));
+    sp.set("variant", String(plan.shopify_variant_id || ""));
+    sp.set("plan", String(planId));
+    sp.set("pack", String(extra.pack_index));
+    return `${base}?${sp.toString()}`;
+  }
   sp.set("product", String(plan.shopify_product_id || ""));
   sp.set("variant", String(plan.shopify_variant_id || ""));
   sp.set("qty", String(qty));
@@ -260,8 +279,43 @@ export default async function handler(req, res) {
   if (!plan.active) return res.status(400).json({ error: "Plan inactivo" });
   const subsCol = merchantRef.collection("subscribers");
 
-  const finalQty = qtyReq || parseInt(plan.units_per_shipment) || 1;
-  const freqDays = resolveFrequency(plan, frequency_days);
+  // ── Packs (bundle) ────────────────────────────────────────────────────────
+  // Plan en modo packs: el body manda `pack_index`; qty/precio/frecuencia salen
+  // del pack. Sin pack_index → 400 en Pagar; en capture (lead) usamos el default
+  // para no perder el carrito.
+  const packsMode = isPacksPlan(plan);
+  let pack = null;
+  if (packsMode) {
+    let idx = parsePackIndex(req.body.pack_index);
+    if (idx == null) {
+      if (req.body.capture !== true) return res.status(400).json({ error: "Elegí un pack" });
+      idx = defaultPackIndex(plan);
+    }
+    pack = resolvePack(plan, idx);
+    if (!pack) return res.status(400).json({ error: "Pack inválido" });
+    // Campos del modelo "theme" que puedan venir en el body: se IGNORAN.
+    const ignored = {};
+    if (quantity != null && quantity !== "" && (parseInt(quantity) || 0) !== pack.qty) ignored.quantity = quantity;
+    if (base_price != null && base_price !== "" && Math.round(parseFloat(base_price) || 0) !== pack.price) ignored.base_price = base_price;
+    if (sub_discount != null && sub_discount !== "") ignored.sub_discount = sub_discount;
+    if (frequency_days != null && frequency_days !== "" && (parseInt(frequency_days) || 0) !== pack.freq) ignored.frequency_days = frequency_days;
+    if (Object.keys(ignored).length) console.warn("[checkout/init] modo packs: campos del body ignorados", { merchantId, planId: plan.id, pack_index: pack.idx, ignored });
+  }
+  // Precio del pack (server-side): subtotal = sub_price del pack; qtyDiscountPct
+  // = ahorro efectivo vs precio tachado (informativo). Misma forma que computeSubtotal.
+  const packPricing = () => ({
+    subtotal: pack.subPrice,
+    qtyDiscountPct: pack.savingsPct,
+    basePrice: pack.price,
+    subOff: Math.max(0, Math.min(90, parseFloat(plan.discount_pct) || 0)),
+  });
+  const recoverExtra = (pr) => pack
+    ? { pack_index: pack.idx, merchant_id: merchantId }
+    : { freq_days: freqDays, base: pr.basePrice, sub_off: pr.subOff };
+  const packSnapshot = pack ? { pricing_mode: "packs", pack_index: pack.idx, pack_label: pack.label || null } : {};
+
+  const finalQty = pack ? pack.qty : (qtyReq || parseInt(plan.units_per_shipment) || 1);
+  const freqDays = pack ? pack.freq : resolveFrequency(plan, frequency_days);
   // La variante que se factura es SIEMPRE la del plan (la orden Shopify se crea
   // con plan_snapshot.shopify_variant_id). El body sólo sirve si el plan no tiene.
   const variantId = String(plan.shopify_variant_id || req.body.shopify_variant_id || "");
@@ -295,8 +349,12 @@ export default async function handler(req, res) {
 
       // Precio para el mail de abandono: misma validación que Pagar; si no pasa,
       // caemos al precio del plan (el lead no cobra nada).
-      let pr = await computeSubtotal({ merchantId, merchant, plan, qty: finalQty, base_price, sub_discount, variantId });
-      if (pr.error) pr = await computeSubtotal({ merchantId, merchant, plan, qty: finalQty, base_price: 0, sub_discount, variantId });
+      let pr;
+      if (pack) pr = packPricing();
+      else {
+        pr = await computeSubtotal({ merchantId, merchant, plan, qty: finalQty, base_price, sub_discount, variantId });
+        if (pr.error) pr = await computeSubtotal({ merchantId, merchant, plan, qty: finalQty, base_price: 0, sub_discount, variantId });
+      }
       const totalCapture = pr.subtotal || 0;
       const eventUrl = await safeEventSourceUrl(merchantId, merchant, req.body.fb?.event_source_url);
 
@@ -312,11 +370,12 @@ export default async function handler(req, res) {
           product_title: plan.product_title || "Suscripción",
           frequency_days: freqDays,
           total_per_charge_ars: totalCapture,
+          ...packSnapshot,
         },
         status: "pending",
         capture: true,
         fb_data: eventUrl ? { event_source_url: eventUrl } : null,
-        recover_path: buildRecoverPath(merchant, plan, plan.id, finalQty, { freq_days: freqDays, base: pr.basePrice, sub_off: pr.subOff }),
+        recover_path: buildRecoverPath(merchant, plan, plan.id, finalQty, recoverExtra(pr)),
         updated_at: new Date().toISOString(),
       };
       if (leadRef) { await leadRef.update(data); return res.json({ ok: true, lead_id: leadRef.id, updated: true }); }
@@ -369,7 +428,7 @@ export default async function handler(req, res) {
   const unitPrice = parseFloat(plan.subscription_price_ars) || 0;
 
   // ── Precio de la suscripción (server-side, ver computeSubtotal) ────────────
-  const pr = await computeSubtotal({ merchantId, merchant, plan, qty: finalQty, base_price, sub_discount, variantId });
+  const pr = pack ? packPricing() : await computeSubtotal({ merchantId, merchant, plan, qty: finalQty, base_price, sub_discount, variantId });
   if (pr.error) return res.status(400).json({ error: pr.error });
   let subtotal = pr.subtotal;
   const qtyDiscountPct = pr.qtyDiscountPct;
@@ -515,8 +574,9 @@ export default async function handler(req, res) {
       shopify_product_id: plan.shopify_product_id || null,
       product_title: plan.product_title || "Suscripción",
       frequency_days: freqDays,
-      subscription_price_ars: unitPrice,
+      subscription_price_ars: pack ? pack.subPrice : unitPrice,
       units_per_shipment: finalQty,
+      ...packSnapshot,
       // Desglose snapshot — se usa para mostrar al cliente y para crear la orden
       // Shopify con shipping_lines acorde. Si el plan cambia después, este
       // snapshot preserva el cobro original del subscriber.
@@ -535,7 +595,7 @@ export default async function handler(req, res) {
     status: "pending",
     capture: false, // deja de ser lead
     checkout_started_at: nowIso, // reloj del cron (created_at se preserva del lead)
-    recover_path: buildRecoverPath(merchant, plan, plan.id, finalQty, { freq_days: freqDays, base: pr.basePrice, sub_off: pr.subOff }),
+    recover_path: buildRecoverPath(merchant, plan, plan.id, finalQty, recoverExtra(pr)),
     updated_at: nowIso,
     // Datos de atribución de Meta capturados en el navegador (fbc/fbp/UA/URL).
     // Se usan en el evento Purchase de CAPI para atribuir la venta al anuncio.
@@ -573,9 +633,11 @@ export default async function handler(req, res) {
   // Si reusamos una sub real con el MISMO monto y frecuencia, reusamos también su
   // plan MP (no creamos otro).
   const prevPlanId = existing?.mp_preapproval_plan_id || null;
+  // En modo packs también tiene que ser el MISMO pack (otro pack = otro plan MP).
   const sameCharge = !!(prevPlanId && existing?.mp_init_point
     && Number(existing?.plan_snapshot?.total_per_charge_ars) === totalPerCharge
-    && Number(existing?.plan_snapshot?.frequency_days) === freqDays);
+    && Number(existing?.plan_snapshot?.frequency_days) === freqDays
+    && (existing?.plan_snapshot?.pack_index ?? null) === (pack ? pack.idx : null));
   if (sameCharge) {
     await subRef.update({ portal_token: portalToken });
     return res.json({
@@ -598,7 +660,9 @@ export default async function handler(req, res) {
   // emails), NO viaja a MP. El monto ya viene multiplicado por qty → un plan ad-hoc
   // por sub escala bien.
   const planBodyBase = {
-    reason: `${plan.product_title} × ${finalQty} — cada ${freqDays} días`,
+    reason: pack && pack.label
+      ? `${plan.product_title} — ${pack.label} (×${finalQty}) — cada ${freqDays} días`
+      : `${plan.product_title} × ${finalQty} — cada ${freqDays} días`,
     auto_recurring: {
       frequency: freqDays,
       frequency_type: "days",

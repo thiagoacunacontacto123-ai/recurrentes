@@ -84,6 +84,8 @@ export function merchantHosts(merchant) {
 }
 
 // Path del checkout on-store reconstruido desde el sub (sin host).
+// Modo packs (plan_snapshot.pricing_mode === "packs"): ?product=&variant=&plan=&pack=
+// (el embed resuelve qty/precio/frecuencia desde el plan). Si no, como siempre.
 function rebuildPath(merchant, sub) {
   const ps = sub?.plan_snapshot || {};
   if (!ps.shopify_product_id) return null;
@@ -91,6 +93,12 @@ function rebuildPath(merchant, sub) {
   const q = new URLSearchParams();
   q.set("product", String(ps.shopify_product_id));
   if (ps.shopify_variant_id) q.set("variant", String(ps.shopify_variant_id));
+  const packIdx = parseInt(ps.pack_index, 10);
+  if (ps.pricing_mode === "packs" && sub?.plan_id && Number.isInteger(packIdx) && packIdx >= 0) {
+    q.set("plan", String(sub.plan_id));
+    q.set("pack", String(packIdx));
+    return `${base.startsWith("/") ? base : "/" + base}?${q.toString()}`;
+  }
   q.set("qty", String(Math.max(1, parseInt(sub.quantity || ps.units_per_shipment || 1, 10) || 1)));
   if (ps.frequency_days) q.set("freq_days", String(ps.frequency_days));
   return `${base.startsWith("/") ? base : "/" + base}?${q.toString()}`;

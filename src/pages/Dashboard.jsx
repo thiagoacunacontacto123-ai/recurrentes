@@ -7,6 +7,8 @@ import { ToastContainer, PageView, toast, ErrorBoundary } from "../ui/components
 import { Sidebar, AppTopbar, MobileBottomNav, NewStoreModal, ManageStoreModal, NAV } from "../ui/Shell.jsx";
 import SettingsPage from "./Settings.jsx";
 import OnboardingWizard from "./Onboarding.jsx";
+import PacksEditor, { packsFromPlan, serializePacks, validatePacks, pricingModeOf } from "./PacksEditor.jsx";
+import WidgetDesigner from "./WidgetDesigner.jsx";
 
 // Dashboard del comerciante — shell de Growith (sidebar + switcher de tiendas +
 // topbar) con branding verde. La lógica de cada tab vive más abajo, intacta.
@@ -199,7 +201,7 @@ export default function Dashboard({ user, onLogout }) {
                 <IntegrationsTab merchant={merchant} onChange={reloadMerchant}/>
               ) : tab === "planes" ? (
                 integrationsReady
-                  ? <PlansTab merchant={merchant}/>
+                  ? <PlansTab merchant={merchant} onMerchantChange={reloadMerchant}/>
                   : <NeedsIntegrations title="Planes" onGo={()=>goTab("integraciones")}/>
               ) : tab === "suscriptores" ? (
                 integrationsReady
@@ -674,8 +676,12 @@ function WidgetSettingsCard({ merchant, onChange }) {
   return (
     <div style={{marginTop:24,padding:"18px 22px",background:"var(--card)",border:"1px solid var(--border)",borderRadius:12}}>
       <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>Apariencia del widget</div>
-      <div style={{fontSize:12,color:"var(--text-sm)",lineHeight:1.55,marginBottom:14}}>
+      <div style={{fontSize:12,color:"var(--text-sm)",lineHeight:1.55,marginBottom:10}}>
         Personalizá cómo se ve el widget de suscripción en tu tienda. Aplica a todos los planes.
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",padding:"10px 12px",background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,marginBottom:14,fontSize:12,color:"var(--text-md)"}}>
+        <span style={{flex:1,minWidth:200}}>🎨 El <strong style={{color:"var(--text)"}}>selector de packs</strong> (diseño, textos, tachado, por unidad) se configura en Planes → Diseño del selector.</span>
+        <a href="#/dashboard/planes?designer=1" onClick={()=>{ try { window.location.hash = "#/dashboard/planes?designer=1"; window.location.reload(); } catch (_) {} }} style={{...btnSec,textDecoration:"none",padding:"6px 12px",fontSize:11}}>Abrir diseñador →</a>
       </div>
 
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
@@ -776,13 +782,16 @@ function ShopifyGuide() {
 
 // ─── Tab: Planes ─────────────────────────────────────────────────
 
-function PlansTab({ merchant }) {
+function PlansTab({ merchant, onMerchantChange }) {
   const [plans, setPlans] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState(null);
   const [embedFor, setEmbedFor] = useState(null);
+  // "plans" | "designer" — el diseñador del selector de packs vive acá adentro
+  // (#/dashboard/planes?designer=1 lo abre directo).
+  const [view, setView] = useState(() => { try { return /designer=1/.test(window.location.hash) ? "designer" : "plans"; } catch (_) { return "plans"; } });
 
   async function loadAll() {
     setLoading(true);
@@ -809,9 +818,26 @@ function PlansTab({ merchant }) {
     alert(`✓ Repreciadas: ${d.updated} de ${d.total}` + (d.failed?.length ? `\n✗ Fallaron ${d.failed.length}:\n` + d.failed.slice(0, 5).map(f => `· ${f.id}: ${f.error}`).join("\n") : ""));
   }
 
+  if (view === "designer") {
+    return (
+      <div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,gap:14,flexWrap:"wrap"}}>
+          <div>
+            <button onClick={()=>setView("plans")} style={{background:"transparent",border:"none",color:"var(--text-sm)",fontSize:12,cursor:"pointer",fontFamily:"inherit",padding:0,marginBottom:6}}>← Volver a planes</button>
+            <h1 style={{fontSize:24,fontWeight:800,margin:"0 0 6px",letterSpacing:-0.5}}>Diseño del selector de packs</h1>
+            <p style={{fontSize:13,color:"var(--text-sm)",margin:0,lineHeight:1.55}}>
+              Cómo se ve el selector 1·2·3 en la página de producto. Aplica a todos los planes en modo packs.
+            </p>
+          </div>
+        </div>
+        {loading ? <div style={{color:"var(--text-sm)",fontSize:13}}>Cargando…</div> : <WidgetDesigner merchant={merchant} plans={plans} onSaved={onMerchantChange}/>}
+      </div>
+    );
+  }
+
   return (
     <div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,gap:14}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,gap:14,flexWrap:"wrap"}}>
         <div>
           <h1 style={{fontSize:24,fontWeight:800,margin:"0 0 6px",letterSpacing:-0.5}}>Planes de suscripción</h1>
           <p style={{fontSize:13,color:"var(--text-sm)",margin:0,lineHeight:1.55}}>
@@ -821,9 +847,14 @@ function PlansTab({ merchant }) {
             ⚠ Cambiar el precio de un plan NO afecta a las suscripciones existentes (MP mantiene el monto autorizado). Usá "Repreciar suscriptores" para actualizarlas.
           </p>
         </div>
-        <button onClick={()=>setCreating(true)} style={{background:"linear-gradient(135deg, var(--green), var(--green-dark))",border:"none",color:"#fff",padding:"10px 16px",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 12px rgba(16,185,129,0.3)"}}>
-          + Nuevo plan
-        </button>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <button onClick={()=>setView("designer")} style={{background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",padding:"10px 14px",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+            🎨 Diseño del selector
+          </button>
+          <button onClick={()=>setCreating(true)} style={{background:"linear-gradient(135deg, var(--green), var(--green-dark))",border:"none",color:"#fff",padding:"10px 16px",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 12px rgba(16,185,129,0.3)"}}>
+            + Nuevo plan
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -843,6 +874,15 @@ function PlansTab({ merchant }) {
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontSize:14,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.product_title}</div>
                   <div style={{fontSize:11,color:"var(--text-sm)",marginTop:2}}>Cada {p.frequency_days} días · {p.discount_pct||0}% OFF</div>
+                  {pricingModeOf(p) === "packs" ? (
+                    <span title="Recurrentes arma el selector de packs en tu tienda" style={{display:"inline-block",marginTop:6,fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:5,background:"rgba(16,185,129,0.14)",color:"var(--accent)",letterSpacing:0.3}}>
+                      Packs: {(p.packs||[]).map(k=>k.qty).join("·") || "—"}
+                    </span>
+                  ) : (
+                    <span title="El precio, la cantidad y la frecuencia salen de tu tema" style={{display:"inline-block",marginTop:6,fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:5,background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text-md)",letterSpacing:0.3}}>
+                      Precio del tema
+                    </span>
+                  )}
                 </div>
               </div>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:"10px 0",borderTop:"1px solid var(--border)",borderBottom:"1px solid var(--border)"}}>
@@ -903,6 +943,10 @@ function NewPlanModal({ products, onClose, editPlan }) {
   const [qtyTiers, setQtyTiers] = useState(editPlan?.qty_discount_tiers ? editPlan.qty_discount_tiers.map(t=>({min_qty:t.min_qty,discount_pct:t.discount_pct})) : []);
   const [allowCustomFreq, setAllowCustomFreq] = useState(editPlan?.allow_custom_frequency === true);
   const [maxPackDisc, setMaxPackDisc] = useState(editPlan?.max_pack_discount_pct ?? 35);
+  // Precios y packs (shared/bundle/SPEC.md). Plan nuevo → packs (recomendado).
+  const [pricingMode, setPricingMode] = useState(isEdit ? pricingModeOf(editPlan) : "packs");
+  const [packs, setPacks] = useState(() => packsFromPlan(editPlan));
+  const [freqScales, setFreqScales] = useState(editPlan ? editPlan.frequency_scales_with_qty !== false : true);
   const [saving, setSaving] = useState(false);
 
   const product = products.find(p => p.id === productId);
@@ -910,6 +954,15 @@ function NewPlanModal({ products, onClose, editPlan }) {
   // Precio base: en edición sale del campo editable; en creación, de la variante.
   const basePrice = isEdit ? (parseFloat(editBasePrice) || 0) : (variant?.price || 0);
   const subPrice = Math.round(basePrice * (1 - discount/100));
+
+  // Campos de packs que van en el POST/PATCH de planes.
+  function packsPayload() {
+    return {
+      pricing_mode: pricingMode,
+      packs: serializePacks(packs),
+      frequency_scales_with_qty: freqScales !== false,
+    };
+  }
 
   function addTier() {
     // Default sugerido: si hay tier previo agrega +2 al min_qty y +5% al discount
@@ -931,12 +984,17 @@ function NewPlanModal({ products, onClose, editPlan }) {
     const tiers = qtyTiers
       .filter(t => t.min_qty >= 2 && t.discount_pct > 0)
       .sort((a, b) => a.min_qty - b.min_qty);
+    if (pricingMode === "packs") {
+      const perr = validatePacks(packs);
+      if (perr) return alert(perr);
+    }
     if (isEdit) {
       // Editar: solo se cambian los términos del plan (precio, descuento, envío,
       // frecuencia, niveles). El producto/variante y el id de MP no se tocan.
       if (!(parseFloat(editBasePrice) > 0)) return alert("El precio base tiene que ser mayor a 0");
       setSaving(true);
       const d = await apiPatch("plans", {
+        ...packsPayload(),
         frequency_days: parseInt(frequency),
         discount_pct: parseInt(discount),
         units_per_shipment: parseInt(units),
@@ -956,6 +1014,7 @@ function NewPlanModal({ products, onClose, editPlan }) {
     if (!productId || !variantId) return alert("Elegí producto y variante");
     setSaving(true);
     const d = await apiPost("plans", {
+      ...packsPayload(),
       shopify_product_id: productId,
       shopify_variant_id: variantId,
       product_title: product.title + (variant.title !== "Default Title" ? ` — ${variant.title}` : ""),
@@ -978,7 +1037,7 @@ function NewPlanModal({ products, onClose, editPlan }) {
 
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:9999}} onClick={onClose}>
-      <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:14,padding:"24px 26px",maxWidth:520,width:"100%",maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+      <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:14,padding:"24px 26px",maxWidth:pricingMode==="packs"?680:520,width:"100%",maxHeight:"90vh",overflowY:"auto",transition:"max-width 0.2s"}} onClick={e=>e.stopPropagation()}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
           <div style={{fontSize:17,fontWeight:700}}>{isEdit ? "Editar plan" : "Nuevo plan"}</div>
           <button onClick={onClose} style={{background:"transparent",border:"none",color:"var(--text-sm)",fontSize:20,cursor:"pointer"}}>✕</button>
@@ -1023,19 +1082,31 @@ function NewPlanModal({ products, onClose, editPlan }) {
           </div>
         </div>
 
-        <label style={lbl}>Unidades por envío (default cuando el cliente abre)</label>
-        <input type="number" min="1" value={units} onChange={e=>setUnits(e.target.value)} style={inp}/>
+        {/* ─── Precios y packs (modo packs | tema) ──────────────────── */}
+        <PacksEditor
+          mode={pricingMode} onModeChange={setPricingMode}
+          packs={packs} onPacksChange={setPacks}
+          basePrice={basePrice} discountPct={discount} frequencyDays={frequency}
+          freqScales={freqScales} onFreqScalesChange={setFreqScales}
+        />
 
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,alignItems:"end"}}>
-          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"var(--text-md)",marginTop:12}}>
-            <input type="checkbox" checked={allowCustomFreq} onChange={e=>setAllowCustomFreq(e.target.checked)}/>
-            El cliente puede elegir otra frecuencia
-          </label>
-          <div>
-            <label style={lbl}>Tope de descuento por pack (%)</label>
-            <input type="number" min="0" max="80" value={maxPackDisc} onChange={e=>setMaxPackDisc(e.target.value)} style={inp}/>
-          </div>
-        </div>
+        {pricingMode === "theme" && (
+          <>
+            <label style={lbl}>Unidades por envío (default cuando el cliente abre)</label>
+            <input type="number" min="1" value={units} onChange={e=>setUnits(e.target.value)} style={inp}/>
+
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,alignItems:"end"}}>
+              <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"var(--text-md)",marginTop:12}}>
+                <input type="checkbox" checked={allowCustomFreq} onChange={e=>setAllowCustomFreq(e.target.checked)}/>
+                El cliente puede elegir otra frecuencia
+              </label>
+              <div>
+                <label style={lbl}>Tope de descuento por pack (%)</label>
+                <input type="number" min="0" max="80" value={maxPackDisc} onChange={e=>setMaxPackDisc(e.target.value)} style={inp}/>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* ─── Envío ─────────────────────────────────────────────── */}
         <div style={{marginTop:18,paddingTop:14,borderTop:"1px solid var(--border)"}}>
@@ -1054,8 +1125,8 @@ function NewPlanModal({ products, onClose, editPlan }) {
           <input type="text" value={shippingName} onChange={e=>setShippingName(e.target.value)} style={inp} placeholder="Envío a domicilio"/>
         </div>
 
-        {/* ─── Descuentos por cantidad ───────────────────────────── */}
-        <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid var(--border)"}}>
+        {/* ─── Descuentos por cantidad (solo modo tema: en packs cada pack ya tiene su precio) ── */}
+        {pricingMode === "theme" && <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid var(--border)"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
             <div style={{fontSize:13,fontWeight:700,color:"var(--text)"}}>Descuentos por cantidad</div>
             <button onClick={addTier} type="button" style={{background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text-md)",borderRadius:7,padding:"5px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>+ Agregar nivel</button>
@@ -1078,9 +1149,9 @@ function NewPlanModal({ products, onClose, editPlan }) {
               ))}
             </div>
           )}
-        </div>
+        </div>}
 
-        {(variant || (isEdit && basePrice > 0)) && (
+        {(variant || (isEdit && basePrice > 0)) && pricingMode === "theme" && (
           <div style={{marginTop:14,padding:"12px 14px",background:"var(--surface)",borderRadius:10,fontSize:12}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
               <span style={{color:"var(--text-sm)"}}>Precio normal:</span>

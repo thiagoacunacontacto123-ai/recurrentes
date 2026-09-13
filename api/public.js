@@ -4,8 +4,11 @@
 // quedar dentro del límite de 12 funciones serverless del plan Hobby de
 // Vercel. El router interno discrimina por `?action=`.
 //
-//   GET  ?action=plan&merchant=<uid>&product=<shopify_product_id>[&variant=<id>]
+//   GET  ?action=plan&merchant=<uid>&product=<shopify_product_id>[&variant=<id>][&plan=<planId>]
 //        → devuelve el plan ACTIVO para ese producto (prioriza el de la variante).
+//          `plan=<id>` tiene prioridad (embed del checkout con ?plan=&pack=): se
+//          valida que exista bajo el merchant y esté activo; si no, cae a product/variant.
+//          Incluye pricing_mode / packs / frequency_scales_with_qty (ver shared/bundle/SPEC.md).
 //
 //   GET  ?action=sub&token=<JWT>
 //        → detalle de la sub + historial de cargos (customer portal).
@@ -34,6 +37,7 @@ import { rateLimit, clientIp } from "./_lib/ratelimit.js";
 import { setUnsubscribed } from "./_lib/unsub.js";
 import { emailSubscriptionCancelled } from "./_lib/email.js";
 import { logEmail } from "./_lib/emaillog.js";
+import { planPacks, planPricingMode } from "./_lib/packs.js";
 
 // Tokens viejos (portal / back_url de MP ya emitidos) se firmaron con
 // MP_WEBHOOK_SECRET aunque hubiera PORTAL_SECRET. Si el secreto vigente es otro,
@@ -144,18 +148,25 @@ async function handlePlan(req, res) {
   const merchantId = String(req.query.merchant || "");
   const productId = String(req.query.product || "");
   const variantId = String(req.query.variant || "");
-  if (!merchantId || !productId) {
+  const planId = String(req.query.plan || "").trim().slice(0, 80);
+  if (!merchantId || (!productId && !planId)) {
     return res.status(400).json({ error: "Faltan merchant o product" });
   }
   try {
     const col = db().collection("merchants").doc(merchantId).collection("plans");
     let doc = null;
-    // Primero el plan de la variante exacta; si no hay, el del producto.
-    if (variantId) {
+    // 1) plan por id (pertenece al merchant por estar bajo su subcolección) y activo.
+    if (planId && /^[A-Za-z0-9_-]+$/.test(planId)) {
+      const ds = await col.doc(planId).get();
+      if (ds.exists && ds.data().active === true) doc = ds;
+      else console.warn("[public/plan] plan por id no disponible:", { merchantId, planId, exists: ds.exists });
+    }
+    // 2) el plan de la variante exacta; si no hay, el del producto.
+    if (!doc && variantId) {
       const qv = await col.where("shopify_variant_id", "==", variantId).where("active", "==", true).limit(1).get();
       if (!qv.empty) doc = qv.docs[0];
     }
-    if (!doc) {
+    if (!doc && productId) {
       const q = await col.where("shopify_product_id", "==", productId).where("active", "==", true).limit(1).get();
       if (!q.empty) doc = q.docs[0];
     }
@@ -167,7 +178,12 @@ async function handlePlan(req, res) {
         shopify_product_id: data.shopify_product_id,
         shopify_variant_id: data.shopify_variant_id,
         product_title: data.product_title,
+        product_image: data.product_image || null,
         frequency_days: data.frequency_days,
+        // Packs (bundle): el widget/embed renderiza el selector y manda pack_index.
+        pricing_mode: planPricingMode(data),
+        packs: planPacks(data),
+        frequency_scales_with_qty: data.frequency_scales_with_qty !== false,
         // El checkout sólo respeta una frecuencia custom de la URL si el plan lo permite.
         allow_custom_frequency: data.allow_custom_frequency === true,
         discount_pct: data.discount_pct,
