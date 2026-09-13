@@ -136,6 +136,12 @@ export default async function handler(req, res) {
           if (created && now - created < 60 * 1000) continue; // muy nueva, esperar al próximo tick
           const nextChargeMs = ms(d.next_charge_at);
           if (nextChargeMs && nextChargeMs <= now - 5 * 60 * 1000) { vencidas.push(subDoc); continue; }
+          // Activas SIN next_charge_at (activadas por webhook viejo que no lo guardaba):
+          // sincronizar 1 vez por día hasta completarlo, máx 10 por corrida, para que
+          // el cron pueda detectar sus renovaciones y el Inicio muestre próximos cobros.
+          if (!nextChargeMs && d.mp_preapproval_plan_id && (!d.last_sync_at || now - ms(d.last_sync_at) > 24 * H)) {
+            if (vencidas.filter(x => !ms(x.data().next_charge_at)).length < 10) { vencidas.push(subDoc); continue; }
+          }
           if ((d.shopify_orders || []).length === 0 && created && now - created < 72 * H) sinOrden.push(subDoc);
         }
         // payment_failed con backoff: re-verificar cada > 6h (MP reintenta el cobro solo).
