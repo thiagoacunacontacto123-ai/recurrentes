@@ -3,6 +3,7 @@ import { sendPasswordResetEmail, signOut } from "firebase/auth";
 import { auth } from "../lib/firebase.js";
 import * as api from "../lib/api.js";
 import * as Dash from "./Dashboard.jsx";
+import WidgetDesigner from "./WidgetDesigner.jsx";
 import {
   BtnPrimary, BtnSecondary, BtnDanger, InputStyle,
   AsyncButton, appConfirm, appAlert, toast as uiToast,
@@ -19,7 +20,7 @@ const { apiGet, apiPost } = api;
 //   operacion → OperationalSettingsCard del Dashboard (si está exportado)
 // ─────────────────────────────────────────────────────────────────
 
-export const CFG_SECS = ["cuenta", "tiendas", "equipo", "operacion"];
+export const CFG_SECS = ["cuenta", "tiendas", "equipo", "widget", "operacion"];
 
 export const TEAM_SECTIONS = [
   { id: "inicio",        label: "Inicio" },
@@ -102,12 +103,14 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
     { id: "cuenta",    l: "Cuenta",    d: "Email, contraseña y baja",   icon: "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" },
     { id: "tiendas",   l: "Tiendas",   d: "Tus tiendas y cuál está activa", icon: "M3 9l1-5h16l1 5M3 9h18v11H3zM9 20v-6h6v6" },
     ...(isOwner ? [{ id: "equipo", l: "Equipo", d: "Quién entra y qué ve", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" }] : []),
+    { id: "widget",    l: "Diseño del widget", d: "10 diseños del selector de packs, colores y textos", icon: "M4 4h16v16H4zM4 9h16M9 9v11" },
     { id: "operacion", l: "Operación", d: "Tienda, envíos, mails y abandono", icon: "M12 20a8 8 0 100-16 8 8 0 000 16zM12 14a2 2 0 100-4 2 2 0 000 4zM12 2v2M12 20v2M2 12h2M20 12h2" },
   ];
   const HEAD = {
     cuenta:    ["Cuenta", "Tu acceso a Recurrentes: email de inicio de sesión, contraseña y eliminación de la cuenta."],
     tiendas:   ["Tiendas", "Un mismo login puede manejar varias tiendas. Cada tienda tiene su propia conexión a Shopify y Mercado Pago, sus planes y sus suscriptores."],
     equipo:    ["Equipo", "Invitá a gente de tu equipo con su propio login. Ven solo las secciones que les habilites."],
+    widget:    ["Diseño del widget", "Elegí cómo se ve el selector de packs en tu página de producto: 10 diseños con vista previa real, color, esquinas y textos. Los packs y precios se cargan en cada plan."],
     operacion: ["Operación", "Dominio de la tienda, envíos del checkout, códigos de descuento, remitente de mails, recupero de abandonados y modo desarrollador."],
   };
   const H = HEAD[sec] || ["", ""];
@@ -145,6 +148,7 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
           {cur === "cuenta"    && <CuentaSection T={T} DS={DS} user={user} merchant={merchant} toast={toast} />}
           {cur === "tiendas"   && <TiendasSection T={T} DS={DS} user={user} merchant={merchant} workspace={workspace} reloadMerchant={reloadMerchant} toast={toast} />}
           {cur === "equipo"    && isOwner && <MiembrosCuentaCard T={T} DS={DS} user={user} merchant={merchant} toast={toast} />}
+          {cur === "widget"    && <WidgetSection merchant={merchant} reloadMerchant={reloadMerchant} />}
           {cur === "operacion" && <OperacionSection T={T} DS={DS} merchant={merchant} reloadMerchant={reloadMerchant} goTab={goTab} />}
         </div>
       </div>
@@ -585,4 +589,17 @@ function ColorPicker({ T, value, onChange }) {
       ))}
     </div>
   );
+}
+
+
+// ─── Diseño del widget (galería de 10 variantes + personalización) ───
+function WidgetSection({ merchant, reloadMerchant }) {
+  const [plans, setPlans] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    api.apiGet("plans").then(d => { if (alive) setPlans(Array.isArray(d?.plans) ? d.plans : (Array.isArray(d) ? d : [])); }).catch(() => { if (alive) setPlans([]); });
+    return () => { alive = false; };
+  }, [merchant?.id]);
+  if (plans === null) return <div style={{ color: "var(--text-sm)", fontSize: 13 }}>Cargando…</div>;
+  return <WidgetDesigner merchant={merchant} plans={plans} onSaved={reloadMerchant} />;
 }
