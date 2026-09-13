@@ -11,9 +11,14 @@
 //   PATCH  ?action=save-widget-settings → apariencia del widget (todos los campos)
 //   PATCH  ?action=save-settings        → settings operativos (parcial: solo lo que viene)
 //   PATCH  ?action=save-discount-codes  → códigos de descuento
-//   POST   ?action=test-email           → mail de prueba (solo al dueño, 10/día)
+//   POST   ?action=test-email           → mail de prueba (activación; solo al dueño, 10/día)
 //   POST   ?action=mp-oauth-start       → { url } para conectar MP por OAuth
 //   POST   ?action=disconnect-mp | disconnect-shopify
+//   Klaviyo (solo dueño; reemplaza al recupero de carritos propio, retirado 2026-09-13):
+//   POST   ?action=save-klaviyo       { api_key, send_orders? } → valida la Private API Key y la guarda
+//   POST   ?action=disconnect-klaviyo
+//   POST   ?action=klaviyo-test       → manda un "Checkout Started" de prueba al mail del dueño
+//   (save-settings acepta `klaviyo_send_orders`; `abandoned_enabled` / `abandoned_coupons` se ignoran)
 //   POST   ?action=plan-request  { plan: "starter"|"growth"|"pro" } → pide un plan del SaaS (mail al admin)
 //
 //   Multi-tienda (actúan sobre el PERFIL = uid del token, no sobre la tienda activa):
@@ -34,12 +39,13 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { db, requireMerchant, resolveMerchantAccess, clearMerchantCache, getOrCreateMerchant } from "./_lib/firebase.js";
 import { mpMe } from "./_lib/mp.js";
-import { emailAbandonedCheckout, emailTeamInvite, emailPlanRequest } from "./_lib/email.js";
+import { emailSubscriptionActivated, emailTeamInvite, emailPlanRequest } from "./_lib/email.js";
 import { PLAN_BY_ID, buildBilling, monthRange, trialEndFrom } from "./_lib/plans_saas.js";
 import { logEmail } from "./_lib/emaillog.js";
 import { signToken } from "./_lib/token.js";
 import { appBaseUrl } from "./_lib/config.js";
 import { rateLimit } from "./_lib/ratelimit.js";
+import { klaviyoEnabled, klaviyoValidateKey, klaviyoCheckoutStarted } from "./_lib/klaviyo.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
@@ -109,9 +115,15 @@ export default async function handler(req, res) {
         widget_radius: Number.isInteger(merchant.widget_radius) ? Math.max(0, Math.min(32, merchant.widget_radius)) : 14,
         // Códigos de descuento del merchant (para el checkout de suscripción)
         discount_codes: Array.isArray(merchant.discount_codes) ? merchant.discount_codes : [],
-        // Settings operativos (mails, abandono, envíos del checkout)
-        abandoned_enabled: merchant.abandoned_enabled === true,
-        abandoned_coupons: merchant.abandoned_coupons || null,
+        // Klaviyo (recupero de carritos + eventos de suscripción). NUNCA la key.
+        klaviyo_connected: klaviyoEnabled(merchant),
+        klaviyo_org: klaviyoEnabled(merchant) ? (merchant.klaviyo_org || "") : "",
+        klaviyo_connected_at: klaviyoEnabled(merchant) ? (merchant.klaviyo_connected_at || null) : null,
+        klaviyo_send_orders: merchant.klaviyo_send_orders === true,
+        klaviyo_last_error: klaviyoEnabled(merchant) ? (merchant.klaviyo_last_error || null) : null,
+        klaviyo_last_error_at: klaviyoEnabled(merchant) ? (merchant.klaviyo_last_error_at || null) : null,
+        // Settings operativos (mails, envíos del checkout). El recupero de carritos
+        // propio (abandoned_enabled / abandoned_coupons) se retiró el 2026-09-13.
         email_from: merchant.email_from || "",
         email_brand: merchant.email_brand || "",
         email_reply_to: merchant.email_reply_to || "",
@@ -131,10 +143,13 @@ export default async function handler(req, res) {
     const action = String(req.query.action || "");
     // Integraciones: solo el dueño (propio o viaOwner). Un miembro del equipo no
     // conecta/desconecta MP ni Shopify de una tienda ajena.
-    const ownerOnly = ["save-mp-token", "mp-oauth-start", "disconnect-mp", "disconnect-shopify", "save-meta"];
+    const ownerOnly = ["save-mp-token", "mp-oauth-start", "disconnect-mp", "disconnect-shopify", "save-meta", "save-klaviyo", "disconnect-klaviyo", "klaviyo-test"];
     if (ownerOnly.includes(action) && ctx.role !== "owner") return res.status(403).json({ error: "Solo el dueño de la tienda puede administrar las integraciones." });
 
     if (action === "save-mp-token")        return saveMpToken(merchantId, req, res);
+    if (action === "save-klaviyo")         return saveKlaviyo(merchantId, req, res);
+    if (action === "disconnect-klaviyo")   return disconnectKlaviyo(merchantId, res);
+    if (action === "klaviyo-test")         return klaviyoTest(merchantId, req, res);
     if (action === "save-widget-settings") return saveWidgetSettings(merchantId, req, res);
     if (action === "save-settings")        return saveSettings(merchantId, req, res);
     if (action === "save-meta")            return saveMeta(merchantId, req, res);
@@ -264,6 +279,88 @@ async function disconnect(merchantId, which, res) {
   }
 }
 
+// ─── Klaviyo ─────────────────────────────────────────────────────────────────
+// POST ?action=save-klaviyo { api_key, send_orders? } → valida la Private API Key
+// contra GET /accounts/ y la guarda. Nunca se devuelve la key al front.
+async function saveKlaviyo(merchantId, req, res) {
+  const key = String(req.body?.api_key || "").trim();
+  if (!key) return res.status(400).json({ error: "Pegá tu Private API Key de Klaviyo (empieza con pk_)" });
+  const v = await klaviyoValidateKey(key);
+  if (!v.ok) return res.status(400).json({ error: v.error || "Klaviyo no aceptó la clave" });
+  const now = new Date().toISOString();
+  try {
+    await db().collection("merchants").doc(merchantId).set({
+      klaviyo_api_key: key,
+      klaviyo_org: v.organization || "",
+      klaviyo_account_id: v.account_id || null,
+      klaviyo_connected_at: now,
+      klaviyo_disconnected_at: null,
+      klaviyo_last_error: null, klaviyo_last_error_at: null, klaviyo_last_error_status: null,
+      ...(typeof req.body?.send_orders === "boolean" ? { klaviyo_send_orders: req.body.send_orders } : {}),
+      updated_at: now,
+    }, { merge: true });
+    clearMerchantCache(merchantId);
+    return res.json({ ok: true, klaviyo_connected: true, klaviyo_org: v.organization || "", klaviyo_connected_at: now });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+// POST ?action=disconnect-klaviyo → borra la key; los eventos dejan de salir.
+async function disconnectKlaviyo(merchantId, res) {
+  try {
+    await db().collection("merchants").doc(merchantId).set({
+      klaviyo_api_key: FieldValue.delete(),
+      klaviyo_org: FieldValue.delete(),
+      klaviyo_account_id: FieldValue.delete(),
+      klaviyo_last_error: FieldValue.delete(), klaviyo_last_error_at: FieldValue.delete(), klaviyo_last_error_status: FieldValue.delete(),
+      klaviyo_disconnected_at: new Date().toISOString(),
+    }, { merge: true });
+    clearMerchantCache(merchantId);
+    return res.json({ ok: true, klaviyo_connected: false });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+// POST ?action=klaviyo-test → "Checkout Started" de prueba ($value 1, extra.test)
+// al mail del dueño, con el primer plan activo como producto. 20/día.
+async function klaviyoTest(merchantId, req, res) {
+  const merchant = await getOrCreateMerchant(merchantId, null);
+  if (!klaviyoEnabled(merchant)) return res.status(400).json({ error: "Conectá Klaviyo primero" });
+  const to = String(merchant.email || "").trim().toLowerCase();
+  if (!to || !EMAIL_RE.test(to)) return res.status(400).json({ error: "La cuenta no tiene un email válido para la prueba" });
+  const rl = await rateLimit(`klaviyotest:${merchantId}`, { limit: 20, windowSec: 86400 });
+  if (!rl.ok) return res.status(429).json({ error: "Tope de 20 eventos de prueba por día alcanzado" });
+
+  let plan = null;
+  try {
+    const ps = await db().collection("merchants").doc(merchantId).collection("plans").where("active", "==", true).limit(1).get();
+    if (!ps.empty) plan = { id: ps.docs[0].id, ...ps.docs[0].data() };
+  } catch (_) {}
+  const host = merchant.store_domain || merchant.shopify_shop || "";
+  const path = String(merchant.widget_checkout_page_path || "/pages/suscripcion-form").trim();
+  const recoverUrl = host ? `https://${host}${path}` : appBaseUrl();
+  const fakeSub = {
+    customer_email: to,
+    customer_name: "Prueba Recurrentes",
+    plan_id: plan?.id || null,
+    quantity: 1,
+    plan_snapshot: {
+      product_title: plan?.product_title || "Producto de prueba",
+      shopify_product_id: plan?.shopify_product_id || null,
+      shopify_variant_id: plan?.shopify_variant_id || null,
+      frequency_days: parseInt(plan?.frequency_days) || 30,
+      total_per_charge_ars: 1, subtotal_ars: 1, shipping_price_ars: 0,
+    },
+  };
+  const r = await klaviyoCheckoutStarted(merchant, merchantId, `test_${Date.now()}`, fakeSub, {
+    recoverUrl, imageUrl: plan?.product_image || null, stage: "test", test: true,
+  });
+  if (!r?.ok) return res.status(502).json({ error: r?.error || "Klaviyo rechazó el evento", status: r?.status || null });
+  return res.json({ ok: true, status: r.status, metric: "Checkout Started", to, remaining: rl.remaining });
+}
+
 async function saveMeta(merchantId, req, res) {
   // Guarda el Pixel ID + token de la API de Conversiones (CAPI) del merchant,
   // para reportar a Meta la PRIMERA venta de cada suscripción (server-side).
@@ -362,27 +459,12 @@ async function saveSettings(merchantId, req, res) {
   const out = {};
   const bad = (msg) => res.status(400).json({ error: msg });
 
-  if ("abandoned_enabled" in b) out.abandoned_enabled = b.abandoned_enabled === true;
+  // Retirados 2026-09-13 (recupero de carritos → Klaviyo): se aceptan y se ignoran
+  // para no romper fronts viejos que todavía los manden.
+  const ignored = ["abandoned_enabled", "abandoned_coupons"].filter(k => k in b);
   if ("dev_mode" in b) out.dev_mode = b.dev_mode === true;
-
-  if ("abandoned_coupons" in b) {
-    if (b.abandoned_coupons == null) out.abandoned_coupons = null;
-    else {
-      const codes = (await getOrCreateMerchant(merchantId, null)).discount_codes || [];
-      const byCode = Object.fromEntries(codes.map(c => [String(c.code || "").toUpperCase(), c]));
-      const clean = {};
-      for (const step of ["step2", "step3"]) {
-        const c = b.abandoned_coupons[step];
-        if (!c || !String(c.code || "").trim()) { clean[step] = null; continue; }
-        const code = String(c.code).trim().toUpperCase().slice(0, 40);
-        const hit = byCode[code];
-        if (!hit) return bad(`El código ${code} no existe en tus códigos de descuento`);
-        const pct = Number.isFinite(Number(c.pct)) ? Math.max(0, Math.min(100, parseInt(c.pct, 10) || 0)) : (hit.type === "percent" ? hit.value : 0);
-        clean[step] = { code, pct };
-      }
-      out.abandoned_coupons = clean;
-    }
-  }
+  // Klaviyo: mandar también "Placed Order" (solo si su Klaviyo NO está conectado a Shopify).
+  if ("klaviyo_send_orders" in b) out.klaviyo_send_orders = b.klaviyo_send_orders === true;
 
   if ("email_from" in b) {
     const v = String(b.email_from || "").trim();
@@ -445,10 +527,10 @@ async function saveSettings(merchantId, req, res) {
     out.widget_radius = r;
   }
 
-  if (!Object.keys(out).length) return bad("Nada para guardar");
+  if (!Object.keys(out).length) return ignored.length ? res.json({ ok: true, ignored }) : bad("Nada para guardar");
   try {
     await db().collection("merchants").doc(merchantId).set({ ...out, updated_at: new Date().toISOString() }, { merge: true });
-    return res.json({ ok: true, ...out });
+    return res.json({ ok: true, ...out, ...(ignored.length ? { ignored } : {}) });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
@@ -538,8 +620,9 @@ async function backfillEmailLog(merchantId, req, res) {
 }
 
 async function testEmail(merchantId, req, res) {
-  // Envía el mail de carrito abandonado de PRUEBA para verificar que Resend +
-  // el remitente + la marca quedaron bien antes de mandarlo a clientes.
+  // Envía el mail de ACTIVACIÓN de PRUEBA para verificar que Resend + el remitente
+  // + la marca quedaron bien antes de que salga a clientes. (Antes mandaba el mail
+  // de carrito abandonado; ese flujo se retiró el 2026-09-13 → Klaviyo.)
   // Solo al mail del merchant o a un mail del dominio de email_from; 10/día.
   const to = String(req.body?.to || "").trim().toLowerCase();
   if (!to || !EMAIL_RE.test(to)) return res.status(400).json({ error: "Falta 'to' (email válido)" });
@@ -553,45 +636,37 @@ async function testEmail(merchantId, req, res) {
   const rl = await rateLimit(`testmail:${merchantId}`, { limit: 10, windowSec: 86400 });
   if (!rl.ok) return res.status(429).json({ error: "Tope de 10 mails de prueba por día alcanzado" });
 
-  const step = Math.min(3, Math.max(1, parseInt(req.body?.step, 10) || 1));
-  const cfg = merchant.abandoned_coupons || {};
-  const COUPONS = { 1: { code: null, pct: 0 }, 2: cfg.step2 || { code: null, pct: 0 }, 3: cfg.step3 || { code: null, pct: 0 } };
-  const cp = COUPONS[step];
   const brand = merchant.email_brand || (process.env.EMAIL_FROM || "").split("<")[0].trim().replace(/^["']|["']$/g, "") || "";
 
-  // Datos reales del merchant: primer plan activo + dominio de la tienda.
-  let productTitle = "Tu producto", amount = 0;
+  // Datos reales del merchant: primer plan activo.
+  let productTitle = "Tu producto", amount = 0, frequencyDays = 30;
   try {
     const plansSnap = await db().collection("merchants").doc(merchantId).collection("plans").where("active", "==", true).limit(1).get();
     if (!plansSnap.empty) {
       const p = plansSnap.docs[0].data();
       productTitle = p.product_title || productTitle;
       amount = p.subscription_price_ars || 0;
+      frequencyDays = parseInt(p.frequency_days) || 30;
     }
   } catch (_) {}
-  const host = merchant.store_domain || merchant.shopify_shop || "";
-  const path = String(merchant.widget_checkout_page_path || "/pages/suscripcion-form").trim();
-  let recoverUrl = host ? `https://${host}${path}` : `${appBaseUrl()}/#/dashboard`;
-  if (cp.code) recoverUrl += (recoverUrl.includes("?") ? "&" : "?") + "code=" + encodeURIComponent(cp.code);
-  // name opcional: si mandan name:"" se ve el saludo sin nombre ("¡Hola! 👋").
+  // name opcional: si mandan name:"" se ve el saludo sin nombre.
   const customerName = req.body?.name !== undefined ? String(req.body.name) : "Nombre de prueba";
-  const r = await emailAbandonedCheckout({
+  const r = await emailSubscriptionActivated({
     to,
     customerName,
     productTitle,
+    frequencyDays,
     amount,
-    recoverUrl,
+    portalUrl: `${appBaseUrl()}/#/portal`,
+    merchant,
     brand,
     accent: merchant.email_accent || merchant.widget_color || "",
     from: merchant.email_from || undefined,
-    step,
-    couponCode: cp.code,
-    couponPct: cp.pct,
   });
-  await logEmail(merchantId, { type: "abandoned", to, customer_name: customerName, product_title: productTitle, step, coupon: cp.code, status: r?.error ? "error" : (r?.skipped ? "skipped" : "sent"), error: r?.error || null, test: true });
+  await logEmail(merchantId, { type: "activation", to, customer_name: customerName, product_title: productTitle, status: r?.error ? "error" : (r?.skipped ? "skipped" : "sent"), error: r?.error || null, test: true });
   if (r?.skipped) return res.status(400).json({ error: "RESEND_API_KEY no configurada (o no tomó el redeploy todavía)" });
   if (r?.error) return res.status(502).json({ error: r.error });
-  return res.json({ ok: true, id: r.id, step, coupon: cp.code, from: merchant.email_from || process.env.EMAIL_FROM || null, brand, remaining: rl.remaining });
+  return res.json({ ok: true, id: r.id, type: "activation", from: merchant.email_from || process.env.EMAIL_FROM || null, brand, remaining: rl.remaining });
 }
 
 async function saveDiscountCodes(merchantId, req, res) {

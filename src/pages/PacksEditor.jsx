@@ -1,6 +1,7 @@
 import React from "react";
 import { DS, useT } from "../ui/theme.js";
 import { Btn, Field, InputStyle, CheckLine, Callout, DSBadge } from "../ui/components.jsx";
+import { PackTip } from "./Onboarding.jsx";
 
 // Editor de "Precios y packs" del plan (alta y edición). Vive fuera de
 // Dashboard.jsx para no engordarlo. Contrato de datos: shared/bundle/SPEC.md.
@@ -132,7 +133,9 @@ function ModeOption({ T, active, title, desc, tag, onClick }) {
 
 const Lbl = ({ T, children }) => <label style={{display:"block",fontSize:DS.font.xs,fontWeight:DS.w.semibold,color:T.textSm,marginBottom:3,textTransform:"uppercase",letterSpacing:0.4}}>{children}</label>;
 
-export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, basePrice, discountPct, frequencyDays, freqScales, onFreqScalesChange }) {
+// compact=true: solo las filas (sin título ni selector de modo) — lo usa el
+// diseñador del widget con mode="packs" fijo.
+export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, basePrice, discountPct, frequencyDays, freqScales, onFreqScalesChange, compact = false, radioName = "rc-pack-default" }) {
   const T = useT();
   const inp = { ...InputStyle(T), padding:"7px 9px", fontSize:DS.font.md };
   const ctx = { basePrice, discountPct, frequencyDays, freqScales, rows: packs };
@@ -165,15 +168,19 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
   };
 
   return (
-    <div style={{marginTop:16,paddingTop:14,borderTop:`1px solid ${T.borderL}`}}>
-      <div style={{fontSize:DS.font.base,fontWeight:DS.w.bold,color:T.text,marginBottom:10}}>Precios y packs</div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))",gap:8}}>
-        <ModeOption T={T} active={mode === "packs"} tag="Recomendado" title="Packs de Recurrentes" desc="Recurrentes arma el selector de packs en tu tienda (1·2·3 unidades, compra única o suscripción)." onClick={()=>onModeChange("packs")}/>
-        <ModeOption T={T} active={mode === "theme"} tag="Avanzado" title="Mi tema manda el precio" desc="El widget solo agrega el toggle de suscripción; precio, cantidad y frecuencia salen de tu tema." onClick={()=>onModeChange("theme")}/>
-      </div>
+    <div style={compact ? {} : {marginTop:16,paddingTop:14,borderTop:`1px solid ${T.borderL}`}}>
+      {!compact && (
+        <>
+          <div style={{fontSize:DS.font.base,fontWeight:DS.w.bold,color:T.text,marginBottom:10,display:"flex",alignItems:"center",gap:8}}>Precios y packs <PackTip T={T}/></div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))",gap:8}}>
+            <ModeOption T={T} active={mode === "packs"} tag="Recomendado" title="Packs de Recurrentes" desc="Recurrentes arma el selector de packs en tu tienda (1·2·3 unidades, compra única o suscripción)." onClick={()=>onModeChange?.("packs")}/>
+            <ModeOption T={T} active={mode === "theme"} tag="Avanzado" title="Mi tema manda el precio" desc="El widget solo agrega el toggle de suscripción; precio, cantidad y frecuencia salen de tu tema." onClick={()=>onModeChange?.("theme")}/>
+          </div>
+        </>
+      )}
 
       {mode === "packs" && (
-        <div style={{marginTop:12}}>
+        <div style={{marginTop:compact ? 0 : 12}}>
           <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:8}}>
             <Btn T={T} variant="secondary" size="sm" type="button" onClick={generate} disabled={!(num(basePrice) > 0)} title={num(basePrice) > 0 ? "" : "Elegí primero el producto (necesito el precio base)"}>✨ Generar 1·2·3 automáticamente</Btn>
             <Btn T={T} variant="secondary" size="sm" type="button" onClick={add} disabled={packs.length >= PACKS_MAX}>+ Agregar pack</Btn>
@@ -202,7 +209,7 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                       <div><Lbl T={T}>Precio suscripción ($)</Lbl><input type="number" min="0" value={r.sub_price_ars} onChange={e=>upd(i,"sub_price_ars",e.target.value)} style={inp} placeholder={subAutoPh(r)}/></div>
                       <div style={{display:"flex",alignItems:"flex-end",gap:8}}>
                         <label style={{display:"flex",alignItems:"center",gap:6,fontSize:DS.font.sm,color:T.textMd,cursor:"pointer",whiteSpace:"nowrap",paddingBottom:8}}>
-                          <input type="radio" name="rc-pack-default" checked={r.default === true} onChange={()=>setDefault(i)} style={{accentColor:T.accentSolid}}/>
+                          <input type="radio" name={radioName} checked={r.default === true} onChange={()=>setDefault(i)} style={{accentColor:T.accentSolid}}/>
                           Por defecto
                         </label>
                         <button type="button" onClick={()=>remove(i)} title="Quitar pack" style={{marginLeft:"auto",background:"transparent",border:"none",color:T.textSm,fontSize:15,cursor:"pointer",padding:"0 4px 6px",fontFamily:"inherit"}}
@@ -230,7 +237,7 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
         </div>
       )}
 
-      {mode === "theme" && (
+      {mode === "theme" && !compact && (
         <Callout T={T} tone="info" style={{marginTop:10}}>
           El precio base, el % de descuento y la frecuencia de arriba mandan. El diseñador del selector de packs no aplica a este plan.
         </Callout>

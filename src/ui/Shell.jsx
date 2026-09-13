@@ -8,9 +8,11 @@ import { BtnPrimary, BtnSecondary, BtnDanger, ModalCloseBtn, SECTION_ICONS, toas
 
 const F = "'Inter',system-ui,sans-serif";
 
-// ─── NAV: los 8 tabs del dashboard + Configuración ─────────────────────
+// ─── NAV: los 8 tabs del dashboard + Configuración + Guía ──────────────
+// `alertKey:"onboarding"` en Inicio = pasos pendientes del plan de acción
+// (badge verde, igual que los quehaceres de Growith).
 export const NAV = [
-  { id:"inicio",        label:"Inicio",                  short:"Inicio",   icon:SECTION_ICONS.inicio },
+  { id:"inicio",        label:"Inicio",                  short:"Inicio",   icon:SECTION_ICONS.inicio, alertKey:"onboarding", badge:"accent" },
   { id:"integraciones", label:"Integraciones",           short:"Integrar", icon:SECTION_ICONS.integraciones },
   { id:"planes",        label:"Planes",                  short:"Planes",   icon:SECTION_ICONS.planes },
   { id:"suscriptores",  label:"Suscriptores activos",    short:"Suscript.",icon:SECTION_ICONS.suscriptores, alertKey:"suscriptores" },
@@ -20,6 +22,7 @@ export const NAV = [
   { id:"cobros",        label:"Cobros",                  short:"Cobros",   icon:SECTION_ICONS.cobros, alertKey:"cobros", badge:"red" },
   { id:"plan",          label:"Plan",                    short:"Plan",     icon:"M1 6a2 2 0 012-2h18a2 2 0 012 2v12a2 2 0 01-2 2H3a2 2 0 01-2-2zM1 10h22M5 15h4" },
   { id:"configuracion", label:"Configuración",           short:"Config",   icon:SECTION_ICONS.configuracion },
+  { id:"guia",          label:"Guía",                    short:"Guía",     icon:"M4 19.5A2.5 2.5 0 016.5 17H20M4 19.5A2.5 2.5 0 006.5 22H20V2H6.5A2.5 2.5 0 004 4.5v15zM9 7h7M9 11h5" },
 ];
 
 // ─── Logo: círculo verde con flecha circular ↻ + wordmark ──────────────
@@ -322,13 +325,19 @@ export function ManageStoreModal({T, store, totalStores, onClose, onSave, onDele
 }
 
 // ─── Sidebar ───────────────────────────────────────────────────────────
-export function Sidebar({T, nav=NAV, activeTab, onTab, user, merchant, workspace, onSwitchStore, onCreateStore, onManageStore, collapsed, setCollapsed, darkMode, setDarkMode, onLogout, alerts={}}) {
+// `pendientes`: pasos del plan de acción sin hacer [{key,label,onClick}] →
+// cajita "Terminá de configurar" abajo del nav (portada de los quehaceres de
+// vinculación de Growith). Se puede cerrar por tienda.
+export function Sidebar({T, nav=NAV, activeTab, onTab, user, merchant, workspace, onSwitchStore, onCreateStore, onManageStore, collapsed, setCollapsed, darkMode, setDarkMode, onLogout, alerts={}, pendientes=[], onVerPlan}) {
   const items = nav.map(it=>it.alertKey?{...it,count:alerts[it.alertKey]}:it);
   const initial = (user?.displayName||user?.email||"?").charAt(0).toUpperCase();
   const W = collapsed ? 64 : 224;
   const stores = workspace?.stores || [];
   const activeStoreId = workspace?.active_merchant_id || merchant?.id || null;
   const role = merchant?.role || stores.find(s=>s.id===activeStoreId)?.role;
+  const qhKey = `rec_quehaceres_off_${merchant?.id||"default"}`;
+  const [quehaceresOff, setQuehaceresOff] = React.useState(()=>{ try{ return localStorage.getItem(qhKey)==="1"; }catch(_){ return false; } });
+  React.useEffect(()=>{ try{ setQuehaceresOff(localStorage.getItem(qhKey)==="1"); }catch(_){} },[qhKey]);
 
   const NavBtn = ({item}) => {
     const active = activeTab === item.id;
@@ -394,6 +403,31 @@ export function Sidebar({T, nav=NAV, activeTab, onTab, user, merchant, workspace
           return <NavBtn key={item.id} item={item}/>;
         })}
       </nav>
+
+      {/* Quehaceres del plan de acción (abajo a la izquierda) — aparecen
+          mientras falten pasos. Se pueden cerrar; el badge de Inicio queda. */}
+      {!collapsed && pendientes.length>0 && !quehaceresOff && (
+        <div style={{margin:`0 ${DS.sp.sm}px ${DS.sp.sm}px`,padding:"10px 12px",background:T.accent+"0f",border:`1px solid ${T.accent}33`,borderRadius:DS.r.lg,flexShrink:0}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+            <span style={{fontSize:11,fontWeight:800,color:T.accent,letterSpacing:0.3,textTransform:"uppercase"}}>Terminá de configurar</span>
+            <button onClick={()=>{setQuehaceresOff(true);try{localStorage.setItem(qhKey,"1");}catch(_){}}} title="Ocultar" style={{background:"transparent",border:"none",color:T.textSm,cursor:"pointer",fontSize:14,lineHeight:1,padding:0}}>✕</button>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+            {pendientes.slice(0,3).map(p=>(
+              <button key={p.key} onClick={p.onClick} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"7px 8px",background:T.card,border:`1px solid ${T.border}`,borderRadius:DS.r.md,cursor:"pointer",fontFamily:F,textAlign:"left"}}>
+                <span style={{width:18,height:18,borderRadius:"50%",background:T.accent+"22",color:T.accent,fontSize:10,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{p.n}</span>
+                <span style={{flex:1,minWidth:0,fontSize:12,fontWeight:600,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.label}</span>
+                <span style={{flexShrink:0,fontSize:13,color:T.accent,fontWeight:700}}>→</span>
+              </button>
+            ))}
+          </div>
+          {(pendientes.length>3 || onVerPlan) && (
+            <button onClick={onVerPlan} style={{marginTop:8,width:"100%",background:"transparent",border:"none",color:T.textSm,cursor:"pointer",fontSize:11,fontWeight:600,fontFamily:F,padding:"2px 0",textAlign:"left"}}>
+              {pendientes.length>3?`+${pendientes.length-3} más · `:""}Ver plan completo →
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Selector de tienda (abre hacia arriba) */}
       <StoreSwitcher T={T} stores={stores} activeStoreId={activeStoreId} onSwitchStore={onSwitchStore} onCreateStore={onCreateStore} onManageStore={onManageStore} collapsed={collapsed}/>

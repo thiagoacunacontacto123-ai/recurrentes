@@ -38,6 +38,7 @@ import { setUnsubscribed } from "./_lib/unsub.js";
 import { emailSubscriptionCancelled } from "./_lib/email.js";
 import { logEmail } from "./_lib/emaillog.js";
 import { planPacks, planPricingMode } from "./_lib/packs.js";
+import { klaviyoEnabled, klaviyoLifecycle, KLAVIYO_METRICS } from "./_lib/klaviyo.js";
 
 // Tokens viejos (portal / back_url de MP ya emitidos) se firmaron con
 // MP_WEBHOOK_SECRET aunque hubiera PORTAL_SECRET. Si el secreto vigente es otro,
@@ -332,6 +333,16 @@ async function handleSub(req, res) {
       update.mp_preapproval_status = "cancelled";
     }
     await subRef.update(update);
+
+    // Klaviyo: Subscription Cancelled / Paused / Resumed (best-effort, nunca bloquea).
+    if (klaviyoEnabled(merchant)) {
+      try {
+        const metric = subAction === "cancel" ? KLAVIYO_METRICS.CANCELLED : subAction === "pause" ? KLAVIYO_METRICS.PAUSED : KLAVIYO_METRICS.RESUMED;
+        await klaviyoLifecycle(merchant, merchantId, metric, subscriberId, { ...sub, ...update }, {
+          uniqueSuffix: now, nextChargeAt: update.next_charge_at, properties: { source: "portal" },
+        });
+      } catch (e) { console.warn("[public/sub] klaviyo falló:", e.message); }
+    }
 
     // Mail de cancelación (best-effort) + log para la actividad del dashboard.
     if (subAction === "cancel" && sub.customer_email) {

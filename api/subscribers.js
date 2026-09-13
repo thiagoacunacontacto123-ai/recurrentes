@@ -14,6 +14,7 @@ import { syncSubscriber } from "./_lib/sync.js";
 import { API_VERSION } from "./_lib/shopify.js";
 import { fetchWithTimeout } from "./_lib/http.js";
 import { logEmail } from "./_lib/emaillog.js";
+import { klaviyoEnabled, klaviyoLifecycle, KLAVIYO_METRICS } from "./_lib/klaviyo.js";
 
 const nowIso = () => new Date().toISOString();
 
@@ -461,14 +462,25 @@ export default async function handler(req, res) {
 
     const localStatus = action === "cancel" ? "cancelled" : action === "pause" ? "paused" : "active";
     const nextChargeAt = preData?.next_payment_date || null;
-    await subRef.update({
+    const localUpdate = {
       status: localStatus,
       updated_at: nowIso(),
       ...(preData?.status ? { mp_preapproval_status: preData.status } : {}),
       ...(action !== "cancel" && nextChargeAt ? { next_charge_at: nextChargeAt } : {}),
       ...(action === "cancel" ? { cancelled_at: nowIso() } : {}),
       ...(action === "resume" ? { cancelled_at: null } : {}),
-    });
+    };
+    await subRef.update(localUpdate);
+
+    // Klaviyo: Subscription Cancelled / Paused / Resumed (best-effort, nunca bloquea).
+    if (klaviyoEnabled(merchant)) {
+      try {
+        const metric = action === "cancel" ? KLAVIYO_METRICS.CANCELLED : action === "pause" ? KLAVIYO_METRICS.PAUSED : KLAVIYO_METRICS.RESUMED;
+        await klaviyoLifecycle(merchant, merchantId, metric, String(id), { ...sub, ...localUpdate }, {
+          uniqueSuffix: localUpdate.updated_at, nextChargeAt: action !== "cancel" && nextChargeAt ? nextChargeAt : undefined, properties: { source: "dashboard" },
+        });
+      } catch (e) { console.warn("[subscribers] klaviyo falló:", e.message); }
+    }
 
     // Mail de cancelación (best-effort) + log.
     if (action === "cancel" && sub.customer_email) {

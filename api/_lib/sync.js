@@ -26,6 +26,7 @@ import { sendMetaPurchase } from "./meta.js";
 import { logEmail } from "./emaillog.js";
 import { claimCharge } from "./chargeclaim.js";
 import { appBaseUrl } from "./config.js";
+import { klaviyoEnabled, klaviyoLifecycle, klaviyoPlacedOrder, KLAVIYO_METRICS } from "./klaviyo.js";
 
 const nowIso = () => new Date().toISOString();
 // Date.parse tolerante: MP manda fechas con offset (-04:00) y nosotros en Z.
@@ -105,7 +106,7 @@ export async function createShopifyOrderForSub(merchant, subscriberId, sub, { pa
  * Best-effort. eventId estable por sub → Meta deduplica entre webhook/sync/link.
  * `value`/`amount` = payment.transaction_amount (lo que realmente cobró MP).
  */
-export async function notifyActivation(merchantId, merchant, subscriberId, sub, payment, tag = "sync") {
+export async function notifyActivation(merchantId, merchant, subscriberId, sub, payment, tag = "sync", { shopifyOrderId = null } = {}) {
   const amount = Number(payment?.transaction_amount) || 0;
   if (merchant.meta_pixel_id && merchant.meta_capi_token) {
     try {
@@ -154,10 +155,41 @@ export async function notifyActivation(merchantId, merchant, subscriberId, sub, 
       console.warn(`[${tag}] email activación falló:`, e.message);
     }
   }
+  // Klaviyo: "Subscription Activated" (+ "Placed Order" solo si el merchant lo pidió;
+  // por defecto la integración Shopify→Klaviyo ya manda la orden). Best-effort.
+  if (klaviyoEnabled(merchant)) {
+    try {
+      const firstChargeAt = payment?.date_approved || nowIso();
+      const ordersCount = (sub.shopify_orders || []).length + (shopifyOrderId ? 1 : 0);
+      await klaviyoLifecycle(merchant, merchantId, KLAVIYO_METRICS.ACTIVATED, subscriberId, sub, { payment, orderId: shopifyOrderId, firstChargeAt, ordersCount });
+      await klaviyoPlacedOrder(merchant, merchantId, subscriberId, sub, { payment, orderId: shopifyOrderId, chargeNumber: 1, firstChargeAt, ordersCount });
+    } catch (e) { console.warn(`[${tag}] klaviyo activación falló:`, e.message); }
+  }
 }
 
-// Email de pago rechazado (una sola vez por payment id: el caller dedupa con last_payment_failed_id).
-export async function sendPaymentFailedEmail(merchantId, merchant, subscriberId, sub, tag = "sync") {
+/**
+ * Cobro N>1 con orden creada: Klaviyo "Subscription Renewed" (+ "Placed Order" opcional).
+ * Best-effort; idempotente por payment id / order id (unique_id).
+ */
+export async function notifyRenewal(merchantId, merchant, subscriberId, sub, payment, tag = "sync", { shopifyOrderId = null } = {}) {
+  if (!klaviyoEnabled(merchant)) return;
+  try {
+    const ordersCount = (sub.shopify_orders || []).length + (shopifyOrderId ? 1 : 0);
+    await klaviyoLifecycle(merchant, merchantId, KLAVIYO_METRICS.RENEWED, subscriberId, sub, { payment, orderId: shopifyOrderId, ordersCount });
+    await klaviyoPlacedOrder(merchant, merchantId, subscriberId, sub, { payment, orderId: shopifyOrderId, chargeNumber: ordersCount, ordersCount });
+  } catch (e) { console.warn(`[${tag}] klaviyo renovación falló:`, e.message); }
+}
+
+// Email de pago rechazado (una sola vez por payment id: el caller dedupa con last_payment_failed_id)
+// + evento Klaviyo "Subscription Payment Failed".
+export async function sendPaymentFailedEmail(merchantId, merchant, subscriberId, sub, tag = "sync", payment = null) {
+  if (klaviyoEnabled(merchant)) {
+    try {
+      await klaviyoLifecycle(merchant, merchantId, KLAVIYO_METRICS.PAYMENT_FAILED, subscriberId, sub, {
+        payment, uniqueSuffix: sub.last_payment_failed_id || undefined,
+      });
+    } catch (e) { console.warn(`[${tag}] klaviyo payment_failed falló:`, e.message); }
+  }
   if (!sub.customer_email) return;
   try {
     const er = await emailPaymentFailed({
@@ -193,7 +225,7 @@ export async function applyPaymentFailed(merchantId, merchant, subRef, sub, paym
     last_payment_failed_at: payment.date_created || nowIso(),
     updated_at: nowIso(),
   });
-  await sendPaymentFailedEmail(merchantId, merchant, subRef.id, sub, tag);
+  await sendPaymentFailedEmail(merchantId, merchant, subRef.id, sub, tag, payment);
   return true;
 }
 
@@ -446,6 +478,7 @@ export async function syncSubscriber(merchantId, subscriberId) {
   let orderStatusUrl = sub.last_shopify_order_status_url || null;
   const wasFirstCharge = !sub.last_charge_at;
   let firstOrderPayment = null; // pago cuya orden se creó en esta corrida (para activación)
+  const newOrderPayments = [];  // [{ payment, orderId }] órdenes creadas en esta corrida (Klaviyo)
   let lastOrderApprovedAt = 0;
   // Acumulamos errores de Shopify para devolverlos al caller — útil cuando el
   // pago se procesa OK pero la orden Shopify falla (DNI inválido, variant
@@ -491,6 +524,7 @@ export async function syncSubscriber(merchantId, subscriberId) {
     });
     if (shopifyOrderId) {
       newOrderIds.push(shopifyOrderId);
+      newOrderPayments.push({ payment, orderId: shopifyOrderId });
       if (!firstOrderPayment) firstOrderPayment = payment;
       lastOrderApprovedAt = Math.max(lastOrderApprovedAt, ms(payment.date_approved || payment.date_created));
     }
@@ -565,13 +599,18 @@ export async function syncSubscriber(merchantId, subscriberId) {
 
   // Mail de pago rechazado — UNA sola vez por payment id (dedup por last_payment_failed_id).
   if (updates.status === "payment_failed" && newFailedPayment) {
-    await sendPaymentFailedEmail(merchantId, merchant, subscriberId, sub, "sync");
+    await sendPaymentFailedEmail(merchantId, merchant, subscriberId, sub, "sync", newFailedPayment);
   }
 
   // Primera venta con orden creada: Meta CAPI Purchase + email de activación
-  // (solo primer charge; las renovaciones NO se reportan ni spamean).
-  if (wasFirstCharge && firstOrderPayment) {
-    await notifyActivation(merchantId, merchant, subscriberId, sub, firstOrderPayment, "sync");
+  // (solo primer charge; las renovaciones NO se reportan a Meta ni spamean).
+  // Klaviyo: la primera → "Subscription Activated"; el resto → "Subscription Renewed".
+  for (const { payment, orderId } of newOrderPayments) {
+    if (wasFirstCharge && payment === firstOrderPayment) {
+      await notifyActivation(merchantId, merchant, subscriberId, sub, payment, "sync", { shopifyOrderId: orderId });
+    } else {
+      await notifyRenewal(merchantId, merchant, subscriberId, sub, payment, "sync", { shopifyOrderId: orderId });
+    }
   }
 
   return {
@@ -715,7 +754,9 @@ export async function linkPaymentToSubscriber(merchantId, subscriberId, paymentI
   // (25) Primera venta con orden creada: Meta CAPI + mail de activación (mismo
   // eventId que webhook/sync → Meta deduplica).
   if (wasFirstCharge && !shopifyError) {
-    await notifyActivation(merchantId, merchant, subscriberId, sub, payment, "link");
+    await notifyActivation(merchantId, merchant, subscriberId, sub, payment, "link", { shopifyOrderId });
+  } else if (!shopifyError) {
+    await notifyRenewal(merchantId, merchant, subscriberId, sub, payment, "link", { shopifyOrderId });
   }
 
   return {

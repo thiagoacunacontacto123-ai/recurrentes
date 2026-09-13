@@ -16,7 +16,7 @@ import { claimCharge } from "../_lib/chargeclaim.js";
 import { timingSafeEqualStr } from "../_lib/token.js";
 import { fetchWithTimeout } from "../_lib/http.js";
 import {
-  syncSubscriber, createShopifyOrderForSub, notifyActivation, applyPaymentFailed, repriceAfterFirstCharge,
+  syncSubscriber, createShopifyOrderForSub, notifyActivation, notifyRenewal, applyPaymentFailed, repriceAfterFirstCharge,
 } from "../_lib/sync.js";
 
 // Vercel Pro: crear una orden puede llevar varias llamadas a Shopify + MP.
@@ -326,9 +326,12 @@ async function processPaymentForMerchant(merchantId, merchant, payment) {
   await subRef.update(upd);
 
   // Primera venta con orden: Meta CAPI Purchase + email de activación (una vez;
-  // eventId estable → Meta deduplica entre webhook/sync/link).
+  // eventId estable → Meta deduplica entre webhook/sync/link). Klaviyo: Activated
+  // en la primera, Renewed en las siguientes (idempotente por payment id).
   if (wasFirstCharge && !shopifyError) {
-    await notifyActivation(merchantId, merchant, subscriberId, sub, payment, "mp-webhook");
+    await notifyActivation(merchantId, merchant, subscriberId, sub, payment, "mp-webhook", { shopifyOrderId });
+  } else if (!shopifyError) {
+    await notifyRenewal(merchantId, merchant, subscriberId, sub, payment, "mp-webhook", { shopifyOrderId });
   }
 
   console.log(`[mp-webhook] OK payment ${payment.id} → order ${shopifyOrderId || "ERROR"}`);

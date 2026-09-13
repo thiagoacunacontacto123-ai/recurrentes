@@ -8,7 +8,8 @@
 //   3) pendings del flujo de plan (con mp_preapproval_plan_id, sin capture) de < 72h, máx 40
 //   4) canceladas de 90 días: solo en corridas cuyo minuto es múltiplo de 30
 //   5) planes MP huérfanos (> 14 días sin autorizar): solo 1 vez por hora (minuto < 2)
-//   6) mails de carrito abandonado (la función chequea abandoned_enabled)
+//   (6, retirado 2026-09-13: los mails de carrito abandonado propios se
+//    reemplazaron por eventos a Klaviyo, ver _lib/klaviyo.js)
 // Presupuesto: 240s; si se agota devolvemos parcial. Los merchants rotan por
 // corrida (offset = minuto % N) para que ninguno se quede sin turno.
 //
@@ -17,7 +18,6 @@
 // aceptado por compatibilidad con crons externos, pero está deprecado.
 import { db } from "./_lib/firebase.js";
 import { syncSubscriber } from "./_lib/sync.js";
-import { sendAbandonedEmails } from "./_lib/abandoned.js";
 import { isProd } from "./_lib/config.js";
 import { timingSafeEqualStr } from "./_lib/token.js";
 import { mpRefreshToken, mpCancelPreapprovalPlan, isMpAuthError } from "./_lib/mp.js";
@@ -231,10 +231,6 @@ export default async function handler(req, res) {
           }
           if (partial) break;
         }
-
-        // 6) MAILS DE CARRITO ABANDONADO — la función chequea abandoned_enabled.
-        try { await sendAbandonedEmails(m.id, md); }
-        catch (e) { errors += 1; console.error(`[cron] abandoned ${m.id}:`, e.message); }
 
         await m.ref.set({ last_cron_at: nowIso() }, { merge: true }).catch(() => {});
       } catch (e) {

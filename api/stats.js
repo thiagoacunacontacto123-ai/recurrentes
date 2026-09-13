@@ -141,18 +141,21 @@ export default async function handler(req, res) {
 }
 
 // GET /api/stats?action=activity — 3 tablas para el dashboard:
-//   mails  → cada email enviado (abandono paso 1/2/3, activación, cancelación, pago fallido)
+//   mails  → cada email enviado (activación, cancelación, pago fallido; abandono = histórico)
+//   klaviyo_events → últimos 200 eventos mandados a Klaviyo (+ klaviyo_summary {sent,error})
 //   envios → cada orden Shopify generada por un cobro
 //   cobros → cada cobro MP (facturación) con totales hoy / mes
 async function activity(merchantId, req, res) {
   try {
     const mRef = db().collection("merchants").doc(merchantId);
     // Lecturas acotadas: charges por rango o últimos 400, mails últimos 200.
-    const [mSnap, subsSnap, chargesSnap, mailsSnap] = await Promise.all([
+    const [mSnap, subsSnap, chargesSnap, mailsSnap, klaviyoSnap] = await Promise.all([
       mRef.get(),
       mRef.collection("subscribers").get(),
       chargesRange(mRef.collection("charges"), req.query).get(),
       mRef.collection("email_log").orderBy("created_at", "desc").limit(200).get(),
+      // Eventos mandados a Klaviyo (best-effort: si falla la query, tabla vacía).
+      mRef.collection("klaviyo_log").orderBy("created_at", "desc").limit(200).get().catch(e => { console.warn("[stats] klaviyo_log:", e.message); return { docs: [] }; }),
     ]);
     const merchant = mSnap.data() || {};
     const shop = merchant.shopify_shop || null;
@@ -183,6 +186,15 @@ async function activity(merchantId, req, res) {
         mailSummary["abandoned_" + st]++;
       } else if (mailSummary[m.type] !== undefined) mailSummary[m.type]++;
     }
+
+    // ── EVENTOS KLAVIYO ──
+    const klaviyoEvents = klaviyoSnap.docs.map(d => { const k = d.data(); return {
+      id: d.id, metric: k.metric || "", email: k.email || "", subscriber_id: k.subscriber_id || null,
+      customer_name: subMap[k.subscriber_id]?.name || "",
+      status: k.status || "sent", http_status: k.http_status ?? null, error: k.error || null, created_at: k.created_at || "",
+    }; });
+    const klaviyoSummary = { sent: 0, error: 0 };
+    for (const k of klaviyoEvents) { if (k.status === "error") klaviyoSummary.error++; else klaviyoSummary.sent++; }
 
     // ── COBROS (facturación) + ENVÍOS (órdenes) ──
     const cobros = [];
@@ -221,6 +233,8 @@ async function activity(merchantId, req, res) {
     return res.json({
       mails: mails.slice(0, 200),
       mail_summary: mailSummary,
+      klaviyo_events: klaviyoEvents,
+      klaviyo_summary: klaviyoSummary,
       envios: envios.slice(0, 200),
       envio_summary: { total: envios.length, this_month: envioMonth },
       cobros: cobros.slice(0, 200),

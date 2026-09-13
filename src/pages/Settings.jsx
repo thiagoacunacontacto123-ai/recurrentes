@@ -4,6 +4,7 @@ import { auth } from "../lib/firebase.js";
 import * as api from "../lib/api.js";
 import * as Dash from "./Dashboard.jsx";
 import WidgetDesigner from "./WidgetDesigner.jsx";
+import GuidePage from "./Guide.jsx";
 import {
   BtnPrimary, BtnSecondary, BtnDanger, InputStyle,
   AsyncButton, appConfirm, appAlert, toast as uiToast,
@@ -20,9 +21,10 @@ const { apiGet, apiPost } = api;
 //   tiendas   → tiendas del perfil (crear / renombrar / activar / eliminar)
 //   equipo    → miembros con acceso por secciones (solo owner)
 //   operacion → OperationalSettingsCard del Dashboard (si está exportado)
+//   ayuda     → Guía escrita (Guide.jsx) embebida
 // ─────────────────────────────────────────────────────────────────
 
-export const CFG_SECS = ["cuenta", "tiendas", "equipo", "widget", "operacion"];
+export const CFG_SECS = ["cuenta", "tiendas", "equipo", "widget", "operacion", "ayuda"];
 
 export const TEAM_SECTIONS = [
   { id: "inicio",        label: "Inicio" },
@@ -107,6 +109,7 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
     ...(isOwner ? [{ id: "equipo", l: "Equipo", d: "Quién entra y qué ve", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" }] : []),
     { id: "widget",    l: "Diseño del widget", d: "10 diseños del selector de packs, colores y textos", icon: "M4 4h16v16H4zM4 9h16M9 9v11" },
     { id: "operacion", l: "Operación", d: "Tienda, envíos, mails y abandono", icon: "M12 20a8 8 0 100-16 8 8 0 000 16zM12 14a2 2 0 100-4 2 2 0 000 4zM12 2v2M12 20v2M2 12h2M20 12h2" },
+    { id: "ayuda",     l: "Ayuda",     d: "Guía paso a paso y soporte", icon: "M12 22a10 10 0 100-20 10 10 0 000 20zM9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" },
   ];
   const HEAD = {
     cuenta:    ["Cuenta", "Tu acceso a Recurrentes: email de inicio de sesión, contraseña y eliminación de la cuenta."],
@@ -114,6 +117,7 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
     equipo:    ["Equipo", "Invitá a gente de tu equipo con su propio login. Ven solo las secciones que les habilites."],
     widget:    ["Diseño del widget", "Elegí cómo se ve el selector de packs en tu página de producto: 10 diseños con vista previa real, color, esquinas y textos. Los packs y precios se cargan en cada plan."],
     operacion: ["Operación", "Dominio de la tienda, envíos del checkout, códigos de descuento, remitente de mails, recupero de abandonados y modo desarrollador."],
+    ayuda:     ["Ayuda", "La guía completa de Recurrentes: cómo conectar Shopify y Mercado Pago, crear planes con packs, pegar el snippet, probar y recuperar carritos. Y el WhatsApp de soporte."],
   };
   const H = HEAD[sec] || ["", ""];
   const cur = NAVS.some(n => n.id === sec) ? sec : "cuenta";
@@ -152,6 +156,7 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
           {cur === "equipo"    && isOwner && <MiembrosCuentaCard T={T} DS={DS} user={user} merchant={merchant} toast={toast} />}
           {cur === "widget"    && <WidgetSection merchant={merchant} reloadMerchant={reloadMerchant} />}
           {cur === "operacion" && <OperacionSection T={T} DS={DS} merchant={merchant} reloadMerchant={reloadMerchant} goTab={goTab} />}
+          {cur === "ayuda"     && <GuidePage merchant={merchant} goTab={goTab} embedded />}
         </div>
       </div>
     </div>

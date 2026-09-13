@@ -43,8 +43,36 @@ import { rateLimit, clientIp } from "../_lib/ratelimit.js";
 import * as shopifyLib from "../_lib/shopify.js";
 import { resolveCheckoutShippingRates, PLAN_SHIPPING_CODE } from "../widget.js";
 import { isPacksPlan, resolvePack, parsePackIndex, defaultPackIndex } from "../_lib/packs.js";
+import { klaviyoEnabled, klaviyoCheckoutStarted, klaviyoUpsertProfile, checkoutKeyFor, splitName } from "../_lib/klaviyo.js";
+import { computeRecoverUrl } from "../_lib/abandoned.js";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+// Subs que ya son cliente: su perfil en Klaviyo no se degrada a "checkout_started".
+const BLOCKING_STATUS = new Set(["active", "paused", "payment_failed"]);
+
+// Klaviyo "Checkout Started" (mismo shape que un carrito de Shopify). Best-effort:
+// nunca rompe ni demora de más el checkout (timeout 5s). No se repite por el mismo
+// sub salvo que cambie el pack/qty/frecuencia (klaviyo_checkout_key; Klaviyo además
+// dedupa por unique_id). Si ya salió con el lead, en Pagar solo completamos el
+// perfil (nombre / teléfono / dirección) sin generar otro evento.
+async function trackCheckoutStarted(merchantId, merchant, subRef, sub, existing, { stage, plan, blocking }) {
+  if (!klaviyoEnabled(merchant)) return;
+  try {
+    const key = checkoutKeyFor(sub);
+    if (existing?.klaviyo_checkout_key === key) {
+      if (stage === "checkout") {
+        const { firstName, lastName } = splitName(sub.customer_name);
+        await klaviyoUpsertProfile(merchant, { email: sub.customer_email, phone: sub.customer_phone, firstName, lastName, address: sub.shipping_address, timeoutMs: 5000 });
+      }
+      return;
+    }
+    const recoverUrl = computeRecoverUrl(merchant, sub, { merchantId });
+    const r = await klaviyoCheckoutStarted(merchant, merchantId, subRef.id, sub, {
+      recoverUrl, imageUrl: plan?.product_image || null, stage, skipProfileStatus: blocking, timeoutMs: 5000,
+    });
+    if (r?.ok) await subRef.update({ klaviyo_checkout_key: key, klaviyo_checkout_at: new Date().toISOString() }).catch(() => {});
+  } catch (e) { console.warn("[checkout/init] klaviyo Checkout Started falló:", e.message); }
+}
 const normEmail = (e) => String(e || "").trim().toLowerCase();
 // Tope duro para lecturas a Shopify dentro del checkout: si tarda más, seguimos
 // con el fallback (precio del plan / dominios cacheados). Pagar no depende de Shopify.
@@ -338,12 +366,13 @@ export default async function handler(req, res) {
     try {
       // Buscar subs pending del mismo mail (query 1 campo → sin índice compuesto).
       const q = await subsCol.where("customer_email", "==", email).get();
-      let leadRef = null, hasReal = false;
+      let leadRef = null, leadData = null, hasReal = false, hasBlocking = false;
       q.forEach(d => {
         const x = d.data();
+        if (BLOCKING_STATUS.has(x.status)) hasBlocking = true;
         if (x.status !== "pending") return;
         if (x.mp_preapproval_plan_id) hasReal = true;   // ya arrancó checkout real
-        else if (x.capture === true && !leadRef) leadRef = d.ref;
+        else if (x.capture === true && !leadRef) { leadRef = d.ref; leadData = x; }
       });
       if (hasReal) return res.json({ ok: true, skipped: "already_in_checkout" });
 
@@ -378,10 +407,16 @@ export default async function handler(req, res) {
         recover_path: buildRecoverPath(merchant, plan, plan.id, finalQty, recoverExtra(pr)),
         updated_at: new Date().toISOString(),
       };
-      if (leadRef) { await leadRef.update(data); return res.json({ ok: true, lead_id: leadRef.id, updated: true }); }
-      const ref = subsCol.doc();
-      await ref.set({ ...data, created_at: new Date().toISOString(), shopify_orders: [] });
-      return res.json({ ok: true, lead_id: ref.id, created: true });
+      let ref = leadRef, out;
+      if (leadRef) { await leadRef.update(data); out = { ok: true, lead_id: leadRef.id, updated: true }; }
+      else {
+        ref = subsCol.doc();
+        await ref.set({ ...data, created_at: new Date().toISOString(), shopify_orders: [] });
+        out = { ok: true, lead_id: ref.id, created: true };
+      }
+      // Klaviyo "Checkout Started" (igual que un carrito de Shopify) con el link para retomar.
+      await trackCheckoutStarted(merchantId, merchant, ref, data, leadData, { stage: "lead", plan, blocking: hasBlocking });
+      return res.json(out);
     } catch (e) {
       console.error("[checkout/init] capture error:", e.message);
       return res.status(500).json({ error: "No se pudo registrar el carrito" });
@@ -525,12 +560,13 @@ export default async function handler(req, res) {
   //  3) doc nuevo.
   // Siempre update() (o set merge): NO pisamos created_at / abandoned_step /
   // abandoned_step_at para no reiniciar la secuencia de abandono.
-  let subRef = null, existing = null, isNew = false;
+  let subRef = null, existing = null, isNew = false, hasBlocking = false;
   try {
     const dq = await subsCol.where("customer_email", "==", email).get();
     let real = null, lead = null;
     dq.forEach(d => {
       const x = d.data();
+      if (BLOCKING_STATUS.has(x.status)) hasBlocking = true;
       if (x.status !== "pending") return;
       if (x.mp_preapproval_plan_id) {
         const ageMs = Date.now() - new Date(x.created_at || 0).getTime();
@@ -640,6 +676,7 @@ export default async function handler(req, res) {
     && (existing?.plan_snapshot?.pack_index ?? null) === (pack ? pack.idx : null));
   if (sameCharge) {
     await subRef.update({ portal_token: portalToken });
+    await trackCheckoutStarted(merchantId, merchant, subRef, { ...subData, portal_token: portalToken, mp_init_point: existing.mp_init_point }, existing, { stage: "checkout", plan, blocking: hasBlocking });
     return res.json({
       ok: true,
       subscriber_id: subscriberId,
@@ -720,6 +757,9 @@ export default async function handler(req, res) {
   // NOTA: el "InitiateCheckout" se dispara del lado del navegador APENAS CARGA el
   // checkout (fbq en widget.js). El "Purchase" se sigue disparando server-side
   // (sync/webhook) cuando MP confirma el cobro.
+
+  // Klaviyo "Checkout Started" (si no salió ya con el lead: completa el perfil).
+  await trackCheckoutStarted(merchantId, merchant, subRef, { ...subData, portal_token: portalToken, mp_init_point: checkoutUrl }, existing, { stage: "checkout", plan, blocking: hasBlocking });
 
   return res.json({
     ok: true,

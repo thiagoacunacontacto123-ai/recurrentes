@@ -773,3 +773,18 @@ export function CheckLine({T, checked, onChange, children, style={}}) {
     </label>
   );
 }
+
+// ─── Tip: (?) contextual portado de Growith (GhTip) ─────────────────────
+// Igual que GhTip pero acepta `children` además de `text`, y con `label`
+// muestra un texto corto al lado del (?) para usar suelto en cabeceras.
+//   <Tip T={T} text="…"/>                → solo el (?)
+//   <Tip T={T} label="¿Qué es un pack?">…</Tip>
+export function Tip({ T, text, children, label, style={} }) {
+  const body = children || text;
+  if (!label) return <GhTip T={T} text={body}/>;
+  return (
+    <span style={{display:"inline-flex",alignItems:"center",gap:2,fontSize:DS.font.sm,color:T.textSm,fontWeight:DS.w.semibold,whiteSpace:"nowrap",...style}}>
+      {label}<GhTip T={T} text={body}/>
+    </span>
+  );
+}

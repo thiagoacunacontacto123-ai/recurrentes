@@ -6,9 +6,11 @@ import { DS, useTheme } from "../ui/theme.js";
 import { ToastContainer, PageView, toast, ErrorBoundary } from "../ui/components.jsx";
 import { Sidebar, AppTopbar, MobileBottomNav, NewStoreModal, ManageStoreModal, NAV } from "../ui/Shell.jsx";
 import SettingsPage from "./Settings.jsx";
-import OnboardingWizard from "./Onboarding.jsx";
+import OnboardingWizard, { PlanDeAccionCard, OnbEmpty, PackTip, MpTokenTip, ShopifyAppTip } from "./Onboarding.jsx";
+import GuidePage from "./Guide.jsx";
+import { useOnboarding, OnboardingContext, TIPS } from "../lib/onboarding.js";
 import PacksEditor, { packsFromPlan, serializePacks, validatePacks, pricingModeOf } from "./PacksEditor.jsx";
-import WidgetDesigner from "./WidgetDesigner.jsx";
+import WidgetDesigner, { DevHelpCard } from "./WidgetDesigner.jsx";
 import { PlanPage, TrialBanner, PlanWall } from "./Billing.jsx";
 
 // Dashboard del comerciante — shell de Growith (sidebar + switcher de tiendas +
@@ -16,7 +18,8 @@ import { PlanPage, TrialBanner, PlanWall } from "./Billing.jsx";
 export default function Dashboard({ user, onLogout }) {
   const { T, darkMode, setDarkMode } = useTheme();
   const [tab, setTab] = useState(() => {
-    try { const h = window.location.hash.replace(/^#\/?/, "").split("?")[0]; const t = h.split("/")[1]; return NAV.some(n => n.id === t) ? t : "inicio"; } catch (_) { return "inicio"; }
+    // #/dashboard/<tab> · #/config/<sección> abre Configuración (Settings lee la sección del hash).
+    try { const h = window.location.hash.replace(/^#\/?/, "").split("?")[0]; if (h.split("/")[0] === "config") return "configuracion"; const t = h.split("/")[1]; return NAV.some(n => n.id === t) ? t : "inicio"; } catch (_) { return "inicio"; }
   });
   const [merchant, setMerchant] = useState(null);
   const [workspace, setWorkspace] = useState(null);
@@ -25,7 +28,7 @@ export default function Dashboard({ user, onLogout }) {
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem("rec_sidebar_collapsed") === "1"; } catch (_) { return false; } });
   const [newStoreOpen, setNewStoreOpen] = useState(false);
   const [manageStoreId, setManageStoreId] = useState(null);
-  const [onbDoneTick, setOnbDoneTick] = useState(0);
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   useEffect(() => { try { localStorage.setItem("rec_sidebar_collapsed", collapsed ? "1" : "0"); } catch (_) {} }, [collapsed]);
 
@@ -155,15 +158,25 @@ export default function Dashboard({ user, onLogout }) {
   const manageStore = manageStoreId ? (effectiveWorkspace?.stores || []).find(s => s.id === manageStoreId) : null;
 
   const integrationsReady = Boolean(merchant?.shopify_token && merchant?.mp_access_token);
-  // Onboarding: mientras falte Shopify o MP y no lo haya cerrado para esta tienda.
-  const onbDone = useMemo(() => { try { return localStorage.getItem("rec_onb_done_" + merchantId) === "1"; } catch (_) { return false; } }, [merchantId, onbDoneTick]);
-  const showOnboarding = !!merchant && !integrationsReady && !onbDone;
-  const finishOnboarding = () => { try { localStorage.setItem("rec_onb_done_" + merchantId, "1"); } catch (_) {} setOnbDoneTick(t => t + 1); };
+
+  // ── Plan de acción / onboarding (src/lib/onboarding.js) ──────────────
+  // 8 pasos calculados desde merchant + /api/plans + flags manuales. El
+  // wizard de bienvenida se abre solo la primera vez que entra a una tienda
+  // con pasos pendientes; después queda en Inicio → "Ver guía".
+  const onb = useOnboarding({ merchant, user, goTab });
+  const onbCtx = useMemo(() => ({ ...onb, openWizard: () => setWizardOpen(true) }), [onb]);
+  useEffect(() => {
+    if (!merchant || !onb.ready || onb.seen) return;
+    if (onb.pending > 0) setWizardOpen(true); else onb.markSeen();
+    // eslint-disable-next-line
+  }, [merchant?.id, onb.ready]);
+  const closeWizard = useCallback(() => { setWizardOpen(false); onb.markSeen(); }, [onb.markSeen]);
+  const pendientesSidebar = useMemo(() => onb.pendingSteps.filter(s => !s.locked).map(s => ({ key: s.id, n: s.n, label: s.title, onClick: () => onb.goStep(s) })), [onb.pendingSteps, onb.goStep]);
 
   if (unverified) return <><VerifyEmailScreen user={user} onLogout={onLogout} onRetry={reloadMerchant}/><ToastContainer T={T}/></>;
 
   const navItem = NAV.find(n => n.id === tab) || NAV[0];
-  const shellProps = { T, nav: NAV, activeTab: tab, onTab: goTab, user, merchant, workspace: effectiveWorkspace, onSwitchStore: switchStore, onCreateStore: () => setNewStoreOpen(true), onManageStore: (id) => setManageStoreId(id), darkMode, setDarkMode, onLogout, alerts: {} };
+  const shellProps = { T, nav: NAV, activeTab: tab, onTab: goTab, user, merchant, workspace: effectiveWorkspace, onSwitchStore: switchStore, onCreateStore: () => setNewStoreOpen(true), onManageStore: (id) => setManageStoreId(id), darkMode, setDarkMode, onLogout, alerts: { onboarding: onb.ready ? onb.pending : 0 }, pendientes: pendientesSidebar, onVerPlan: () => goTab("inicio") };
 
   // Prueba de 7 días vencida (plan trial): el panel queda detrás del wall de
   // planes, con el sidebar visible. Solo el dashboard — widget, checkout,
@@ -181,7 +194,9 @@ export default function Dashboard({ user, onLogout }) {
   );
 
   return (
+    <OnboardingContext.Provider value={onbCtx}>
     <div style={{minHeight:"100vh",display:"flex",background:T.bg,color:T.text,fontFamily:"'Inter',system-ui,sans-serif"}}>
+      {wizardOpen && merchant && <OnboardingWizard T={T} DS={DS} merchant={merchant} onb={onb} goTab={goTab} onClose={closeWizard}/>}
       <Sidebar {...shellProps} collapsed={collapsed} setCollapsed={setCollapsed}/>
 
       <div className="main-content" style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}>
@@ -212,11 +227,9 @@ export default function Dashboard({ user, onLogout }) {
               ) : tab === "plan" ? (
                 <PlanPage T={T} DS={DS} merchant={merchant} reloadMerchant={reloadMerchant}/>
               ) : tab === "inicio" ? (
-                showOnboarding
-                  ? <OnboardingWizard T={T} DS={DS} merchant={merchant} goTab={goTab} onDone={finishOnboarding}/>
-                  : integrationsReady
-                    ? <HomeTab onGoSubscribers={()=>goTab("suscriptores")} onGoCarts={()=>goTab("carritos")}/>
-                    : <FirstStepsTab merchant={merchant} onGo={()=>goTab("integraciones")}/>
+                <HomeTab onGoSubscribers={()=>goTab("suscriptores")} onGoCarts={()=>goTab("carritos")} onOpenGuide={()=>setWizardOpen(true)}/>
+              ) : tab === "guia" ? (
+                <GuidePage merchant={merchant} goTab={goTab}/>
               ) : tab === "integraciones" ? (
                 <IntegrationsTab merchant={merchant} onChange={reloadMerchant}/>
               ) : tab === "planes" ? (
@@ -256,6 +269,7 @@ export default function Dashboard({ user, onLogout }) {
       {manageStore && <ManageStoreModal T={T} store={manageStore} totalStores={effectiveWorkspace?.stores?.length||1} onClose={()=>setManageStoreId(null)} onSave={saveStore} onDelete={deleteStore}/>}
       <ToastContainer T={T}/>
     </div>
+    </OnboardingContext.Provider>
   );
 }
 
@@ -328,7 +342,7 @@ function SurfaceBox({ T, title, right, children, style = {} }) {
 
 // ─── Tab: Inicio (KPIs) ─────────────────────────────────────────
 
-function HomeTab({ onGoSubscribers, onGoCarts }) {
+function HomeTab({ onGoSubscribers, onGoCarts, onOpenGuide }) {
   const T = useT();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -354,7 +368,13 @@ function HomeTab({ onGoSubscribers, onGoCarts }) {
   return (
     <div>
       <PageHeader T={T} title="Inicio" subtitle="Resumen del negocio recurrente."
-        right={<Btn T={T} variant="secondary" size="sm" onClick={load} disabled={loading}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Refrescar</Btn>}/>
+        right={<>
+          <Btn T={T} variant="secondary" size="sm" onClick={onOpenGuide}>Ver guía</Btn>
+          <Btn T={T} variant="secondary" size="sm" onClick={load} disabled={loading}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Refrescar</Btn>
+        </>}/>
+
+      {/* Plan de acción (8 pasos) — se oculta solo cuando está todo listo y el usuario lo cierra */}
+      <PlanDeAccionCard onOpenGuide={onOpenGuide}/>
 
       {err && !loading && (
         <Callout T={T} tone="danger" title="No pudimos cargar las métricas" style={{ marginBottom:16 }} right={<Btn T={T} variant="secondary" size="sm" onClick={load}>Reintentar</Btn>}>{err}</Callout>
@@ -414,39 +434,7 @@ function HomeTab({ onGoSubscribers, onGoCarts }) {
   );
 }
 
-function FirstStepsTab({ merchant, onGo }) {
-  const T = useT();
-  const shopifyOk = Boolean(merchant?.shopify_token);
-  const mpOk = Boolean(merchant?.mp_access_token);
-  const done = (shopifyOk?1:0) + (mpOk?1:0);
-  const steps = [
-    { id:"shopify", label:"Conectar Shopify", desc:"Autorizá Recurrentes a leer productos y crear órdenes en tu tienda.", done: shopifyOk },
-    { id:"mp",      label:"Conectar Mercado Pago", desc:"Pegá tu Access Token para procesar cobros recurrentes.", done: mpOk },
-    { id:"plan",    label:"Crear tu primer plan", desc:"Convertí un producto Shopify en suscripción.", done: false },
-  ];
-  return (
-    <div>
-      <PageHeader T={T} title="Bienvenido a Recurrentes" subtitle="Tres pasos para que tu tienda Shopify acepte suscripciones recurrentes con Mercado Pago."/>
-      <Card T={T} style={{ maxWidth:680 }}>
-        <SectionTitle T={T}>Progreso · {done}/3</SectionTitle>
-        {steps.map((s, i) => (
-          <div key={s.id} style={{ display:"flex", alignItems:"flex-start", gap:14, padding:"13px 0", borderTop: i === 0 ? "none" : `1px solid ${T.borderL}` }}>
-            <div style={{ width:28, height:28, borderRadius:"50%", background:s.done?T.accentSolid:T.surface, border:s.done?"none":`1px solid ${T.border}`, color:s.done?"#fff":T.textSm, display:"flex", alignItems:"center", justifyContent:"center", fontSize:DS.font.base, fontWeight:DS.w.bold, flexShrink:0 }}>
-              {s.done ? "✓" : i + 1}
-            </div>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.semibold, marginBottom:2, color:s.done?T.textMd:T.text, textDecoration:s.done?"line-through":"none", textDecorationColor:T.textSm }}>{s.label}</div>
-              <div style={{ fontSize:DS.font.md, color:T.textSm, lineHeight:1.5 }}>{s.desc}</div>
-            </div>
-          </div>
-        ))}
-        <div style={{ marginTop:14 }}>
-          <Btn T={T} variant="solid" onClick={onGo}>{done === 0 ? "Empezar →" : done === 1 ? "Continuar setup →" : "Falta poco →"}</Btn>
-        </div>
-      </Card>
-    </div>
-  );
-}
+// (FirstStepsTab reemplazado por PlanDeAccionCard — src/pages/Onboarding.jsx)
 
 // ─── Tab: Integraciones ─────────────────────────────────────────
 
@@ -545,6 +533,63 @@ function IntegrationsTab({ merchant, onChange }) {
   }
   const metaOk = Boolean(merchant?.meta_connected);
 
+  // ── Klaviyo: recupero de carritos + eventos de suscripción (reemplaza a la
+  // secuencia propia de mails de abandono, retirada 2026-09-13).
+  const klaviyoOk = Boolean(merchant?.klaviyo_connected);
+  const [klaviyoKey, setKlaviyoKey] = useState("");
+  const [klaviyoBusy, setKlaviyoBusy] = useState("");
+  const [klaviyoEdit, setKlaviyoEdit] = useState(false);
+  async function connectKlaviyo() {
+    const key = klaviyoKey.trim();
+    if (!key.startsWith("pk_")) { toast("Tiene que ser una Private API Key (empieza con pk_)", "warning"); return; }
+    setKlaviyoBusy("save");
+    const d = await apiPost("merchant", { api_key: key }, { action: "save-klaviyo" });
+    setKlaviyoBusy("");
+    if (d?.error) return toast("Error: " + d.error, "error", 8000);
+    setKlaviyoKey(""); setKlaviyoEdit(false);
+    toast(`Klaviyo conectado${d.klaviyo_org ? ` (${d.klaviyo_org})` : ""}`, "success");
+    onChange?.();
+  }
+  async function testKlaviyo() {
+    setKlaviyoBusy("test");
+    const d = await apiPost("merchant", {}, { action: "klaviyo-test" });
+    setKlaviyoBusy("");
+    if (d?.error) return toast("Error: " + d.error, "error", 8000);
+    toast(`Evento "Checkout Started" de prueba enviado a ${d.to}. Buscalo en Klaviyo → Profiles → tu mail (puede tardar 1 min).`, "success", 9000);
+  }
+  async function disconnectKlaviyo() {
+    const ok = await appConfirm("Dejamos de mandar eventos a Klaviyo. Tus flujos y perfiles allá quedan como están.", { title:"¿Desconectar Klaviyo?", danger:true, okLabel:"Desconectar" });
+    if (!ok) return;
+    const d = await apiPost("merchant", {}, { action: "disconnect-klaviyo" });
+    if (d?.error) toast("Error: " + d.error, "error"); else { toast("Klaviyo desconectado", "warning"); onChange?.(); }
+  }
+  async function toggleKlaviyoOrders(v) {
+    const d = await apiPatch("merchant", { klaviyo_send_orders: v === true }, { action: "save-settings" });
+    if (d?.error) return toast("Error: " + d.error, "error", 6000);
+    toast(v ? 'Vamos a mandar también "Placed Order" en cada cobro' : '"Placed Order" desactivado (lo manda Shopify)', "success");
+    onChange?.();
+  }
+  const KLAVIYO_EVENTS = [
+    ["Checkout Started", "dejó el mail o tocó Pagar · igual que un carrito de Shopify, con CheckoutURL para retomar"],
+    ["Subscription Activated", "primer cobro aprobado y orden creada"],
+    ["Subscription Renewed", "cada cobro siguiente"],
+    ["Subscription Payment Failed", "renovación rechazada (trae portal_url para actualizar la tarjeta)"],
+    ["Subscription Paused", "pausó desde el portal o vos desde el panel"],
+    ["Subscription Resumed", "reactivó la suscripción"],
+    ["Subscription Cancelled", "canceló la suscripción"],
+  ];
+  const klaviyoKeyForm = (
+    <div style={{ marginTop: klaviyoOk ? 12 : 0 }}>
+      <Field T={T} label={<>Private API Key <a href="https://www.klaviyo.com/settings/account/api-keys" target="_blank" rel="noreferrer" style={{ color:T.accent, fontWeight:DS.w.regular, textTransform:"none", marginLeft:6 }}>¿dónde la consigo? →</a></>}>
+        <input type="password" value={klaviyoKey} onChange={e=>setKlaviyoKey(e.target.value)} placeholder="pk_…" style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }}/>
+      </Field>
+      <Hint T={T}>Creá una clave <strong>privada</strong> con permisos <strong>Accounts: Read</strong>, <strong>Events: Write</strong> y <strong>Profiles: Write</strong>. La validamos contra tu cuenta y nunca la mostramos de vuelta.</Hint>
+      <Btn T={T} variant="solid" onClick={connectKlaviyo} disabled={!klaviyoKey.trim().startsWith("pk_") || klaviyoBusy==="save"} style={{ width:"100%" }}>
+        {klaviyoBusy==="save" ? <><Spinner size={13}/> Validando…</> : (klaviyoOk ? "Guardar nueva clave" : "Conectar Klaviyo →")}
+      </Btn>
+    </div>
+  );
+
   return (
     <div>
       <PageHeader T={T} title="Integraciones" subtitle="Conectá tu tienda Shopify y tu cuenta de Mercado Pago. Necesitás ambas para crear planes y cobrar suscripciones."/>
@@ -571,9 +616,12 @@ function IntegrationsTab({ merchant, onChange }) {
               <Btn T={T} variant="solid" onClick={connectShopify} disabled={!shopifyFormOk||shopifyBusy} style={{ width:"100%" }}>
                 {shopifyBusy ? <><Spinner size={13}/> Conectando…</> : "Conectar tienda →"}
               </Btn>
-              <button onClick={()=>setShopifyGuide(g=>!g)} style={{ width:"100%", background:"transparent", border:"none", color:T.textSm, padding:"8px 4px 0", fontSize:DS.font.sm, cursor:"pointer", fontFamily:"inherit", textDecoration:"underline" }}>
-                {shopifyGuide ? "Ocultar guía" : "¿Cómo creo la app y obtengo Client ID + Secret? (5 min)"}
-              </button>
+              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                <button onClick={()=>setShopifyGuide(g=>!g)} style={{ flex:1, background:"transparent", border:"none", color:T.textSm, padding:"8px 4px 0", fontSize:DS.font.sm, cursor:"pointer", fontFamily:"inherit", textDecoration:"underline" }}>
+                  {shopifyGuide ? "Ocultar guía" : "¿Cómo creo la app y obtengo Client ID + Secret? (5 min)"}
+                </button>
+                <ShopifyAppTip T={T}/>
+              </div>
               {shopifyGuide && <ShopifyGuide/>}
             </>
           )}
@@ -589,6 +637,7 @@ function IntegrationsTab({ merchant, onChange }) {
             <Btn T={T} variant={(mpOk || merchant?.mp_oauth_available) ? "secondary" : "solid"} onClick={connectMP}>
               {mpOk ? "Cambiar Access Token" : "Pegar Access Token"}
             </Btn>
+            <MpTokenTip T={T}/>
             {mpOk && <Btn T={T} variant="ghost" onClick={disconnectMP} style={{ color:T.textSm }}>Desconectar</Btn>}
           </div>
           {mpOk && merchant?.mp_method && <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:10 }}>Método: {merchant.mp_method === "oauth" ? "OAuth" : "token pegado"}</div>}
@@ -609,6 +658,54 @@ function IntegrationsTab({ merchant, onChange }) {
             <Btn T={T} variant={metaOk ? "secondary" : "solid"} onClick={connectMeta}>{metaOk ? "Cambiar credenciales" : "Conectar Meta"}</Btn>
             {metaOk && <Btn T={T} variant="ghost" onClick={disconnectMeta} style={{ color:T.textSm }}>Desconectar</Btn>}
           </div>
+        </IntegrationCard>
+      </div>
+
+      {/* Klaviyo (opcional): recupero de carritos + eventos de suscripción */}
+      <div style={{ marginTop:DS.sp["2xl"] }}>
+        <IntegrationCard T={T} icon="✉️" title="Klaviyo" optional ok={klaviyoOk} statusLabel={klaviyoOk ? `Conectado${merchant?.klaviyo_org ? ` (${merchant.klaviyo_org})` : ""}` : "Sin conectar"}
+          description={<>Cuando alguien deja su mail en el checkout de suscripción, lo mandamos a tu Klaviyo como <strong style={{ color:T.text }}>"Checkout Started"</strong> (igual que un carrito de Shopify) con el link para retomar. Cuando paga, la orden entra a Shopify y Klaviyo la ve como <strong style={{ color:T.text }}>"Placed Order"</strong>, así que tu flujo de carrito abandonado se corta solo.</>}>
+          {klaviyoOk && merchant?.klaviyo_last_error && (
+            <Callout T={T} tone="danger" title="Último error de Klaviyo" style={{ marginBottom:12 }}>
+              {merchant.klaviyo_last_error}{merchant.klaviyo_last_error_at ? ` · ${fmtDateShort(merchant.klaviyo_last_error_at)}` : ""}. Si la clave fue revocada, cargá una nueva.
+            </Callout>
+          )}
+          {klaviyoOk ? (
+            <>
+              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                <Btn T={T} variant="secondary" onClick={testKlaviyo} disabled={!!klaviyoBusy}>{klaviyoBusy==="test" ? <><Spinner size={12} color={T.textMd}/> Enviando…</> : "Probar evento"}</Btn>
+                <Btn T={T} variant="secondary" onClick={()=>setKlaviyoEdit(e=>!e)}>{klaviyoEdit ? "Cancelar" : "Cambiar clave"}</Btn>
+                <Btn T={T} variant="ghost" onClick={disconnectKlaviyo} style={{ color:T.textSm }}>Desconectar</Btn>
+              </div>
+              {merchant?.klaviyo_connected_at && <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:10 }}>Conectado el {fmtDateShort(merchant.klaviyo_connected_at)}</div>}
+              {klaviyoEdit && klaviyoKeyForm}
+              <CheckLine T={T} checked={Boolean(merchant?.klaviyo_send_orders)} onChange={toggleKlaviyoOrders} style={{ color:T.text, marginTop:14 }}>
+                Mi Klaviyo NO está conectado a Shopify: enviar también "Placed Order" en cada cobro
+              </CheckLine>
+            </>
+          ) : klaviyoKeyForm}
+
+          <Callout T={T} tone="warning" title="Importante: una vez, 2 minutos" style={{ marginTop:14 }}>
+            Klaviyo separa las métricas por integración: <strong style={{ color:T.text }}>"Checkout Started" de Shopify</strong> y <strong style={{ color:T.text }}>"Checkout Started" de Recurrentes (API)</strong> son dos métricas distintas. Para que tu flujo de abandono también atienda los checkouts de suscripción, cloná tu flujo y ponéle como disparador "Checkout Started" (API), o agregale una segunda entrada.
+          </Callout>
+
+          <Divider T={T}/>
+          <SectionTitle T={T} sub="Usalos como disparador de flujos. Los nombres son exactos.">Eventos que enviamos</SectionTitle>
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            {KLAVIYO_EVENTS.map(([name, desc]) => (
+              <div key={name} style={{ display:"flex", gap:10, alignItems:"baseline", flexWrap:"wrap", fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5 }}>
+                <code style={{ fontFamily:MONO, fontSize:DS.font.sm, fontWeight:DS.w.bold, color:T.text, background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:6, padding:"1px 7px", whiteSpace:"nowrap" }}>{name}</code>
+                <span>{desc}</span>
+              </div>
+            ))}
+            <div style={{ display:"flex", gap:10, alignItems:"baseline", flexWrap:"wrap", fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5 }}>
+              <code style={{ fontFamily:MONO, fontSize:DS.font.sm, fontWeight:DS.w.bold, color:T.textMd, background:T.surface, border:`1px dashed ${T.border}`, borderRadius:6, padding:"1px 7px", whiteSpace:"nowrap" }}>Placed Order</code>
+              <span>opcional (tilde de arriba): solo si tu Klaviyo no recibe las órdenes desde Shopify.</span>
+            </div>
+          </div>
+          <Hint T={T} style={{ marginTop:12, marginBottom:0 }}>
+            En cada evento también actualizamos el perfil con <code style={{ fontFamily:MONO }}>recurrentes_status</code> (checkout_started · subscriber · payment_failed · paused · cancelled), <code style={{ fontFamily:MONO }}>recurrentes_subscriber</code>, <code style={{ fontFamily:MONO }}>recurrentes_plan</code>, <code style={{ fontFamily:MONO }}>recurrentes_frequency_days</code>, <code style={{ fontFamily:MONO }}>recurrentes_next_charge_at</code>, <code style={{ fontFamily:MONO }}>recurrentes_first_charge_at</code> y <code style={{ fontFamily:MONO }}>recurrentes_orders_count</code>, para segmentar campañas.
+          </Hint>
         </IntegrationCard>
       </div>
 
@@ -831,7 +928,7 @@ function PlansTab({ merchant, onMerchantChange }) {
       <div>
         <PageHeader T={T} back="Volver a planes" onBack={()=>setView("plans")} title="Diseño del selector de packs"
           subtitle="Cómo se ve el selector 1·2·3 en la página de producto. Aplica a todos los planes en modo packs."/>
-        {loading ? <Loading T={T}/> : <WidgetDesigner merchant={merchant} plans={plans} onSaved={onMerchantChange}/>}
+        {loading ? <Loading T={T}/> : <WidgetDesigner merchant={merchant} plans={plans} onSaved={onMerchantChange} onPlansChanged={setPlans}/>}
       </div>
     );
   }
@@ -842,6 +939,7 @@ function PlansTab({ merchant, onMerchantChange }) {
     <div>
       <PageHeader T={T} title="Planes de suscripción" subtitle="Convertí cualquier producto Shopify en suscripción recurrente."
         right={<>
+          <PackTip T={T}/>
           <Btn T={T} variant="secondary" onClick={()=>setView("designer")}>🎨 Diseño del selector</Btn>
           <Btn T={T} variant="solid" onClick={()=>setCreating(true)}>+ Nuevo plan</Btn>
         </>}/>
@@ -896,6 +994,9 @@ function PlansTab({ merchant, onMerchantChange }) {
           ))}
         </div>
       )}
+
+      {/* Ayuda de los devs (misma card que al final del diseñador del selector). */}
+      {!loading && <DevHelpCard merchant={merchant} context="plans"/>}
 
       {creating && <NewPlanModal products={products} onClose={()=>{setCreating(false); loadAll();}}/>}
       {editing && <NewPlanModal products={products} editPlan={editing} onClose={()=>{setEditing(null); loadAll();}}/>}
@@ -1265,7 +1366,7 @@ function SubscribersTab({ mode = "active", devMode = false }) {
       {loading ? (
         <Loading T={T}/>
       ) : filtered.length === 0 ? (
-        <DSEmpty T={T} icon={isCarts ? "🛒" : "👥"} title={emptyTitle} subtitle={emptyDesc}/>
+        <OnbEmpty section={isCarts ? "carritos" : "suscriptores"} icon={isCarts ? "🛒" : "👥"} title={emptyTitle} desc={emptyDesc} tip={isCarts ? undefined : TIPS.subscribersEmpty}/>
       ) : (
         <DSTable T={T} columns={columns} rows={filtered} rowKey={s=>s.id} onRowClick={s=>setDetail(s)} minWidth={720}
           footer={<span>{filtered.length} {isCarts ? "carrito" : "suscriptor"}{filtered.length === 1 ? "" : (isCarts ? "s" : "es")}</span>}/>
@@ -1608,7 +1709,7 @@ function AbandonedTab() {
       {loading ? (
         <Loading T={T}/>
       ) : list.length === 0 ? (
-        <DSEmpty T={T} icon="📭" title="No hay carritos abandonados" subtitle="Cuando alguien inicie el checkout y no pague, aparece acá a los 45 min."/>
+        <OnbEmpty section="abandonados" icon="📭" title="Todavía no hay carritos abandonados" desc="Cuando alguien inicie el checkout de suscripción y no pague, aparece acá a los 45 min con su link de recupero."/>
       ) : (
         <DSTable T={T} columns={columns} rows={list} rowKey={a=>a.id} minWidth={760}
           footer={<span>{list.length} recuperable{list.length===1?"":"s"}</span>}/>
@@ -1639,17 +1740,18 @@ function ActivityTab() {
     payment_failed:  { t:"Pago fallido",   c:T.yellow, e:"⚠️" },
   };
   const mailLabel = (m) => {
-    if (m.type === "abandoned") return { t:`Abandono · Paso ${m.step||1}`, c:ABANDON, e:"📭" };
+    if (m.type === "abandoned") return { t:`Abandono · Paso ${m.step||1} (histórico)`, c:ABANDON, e:"📭" };
     return MAIL_LABEL[m.type] || { t:m.type, c:T.textMd, e:"📧" };
   };
 
   const views = [
-    { id:"mails",  label:"📧 Mails",        count: data?.mails?.length },
+    { id:"mails",  label:"📧 Mails y eventos", count: data ? (data.mails?.length || 0) + (data.klaviyo_events?.length || 0) : undefined },
     { id:"envios", label:"📦 Envíos",       count: data?.envios?.length },
     { id:"cobros", label:"💵 Facturación",  count: data?.cobros?.length },
   ];
 
   const ms = data?.mail_summary || {};
+  const ks = data?.klaviyo_summary || {};
   const cs = data?.cobro_summary || {};
   const es = data?.envio_summary || {};
   const dateCol = { key:"fecha", label:"Fecha", nowrap:true, render: r => <span style={{ color:T.textSm, fontSize:DS.font.sm }}>{fmtDateShort(r.created_at)}</span> };
@@ -1658,7 +1760,7 @@ function ActivityTab() {
 
   return (
     <div>
-      <PageHeader T={T} title="Actividad" subtitle="Resumen de los mails que manda Recurrentes, los envíos generados y la facturación de las suscripciones."
+      <PageHeader T={T} title="Actividad" subtitle="Mails que manda Recurrentes, eventos enviados a Klaviyo, envíos generados y facturación de las suscripciones."
         right={<Btn T={T} variant="secondary" size="sm" onClick={load} title="Refrescar" disabled={loading}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Refrescar</Btn>}/>
 
       <div style={{ marginBottom:DS.sp.lg }}>
@@ -1669,16 +1771,16 @@ function ActivityTab() {
         <Loading T={T}/>
       ) : view === "mails" ? (
         <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
+          <SectionTitle T={T} sub="Transaccionales que salen desde Recurrentes (activación, pago fallido, cancelación).">Mails</SectionTitle>
           <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
             <StatCard T={T} label="Total enviados" value={ms.total||0}/>
-            <StatCard T={T} label="Abandono P1" value={ms.abandoned_1||0} color={ABANDON}/>
-            <StatCard T={T} label="Abandono P2" value={ms.abandoned_2||0} color={ABANDON}/>
-            <StatCard T={T} label="Abandono P3" value={ms.abandoned_3||0} color={ABANDON}/>
             <StatCard T={T} label="Activación" value={ms.activation||0} color={T.green}/>
+            <StatCard T={T} label="Pago fallido" value={ms.payment_failed||0} color={T.yellow}/>
             <StatCard T={T} label="Cancelación" value={ms.cancellation||0} color={T.red}/>
+            {(ms.abandoned_1||ms.abandoned_2||ms.abandoned_3) ? <StatCard T={T} label="Abandono (histórico)" value={(ms.abandoned_1||0)+(ms.abandoned_2||0)+(ms.abandoned_3||0)} color={ABANDON}/> : null}
           </div>
           {(data?.mails||[]).length === 0 ? (
-            <DSEmpty T={T} icon="📭" title="Todavía no se envió ningún mail" subtitle="Aparecen acá a medida que el sistema los manda."/>
+            <OnbEmpty section="actividad" icon="📭" title="Todavía no se envió ningún mail" desc="Aparecen acá a medida que Recurrentes los manda: activación, pago fallido, cancelación y recupero de abandonados."/>
           ) : (
             <DSTable T={T} rows={data.mails} rowKey={m=>m.id} minWidth={640} columns={[
               dateCol,
@@ -1692,6 +1794,24 @@ function ActivityTab() {
               prodCol,
             ]}/>
           )}
+
+          <SectionTitle T={T} sub="Lo que le mandamos a tu Klaviyo (últimos 200). El nombre es la métrica que usás como disparador de flujo." style={{ marginTop:DS.sp.md }}>Eventos Klaviyo</SectionTitle>
+          <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+            <StatCard T={T} label="Eventos enviados" value={ks.sent||0} color={T.green}/>
+            <StatCard T={T} label="Con error" value={ks.error||0} color={ks.error ? T.red : undefined}/>
+          </div>
+          {(data?.klaviyo_events||[]).length === 0 ? (
+            <DSEmpty T={T} icon="✉️" title="Todavía no se mandó ningún evento a Klaviyo" subtitle="Conectá Klaviyo en Integraciones: cada checkout y cada cobro de suscripción aparece acá."/>
+          ) : (
+            <DSTable T={T} rows={data.klaviyo_events} rowKey={k=>k.id} minWidth={640} columns={[
+              dateCol,
+              { key:"metrica", label:"Métrica", nowrap:true, render: k => <span style={{ fontFamily:MONO, fontSize:DS.font.sm, fontWeight:DS.w.bold, color:T.text }}>{k.metric || "—"}</span> },
+              { key:"email", label:"Email", render: k => <CellStack T={T} main={k.email||"—"} sub={k.customer_name||""}/> },
+              { key:"estado", label:"Estado", nowrap:true, render: k => k.status === "error"
+                  ? <span title={k.error||""}><DSBadge T={T} color={T.red} size="sm">✕ error{k.http_status ? ` ${k.http_status}` : ""}</DSBadge></span>
+                  : <DSBadge T={T} color={T.green} size="sm">✓ enviado</DSBadge> },
+            ]}/>
+          )}
         </div>
       ) : view === "envios" ? (
         <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
@@ -1700,7 +1820,7 @@ function ActivityTab() {
             <StatCard T={T} label="Este mes" value={es.this_month||0} color={T.green}/>
           </div>
           {(data?.envios||[]).length === 0 ? (
-            <DSEmpty T={T} icon="📦" title="Todavía no se generó ninguna orden de envío" subtitle="Cada cobro aprobado crea una orden en Shopify."/>
+            <OnbEmpty section="actividad" icon="📦" title="Todavía no se generó ninguna orden de envío" desc="Cada cobro aprobado crea una orden en Shopify con la dirección y el envío que eligió el cliente."/>
           ) : (
             <DSTable T={T} rows={data.envios} rowKey={e=>e.id} minWidth={640} columns={[
               dateCol,
@@ -1722,7 +1842,7 @@ function ActivityTab() {
             <StatCard T={T} label="Histórico" value={fmtARS(cs.all_time)}/>
           </div>
           {(data?.cobros||[]).length === 0 ? (
-            <DSEmpty T={T} icon="💵" title="Todavía no hay cobros registrados" subtitle="Aparecen acá cuando MP procesa el primer pago de una suscripción."/>
+            <OnbEmpty section="actividad" icon="💵" title="Todavía no hay cobros registrados" desc="Aparecen acá cuando Mercado Pago procesa el primer pago de una suscripción."/>
           ) : (
             <DSTable T={T} rows={data.cobros} rowKey={c=>c.id} minWidth={680} columns={[
               dateCol,
@@ -1812,7 +1932,7 @@ function ChargesTab() {
       {loading && charges.length === 0 ? (
         <Loading T={T}/>
       ) : charges.length === 0 ? (
-        <DSEmpty T={T} icon="💸" title="Sin cobros todavía" subtitle="Aparecen acá cuando MP procesa el primer pago de una suscripción."/>
+        <OnbEmpty section="cobros" icon="💸" title="Todavía no tenés cobros" desc="Aparecen acá cuando Mercado Pago procesa el primer pago de una suscripción, y después cada renovación." tip={TIPS.chargesEmpty}/>
       ) : (
         <DSTable T={T} columns={columns} rows={charges} rowKey={c=>c.id} minWidth={720}
           footer={<>
@@ -1969,9 +2089,6 @@ export function OperationalSettingsCard({ merchant, onChange }) {
   const [emailAccent, setEmailAccent] = React.useState(m.email_accent || "");
   const [storeDomain, setStoreDomain] = React.useState(m.store_domain || "");
   const [rates, setRates]             = React.useState(Array.isArray(m.checkout_shipping_rates) ? m.checkout_shipping_rates : []);
-  const [abandoned, setAbandoned]     = React.useState(m.abandoned_enabled === true);
-  const [cp2, setCp2]                 = React.useState(m.abandoned_coupons?.step2?.code || "");
-  const [cp3, setCp3]                 = React.useState(m.abandoned_coupons?.step3?.code || "");
   const [devMode, setDevMode]         = React.useState(m.dev_mode === true);
   const [hideSel, setHideSel]         = React.useState(m.widget_hide_selector || "");
   const [flow, setFlow]               = React.useState(m.widget_checkout_flow || "redirect");
@@ -1983,7 +2100,6 @@ export function OperationalSettingsCard({ merchant, onChange }) {
   React.useEffect(() => {
     setEmailFrom(m.email_from || ""); setEmailBrand(m.email_brand || ""); setEmailReply(m.email_reply_to || ""); setEmailAccent(m.email_accent || "");
     setStoreDomain(m.store_domain || ""); setRates(Array.isArray(m.checkout_shipping_rates) ? m.checkout_shipping_rates : []);
-    setAbandoned(m.abandoned_enabled === true); setCp2(m.abandoned_coupons?.step2?.code || ""); setCp3(m.abandoned_coupons?.step3?.code || "");
     setDevMode(m.dev_mode === true); setHideSel(m.widget_hide_selector || ""); setFlow(m.widget_checkout_flow || "redirect"); setPagePath(m.widget_checkout_page_path || "");
     setCodes(Array.isArray(m.discount_codes) ? m.discount_codes : []);
     // eslint-disable-next-line
@@ -2005,17 +2121,16 @@ export function OperationalSettingsCard({ merchant, onChange }) {
     toast("Códigos guardados", "success");
     onChange?.();
   }
-  async function sendTest(step) {
+  async function sendTest() {
     if (!testTo.trim()) return toast("Ingresá el mail destino (tu mail de cuenta o uno del dominio del remitente)", "warning", 5000);
     setBusy("test");
-    const d = await apiPost("merchant", { to: testTo.trim(), step }, { action: "test-email" });
+    const d = await apiPost("merchant", { to: testTo.trim() }, { action: "test-email" });
     setBusy("");
     if (d?.error) return toast("Error: " + d.error, "error", 6000);
-    toast(`Mail de prueba (paso ${step}) enviado a ${testTo.trim()}. Quedan ${d.remaining ?? "?"} pruebas hoy.`, "success", 6000);
+    toast(`Mail de prueba (activación) enviado a ${testTo.trim()}. Quedan ${d.remaining ?? "?"} pruebas hoy.`, "success", 6000);
   }
   const updRate = (i, k, v) => setRates(rs => rs.map((r, j) => j === i ? { ...r, [k]: v } : r));
   const updCode = (i, k, v) => setCodes(cs => cs.map((c, j) => j === i ? { ...c, [k]: v } : c));
-  const activeCodes = codes.filter(c => c.code && c.active !== false);
   const inl = { ...iS, padding:"7px 10px", fontSize:DS.font.md };
   const xBtn = (onClick, title="Quitar") => (
     <button type="button" onClick={onClick} title={title} style={{ background:"transparent", border:"none", color:T.textSm, cursor:"pointer", fontSize:14, padding:"4px 6px", fontFamily:"inherit", lineHeight:1 }}
@@ -2030,7 +2145,7 @@ export function OperationalSettingsCard({ merchant, onChange }) {
     <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
       <div>
         <div style={{ fontSize:DS.font.xl, fontWeight:DS.w.bold, color:T.text, letterSpacing:-0.2 }}>Configuración operativa</div>
-        <div style={{ fontSize:DS.font.md, color:T.textSm, lineHeight:1.55, marginTop:2 }}>Remitente de mails, tienda, envíos del checkout, cupones y recupero de carritos.</div>
+        <div style={{ fontSize:DS.font.md, color:T.textSm, lineHeight:1.55, marginTop:2 }}>Remitente de mails, tienda, envíos del checkout y cupones. El recupero de carritos vive en Klaviyo (Integraciones).</div>
       </div>
 
       {/* Tienda */}
@@ -2074,9 +2189,9 @@ export function OperationalSettingsCard({ merchant, onChange }) {
 
       {/* Códigos de descuento */}
       <Card T={T}>
-        <CardHeader T={T} title="Códigos de descuento" sub={<>"Solo recupero" = solo aplica desde el link del mail de abandono. "Solo 1er cobro" = las renovaciones van a precio pleno.</>}
+        <CardHeader T={T} title="Códigos de descuento" sub={<>"Solo recupero" = solo aplica con un link de recupero firmado (legado; el recupero de carritos ahora es por Klaviyo). "Solo 1er cobro" = las renovaciones van a precio pleno.</>}
           right={<Btn T={T} variant="secondary" size="sm" onClick={()=>setCodes(cs=>[...cs,{code:"",type:"percent",value:10,active:true,recovery_only:false,first_charge_only:false}])} type="button">+ Agregar</Btn>}/>
-        {codes.length === 0 && <SurfaceBox T={T} style={{ marginBottom:12 }}><div style={{ fontSize:DS.font.sm, color:T.textSm }}>Todavía no hay códigos. Agregá uno para usarlo en el checkout o en los mails de recupero.</div></SurfaceBox>}
+        {codes.length === 0 && <SurfaceBox T={T} style={{ marginBottom:12 }}><div style={{ fontSize:DS.font.sm, color:T.textSm }}>Todavía no hay códigos. Agregá uno para usarlo en el checkout de suscripción.</div></SurfaceBox>}
         {codes.map((c, i) => (
           <div key={i} style={{ display:"flex", gap:8, alignItems:"center", marginBottom:6, flexWrap:"wrap", background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:DS.r.md, padding:"6px 8px" }}>
             <input value={c.code} onChange={e=>updCode(i,"code",e.target.value.toUpperCase())} style={{ ...inl, fontFamily:MONO, flex:"1 1 130px" }} placeholder="CODIGO"/>
@@ -2115,40 +2230,17 @@ export function OperationalSettingsCard({ merchant, onChange }) {
         </div>
         {saveBtn("email", { email_from: emailFrom, email_brand: emailBrand, email_reply_to: emailReply, email_accent: emailAccent })}
         <Divider T={T}/>
-        <SectionTitle T={T} sub="Máx 10 por día · solo a tu mail o al dominio del remitente.">Probar los mails</SectionTitle>
+        <SectionTitle T={T} sub="Manda el mail de activación con tu remitente y marca. Máx 10 por día · solo a tu mail o al dominio del remitente.">Probar los mails</SectionTitle>
         <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
           <input value={testTo} onChange={e=>setTestTo(e.target.value)} style={{ ...inl, maxWidth:260 }} placeholder="mail de prueba"/>
-          {[1,2,3].map(st => <Btn key={st} T={T} variant="secondary" size="sm" onClick={()=>sendTest(st)} disabled={!!busy}>Probar paso {st}</Btn>)}
+          <Btn T={T} variant="secondary" size="sm" onClick={sendTest} disabled={!!busy}>{busy==="test" ? <><Spinner size={12} color={T.textMd}/> Enviando…</> : "Enviar mail de prueba"}</Btn>
         </div>
       </Card>
 
-      {/* Abandono */}
-      <Card T={T}>
-        <CardHeader T={T} title="Recupero de carritos abandonados" sub="Secuencia automática de 3 mails a quienes no completan el pago."/>
-        <CheckLine T={T} checked={abandoned} onChange={setAbandoned} style={{ color:T.text, marginBottom:12 }}>
-          Enviar la secuencia de 3 mails (15 min · 2 hs · 24 hs) a quienes no completan el pago
-        </CheckLine>
-        {abandoned && (
-          <Callout T={T} tone="warning" style={{ marginBottom:14 }}>
-            Al activarlo salen mails reales a tus clientes desde el remitente configurado arriba. Los pasos 2 y 3 son marketing con cupón: incluyen link de baja. Probá primero con "Probar paso N".
-          </Callout>
-        )}
-        <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 14px" }}>
-          <Field T={T} label="Cupón del paso 2 (2 hs)">
-            <select value={cp2} onChange={e=>setCp2(e.target.value)} style={iS}>
-              <option value="">Sin cupón</option>
-              {activeCodes.map(c => <option key={c.code} value={c.code}>{c.code} ({c.type === "fixed" ? `$${c.value}` : `${c.value}%`})</option>)}
-            </select>
-          </Field>
-          <Field T={T} label="Cupón del paso 3 (24 hs)">
-            <select value={cp3} onChange={e=>setCp3(e.target.value)} style={iS}>
-              <option value="">Sin cupón</option>
-              {activeCodes.map(c => <option key={c.code} value={c.code}>{c.code} ({c.type === "fixed" ? `$${c.value}` : `${c.value}%`})</option>)}
-            </select>
-          </Field>
-        </div>
-        {saveBtn("abandoned", { abandoned_enabled: abandoned, abandoned_coupons: { step2: cp2 ? { code: cp2 } : null, step3: cp3 ? { code: cp3 } : null } })}
-      </Card>
+      {/* Recupero de carritos → Klaviyo (la secuencia propia se retiró el 2026-09-13) */}
+      <Callout T={T} tone="info" title="Recupero de carritos abandonados">
+        El recupero de carritos ahora se hace desde <strong style={{ color:T.text }}>Klaviyo → Integraciones</strong>: cada checkout de suscripción llega a tu cuenta como "Checkout Started" (igual que un carrito de Shopify) y la secuencia de mails la armás allá. La secuencia propia de 3 mails con cupones ya no se envía.
+      </Callout>
 
       {/* Dev */}
       <Card T={T}>
