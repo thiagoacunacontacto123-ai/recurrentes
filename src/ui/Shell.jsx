@@ -18,6 +18,7 @@ export const NAV = [
   { id:"abandonados",   label:"Abandonados",             short:"Abandon.", icon:SECTION_ICONS.abandonados, alertKey:"abandonados", badge:"orange" },
   { id:"actividad",     label:"Actividad",               short:"Actividad",icon:SECTION_ICONS.actividad },
   { id:"cobros",        label:"Cobros",                  short:"Cobros",   icon:SECTION_ICONS.cobros, alertKey:"cobros", badge:"red" },
+  { id:"plan",          label:"Plan",                    short:"Plan",     icon:"M1 6a2 2 0 012-2h18a2 2 0 012 2v12a2 2 0 01-2 2H3a2 2 0 01-2-2zM1 10h22M5 15h4" },
   { id:"configuracion", label:"Configuración",           short:"Config",   icon:SECTION_ICONS.configuracion },
 ];
 

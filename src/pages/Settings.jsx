@@ -7,7 +7,9 @@ import WidgetDesigner from "./WidgetDesigner.jsx";
 import {
   BtnPrimary, BtnSecondary, BtnDanger, InputStyle,
   AsyncButton, appConfirm, appAlert, toast as uiToast,
+  Card, SectionTitle, DSBadge, Loading, Btn,
 } from "../ui/components.jsx";
+import { useT } from "../ui/theme.js";
 
 const { apiGet, apiPost } = api;
 
@@ -219,7 +221,7 @@ function CuentaSection({ T, DS, user, merchant, toast }) {
             <div style={{ flex: 1, minWidth: 220, fontSize: DS.font.md, color: T.textMd, lineHeight: 1.5 }}>
               Elimina tu login y <strong style={{ color: T.text }}>todas tus tiendas</strong>: planes, suscriptores, historial de cobros y las conexiones a Shopify y Mercado Pago. Las suscripciones ya activas siguen cobrándose en tu cuenta de MP; pausalas antes si no querés eso.
             </div>
-            <button onClick={() => setShowEliminar(true)} style={{ ...BtnDanger(T), fontSize: DS.font.md, padding: "8px 12px" }}>Eliminar mi cuenta</button>
+            <Btn T={T} variant="danger" onClick={() => setShowEliminar(true)}>Eliminar mi cuenta</Btn>
           </div>
         ) : (
           <div style={{ background: T.red + "10", border: `1px solid ${T.red}33`, borderRadius: DS.r.lg, padding: "12px 14px" }}>
@@ -329,7 +331,7 @@ function TiendasSection({ T, DS, user, merchant, workspace, reloadMerchant, toas
       </Panel>
 
       <Panel T={T} DS={DS} title={`Tus tiendas · ${stores.length || 1}`}
-        right={!showCreate && <button onClick={() => setShowCreate(true)} style={{ ...BtnSecondary(T), fontSize: DS.font.md, padding: "7px 14px" }}>+ Nueva tienda</button>}>
+        right={!showCreate && <Btn T={T} variant="secondary" size="sm" onClick={() => setShowCreate(true)}>+ Nueva tienda</Btn>}>
         {showCreate && (
           <div style={{ background: T.surface, border: `1px solid ${T.borderL}`, borderRadius: DS.r.lg, padding: "12px 14px", marginBottom: 12 }}>
             <div style={{ fontSize: DS.font.md, fontWeight: DS.w.bold, color: T.text, marginBottom: 8 }}>Nueva tienda</div>
@@ -466,7 +468,7 @@ export function MiembrosCuentaCard({ T: Tp, DS: DSp, user, merchant, toast: toas
   return (
     <Panel T={T} DS={DS} title="Miembros con cuenta"
       sub="Entran con su propio login y ven solo las secciones que les habilites. No pueden invitar a otros ni eliminar la tienda."
-      right={!showForm && <button onClick={() => setShowForm(true)} style={{ ...BtnSecondary(T), fontSize: DS.font.md, padding: "7px 14px", flexShrink: 0 }}>+ Invitar</button>}>
+      right={!showForm && <Btn T={T} variant="secondary" size="sm" onClick={() => setShowForm(true)}>+ Invitar</Btn>}>
       {showForm && (
         <div style={{ marginBottom: 12, background: T.surface, border: `1px solid ${T.borderL}`, borderRadius: DS.r.lg, padding: "12px 14px" }}>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
@@ -484,7 +486,7 @@ export function MiembrosCuentaCard({ T: Tp, DS: DSp, user, merchant, toast: toas
         </div>
       )}
 
-      {data === null && <div style={{ fontSize: DS.font.md, color: T.textSm }}>Cargando…</div>}
+      {data === null && <Loading T={T}/>}
       {data !== null && lista.length === 0 && (
         <div style={{ fontSize: DS.font.md, color: T.textSm, lineHeight: 1.5 }}>Todavía no invitaste a nadie. Sumá a quien atienda suscriptores o cobros y dale acceso solo a eso.</div>
       )}
@@ -552,23 +554,15 @@ function OperacionSection({ T, DS, merchant, reloadMerchant, goTab }) {
 // ─── Piezas chicas ───────────────────────────────────────────────
 function Panel({ T, DS, title, sub, right, children, style = {} }) {
   return (
-    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: DS.r.xl, padding: "18px 20px", marginBottom: 16, ...style }}>
-      {(title || right) && (
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            {title && <div style={{ fontSize: DS.font.sm, textTransform: "uppercase", color: T.textSm, fontWeight: DS.w.semibold, letterSpacing: 0.6 }}>{title}</div>}
-            {sub && <div style={{ fontSize: DS.font.sm, color: T.textSm, marginTop: 4, lineHeight: 1.5 }}>{sub}</div>}
-          </div>
-          {right}
-        </div>
-      )}
+    <Card T={T} style={{ marginBottom: 16, ...style }}>
+      {(title || right) && <SectionTitle T={T} sub={sub} right={right}>{title}</SectionTitle>}
       {children}
-    </div>
+    </Card>
   );
 }
 
 function Pill({ T, color, children }) {
-  return <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 7px", borderRadius: 99, background: color + "1a", color, border: `1px solid ${color}33`, whiteSpace: "nowrap" }}>{children}</span>;
+  return <DSBadge T={T} color={color} size="sm">{children}</DSBadge>;
 }
 
 function StoreDot({ T, store, size = 34 }) {
@@ -594,12 +588,13 @@ function ColorPicker({ T, value, onChange }) {
 
 // ─── Diseño del widget (galería de 10 variantes + personalización) ───
 function WidgetSection({ merchant, reloadMerchant }) {
+  const T = useT();
   const [plans, setPlans] = useState(null);
   useEffect(() => {
     let alive = true;
     api.apiGet("plans").then(d => { if (alive) setPlans(Array.isArray(d?.plans) ? d.plans : (Array.isArray(d) ? d : [])); }).catch(() => { if (alive) setPlans([]); });
     return () => { alive = false; };
   }, [merchant?.id]);
-  if (plans === null) return <div style={{ color: "var(--text-sm)", fontSize: 13 }}>Cargando…</div>;
+  if (plans === null) return <Loading T={T}/>;
   return <WidgetDesigner merchant={merchant} plans={plans} onSaved={reloadMerchant} />;
 }

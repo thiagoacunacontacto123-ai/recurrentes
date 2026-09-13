@@ -116,6 +116,7 @@ export function applyThemeToRoot(T) {
   set("--gh-scrollbar", T.isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.12)");
   set("--gh-scrollbar-hov", T.isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.22)");
   root.style.colorScheme = T.isDark ? "dark" : "light";
+  try { root.dataset.theme = T.isDark ? "dark" : "light"; } catch (_) {}
   try { document.body.style.background = T.bg; document.body.style.color = T.text; } catch (_) {}
 }
 
@@ -133,7 +134,40 @@ export function useTheme() {
   React.useEffect(() => {
     applyThemeToRoot(T);
     try { localStorage.setItem(THEME_KEY, darkMode ? "dark" : "light"); } catch (_) {}
+    notifyThemeChange(darkMode);
   }, [darkMode]);
-  React.useEffect(() => () => applyThemeToRoot(DARK), []);
+  React.useEffect(() => () => { applyThemeToRoot(DARK); notifyThemeChange(true); }, []);
   return { darkMode, setDarkMode, T, toggleDark: () => setDarkMode(d => !d) };
+}
+
+// ── Tema para componentes que NO reciben T por props ─────────────────────
+// El shell (useTheme) es la única fuente de verdad; cada cambio dispara
+// `rec-theme-change` y espeja el modo en <html data-theme>. `useT()` lee eso
+// (o localStorage como respaldo) y se re-renderiza al cambiar. Nunca escribe.
+export const THEME_EVENT = "rec-theme-change";
+
+export function notifyThemeChange(dark) {
+  if (typeof window === "undefined") return;
+  try { window.dispatchEvent(new CustomEvent(THEME_EVENT, { detail: { dark: !!dark } })); } catch (_) {}
+}
+
+export function currentIsDark() {
+  try {
+    const ds = document.documentElement.dataset.theme;
+    if (ds === "light") return false;
+    if (ds === "dark") return true;
+  } catch (_) {}
+  return readStoredDark();
+}
+
+export function useT() {
+  const [dark, setDark] = React.useState(currentIsDark);
+  React.useEffect(() => {
+    const sync = () => setDark(currentIsDark());
+    sync();
+    window.addEventListener(THEME_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => { window.removeEventListener(THEME_EVENT, sync); window.removeEventListener("storage", sync); };
+  }, []);
+  return dark ? DARK : LIGHT;
 }

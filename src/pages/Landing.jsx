@@ -2,6 +2,7 @@ import React from "react";
 import { DS } from "../ui/theme.js";
 import { BtnSolid, BtnSecondary } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
+import { PricingCards } from "./Billing.jsx";
 
 const F = "'Inter',system-ui,sans-serif";
 
@@ -11,6 +12,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
   const irRegistro = () => { if (onRegister) onRegister(); else window.location.hash = "#/registro"; };
   const irLogin = () => { if (onLogin) onLogin(); else window.location.hash = "#/login"; };
   const irComo = () => { try { document.getElementById("rec-como-funciona")?.scrollIntoView({ behavior: "smooth" }); } catch (_) {} };
+  const irPrecios = () => { try { document.getElementById("rec-precios")?.scrollIntoView({ behavior: "smooth" }); } catch (_) {} };
 
   const FEATURES = [
     { icon:"M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15", t:"Cobros recurrentes automáticos", d:"Mercado Pago cobra cada N días con la tarjeta o el dinero en cuenta del cliente. Vos no hacés nada." },
@@ -49,13 +51,14 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
           </a>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <button onClick={irComo} className="hide-mobile" style={{background:"transparent",border:"none",color:T.textMd,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:F,padding:"6px 10px"}}>Cómo funciona</button>
+            <button onClick={irPrecios} className="hide-mobile" style={{background:"transparent",border:"none",color:T.textMd,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:F,padding:"6px 10px"}}>Ver precios</button>
             <button onClick={onToggleDark} title={darkMode?"Modo claro":"Modo oscuro"} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:8,color:T.textMd,cursor:"pointer",padding:"6px 8px",display:"flex",alignItems:"center"}}>
               {darkMode
                 ?<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
                 :<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>}
             </button>
             <button onClick={irLogin} style={{...BtnSecondary(T),padding:"7px 14px",fontSize:13,fontWeight:600}}>Iniciar sesión</button>
-            <button onClick={irRegistro} className="hide-mobile" style={{...BtnSolid(T),padding:"8px 16px",fontSize:13}}>Probar la beta gratis</button>
+            <button onClick={irRegistro} className="hide-mobile" style={{...BtnSolid(T),padding:"8px 16px",fontSize:13}}>Probar 7 días gratis</button>
           </div>
         </div>
       </nav>
@@ -76,7 +79,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
             </p>
             <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
               <button onClick={irRegistro} style={{...BtnSolid(T),padding:"13px 22px",fontSize:15}}>
-                Probar la beta gratis
+                Probar 7 días gratis
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </button>
               <button onClick={irComo} style={{...BtnSecondary(T),padding:"12px 18px",fontSize:14}}>Ver cómo funciona</button>
@@ -159,13 +162,29 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         </div>
       </section>
 
+      {/* Precios */}
+      <section id="rec-precios" style={{background:T.surface,borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,padding:"56px 0"}}>
+        <div className="rec-land-wrap">
+          <h2 style={{fontSize:28,fontWeight:800,letterSpacing:-0.7,textAlign:"center",margin:"0 0 10px"}}>Precios simples, según cuánto vendés</h2>
+          <p style={{fontSize:14,color:T.textSm,textAlign:"center",maxWidth:560,margin:"0 auto 12px",lineHeight:1.6}}>Elegís el plan por la cantidad de pedidos de suscripción que generás por mes. Todo lo demás está incluido en los tres.</p>
+          <div style={{display:"flex",justifyContent:"center",marginBottom:28}}>
+            <span style={{display:"inline-flex",alignItems:"center",gap:8,padding:"5px 12px",borderRadius:20,background:T.accentSolid+"16",border:`1px solid ${T.accentSolid}44`,color:T.accent,fontSize:11,fontWeight:700,letterSpacing:0.4,textTransform:"uppercase"}}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              7 días gratis, sin tarjeta
+            </span>
+          </div>
+          <PricingCards T={T} ctaLabel="Empezar 7 días gratis"/>
+          <p style={{fontSize:12,color:T.textSm,textAlign:"center",margin:"22px auto 0",maxWidth:560,lineHeight:1.6}}>Precios en dólares · sin contrato, cancelás cuando quieras · un pedido = una orden de suscripción generada en tu Shopify.</p>
+        </div>
+      </section>
+
       {/* CTA final */}
       <section className="rec-land-wrap" style={{paddingBottom:72}}>
         <div style={{background:`linear-gradient(135deg, ${T.accentSolid}22, ${T.card})`,border:`1px solid ${T.accentSolid}44`,borderRadius:20,padding:"40px 28px",textAlign:"center"}}>
           <RecLogo size={40} style={{marginBottom:14}}/>
           <h2 style={{fontSize:26,fontWeight:800,letterSpacing:-0.6,margin:"0 0 8px"}}>Empezá a cobrar por suscripción hoy</h2>
-          <p style={{fontSize:14,color:T.textMd,margin:"0 auto 22px",maxWidth:460,lineHeight:1.6}}>La beta es gratis. Conectás tu tienda, creás un plan y ves el primer cobro recurrente entrar solo.</p>
-          <button onClick={irRegistro} style={{...BtnSolid(T),padding:"13px 24px",fontSize:15}}>Probar la beta gratis</button>
+          <p style={{fontSize:14,color:T.textMd,margin:"0 auto 22px",maxWidth:460,lineHeight:1.6}}>7 días gratis, sin tarjeta. Conectás tu tienda, creás un plan y ves el primer cobro recurrente entrar solo.</p>
+          <button onClick={irRegistro} style={{...BtnSolid(T),padding:"13px 24px",fontSize:15}}>Probar 7 días gratis</button>
           <div style={{fontSize:12,color:T.textSm,marginTop:12}}>¿Ya tenés cuenta? <button onClick={irLogin} style={{background:"none",border:"none",color:T.accent,fontWeight:600,cursor:"pointer",fontFamily:F,fontSize:12,padding:0}}>Iniciá sesión</button></div>
         </div>
       </section>

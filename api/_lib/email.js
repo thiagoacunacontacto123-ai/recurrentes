@@ -295,3 +295,33 @@ export async function emailTeamInvite({ to, inviterEmail, storeName, merchant, a
   });
   return sendEmail({ from: snd.from, replyTo: snd.replyTo || inviterEmail || undefined, to, subject: title, html, tags: { type: "team_invite" } });
 }
+
+// ─── Aviso INTERNO (al admin de Recurrentes): un merchant pidió activar un plan.
+// `to` = ADMIN_EMAIL (o EMAIL_FROM). Reply-To = mail del merchant para contestar directo.
+export async function emailPlanRequest({ to, merchantEmail, merchantId, storeName, plan, planLabel, usd, ordersThisMonth, currentPlan, requesterEmail }) {
+  const store = plain(storeName, 60) || "(tienda sin nombre)";
+  const label = plain(planLabel || plan, 40);
+  const title = `Pedido de plan ${label} · ${store}`;
+  const row = (k, v) => `<tr><td style="padding:4px 10px 4px 0;color:#6b7280;white-space:nowrap;">${escapeHtml(k)}</td><td style="padding:4px 0;color:#111827;font-weight:600;">${escapeHtml(v || "—")}</td></tr>`;
+  const body = `
+    <p><b>${escapeHtml(store)}</b> pidió activar el plan <b>${escapeHtml(label)}</b>${usd ? ` (USD ${escapeHtml(String(usd))}/mes)` : ""}.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="font-size:13px;margin:8px 0 14px;">
+      ${row("Merchant", merchantId)}
+      ${row("Email de la cuenta", merchantEmail)}
+      ${requesterEmail && requesterEmail !== merchantEmail ? row("Pedido por", requesterEmail) : ""}
+      ${row("Plan actual", currentPlan)}
+      ${row("Pedidos este mes", String(ordersThisMonth ?? 0))}
+      ${row("Fecha", new Date().toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }))}
+    </table>
+    <p>Contestá este mail para coordinar el pago. Para activarlo, seteá <code>plan: "${escapeHtml(plan)}"</code> en <code>merchants/${escapeHtml(merchantId)}</code>.</p>`;
+  const html = baseTemplate({
+    title,
+    body,
+    ctaLabel: merchantEmail ? "Escribirle al merchant" : undefined,
+    ctaUrl: merchantEmail ? `mailto:${merchantEmail}?subject=${encodeURIComponent(`Recurrentes · plan ${label}`)}` : undefined,
+    brand: "Recurrentes",
+    accent: "#10b981",
+    footerNote: "Aviso interno de Recurrentes (plan-request).",
+  });
+  return sendEmail({ from: process.env.EMAIL_FROM || DEFAULT_FROM, replyTo: merchantEmail || undefined, to, subject: title, html, tags: { type: "plan_request", plan } });
+}

@@ -3,6 +3,7 @@
 import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
+import { trialEndFrom } from "./plans_saas.js";
 
 let app;
 export function initAdmin() {
@@ -180,7 +181,9 @@ export async function getOrCreateMerchant(merchantId, email) {
   const created_at = new Date().toISOString();
   const data = {
     email: email || null,
-    plan: "free",
+    // Plan del SaaS: 7 días de prueba con todo habilitado (ver _lib/plans_saas.js).
+    plan: "trial",
+    trial_end: trialEndFrom(created_at),
     created_at,
     // Solo cuentas nuevas: exigimos verificar el mail antes de operar.
     requires_email_verification: true,

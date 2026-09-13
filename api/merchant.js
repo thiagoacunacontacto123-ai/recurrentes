@@ -14,6 +14,7 @@
 //   POST   ?action=test-email           → mail de prueba (solo al dueño, 10/día)
 //   POST   ?action=mp-oauth-start       → { url } para conectar MP por OAuth
 //   POST   ?action=disconnect-mp | disconnect-shopify
+//   POST   ?action=plan-request  { plan: "starter"|"growth"|"pro" } → pide un plan del SaaS (mail al admin)
 //
 //   Multi-tienda (actúan sobre el PERFIL = uid del token, no sobre la tienda activa):
 //   POST   ?action=store-create   { name, color }             → crea merchants/m_xxx
@@ -33,7 +34,8 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { db, requireMerchant, resolveMerchantAccess, clearMerchantCache, getOrCreateMerchant } from "./_lib/firebase.js";
 import { mpMe } from "./_lib/mp.js";
-import { emailAbandonedCheckout, emailTeamInvite } from "./_lib/email.js";
+import { emailAbandonedCheckout, emailTeamInvite, emailPlanRequest } from "./_lib/email.js";
+import { PLAN_BY_ID, buildBilling, monthRange, trialEndFrom } from "./_lib/plans_saas.js";
 import { logEmail } from "./_lib/emaillog.js";
 import { signToken } from "./_lib/token.js";
 import { appBaseUrl } from "./_lib/config.js";
@@ -55,12 +57,15 @@ export default async function handler(req, res) {
       // El doc del perfil se crea acá (primer login). Tiendas ajenas/extra ya existen
       // (requireMerchant las validó), así que el create solo aplica a merchantId === uid.
       const merchant = await getOrCreateMerchant(merchantId, merchantId === uid ? ctx.email : null);
+      // Plan del SaaS (trial/beta/starter/growth/pro) + pedidos del mes. Solo dashboard.
+      const billing = await billingFor(merchantId, merchant);
       // No devolvemos tokens raw — solo flags de "conectado".
       const safe = {
         id: merchant.id,
         email: merchant.email,
         plan: merchant.plan,
         created_at: merchant.created_at,
+        billing,
         // Multi-tienda
         role: ctx.role,                                  // "owner" | "member"
         is_primary: merchant.is_store !== true,          // doc principal de un login (no m_xxx)
@@ -139,6 +144,7 @@ export default async function handler(req, res) {
     if (action === "mp-oauth-start")       return mpOauthStart(merchantId, req, res);
     if (action === "disconnect-mp")        return disconnect(merchantId, "mp", res);
     if (action === "disconnect-shopify")   return disconnect(merchantId, "shopify", res);
+    if (action === "plan-request")         return planRequest(ctx, merchantId, req, res);
 
     // Multi-tienda / equipo
     if (action === "store-create")   return storeCreate(ctx, req, res);
@@ -153,6 +159,84 @@ export default async function handler(req, res) {
   }
 
   return res.status(405).json({ error: "Method not allowed" });
+}
+
+// ─── Billing del SaaS (Starter / Growth / Pro) ─────────────────────────────
+// "Pedidos por mes" = charges con shopify_order_id creados en el mes calendario
+// (hora Argentina), sin simulados (SIM-). Solo informa al dashboard: el widget,
+// el checkout, los webhooks y el cron NUNCA miran esto.
+const BILLING_CACHE_MS = 5 * 60 * 1000;
+const isSimCharge = (id, c) => c.simulated === true || String(c.mp_payment_id || "").startsWith("SIM-") || /-SIM$/.test(String(id));
+
+// Cuenta los pedidos del mes. Cache 5 min en el doc (`billing_cache`) para no
+// leer la subcolección en cada GET /api/merchant.
+async function ordersThisMonth(merchantId, merchant) {
+  const { key, start, end } = monthRange();
+  const c = merchant.billing_cache;
+  if (c && c.month === key && Number.isFinite(Number(c.count)) && c.at && Date.now() - Date.parse(c.at) < BILLING_CACHE_MS) return Number(c.count);
+  const ref = db().collection("merchants").doc(merchantId);
+  const snap = await ref.collection("charges")
+    .where("created_at", ">=", start)
+    .where("created_at", "<", end)
+    .select("shopify_order_id", "mp_payment_id", "simulated")
+    .limit(5000)
+    .get();
+  let count = 0;
+  snap.forEach(d => { const x = d.data() || {}; if (x.shopify_order_id && !isSimCharge(d.id, x)) count++; });
+  ref.set({ billing_cache: { month: key, count, at: new Date().toISOString() } }, { merge: true }).catch(e => console.warn("[billing] cache:", e.message));
+  return count;
+}
+
+// Nunca tira: si falla el conteo, usa el último cache (o 0) y sigue.
+async function billingFor(merchantId, merchant) {
+  let count = 0;
+  try { count = await ordersThisMonth(merchantId, merchant); }
+  catch (e) { console.warn("[billing] count:", e.message); count = Number(merchant?.billing_cache?.count) || 0; }
+  return buildBilling(merchant, count);
+}
+
+// POST ?action=plan-request { plan } → guarda plan_requested(+_at) y avisa al
+// admin por mail. Idempotente por día (mismo plan pedido hoy → no reenvía).
+async function planRequest(ctx, merchantId, req, res) {
+  const plan = String(req.body?.plan || "").trim().toLowerCase();
+  const p = PLAN_BY_ID[plan];
+  if (!p) return res.status(400).json({ error: "Plan inválido. Opciones: starter, growth o pro." });
+  const OK_MSG = "Te contactamos en el día para activarlo. Mientras tanto tu cuenta sigue funcionando.";
+  try {
+    const ref = db().collection("merchants").doc(merchantId);
+    const merchant = await getOrCreateMerchant(merchantId, null);
+    const now = new Date().toISOString();
+    if (merchant.plan_requested === plan && String(merchant.plan_requested_at || "").slice(0, 10) === now.slice(0, 10)) {
+      return res.json({ ok: true, already: true, plan, message: OK_MSG });
+    }
+    const rl = await rateLimit(`planreq:${merchantId}`, { limit: 10, windowSec: 86400 });
+    if (!rl.ok) return res.status(429).json({ error: "Ya recibimos varios pedidos hoy. Te contactamos a la brevedad." });
+
+    const billing = await billingFor(merchantId, merchant);
+    await ref.set({ plan_requested: plan, plan_requested_at: now, plan_requested_by: ctx.email || null }, { merge: true });
+
+    const adminRaw = String(process.env.ADMIN_EMAIL || process.env.EMAIL_FROM || "");
+    const to = (adminRaw.match(/<([^>]+)>/) || [])[1] || adminRaw.trim();
+    let mail = { skipped: true };
+    if (to) {
+      mail = await emailPlanRequest({
+        to,
+        merchantEmail: merchant.email || ctx.email || "",
+        merchantId,
+        storeName: merchant.store_name || merchant.shopify_shop || "",
+        plan, planLabel: p.label, usd: p.usd,
+        ordersThisMonth: billing.orders_this_month,
+        currentPlan: billing.plan_label,
+        requesterEmail: ctx.email || "",
+      });
+      if (mail?.error) console.error("[plan-request] mail:", mail.error);
+    } else {
+      console.warn("[plan-request] sin ADMIN_EMAIL/EMAIL_FROM: quedó solo en Firestore (plan_requested)");
+    }
+    return res.json({ ok: true, plan, message: OK_MSG, mail_sent: mail?.ok === true });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
 }
 
 // ─── OAuth MP: arma la URL de autorización. El callback vive en /api/mp/oauth-callback.
@@ -748,7 +832,8 @@ async function storeCreate(ctx, req, res) {
       ownerEmail: email,
       teamUids: [uid],
       teamMembers: { [uid]: { email, name: my.displayName || "", role: "owner", secciones: {}, since: created_at } },
-      plan: "free",
+      plan: "trial",
+      trial_end: trialEndFrom(created_at),
       created_at,
       requires_email_verification: false,
     });

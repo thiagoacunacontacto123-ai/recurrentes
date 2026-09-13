@@ -153,7 +153,7 @@ export default function OnboardingWizard({ T: Tp, DS: DSp, merchant, goTab, onDo
 
   return (
     <div style={{ maxWidth: 680, margin: "0 auto", fontFamily: "inherit", color: T.text }}>
-      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: DS.r["2xl"], padding: "26px 28px 20px", boxShadow: "0 1px 2px rgba(0,0,0,0.06), 0 3px 10px rgba(0,0,0,0.04)" }}>
+      <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: DS.r.xl, padding: "26px 28px 20px", boxShadow: "0 1px 2px rgba(0,0,0,0.06), 0 3px 10px rgba(0,0,0,0.04)" }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
           <div style={{ flex: 1, minWidth: 220 }}>
             <div style={{ fontSize: DS.font["3xl"], fontWeight: DS.w.black, letterSpacing: -0.8, lineHeight: 1.15, color: T.text }}>

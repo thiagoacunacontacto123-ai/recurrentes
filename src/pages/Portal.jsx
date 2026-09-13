@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+import { DARK } from "../ui/theme.js";
+import { ToastContainer, AppPromptHost, appConfirm, toast } from "../ui/components.jsx";
 
 // Customer portal — público, sin Firebase Auth. El cliente final accede al
 // link que le mandamos por email después de activar la sub:
@@ -50,7 +52,8 @@ export default function Portal() {
       resume: "Reactivamos tu suscripción y volvés a recibir tus envíos. ¿Confirmás?",
       cancel: "Cancelamos tu suscripción. No se hacen más cobros y no recibís más envíos. Esta acción no se puede deshacer. ¿Confirmás?",
     }[action];
-    if (!window.confirm(confirmText)) return;
+    const ok = await appConfirm(confirmText, { title: { pause:"Pausar suscripción", resume:"Reactivar suscripción", cancel:"Cancelar suscripción" }[action], danger: action === "cancel", okLabel: { pause:"Sí, pausar", resume:"Sí, reactivar", cancel:"Sí, cancelar" }[action] });
+    if (!ok) return;
 
     setBusyAction(action);
     try {
@@ -61,14 +64,15 @@ export default function Portal() {
       });
       const d = await r.json();
       if (d.error) {
-        alert("Error: " + d.error);
+        toast("Error: " + d.error, "error", 6000);
       } else {
+        toast({ pause:"Suscripción pausada", resume:"Suscripción reactivada", cancel:"Suscripción cancelada" }[action], "success");
         // Aplicamos el próximo cobro que devuelve MP y recargamos el resto.
         if (d.next_charge_at !== undefined) setData(prev => prev ? { ...prev, sub: { ...prev.sub, next_charge_at: d.next_charge_at, status: d.status || prev.sub.status } } : prev);
         await load(token, true);
       }
     } catch (e) {
-      alert("Error: " + e.message);
+      toast("Error: " + e.message, "error", 6000);
     } finally {
       setBusyAction(null);
     }
@@ -105,7 +109,7 @@ export default function Portal() {
   const formattedNext = sub.next_charge_at ? new Date(sub.next_charge_at).toLocaleDateString("es-AR", { day:"2-digit", month:"long", year:"numeric" }) : null;
 
   return (
-    <div style={{minHeight:"100vh",background:"linear-gradient(180deg, var(--bg) 0%, #0d1311 100%)",padding:"32px 20px"}}>
+    <div style={{minHeight:"100vh",background:"linear-gradient(180deg, var(--bg) 0%, var(--surface) 100%)",padding:"32px 20px"}}>
       <div style={{maxWidth:680,margin:"0 auto"}}>
         {/* Header: marca de la tienda si la tenemos, si no Recurrentes */}
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:22}}>
@@ -202,6 +206,8 @@ export default function Portal() {
           ¿Necesitás ayuda? Respondé al email que te mandamos cuando se activó tu suscripción.
         </div>
       </div>
+      <ToastContainer T={DARK}/>
+      <AppPromptHost T={DARK}/>
     </div>
   );
 }
@@ -214,11 +220,11 @@ function AddressForm({ sub, token, onSaved }) {
   const set = (k) => (e) => setF(prev => ({ ...prev, [k]: e.target.value }));
 
   async function save() {
-    if (!f.address1.trim()) return alert("Falta la dirección (calle y número)");
-    if (!f.city.trim()) return alert("Falta la ciudad");
-    if (!f.province) return alert("Falta la provincia");
-    if (!f.zip.trim()) return alert("Falta el código postal");
-    if (!f.phone.trim()) return alert("Falta el teléfono");
+    if (!f.address1.trim()) return toast("Falta la dirección (calle y número)", "warning");
+    if (!f.city.trim()) return toast("Falta la ciudad", "warning");
+    if (!f.province) return toast("Falta la provincia", "warning");
+    if (!f.zip.trim()) return toast("Falta el código postal", "warning");
+    if (!f.phone.trim()) return toast("Falta el teléfono", "warning");
     setSaving(true);
     try {
       const r = await fetch(`/api/public?action=update-address&token=${encodeURIComponent(token)}`, {
@@ -228,11 +234,11 @@ function AddressForm({ sub, token, onSaved }) {
         body: JSON.stringify({ token, shipping_address: { address1: f.address1, address2: f.address2, city: f.city, province: f.province, zip: f.zip }, customer_phone: f.phone }),
       });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok || d.error) { alert("Error: " + (d.error || `HTTP ${r.status}`)); return; }
-      alert("✓ Dirección actualizada. Se usa en tus próximos envíos.");
+      if (!r.ok || d.error) { toast("Error: " + (d.error || `HTTP ${r.status}`), "error", 6000); return; }
+      toast("Dirección actualizada. Se usa en tus próximos envíos.", "success", 5000);
       onSaved?.();
     } catch (e) {
-      alert("Error: " + e.message);
+      toast("Error: " + e.message, "error", 6000);
     } finally { setSaving(false); }
   }
 
@@ -267,7 +273,7 @@ function Stat({ label, value }) {
 
 function FullScreenCenter({ children }) {
   return (
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:24,background:"linear-gradient(180deg, var(--bg) 0%, #0d1311 100%)"}}>
+    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:24,background:"linear-gradient(180deg, var(--bg) 0%, var(--surface) 100%)"}}>
       {children}
     </div>
   );
@@ -279,5 +285,5 @@ const btnBase = {
   border: "none", padding: "9px 16px", borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
 };
 const btnPrimary = { ...btnBase, background: "linear-gradient(135deg, var(--green), var(--green-dark))", color: "#fff", boxShadow: "0 2px 8px rgba(16,185,129,0.25)" };
-const btnSecondary = { ...btnBase, background: "var(--surface)", color: "var(--text)", border: "1px solid var(--border)" };
+const btnSecondary = { ...btnBase, background: "transparent", color: "var(--text-md)", border: "1px solid var(--border)" };
 const btnDanger = { ...btnBase, background: "transparent", color: "var(--red)", border: "1px solid rgba(239,68,68,0.4)" };

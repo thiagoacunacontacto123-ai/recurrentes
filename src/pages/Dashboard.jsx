@@ -9,6 +9,7 @@ import SettingsPage from "./Settings.jsx";
 import OnboardingWizard from "./Onboarding.jsx";
 import PacksEditor, { packsFromPlan, serializePacks, validatePacks, pricingModeOf } from "./PacksEditor.jsx";
 import WidgetDesigner from "./WidgetDesigner.jsx";
+import { PlanPage, TrialBanner, PlanWall } from "./Billing.jsx";
 
 // Dashboard del comerciante — shell de Growith (sidebar + switcher de tiendas +
 // topbar) con branding verde. La lógica de cada tab vive más abajo, intacta.
@@ -164,18 +165,35 @@ export default function Dashboard({ user, onLogout }) {
   const navItem = NAV.find(n => n.id === tab) || NAV[0];
   const shellProps = { T, nav: NAV, activeTab: tab, onTab: goTab, user, merchant, workspace: effectiveWorkspace, onSwitchStore: switchStore, onCreateStore: () => setNewStoreOpen(true), onManageStore: (id) => setManageStoreId(id), darkMode, setDarkMode, onLogout, alerts: {} };
 
+  // Prueba de 7 días vencida (plan trial): el panel queda detrás del wall de
+  // planes, con el sidebar visible. Solo el dashboard — widget, checkout,
+  // webhooks y cron siguen operando normalmente.
+  if (merchant?.billing?.locked) return (
+    <div style={{minHeight:"100vh",display:"flex",background:T.bg,color:T.text,fontFamily:"'Inter',system-ui,sans-serif"}}>
+      <Sidebar {...shellProps} collapsed={collapsed} setCollapsed={setCollapsed}/>
+      <div className="main-content" style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}>
+        <AppTopbar T={T} section="Plan" sectionId="plan" icon={NAV.find(n=>n.id==="plan")?.icon}/>
+        <PlanWall T={T} DS={DS} merchant={merchant} reloadMerchant={reloadMerchant} onLogout={onLogout}/>
+      </div>
+      <MobileBottomNav {...shellProps}/>
+      <ToastContainer T={T}/>
+    </div>
+  );
+
   return (
     <div style={{minHeight:"100vh",display:"flex",background:T.bg,color:T.text,fontFamily:"'Inter',system-ui,sans-serif"}}>
       <Sidebar {...shellProps} collapsed={collapsed} setCollapsed={setCollapsed}/>
 
       <div className="main-content" style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}>
-        <AppTopbar T={T} section={navItem.label} sectionId={navItem.id}>
+        <AppTopbar T={T} section={navItem.label} sectionId={navItem.id} icon={navItem.icon}>
           {effectiveWorkspace?.stores?.length > 1 && (
             <span className="hide-mobile" style={{fontSize:11,color:T.textSm,whiteSpace:"nowrap",padding:"0 4px"}}>
               Tienda: <strong style={{color:T.textMd}}>{(effectiveWorkspace.stores.find(s=>s.id===effectiveWorkspace.active_merchant_id)||effectiveWorkspace.stores[0]).name}</strong>
             </span>
           )}
         </AppTopbar>
+
+        {!loading && merchant?.billing && tab !== "plan" && <TrialBanner T={T} billing={merchant.billing} onGo={()=>goTab("plan")}/>}
 
         <PageView pageKey={tab} T={T}>
           <ErrorBoundary T={T}>
@@ -191,6 +209,8 @@ export default function Dashboard({ user, onLogout }) {
                     <button onClick={()=>{setActiveMerchantId(user?.uid,null);window.location.reload();}} style={{background:"transparent",color:T.textMd,border:`1px solid ${T.border}`,borderRadius:10,padding:"10px 16px",fontWeight:600,cursor:"pointer"}}>Volver a mi tienda principal</button>
                   </div>
                 </div>
+              ) : tab === "plan" ? (
+                <PlanPage T={T} DS={DS} merchant={merchant} reloadMerchant={reloadMerchant}/>
               ) : tab === "inicio" ? (
                 showOnboarding
                   ? <OnboardingWizard T={T} DS={DS} merchant={merchant} goTab={goTab} onDone={finishOnboarding}/>
@@ -239,9 +259,77 @@ export default function Dashboard({ user, onLogout }) {
   );
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// Tabs del dashboard — capa visual portada al DS de Growith (acento verde).
+// La lógica (llamadas a la API, estados, textos funcionales) es la misma;
+// cada tab toma el tema con useT() y usa los componentes de ui/components.
+// ═══════════════════════════════════════════════════════════════════
+import { useT } from "../ui/theme.js";
+import * as UI from "../ui/components.jsx";
+const {
+  Card, KPI, StatCard, Btn, BtnPrimary, BtnSecondary, BtnDanger, BtnSolid, DSEmpty, DSBadge, Modal, Field, InputStyle,
+  AsyncButton, Spinner, DSTable, CellStack, PageHeader, SectionTitle, CardHeader, SubTabs, Callout, Hint, Loading, CheckLine,
+  Divider, appConfirm, appAlert, appPrompt,
+} = UI;
+
+const MONO = "ui-monospace, SFMono-Regular, Menlo, 'Cascadia Code', monospace";
+const fmtARS = (n) => "$" + Math.round(Number(n) || 0).toLocaleString("es-AR");
+const fmtDateShort = (iso) => { try { return new Date(iso).toLocaleString("es-AR", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" }); } catch (_) { return "—"; } };
+const fmtDateOnly = (iso) => { try { return new Date(iso).toLocaleDateString("es-AR"); } catch (_) { return "—"; } };
+const fmtDateTime = (iso) => { try { return new Date(iso).toLocaleString("es-AR"); } catch (_) { return "—"; } };
+
+// Estado de una suscripción → color del DS.
+function subStatusMeta(T, status, orderCount = 0) {
+  const cancelledLabel = orderCount > 0 ? `Cancelada · ${orderCount} cobro${orderCount > 1 ? "s" : ""} OK` : "Cancelada";
+  return ({
+    active:         { label:"Activa",        color:T.green },
+    paused:         { label:"Pausada",       color:T.yellow },
+    pending:        { label:"Pendiente",     color:T.blue },
+    cancelled:      { label:cancelledLabel,  color:orderCount > 0 ? T.green : T.textSm },
+    payment_failed: { label:"Pago falló",    color:T.red },
+  })[status] || { label: status || "—", color: T.textSm };
+}
+
+function StatusBadge({ status, orderCount = 0, size = "sm" }) {
+  const T = useT();
+  const m = subStatusMeta(T, status, orderCount);
+  return <DSBadge T={T} color={m.color} size={size}>{m.label}</DSBadge>;
+}
+
+// Título de bloque dentro de un formulario/modal (con línea arriba).
+function FormSection({ T, title, right, children, first }) {
+  return (
+    <div style={{ marginTop: first ? 0 : 16, paddingTop: first ? 0 : 14, borderTop: first ? "none" : `1px solid ${T.borderL}` }}>
+      {(title || right) && (
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, marginBottom:10 }}>
+          <div style={{ fontSize:DS.font.base, fontWeight:DS.w.bold, color:T.text }}>{title}</div>
+          {right}
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
+// Panel gris (surface) para agrupar datos de solo lectura.
+function SurfaceBox({ T, title, right, children, style = {} }) {
+  return (
+    <div style={{ background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:DS.r.lg, padding:"12px 14px", ...style }}>
+      {(title || right) && (
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, marginBottom:8 }}>
+          <div style={{ fontSize:DS.font.xs, color:T.textSm, textTransform:"uppercase", fontWeight:DS.w.bold, letterSpacing:0.5 }}>{title}</div>
+          {right}
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
 // ─── Tab: Inicio (KPIs) ─────────────────────────────────────────
 
 function HomeTab({ onGoSubscribers, onGoCarts }) {
+  const T = useT();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -255,179 +343,127 @@ function HomeTab({ onGoSubscribers, onGoCarts }) {
   }
   useEffect(() => { load(); }, []);
 
-  if (loading) return <div style={{color:"var(--text-sm)",fontSize:13}}>Cargando métricas…</div>;
-  if (err) return <div style={{color:"var(--red)",fontSize:13}}>Error: {err}</div>;
-  if (!stats) return null;
-
-  const totals = stats.totals || {};
-  const revenue = stats.revenue || {};
-  const growth = stats.growth || {};
+  const s = stats || {};
+  const totals = s.totals || {};
+  const revenue = s.revenue || {};
+  const growth = s.growth || {};
   const deltaPct = revenue.delta_pct;
+  const churn = growth.churn_rate_pct || 0;
+  const cartsTotal = (totals.pending||0) + (totals.cancelled||0) + (totals.payment_failed||0);
 
   return (
     <div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,gap:14,flexWrap:"wrap"}}>
-        <div>
-          <h1 style={{fontSize:24,fontWeight:800,margin:"0 0 6px",letterSpacing:-0.5}}>Inicio</h1>
-          <p style={{fontSize:13,color:"var(--text-sm)",margin:0,lineHeight:1.55}}>Resumen del negocio recurrente.</p>
-        </div>
-        <button onClick={load} style={{background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text-md)",borderRadius:8,padding:"7px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>↻ Refrescar</button>
+      <PageHeader T={T} title="Inicio" subtitle="Resumen del negocio recurrente."
+        right={<Btn T={T} variant="secondary" size="sm" onClick={load} disabled={loading}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Refrescar</Btn>}/>
+
+      {err && !loading && (
+        <Callout T={T} tone="danger" title="No pudimos cargar las métricas" style={{ marginBottom:16 }} right={<Btn T={T} variant="secondary" size="sm" onClick={load}>Reintentar</Btn>}>{err}</Callout>
+      )}
+
+      {/* KPIs principales — basados SOLO en active/paused. Los carritos
+          (pending/cancelled/payment_failed) no entran acá. */}
+      <div className="kpi-grid gh-stagger" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))", gap:DS.sp.md, marginBottom:DS.sp.md }}>
+        <KPI T={T} label="MRR" value={fmtARS(s.mrr)} sub="ingresos mensuales recurrentes" accent color={T.accent} loading={loading}/>
+        <KPI T={T} label="Suscriptores activos" value={totals.active||0} sub={`${totals.paused||0} pausados`} color={T.text} loading={loading} onClick={onGoSubscribers}/>
+        <KPI T={T} label="Cobrado este mes" value={fmtARS(revenue.this_month?.amount)} color={T.text} loading={loading}
+          sub={<span style={{ display:"inline-flex", alignItems:"center", gap:6 }}>{revenue.this_month?.count||0} cobros
+            {typeof deltaPct === "number" && <DSBadge T={T} color={deltaPct >= 0 ? T.green : T.red} size="sm">{deltaPct >= 0 ? "↑" : "↓"} {Math.abs(deltaPct)}%</DSBadge>}
+          </span>}/>
+        <KPI T={T} label="Churn 30d" value={`${churn}%`} sub={`${growth.cancelled_30d||0} cancelaciones`} color={churn > 5 ? T.red : T.text} loading={loading}/>
       </div>
 
-      {/* KPIs principales (4 cards grandes) — basados SOLO en active/paused.
-          Los carritos (pending/cancelled/payment_failed) no entran acá: son
-          intentos abandonados y los gestionás desde el tab "Carritos". */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))",gap:12,marginBottom:14}}>
-        <KpiBig label="MRR" value={`$${stats.mrr.toLocaleString("es-AR")}`} sub="ingresos mensuales recurrentes" highlight/>
-        <KpiBig label="Suscriptores activos" value={totals.active||0} sub={`${totals.paused||0} pausados`}/>
-        <KpiBig label="Cobrado este mes" value={`$${(revenue.this_month?.amount||0).toLocaleString("es-AR")}`} sub={`${revenue.this_month?.count||0} cobros`} delta={deltaPct}/>
-        <KpiBig label="Churn 30d" value={`${growth.churn_rate_pct||0}%`} sub={`${growth.cancelled_30d||0} cancelaciones`} negative={(growth.churn_rate_pct||0)>5}/>
-      </div>
-
-      {/* Funnel: solo nuevos activos. Los cancelados/payment_failed los
-          ves en el tab "Carritos". */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))",gap:12,marginBottom:24}}>
-        <KpiSmall label="Nuevos últimos 7d" value={growth.new_7d||0} positive/>
-        <KpiSmall label="Nuevos últimos 30d" value={growth.new_30d||0} positive/>
+      {/* Funnel: solo nuevos activos. */}
+      <div className="kpi-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))", gap:DS.sp.md, marginBottom:DS.sp["2xl"] }}>
+        <KPI T={T} compact label="Nuevos últimos 7d" value={growth.new_7d||0} color={T.green} loading={loading}/>
+        <KPI T={T} compact label="Nuevos últimos 30d" value={growth.new_30d||0} color={T.green} loading={loading}/>
       </div>
 
       {/* Próximos cobros */}
-      <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:14,padding:"20px 22px",marginBottom:14}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,gap:10}}>
+      <Card T={T} style={{ marginBottom:DS.sp.lg }}>
+        <SectionTitle T={T} sub={<span style={{ fontSize:DS.font.xl, fontWeight:DS.w.bold, color:T.text }}>Cobros que MP va a procesar</span>}
+          right={s.upcoming_charges?.length > 0 && <Btn T={T} variant="secondary" size="sm" onClick={onGoSubscribers}>Ver suscriptores →</Btn>}>
+          Próximos 7 días
+        </SectionTitle>
+        {loading ? <Loading T={T} text="Cargando cobros…"/> : s.upcoming_charges?.length > 0 ? (
           <div>
-            <div style={{fontSize:11,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5,marginBottom:4}}>Próximos 7 días</div>
-            <div style={{fontSize:16,fontWeight:700}}>Cobros que MP va a procesar</div>
-          </div>
-          {stats.upcoming_charges?.length > 0 && (
-            <button onClick={onGoSubscribers} style={{background:"transparent",border:"1px solid var(--border)",color:"var(--text-md)",borderRadius:8,padding:"6px 11px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>Ver suscriptores →</button>
-          )}
-        </div>
-        {stats.upcoming_charges?.length > 0 ? (
-          <div>
-            {stats.upcoming_charges.map(c => (
-              <div key={c.subscriber_id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid var(--border)",gap:10,fontSize:13}}>
-                <div style={{minWidth:0,flex:1}}>
-                  <div style={{fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.customer_name || c.customer_email}</div>
-                  <div style={{fontSize:10,color:"var(--text-sm)",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.product_title}</div>
-                </div>
-                <div style={{textAlign:"right",flexShrink:0}}>
-                  <div style={{fontWeight:700,color:"var(--accent)"}}>${(c.amount_ars||0).toLocaleString("es-AR")}</div>
-                  <div style={{fontSize:10,color:"var(--text-sm)",marginTop:2}}>{c.date ? new Date(c.date).toLocaleDateString("es-AR",{day:"2-digit",month:"short"}) : "—"}</div>
+            {s.upcoming_charges.map((c, i) => (
+              <div key={c.subscriber_id} className="gh-list-item" style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderTop: i === 0 ? "none" : `1px solid ${T.borderL}`, gap:10, fontSize:DS.font.base }}>
+                <CellStack T={T} main={c.customer_name || c.customer_email} sub={c.product_title}/>
+                <div style={{ textAlign:"right", flexShrink:0 }}>
+                  <div style={{ fontWeight:DS.w.bold, color:T.accent, fontVariantNumeric:"tabular-nums" }}>{fmtARS(c.amount_ars)}</div>
+                  <div style={{ fontSize:DS.font.xs, color:T.textSm, marginTop:2 }}>{c.date ? new Date(c.date).toLocaleDateString("es-AR", { day:"2-digit", month:"short" }) : "—"}</div>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div style={{fontSize:12,color:"var(--text-sm)",padding:"20px",textAlign:"center"}}>
-            No hay cobros programados en los próximos 7 días.
-          </div>
+          <div style={{ fontSize:DS.font.md, color:T.textSm, padding:"18px 0 6px", textAlign:"center" }}>No hay cobros programados en los próximos 7 días.</div>
         )}
-      </div>
+      </Card>
 
-      {/* Snapshot de la cuenta — SOLO subs vivas (active + paused). Los
-          cancelled/pending/payment_failed se ven en el tab "Carritos". */}
-      <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:14,padding:"20px 22px"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,gap:10,flexWrap:"wrap"}}>
-          <div style={{fontSize:11,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5}}>Suscripciones operativas</div>
-          {((totals.pending||0) + (totals.cancelled||0) + (totals.payment_failed||0)) > 0 && (
-            <button onClick={onGoCarts} style={{background:"transparent",border:"1px solid var(--border)",color:"var(--text-md)",borderRadius:8,padding:"6px 11px",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
-              Ver {(totals.pending||0) + (totals.cancelled||0) + (totals.payment_failed||0)} carritos →
-            </button>
-          )}
+      {/* Snapshot — SOLO subs vivas (active + paused). */}
+      <Card T={T}>
+        <SectionTitle T={T} right={cartsTotal > 0 && <Btn T={T} variant="secondary" size="sm" onClick={onGoCarts}>Ver {cartsTotal} carritos →</Btn>}>Suscripciones operativas</SectionTitle>
+        <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+          <DSBadge T={T} color={T.green}>● Activos · {totals.active||0}</DSBadge>
+          <DSBadge T={T} color={T.yellow}>● Pausados · {totals.paused||0}</DSBadge>
+          <DSBadge T={T} color={T.textSm}>● Cancelados · {totals.cancelled||0}</DSBadge>
         </div>
-        <div style={{display:"flex",gap:18,flexWrap:"wrap",fontSize:12}}>
-          <StateBadge label="Activos" value={totals.active||0} color="var(--accent)"/>
-          <StateBadge label="Pausados" value={totals.paused||0} color="var(--yellow)"/>
-          <StateBadge label="Cancelados" value={totals.cancelled||0} color="var(--red)"/>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function KpiBig({ label, value, sub, delta, highlight, negative }) {
-  return (
-    <div style={{
-      position:"relative", overflow:"hidden",
-      background: highlight ? "linear-gradient(160deg, rgba(16,185,129,0.10), rgba(16,185,129,0.015) 55%, var(--card))" : "var(--card)",
-      border:`1px solid ${highlight?"rgba(16,185,129,0.45)":"var(--border)"}`,
-      borderRadius:16, padding:"18px 20px",
-      boxShadow: highlight ? "0 10px 26px -16px rgba(16,185,129,0.45)" : "0 2px 12px -8px rgba(0,0,0,0.35)",
-    }}>
-      {highlight && <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:"linear-gradient(90deg,var(--accent),transparent 85%)"}}/>}
-      <div style={{fontSize:10.5,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.6,marginBottom:9}}>{label}</div>
-      <div style={{fontSize:29,fontWeight:800,letterSpacing:-0.7,color:highlight?"var(--accent)":negative?"var(--red)":"var(--text)",lineHeight:1,fontVariantNumeric:"tabular-nums"}}>{value}</div>
-      <div style={{display:"flex",alignItems:"center",gap:6,marginTop:9,fontSize:11,color:"var(--text-sm)"}}>
-        <span>{sub}</span>
-        {typeof delta === "number" && (
-          <span style={{padding:"1px 7px",borderRadius:5,background:delta>=0?"rgba(16,185,129,0.15)":"rgba(239,68,68,0.15)",color:delta>=0?"var(--accent)":"var(--red)",fontWeight:700,letterSpacing:0.3}}>
-            {delta>=0?"↑":"↓"} {Math.abs(delta)}%
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function KpiSmall({ label, value, positive, negative }) {
-  return (
-    <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:12,padding:"13px 15px"}}>
-      <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5,marginBottom:5}}>{label}</div>
-      <div style={{fontSize:19,fontWeight:800,color:positive?"var(--accent)":negative?"var(--red)":"var(--text)",fontVariantNumeric:"tabular-nums"}}>{value}</div>
-    </div>
-  );
-}
-
-function StateBadge({ label, value, color }) {
-  return (
-    <div style={{display:"flex",alignItems:"center",gap:6}}>
-      <span style={{width:8,height:8,borderRadius:"50%",background:color}}/>
-      <span style={{color:"var(--text-md)"}}>{label}: <strong style={{color:"var(--text)"}}>{value}</strong></span>
+      </Card>
     </div>
   );
 }
 
 function FirstStepsTab({ merchant, onGo }) {
+  const T = useT();
   const shopifyOk = Boolean(merchant?.shopify_token);
   const mpOk = Boolean(merchant?.mp_access_token);
   const done = (shopifyOk?1:0) + (mpOk?1:0);
+  const steps = [
+    { id:"shopify", label:"Conectar Shopify", desc:"Autorizá Recurrentes a leer productos y crear órdenes en tu tienda.", done: shopifyOk },
+    { id:"mp",      label:"Conectar Mercado Pago", desc:"Pegá tu Access Token para procesar cobros recurrentes.", done: mpOk },
+    { id:"plan",    label:"Crear tu primer plan", desc:"Convertí un producto Shopify en suscripción.", done: false },
+  ];
   return (
     <div>
-      <h1 style={{fontSize:24,fontWeight:800,margin:"0 0 6px",letterSpacing:-0.5}}>Bienvenido a Recurrentes</h1>
-      <p style={{fontSize:13,color:"var(--text-sm)",margin:"0 0 24px",lineHeight:1.55}}>
-        Tres pasos para que tu tienda Shopify acepte suscripciones recurrentes con Mercado Pago.
-      </p>
-
-      <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:14,padding:"22px 24px",marginBottom:16}}>
-        <div style={{fontSize:11,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5,marginBottom:14}}>Progreso · {done}/3</div>
-
-        {[
-          { id:"shopify", label:"Conectar Shopify", desc:"Autorizá Recurrentes a leer productos y crear órdenes en tu tienda.", done: shopifyOk },
-          { id:"mp",      label:"Conectar Mercado Pago", desc:"Pegá tu Access Token para procesar cobros recurrentes.", done: mpOk },
-          { id:"plan",    label:"Crear tu primer plan", desc:"Convertí un producto Shopify en suscripción.", done: false },
-        ].map(s => (
-          <div key={s.id} style={{display:"flex",alignItems:"flex-start",gap:14,padding:"14px 0",borderBottom:"1px solid var(--border)"}}>
-            <div style={{width:28,height:28,borderRadius:"50%",background:s.done?"var(--accent)":"var(--surface)",border:s.done?"none":"1px solid var(--border)",color:s.done?"#fff":"var(--text-sm)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,flexShrink:0}}>
-              {s.done ? "✓" : ""}
+      <PageHeader T={T} title="Bienvenido a Recurrentes" subtitle="Tres pasos para que tu tienda Shopify acepte suscripciones recurrentes con Mercado Pago."/>
+      <Card T={T} style={{ maxWidth:680 }}>
+        <SectionTitle T={T}>Progreso · {done}/3</SectionTitle>
+        {steps.map((s, i) => (
+          <div key={s.id} style={{ display:"flex", alignItems:"flex-start", gap:14, padding:"13px 0", borderTop: i === 0 ? "none" : `1px solid ${T.borderL}` }}>
+            <div style={{ width:28, height:28, borderRadius:"50%", background:s.done?T.accentSolid:T.surface, border:s.done?"none":`1px solid ${T.border}`, color:s.done?"#fff":T.textSm, display:"flex", alignItems:"center", justifyContent:"center", fontSize:DS.font.base, fontWeight:DS.w.bold, flexShrink:0 }}>
+              {s.done ? "✓" : i + 1}
             </div>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:13,fontWeight:700,marginBottom:3,color:s.done?"var(--accent)":"var(--text)"}}>{s.label}</div>
-              <div style={{fontSize:11,color:"var(--text-sm)",lineHeight:1.5}}>{s.desc}</div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.semibold, marginBottom:2, color:s.done?T.textMd:T.text, textDecoration:s.done?"line-through":"none", textDecorationColor:T.textSm }}>{s.label}</div>
+              <div style={{ fontSize:DS.font.md, color:T.textSm, lineHeight:1.5 }}>{s.desc}</div>
             </div>
           </div>
         ))}
-
-        <button onClick={onGo} style={{marginTop:14,background:"linear-gradient(135deg, var(--green), var(--green-dark))",border:"none",color:"#fff",padding:"10px 18px",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 12px rgba(16,185,129,0.3)"}}>
-          {done === 0 ? "Empezar →" : done === 1 ? "Continuar setup →" : "Falta poco →"}
-        </button>
-      </div>
+        <div style={{ marginTop:14 }}>
+          <Btn T={T} variant="solid" onClick={onGo}>{done === 0 ? "Empezar →" : done === 1 ? "Continuar setup →" : "Falta poco →"}</Btn>
+        </div>
+      </Card>
     </div>
   );
 }
 
 // ─── Tab: Integraciones ─────────────────────────────────────────
 
+function IntegrationCard({ T, icon, title, ok, statusLabel, description, children, optional }) {
+  return (
+    <Card T={T} style={{ borderColor: ok ? T.accentSolid + "66" : T.border, boxShadow: ok ? `0 4px 24px ${T.accentSolid}14, 0 1px 3px rgba(0,0,0,0.07)` : undefined }}>
+      <CardHeader T={T} icon={icon} title={<>{title}{optional && <span style={{ fontSize:DS.font.sm, fontWeight:DS.w.medium, color:T.textSm, marginLeft:6 }}>(opcional)</span>}</>}
+        badge={<DSBadge T={T} color={ok ? T.green : T.textSm} size="sm">{ok ? "✓ " : ""}{statusLabel}</DSBadge>}
+        sub={description}/>
+      {children}
+    </Card>
+  );
+}
+
 function IntegrationsTab({ merchant, onChange }) {
+  const T = useT();
+  const iS = InputStyle(T);
   const shopifyOk = Boolean(merchant?.shopify_token);
   const mpOk = Boolean(merchant?.mp_access_token);
   const [shopifyShop, setShopifyShop] = useState("");
@@ -443,195 +479,149 @@ function IntegrationsTab({ merchant, onChange }) {
   async function connectShopify() {
     const shop = shopifyShop.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
     if (!shop || !shop.endsWith(".myshopify.com")) {
-      alert("Ingresá el dominio .myshopify.com (ej: mitienda.myshopify.com)");
+      toast("Ingresá el dominio .myshopify.com (ej: mitienda.myshopify.com)", "warning");
       return;
     }
-    if (!envApp && !shopifyClientId.trim()) { alert("Pegá el Client ID (ID de cliente)"); return; }
-    if (!envApp && !shopifyClientSecret.trim()) { alert("Pegá el Client Secret (Secreto)"); return; }
+    if (!envApp && !shopifyClientId.trim()) { toast("Pegá el Client ID (ID de cliente)", "warning"); return; }
+    if (!envApp && !shopifyClientSecret.trim()) { toast("Pegá el Client Secret (Secreto)", "warning"); return; }
     setShopifyBusy(true);
     // 1) Guardamos las creds del merchant en Firestore
     const d = await apiPost("shopify", { shop, client_id: shopifyClientId.trim(), client_secret: shopifyClientSecret.trim() }, { action: "save-creds" });
     if (d?.error) {
       setShopifyBusy(false);
-      alert("Error: " + d.error);
+      toast("Error: " + d.error, "error", 6000);
       return;
     }
     // 2) oauth-start (autenticado) devuelve la URL de consent de Shopify.
     const o = await apiGet("shopify", { action: "oauth-start" });
-    if (!o?.url) { setShopifyBusy(false); alert("Error: " + (o?.error || "no se pudo iniciar OAuth")); return; }
+    if (!o?.url) { setShopifyBusy(false); toast("Error: " + (o?.error || "no se pudo iniciar OAuth"), "error", 6000); return; }
     window.location.href = o.url;
   }
 
   async function disconnectShopify() {
-    if (!window.confirm("¿Desconectar Shopify? Se borra el token de acceso; las suscripciones siguen en MP pero no se van a generar órdenes hasta reconectar.")) return;
+    const ok = await appConfirm("Se borra el token de acceso; las suscripciones siguen en MP pero no se van a generar órdenes hasta reconectar.", { title:"¿Desconectar Shopify?", danger:true, okLabel:"Desconectar" });
+    if (!ok) return;
     const d = await apiPost("merchant", {}, { action: "disconnect-shopify" });
-    if (d?.error) alert("Error: " + d.error); else onChange?.();
+    if (d?.error) toast("Error: " + d.error, "error"); else { toast("Shopify desconectado", "warning"); onChange?.(); }
   }
 
   async function connectMPOauth() {
     const d = await apiPost("merchant", {}, { action: "mp-oauth-start" });
     if (d?.url) window.location.href = d.url;
-    else alert("Error: " + (d?.error || "OAuth MP no disponible"));
+    else toast("Error: " + (d?.error || "OAuth MP no disponible"), "error");
   }
 
   async function disconnectMP() {
-    if (!window.confirm("¿Desconectar Mercado Pago? Se borra el token de nuestra base. Las suscripciones siguen cobrándose en MP, pero no vamos a poder procesarlas hasta reconectar.")) return;
+    const ok = await appConfirm("Se borra el token de nuestra base. Las suscripciones siguen cobrándose en MP, pero no vamos a poder procesarlas hasta reconectar.", { title:"¿Desconectar Mercado Pago?", danger:true, okLabel:"Desconectar" });
+    if (!ok) return;
     const d = await apiPost("merchant", {}, { action: "disconnect-mp" });
-    if (d?.error) alert("Error: " + d.error); else onChange?.();
+    if (d?.error) toast("Error: " + d.error, "error"); else { toast("Mercado Pago desconectado", "warning"); onChange?.(); }
   }
 
   async function connectMP() {
-    const token = window.prompt("Pegá tu Access Token de Mercado Pago (Producción o TEST):\n\nLo conseguís en mercadopago.com.ar/developers → tu cuenta → Credenciales.");
+    const token = await appPrompt("Lo conseguís en mercadopago.com.ar/developers → tu cuenta → Credenciales.", "", { title:"Pegá tu Access Token de Mercado Pago (Producción o TEST)", placeholder:"APP_USR-… o TEST-…", okLabel:"Guardar" });
     if (!token?.trim()) return;
     const d = await apiPatch("merchant", { access_token: token.trim() }, { action: "save-mp-token" });
-    if (d?.error) alert("Error: " + d.error);
-    else onChange?.();
+    if (d?.error) toast("Error: " + d.error, "error", 6000);
+    else { toast("Mercado Pago conectado", "success"); onChange?.(); }
   }
 
   async function connectMeta() {
-    const pixel = window.prompt("Pegá tu Pixel ID de Meta (solo números):\n\nMeta Business Suite → Administrador de eventos → tu pixel → arriba, 'Copiar identificador'.");
+    const pixel = await appPrompt("Meta Business Suite → Administrador de eventos → tu pixel → arriba, 'Copiar identificador'.", merchant?.meta_pixel_id || "", { title:"Pegá tu Pixel ID de Meta (solo números)", placeholder:"1234567890", okLabel:"Siguiente" });
     if (pixel === null) return;
-    const token = window.prompt("Ahora pegá el token de la API de Conversiones (CAPI):\n\nEn el mismo pixel → Configuración → API de conversiones → Generar token de acceso.");
+    const token = await appPrompt("En el mismo pixel → Configuración → API de conversiones → Generar token de acceso.", "", { title:"Ahora pegá el token de la API de Conversiones (CAPI)", placeholder:"EAAG…", okLabel:"Conectar" });
     if (token === null) return;
     const d = await apiPatch("merchant", { meta_pixel_id: pixel.trim(), meta_capi_token: token.trim() }, { action: "save-meta" });
-    if (d?.error) alert("Error: " + d.error);
-    else onChange?.();
+    if (d?.error) toast("Error: " + d.error, "error", 6000);
+    else { toast("Meta conectado", "success"); onChange?.(); }
   }
 
   async function disconnectMeta() {
-    if (!window.confirm("¿Desconectar Meta? Las suscripciones dejarán de reportarse a Meta.")) return;
+    const ok = await appConfirm("Las suscripciones dejarán de reportarse a Meta.", { title:"¿Desconectar Meta?", danger:true, okLabel:"Desconectar" });
+    if (!ok) return;
     const d = await apiPatch("merchant", { meta_pixel_id: "", meta_capi_token: "" }, { action: "save-meta" });
-    if (d?.error) alert("Error: " + d.error);
-    else onChange?.();
+    if (d?.error) toast("Error: " + d.error, "error");
+    else { toast("Meta desconectado", "warning"); onChange?.(); }
   }
   const metaOk = Boolean(merchant?.meta_connected);
 
   return (
     <div>
-      <h1 style={{fontSize:24,fontWeight:800,margin:"0 0 6px",letterSpacing:-0.5}}>Integraciones</h1>
-      <p style={{fontSize:13,color:"var(--text-sm)",margin:"0 0 24px",lineHeight:1.55}}>
-        Conectá tu tienda Shopify y tu cuenta de Mercado Pago. Necesitás ambas para crear planes y cobrar suscripciones.
-      </p>
+      <PageHeader T={T} title="Integraciones" subtitle="Conectá tu tienda Shopify y tu cuenta de Mercado Pago. Necesitás ambas para crear planes y cobrar suscripciones."/>
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-        <div style={{background:"var(--card)",border:`1px solid ${shopifyOk ? "rgba(16,185,129,0.4)" : "var(--border)"}`,borderRadius:14,padding:"20px 22px"}}>
-          <div style={{display:"flex",alignItems:"center",gap:11,marginBottom:14}}>
-            <div style={{width:42,height:42,borderRadius:10,background:"var(--surface)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>🛍️</div>
-            <div>
-              <div style={{fontSize:15,fontWeight:700}}>Shopify</div>
-              <div style={{fontSize:11,padding:"2px 7px",borderRadius:4,background:shopifyOk?"rgba(16,185,129,0.15)":"var(--surface)",color:shopifyOk?"var(--accent)":"var(--text-sm)",display:"inline-block",marginTop:4,fontWeight:600,letterSpacing:0.3}}>
-                {shopifyOk ? `✓ ${merchant.shopify_shop}` : "Sin conectar"}
-              </div>
-            </div>
-          </div>
-          <div style={{fontSize:12,color:"var(--text-md)",lineHeight:1.55,marginBottom:14}}>
-            Para leer productos, crear órdenes y manejar clientes.
-          </div>
-
+      <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:DS.sp.lg, alignItems:"start" }}>
+        <IntegrationCard T={T} icon="🛍️" title="Shopify" ok={shopifyOk} statusLabel={shopifyOk ? merchant.shopify_shop : "Sin conectar"} description="Para leer productos, crear órdenes y manejar clientes.">
           {shopifyOk ? (
-            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              <button onClick={()=>{setShopifyShop("");setShopifyClientId("");setShopifyClientSecret("");onChange?.();}} style={{background:"transparent",border:"1px solid var(--border)",color:"var(--text-md)",padding:"9px 16px",borderRadius:9,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
-                Reconectar
-              </button>
-              <button onClick={disconnectShopify} style={{background:"transparent",border:"1px solid var(--border)",color:"var(--text-sm)",padding:"9px 16px",borderRadius:9,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Desconectar</button>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+              <Btn T={T} variant="secondary" onClick={()=>{setShopifyShop("");setShopifyClientId("");setShopifyClientSecret("");onChange?.();}}>Reconectar</Btn>
+              <Btn T={T} variant="ghost" onClick={disconnectShopify} style={{ color:T.textSm }}>Desconectar</Btn>
             </div>
           ) : (
             <>
-              <label style={lblSmall}>Dominio Shopify</label>
-              <input value={shopifyShop} onChange={e=>setShopifyShop(e.target.value)}
-                placeholder="mitienda.myshopify.com"
-                style={{width:"100%",background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",borderRadius:9,padding:"9px 12px",fontSize:13,marginBottom:10,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
-
-              {envApp && <div style={{fontSize:11,color:"var(--text-sm)",marginBottom:10,lineHeight:1.5}}>Recurrentes ya tiene su app de Shopify: con el dominio alcanza. Client ID/Secret son opcionales (solo si querés usar una app propia).</div>}
-              <label style={lblSmall}>Client ID <span style={{color:"var(--text-sm)",fontWeight:400}}>(ID de cliente{envApp ? ", opcional" : ""})</span></label>
-              <input value={shopifyClientId} onChange={e=>setShopifyClientId(e.target.value)}
-                placeholder="b4ca9a62b9e9bf0bd79deba391333d22"
-                style={{width:"100%",background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",borderRadius:9,padding:"9px 12px",fontSize:12,marginBottom:10,outline:"none",fontFamily:"'Cascadia Code',monospace",boxSizing:"border-box"}}/>
-
-              <label style={lblSmall}>Client Secret <span style={{color:"var(--text-sm)",fontWeight:400}}>(Secreto)</span></label>
-              <input type="password" value={shopifyClientSecret} onChange={e=>setShopifyClientSecret(e.target.value)}
-                placeholder="•••••••••••••••••••••••••••••••••"
-                style={{width:"100%",background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",borderRadius:9,padding:"9px 12px",fontSize:12,marginBottom:12,outline:"none",fontFamily:"'Cascadia Code',monospace",boxSizing:"border-box"}}/>
-
-              <button onClick={connectShopify} disabled={!shopifyFormOk||shopifyBusy} style={{width:"100%",background:"linear-gradient(135deg, var(--green), var(--green-dark))",border:"none",color:"#fff",padding:"10px 16px",borderRadius:9,fontSize:13,fontWeight:700,cursor:(shopifyFormOk&&!shopifyBusy)?"pointer":"not-allowed",fontFamily:"inherit",opacity:(shopifyFormOk&&!shopifyBusy)?1:0.5,marginBottom:10}}>
-                {shopifyBusy ? "Conectando…" : "Conectar tienda →"}
-              </button>
-
-              <button onClick={()=>setShopifyGuide(g=>!g)} style={{width:"100%",background:"transparent",border:"none",color:"var(--text-sm)",padding:"6px",fontSize:11,cursor:"pointer",fontFamily:"inherit",textDecoration:"underline"}}>
-                {shopifyGuide ? "Ocultar guía" : "❓ ¿Cómo creo la app y obtengo Client ID + Secret? (5 min)"}
+              <Field T={T} label="Dominio Shopify">
+                <input value={shopifyShop} onChange={e=>setShopifyShop(e.target.value)} placeholder="mitienda.myshopify.com" style={iS}/>
+              </Field>
+              {envApp && <Hint T={T}>Recurrentes ya tiene su app de Shopify: con el dominio alcanza. Client ID/Secret son opcionales (solo si querés usar una app propia).</Hint>}
+              <Field T={T} label={<>Client ID <span style={{ color:T.textSm, fontWeight:DS.w.regular, textTransform:"none" }}>(ID de cliente{envApp ? ", opcional" : ""})</span></>}>
+                <input value={shopifyClientId} onChange={e=>setShopifyClientId(e.target.value)} placeholder="b4ca9a62b9e9bf0bd79deba391333d22" style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }}/>
+              </Field>
+              <Field T={T} label={<>Client Secret <span style={{ color:T.textSm, fontWeight:DS.w.regular, textTransform:"none" }}>(Secreto)</span></>}>
+                <input type="password" value={shopifyClientSecret} onChange={e=>setShopifyClientSecret(e.target.value)} placeholder="•••••••••••••••••••••••••••••••••" style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }}/>
+              </Field>
+              <Btn T={T} variant="solid" onClick={connectShopify} disabled={!shopifyFormOk||shopifyBusy} style={{ width:"100%" }}>
+                {shopifyBusy ? <><Spinner size={13}/> Conectando…</> : "Conectar tienda →"}
+              </Btn>
+              <button onClick={()=>setShopifyGuide(g=>!g)} style={{ width:"100%", background:"transparent", border:"none", color:T.textSm, padding:"8px 4px 0", fontSize:DS.font.sm, cursor:"pointer", fontFamily:"inherit", textDecoration:"underline" }}>
+                {shopifyGuide ? "Ocultar guía" : "¿Cómo creo la app y obtengo Client ID + Secret? (5 min)"}
               </button>
               {shopifyGuide && <ShopifyGuide/>}
             </>
           )}
-        </div>
+        </IntegrationCard>
 
-        <div style={{background:"var(--card)",border:`1px solid ${mpOk ? "rgba(16,185,129,0.4)" : "var(--border)"}`,borderRadius:14,padding:"20px 22px"}}>
-          <div style={{display:"flex",alignItems:"center",gap:11,marginBottom:14}}>
-            <div style={{width:42,height:42,borderRadius:10,background:"var(--surface)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>💳</div>
-            <div>
-              <div style={{fontSize:15,fontWeight:700}}>Mercado Pago</div>
-              <div style={{fontSize:11,padding:"2px 7px",borderRadius:4,background:mpOk?"rgba(16,185,129,0.15)":"var(--surface)",color:mpOk?"var(--accent)":"var(--text-sm)",display:"inline-block",marginTop:4,fontWeight:600,letterSpacing:0.3}}>
-                {mpOk ? `✓ Conectada (${merchant.mp_user_id || "MP"})` : "Sin conectar"}
-              </div>
-            </div>
-          </div>
-          <div style={{fontSize:12,color:"var(--text-md)",lineHeight:1.55,marginBottom:14}}>
-            Para crear suscripciones y procesar cobros recurrentes.
-          </div>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        <IntegrationCard T={T} icon="💳" title="Mercado Pago" ok={mpOk} statusLabel={mpOk ? `Conectada (${merchant.mp_user_id || "MP"})` : "Sin conectar"} description="Para crear suscripciones y procesar cobros recurrentes.">
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
             {merchant?.mp_oauth_available && (
-              <button onClick={connectMPOauth} style={{background:mpOk?"transparent":"linear-gradient(135deg, var(--green), var(--green-dark))",border:mpOk?"1px solid var(--border)":"none",color:mpOk?"var(--text-md)":"#fff",padding:"9px 16px",borderRadius:9,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+              <Btn T={T} variant={mpOk ? "secondary" : "solid"} onClick={connectMPOauth}>
                 {mpOk ? "Reconectar con OAuth" : "Conectar Mercado Pago (OAuth)"}
-              </button>
+              </Btn>
             )}
-            <button onClick={connectMP} style={{background:(mpOk||merchant?.mp_oauth_available)?"transparent":"linear-gradient(135deg, var(--green), var(--green-dark))",border:(mpOk||merchant?.mp_oauth_available)?"1px solid var(--border)":"none",color:(mpOk||merchant?.mp_oauth_available)?"var(--text-md)":"#fff",padding:"9px 16px",borderRadius:9,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+            <Btn T={T} variant={(mpOk || merchant?.mp_oauth_available) ? "secondary" : "solid"} onClick={connectMP}>
               {mpOk ? "Cambiar Access Token" : "Pegar Access Token"}
-            </button>
-            {mpOk && <button onClick={disconnectMP} style={{background:"transparent",border:"1px solid var(--border)",color:"var(--text-sm)",padding:"9px 16px",borderRadius:9,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Desconectar</button>}
+            </Btn>
+            {mpOk && <Btn T={T} variant="ghost" onClick={disconnectMP} style={{ color:T.textSm }}>Desconectar</Btn>}
           </div>
-          {mpOk && merchant?.mp_method && <div style={{fontSize:10,color:"var(--text-sm)",marginTop:8}}>Método: {merchant.mp_method === "oauth" ? "OAuth" : "token pegado"}</div>}
-        </div>
+          {mpOk && merchant?.mp_method && <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:10 }}>Método: {merchant.mp_method === "oauth" ? "OAuth" : "token pegado"}</div>}
+        </IntegrationCard>
       </div>
 
       {shopifyOk && mpOk && (
-        <div style={{marginTop:24,padding:"16px 18px",background:"rgba(16,185,129,0.08)",border:"1px solid rgba(16,185,129,0.3)",borderRadius:12}}>
-          <div style={{fontSize:13,fontWeight:700,color:"var(--accent)",marginBottom:4}}>✓ Todo listo</div>
-          <div style={{fontSize:12,color:"var(--text-md)",lineHeight:1.55}}>
-            Ahora andá a <strong>Planes</strong> y creá tu primer plan de suscripción a partir de un producto Shopify.
-          </div>
-        </div>
+        <Callout T={T} tone="success" title="✓ Todo listo" style={{ marginTop:DS.sp["2xl"] }}>
+          Ahora andá a <strong style={{ color:T.text }}>Planes</strong> y creá tu primer plan de suscripción a partir de un producto Shopify.
+        </Callout>
       )}
 
       {/* Meta Ads (opcional): reportar la primera venta de cada suscripción a Meta */}
-      <div style={{marginTop:24,background:"var(--card)",border:`1px solid ${metaOk ? "rgba(16,185,129,0.4)" : "var(--border)"}`,borderRadius:14,padding:"20px 22px"}}>
-        <div style={{display:"flex",alignItems:"center",gap:11,marginBottom:14}}>
-          <div style={{width:42,height:42,borderRadius:10,background:"var(--surface)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>📊</div>
-          <div style={{flex:1}}>
-            <div style={{fontSize:15,fontWeight:700}}>Meta Ads <span style={{fontSize:11,fontWeight:500,color:"var(--text-sm)"}}>(opcional)</span></div>
-            <div style={{fontSize:11,padding:"2px 7px",borderRadius:4,background:metaOk?"rgba(16,185,129,0.15)":"var(--surface)",color:metaOk?"var(--accent)":"var(--text-sm)",display:"inline-block",marginTop:4,fontWeight:600,letterSpacing:0.3}}>
-              {metaOk ? `✓ Conectado (pixel ${merchant.meta_pixel_id})` : "Sin conectar"}
-            </div>
+      <div style={{ marginTop:DS.sp["2xl"] }}>
+        <IntegrationCard T={T} icon="📊" title="Meta Ads" optional ok={metaOk} statusLabel={metaOk ? `Conectado (pixel ${merchant.meta_pixel_id})` : "Sin conectar"}
+          description={<>Reportá a Meta la <strong style={{ color:T.text }}>primera venta</strong> de cada suscripción (por la API de Conversiones, server-side) para que tus campañas la cuenten y optimicen mejor. <strong style={{ color:T.text }}>Las renovaciones NO se reportan</strong> — así no inflás la atribución. Necesitás tu <strong style={{ color:T.text }}>Pixel ID</strong> + el <strong style={{ color:T.text }}>token de la API de Conversiones</strong>.</>}>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            <Btn T={T} variant={metaOk ? "secondary" : "solid"} onClick={connectMeta}>{metaOk ? "Cambiar credenciales" : "Conectar Meta"}</Btn>
+            {metaOk && <Btn T={T} variant="ghost" onClick={disconnectMeta} style={{ color:T.textSm }}>Desconectar</Btn>}
           </div>
-        </div>
-        <div style={{fontSize:12,color:"var(--text-md)",lineHeight:1.6,marginBottom:14}}>
-          Reportá a Meta la <strong>primera venta</strong> de cada suscripción (por la API de Conversiones, server-side) para que tus campañas la cuenten y optimicen mejor. <strong>Las renovaciones NO se reportan</strong> — así no inflás la atribución. Necesitás tu <strong>Pixel ID</strong> + el <strong>token de la API de Conversiones</strong>.
-        </div>
-        <div style={{display:"flex",gap:10}}>
-          <button onClick={connectMeta} style={{background:metaOk?"transparent":"linear-gradient(135deg, var(--green), var(--green-dark))",border:metaOk?"1px solid var(--border)":"none",color:metaOk?"var(--text-md)":"#fff",padding:"9px 16px",borderRadius:9,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-            {metaOk ? "Cambiar credenciales" : "Conectar Meta"}
-          </button>
-          {metaOk && <button onClick={disconnectMeta} style={{background:"transparent",border:"1px solid var(--border)",color:"var(--text-sm)",padding:"9px 16px",borderRadius:9,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Desconectar</button>}
-        </div>
+        </IntegrationCard>
       </div>
 
-      <WidgetSettingsCard merchant={merchant} onChange={onChange}/>
-      <OperationalSettingsCard merchant={merchant} onChange={onChange}/>
+      <div style={{ marginTop:DS.sp["2xl"] }}><WidgetSettingsCard merchant={merchant} onChange={onChange}/></div>
+      <div style={{ marginTop:DS.sp["2xl"] }}><OperationalSettingsCard merchant={merchant} onChange={onChange}/></div>
     </div>
   );
 }
 
 // ─── Settings UX del widget (orden + default + color + textos) ──
 function WidgetSettingsCard({ merchant, onChange }) {
+  const T = useT();
+  const iS = InputStyle(T);
   const [order, setOrder]                 = React.useState(merchant?.widget_mode_order   || "sub_first");
   const [def, setDef]                     = React.useState(merchant?.widget_mode_default || "sub");
   const [color, setColor]                 = React.useState(merchant?.widget_color || "#10b981");
@@ -667,94 +657,94 @@ function WidgetSettingsCard({ merchant, onChange }) {
       widget_disclaimer_text: disclaimerText,
     }, { action: "save-widget-settings" });
     setSaving(false);
-    if (d?.error) { alert("Error: " + d.error); return; }
+    if (d?.error) { toast("Error: " + d.error, "error", 6000); return; }
     setSaved(true);
+    toast("Apariencia del widget guardada", "success");
     setTimeout(() => setSaved(false), 2200);
     onChange?.();
   }
 
   return (
-    <div style={{marginTop:24,padding:"18px 22px",background:"var(--card)",border:"1px solid var(--border)",borderRadius:12}}>
-      <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>Apariencia del widget</div>
-      <div style={{fontSize:12,color:"var(--text-sm)",lineHeight:1.55,marginBottom:10}}>
-        Personalizá cómo se ve el widget de suscripción en tu tienda. Aplica a todos los planes.
-      </div>
-      <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",padding:"10px 12px",background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,marginBottom:14,fontSize:12,color:"var(--text-md)"}}>
-        <span style={{flex:1,minWidth:200}}>🎨 El <strong style={{color:"var(--text)"}}>selector de packs</strong> (diseño, textos, tachado, por unidad) se configura en Planes → Diseño del selector.</span>
-        <a href="#/dashboard/planes?designer=1" onClick={()=>{ try { window.location.hash = "#/dashboard/planes?designer=1"; window.location.reload(); } catch (_) {} }} style={{...btnSec,textDecoration:"none",padding:"6px 12px",fontSize:11}}>Abrir diseñador →</a>
-      </div>
+    <Card T={T}>
+      <CardHeader T={T} title="Apariencia del widget" sub="Personalizá cómo se ve el widget de suscripción en tu tienda. Aplica a todos los planes."/>
+      <Callout T={T} tone="info" style={{ marginBottom:DS.sp.lg }}
+        right={<a href="#/dashboard/planes?designer=1" onClick={()=>{ try { window.location.hash = "#/dashboard/planes?designer=1"; window.location.reload(); } catch (_) {} }} style={{ ...BtnSecondary(T), textDecoration:"none", padding:"6px 12px", fontSize:DS.font.sm }}>Abrir diseñador →</a>}>
+        El <strong style={{ color:T.text }}>selector de packs</strong> (diseño, textos, tachado, por unidad) se configura en Planes → Diseño del selector.
+      </Callout>
 
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
-        <div>
-          <label style={lbl}>Cuál aparece primero</label>
-          <select value={order} onChange={e=>setOrder(e.target.value)} style={inp}>
+      <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 14px" }}>
+        <Field T={T} label="Cuál aparece primero">
+          <select value={order} onChange={e=>setOrder(e.target.value)} style={iS}>
             <option value="sub_first">Suscripción primero</option>
             <option value="once_first">Compra única primero</option>
           </select>
-        </div>
-        <div>
-          <label style={lbl}>Cuál está seleccionada por default</label>
-          <select value={def} onChange={e=>setDef(e.target.value)} style={inp}>
+        </Field>
+        <Field T={T} label="Cuál está seleccionada por default">
+          <select value={def} onChange={e=>setDef(e.target.value)} style={iS}>
             <option value="sub">Suscripción</option>
             <option value="once">Compra única</option>
           </select>
+        </Field>
+      </div>
+
+      <Field T={T} label="Color principal del widget">
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <input type="color" value={color} onChange={e=>setColor(e.target.value)} style={{ width:46, height:38, border:`1px solid ${T.inputBorder}`, borderRadius:DS.r.md, padding:2, background:T.input, cursor:"pointer" }}/>
+          <input type="text" value={color} onChange={e=>setColor(e.target.value)} style={{ ...iS, maxWidth:130, fontFamily:MONO, fontSize:DS.font.md }} placeholder="#10b981"/>
+          <div style={{ flex:1, height:38, borderRadius:DS.r.md, background:`linear-gradient(135deg, ${color}, ${color}cc)`, boxShadow:"0 2px 8px rgba(0,0,0,0.15)" }}/>
         </div>
+      </Field>
+
+      <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 14px" }}>
+        <Field T={T} label="Título del modo Suscripción (en el toggle)">
+          <input type="text" value={subTitle} onChange={e=>setSubTitle(e.target.value)} style={iS} placeholder="Suscripción" maxLength={60}/>
+        </Field>
+        <Field T={T} label="Título del modo Compra única (en el toggle)">
+          <input type="text" value={onceTitle} onChange={e=>setOnceTitle(e.target.value)} style={iS} placeholder="Compra única" maxLength={60}/>
+        </Field>
       </div>
 
-      <label style={lbl}>Color principal del widget</label>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
-        <input type="color" value={color} onChange={e=>setColor(e.target.value)} style={{width:46,height:36,border:"1px solid var(--border)",borderRadius:7,padding:2,background:"transparent",cursor:"pointer"}}/>
-        <input type="text" value={color} onChange={e=>setColor(e.target.value)} style={{...inp,marginBottom:0,maxWidth:120,fontFamily:"monospace",fontSize:12}} placeholder="#10b981"/>
-        <div style={{flex:1,height:36,borderRadius:7,background:`linear-gradient(135deg, ${color}, ${color}cc)`,boxShadow:"0 2px 8px rgba(0,0,0,0.2)"}}/>
+      <Field T={T} label="Subtítulo del modo Suscripción (debajo del título)">
+        <input type="text" value={subSubtitle} onChange={e=>setSubSubtitle(e.target.value)} style={iS} placeholder="Recibilo cada X días. Cancelá cuando quieras." maxLength={120}/>
+      </Field>
+      <Hint T={T}>Dejá vacío para usar texto automático con la frecuencia de cada plan.</Hint>
+
+      <Field T={T} label="Subtítulo del modo Compra única">
+        <input type="text" value={onceSubtitle} onChange={e=>setOnceSubtitle(e.target.value)} style={iS} placeholder="Comprá una vez al precio normal." maxLength={120}/>
+      </Field>
+
+      <Field T={T} label="Texto del banner informativo (debajo del botón Suscribirme)">
+        <textarea value={disclaimerText} onChange={e=>setDisclaimerText(e.target.value)} style={{ ...iS, minHeight:90, resize:"vertical", lineHeight:1.5 }} placeholder="Dejá vacío para usar el texto automático sobre cómo funciona la suscripción..." maxLength={800}/>
+      </Field>
+      <Hint T={T}>Texto explicativo que ve el cliente al final del widget. Dejá vacío para usar el texto default con frecuencia + crédito-only + cancelación.</Hint>
+
+      <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+        <Btn T={T} variant="primary" onClick={save} disabled={saving}>{saving ? <><Spinner size={12} color={T.accent}/> Guardando…</> : saved ? "✓ Guardado" : "Guardar"}</Btn>
+        <span style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5 }}>Cambios visibles en la tienda en ~5 minutos (caché del widget). Forzá refresh con Cmd+Shift+R.</span>
       </div>
-
-      <label style={lbl}>Título del modo Suscripción (en el toggle)</label>
-      <input type="text" value={subTitle} onChange={e=>setSubTitle(e.target.value)} style={inp} placeholder="Suscripción" maxLength={60}/>
-
-      <label style={lbl}>Subtítulo del modo Suscripción (debajo del título)</label>
-      <input type="text" value={subSubtitle} onChange={e=>setSubSubtitle(e.target.value)} style={inp} placeholder="Recibilo cada X días. Cancelá cuando quieras." maxLength={120}/>
-      <div style={{fontSize:10,color:"var(--text-sm)",marginTop:-12,marginBottom:14,lineHeight:1.4}}>
-        Dejá vacío para usar texto automático con la frecuencia de cada plan.
-      </div>
-
-      <label style={lbl}>Título del modo Compra única (en el toggle)</label>
-      <input type="text" value={onceTitle} onChange={e=>setOnceTitle(e.target.value)} style={inp} placeholder="Compra única" maxLength={60}/>
-
-      <label style={lbl}>Subtítulo del modo Compra única</label>
-      <input type="text" value={onceSubtitle} onChange={e=>setOnceSubtitle(e.target.value)} style={inp} placeholder="Comprá una vez al precio normal." maxLength={120}/>
-
-      <label style={lbl}>Texto del banner informativo (debajo del botón Suscribirme)</label>
-      <textarea value={disclaimerText} onChange={e=>setDisclaimerText(e.target.value)} style={{...inp,fontFamily:"inherit",minHeight:90,resize:"vertical"}} placeholder="Dejá vacío para usar el texto automático sobre cómo funciona la suscripción..." maxLength={800}/>
-      <div style={{fontSize:10,color:"var(--text-sm)",marginTop:-12,marginBottom:14,lineHeight:1.4}}>
-        Texto explicativo que ve el cliente al final del widget. Dejá vacío para usar el texto default con frecuencia + crédito-only + cancelación.
-      </div>
-
-      <button onClick={save} disabled={saving} style={{background:saved?"var(--green-dark)":"linear-gradient(135deg, var(--green), var(--green-dark))",border:"none",color:"#fff",padding:"9px 18px",borderRadius:9,fontSize:13,fontWeight:700,cursor:saving?"wait":"pointer",fontFamily:"inherit",opacity:saving?0.7:1}}>
-        {saving ? "Guardando…" : saved ? "✓ Guardado" : "Guardar"}
-      </button>
-      <div style={{fontSize:11,color:"var(--text-sm)",marginTop:10,lineHeight:1.5}}>
-        Cambios visibles en la tienda en ~5 minutos (caché del widget). Forzá refresh con Cmd+Shift+R.
-      </div>
-    </div>
+    </Card>
   );
 }
 
 // ─── Guía Shopify Custom App ────────────────────────────────────
 
 function ShopifyGuide() {
+  const T = useT();
   const redirectUrl = `${window.location.origin}/api/shopify/oauth-callback`;
+  const code = { background:T.bg, border:`1px solid ${T.borderL}`, padding:"1px 6px", borderRadius:4, fontSize:DS.font.sm, fontFamily:MONO, color:T.text };
+  const block = { marginTop:6, padding:"8px 10px", background:T.bg, border:`1px solid ${T.borderL}`, borderRadius:DS.r.sm, fontFamily:MONO, fontSize:DS.font.xs, lineHeight:1.7, wordBreak:"break-all", color:T.accent };
   return (
-    <div style={{marginTop:10,padding:"14px 16px",background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,fontSize:12,color:"var(--text-md)",lineHeight:1.55}}>
-      <div style={{fontSize:11,fontWeight:700,color:"var(--text)",textTransform:"uppercase",letterSpacing:0.5,marginBottom:10}}>📋 Cómo obtener Client ID + Secret (5 min)</div>
-      <ol style={{paddingLeft:18,margin:0,display:"flex",flexDirection:"column",gap:8}}>
-        <li>Entrá a <a href="https://dev.shopify.com/dashboard" target="_blank" rel="noopener noreferrer" style={{color:"var(--accent)"}}>dev.shopify.com/dashboard</a> con tu cuenta de Shopify.</li>
-        <li>Click <strong>"Crear app"</strong> arriba a la derecha. Nombre: <code style={{background:"var(--bg)",padding:"1px 6px",borderRadius:4,fontSize:11}}>Recurrentes</code>. Click crear.</li>
+    <div className="gh-accordion" style={{ marginTop:12, padding:"14px 16px", background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:DS.r.lg, fontSize:DS.font.md, color:T.textMd, lineHeight:1.55 }}>
+      <SectionTitle T={T}>Cómo obtener Client ID + Secret (5 min)</SectionTitle>
+      <ol style={{ paddingLeft:18, margin:0, display:"flex", flexDirection:"column", gap:8 }}>
+        <li>Entrá a <a href="https://dev.shopify.com/dashboard" target="_blank" rel="noopener noreferrer" style={{ color:T.accent }}>dev.shopify.com/dashboard</a> con tu cuenta de Shopify.</li>
+        <li>Click <strong>"Crear app"</strong> arriba a la derecha. Nombre: <code style={code}>Recurrentes</code>. Click crear.</li>
         <li>En la sidebar izquierda de la app → <strong>"Configuración"</strong>.</li>
         <li>Buscá la sección <strong>"URLs"</strong> (o "URL de redirección") y agregá esta como Redirect URL permitida:
-          <div style={{marginTop:6,padding:"8px 10px",background:"var(--bg)",borderRadius:6,fontFamily:"'Cascadia Code',monospace",fontSize:10,lineHeight:1.5,wordBreak:"break-all",color:"var(--accent)"}}>{redirectUrl}</div>
+          <div style={block}>{redirectUrl}</div>
         </li>
         <li>Buscá la sección <strong>"Acceso a la API"</strong> o <strong>"Scopes / Permisos"</strong> y marcá:
-          <div style={{marginTop:6,padding:"8px 10px",background:"var(--bg)",borderRadius:6,fontFamily:"'Cascadia Code',monospace",fontSize:10,lineHeight:1.7}}>
+          <div style={{ ...block, color:T.textMd }}>
             ✅ read_products<br/>
             ✅ write_orders<br/>
             ✅ read_orders<br/>
@@ -765,17 +755,17 @@ function ShopifyGuide() {
         </li>
         <li>Guardá los cambios.</li>
         <li>Volvé a Configuración → sección <strong>"Credenciales"</strong>. Vas a ver:
-          <ul style={{marginTop:4,marginBottom:0,paddingLeft:14}}>
+          <ul style={{ marginTop:4, marginBottom:0, paddingLeft:14 }}>
             <li><strong>ID de cliente</strong> — copialo y pegalo arriba en "Client ID"</li>
             <li><strong>Secreto</strong> — click el ojo 👁 para verlo, copialo y pegalo arriba en "Client Secret"</li>
           </ul>
         </li>
-        <li>Pegá también tu dominio <code style={{background:"var(--bg)",padding:"1px 6px",borderRadius:4,fontSize:11}}>tu-tienda.myshopify.com</code> y click <strong>"Conectar tienda →"</strong>.</li>
+        <li>Pegá también tu dominio <code style={code}>tu-tienda.myshopify.com</code> y click <strong>"Conectar tienda →"</strong>.</li>
         <li>Te redirige a Shopify para autorizar la app → click <strong>"Instalar app"</strong>. Volvés a Recurrentes y ya está conectada ✓.</li>
       </ol>
-      <div style={{marginTop:12,padding:"8px 10px",background:"rgba(245,158,11,0.1)",border:"1px solid rgba(245,158,11,0.3)",borderRadius:6,fontSize:11,color:"var(--text-md)"}}>
-        ⚠ <strong>Importante</strong>: la Redirect URL que ponés en tu app de Shopify <strong>tiene que matchear exactamente</strong> la que te mostramos arriba (incluyendo http vs https). Si está mal, el OAuth falla.
-      </div>
+      <Callout T={T} tone="warning" style={{ marginTop:12 }}>
+        <strong>Importante</strong>: la Redirect URL que ponés en tu app de Shopify <strong>tiene que matchear exactamente</strong> la que te mostramos arriba (incluyendo http vs https). Si está mal, el OAuth falla.
+      </Callout>
     </div>
   );
 }
@@ -783,6 +773,7 @@ function ShopifyGuide() {
 // ─── Tab: Planes ─────────────────────────────────────────────────
 
 function PlansTab({ merchant, onMerchantChange }) {
+  const T = useT();
   const [plans, setPlans] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -805,116 +796,103 @@ function PlansTab({ merchant, onMerchantChange }) {
   // Repreciar TODAS las subs activas del plan al mismo monto (PUT preapproval en MP).
   async function repricePlan(p) {
     const suggested = (p.subscription_price_ars || 0) + (p.shipping_price_ars || 0);
-    const v = window.prompt(
-      `Repreciar suscriptores de "${p.product_title}"\n\nNuevo monto TOTAL por cobro (producto + envío, 1 paquete) que MP va a cobrar a TODAS las subs activas de este plan.\n⚠ Si tenés subs con varios paquetes, repreciarlas una por una desde el detalle del suscriptor.`,
-      String(suggested || "")
+    const v = await appPrompt(
+      `Nuevo monto TOTAL por cobro (producto + envío, 1 paquete) que MP va a cobrar a TODAS las subs activas de este plan.\n⚠ Si tenés subs con varios paquetes, repreciarlas una por una desde el detalle del suscriptor.`,
+      String(suggested || ""),
+      { title: `Repreciar suscriptores de "${p.product_title}"`, placeholder: "Monto en $", okLabel: "Continuar" }
     );
     if (v === null) return;
     const amount = Math.round(Number(v));
-    if (!(amount > 0)) return alert("Monto inválido");
-    if (!window.confirm(`¿Confirmás repreciar a $${amount.toLocaleString("es-AR")} por cobro? Aplica desde el próximo cobro.`)) return;
+    if (!(amount > 0)) return toast("Monto inválido", "warning");
+    const ok = await appConfirm(`¿Confirmás repreciar a ${fmtARS(amount)} por cobro? Aplica desde el próximo cobro.`, { title:"Repreciar suscriptores", okLabel:"Sí, repreciar" });
+    if (!ok) return;
     const d = await apiPost("subscribers", { plan_id: p.id, new_amount: amount }, { action: "reprice" });
-    if (d?.error) return alert("Error: " + d.error);
-    alert(`✓ Repreciadas: ${d.updated} de ${d.total}` + (d.failed?.length ? `\n✗ Fallaron ${d.failed.length}:\n` + d.failed.slice(0, 5).map(f => `· ${f.id}: ${f.error}`).join("\n") : ""));
+    if (d?.error) return toast("Error: " + d.error, "error", 6000);
+    appAlert(`✓ Repreciadas: ${d.updated} de ${d.total}` + (d.failed?.length ? `\n✗ Fallaron ${d.failed.length}:\n` + d.failed.slice(0, 5).map(f => `· ${f.id}: ${f.error}`).join("\n") : ""), { title:"Resultado del repricing" });
+  }
+
+  async function deactivatePlan(p) {
+    const ok = await appConfirm(`Queda inactivo (no se muestra en la storefront) pero los suscriptores actuales siguen cobrando.`, { title:`¿Desactivar plan "${p.product_title}"?`, okLabel:"Desactivar" });
+    if (!ok) return;
+    await apiDelete("plans", { id: p.id });
+    toast("Plan desactivado", "warning");
+    loadAll();
+  }
+  async function hardDeletePlan(p) {
+    const ok = await appConfirm(`Esto NO se puede deshacer. El plan se elimina de Firestore.\n\nNota: el preapproval_plan en MP queda intacto — si querés que las subs existentes paren de cobrar, cancelalas también en mercadopago.com.ar/subscriptions.`, { title:`⚠️ Borrar definitivamente el plan "${p.product_title}"`, danger:true, okLabel:"Borrar definitivamente" });
+    if (!ok) return;
+    await apiDelete("plans", { id: p.id, hard: "1" });
+    toast("Plan borrado", "warning");
+    loadAll();
   }
 
   if (view === "designer") {
     return (
       <div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,gap:14,flexWrap:"wrap"}}>
-          <div>
-            <button onClick={()=>setView("plans")} style={{background:"transparent",border:"none",color:"var(--text-sm)",fontSize:12,cursor:"pointer",fontFamily:"inherit",padding:0,marginBottom:6}}>← Volver a planes</button>
-            <h1 style={{fontSize:24,fontWeight:800,margin:"0 0 6px",letterSpacing:-0.5}}>Diseño del selector de packs</h1>
-            <p style={{fontSize:13,color:"var(--text-sm)",margin:0,lineHeight:1.55}}>
-              Cómo se ve el selector 1·2·3 en la página de producto. Aplica a todos los planes en modo packs.
-            </p>
-          </div>
-        </div>
-        {loading ? <div style={{color:"var(--text-sm)",fontSize:13}}>Cargando…</div> : <WidgetDesigner merchant={merchant} plans={plans} onSaved={onMerchantChange}/>}
+        <PageHeader T={T} back="Volver a planes" onBack={()=>setView("plans")} title="Diseño del selector de packs"
+          subtitle="Cómo se ve el selector 1·2·3 en la página de producto. Aplica a todos los planes en modo packs."/>
+        {loading ? <Loading T={T}/> : <WidgetDesigner merchant={merchant} plans={plans} onSaved={onMerchantChange}/>}
       </div>
     );
   }
 
+  const iconBtn = { padding:"6px 9px", fontSize:DS.font.sm };
+
   return (
     <div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,gap:14,flexWrap:"wrap"}}>
-        <div>
-          <h1 style={{fontSize:24,fontWeight:800,margin:"0 0 6px",letterSpacing:-0.5}}>Planes de suscripción</h1>
-          <p style={{fontSize:13,color:"var(--text-sm)",margin:0,lineHeight:1.55}}>
-            Convertí cualquier producto Shopify en suscripción recurrente.
-          </p>
-          <p style={{fontSize:11,color:"var(--yellow)",margin:"6px 0 0",lineHeight:1.5}}>
-            ⚠ Cambiar el precio de un plan NO afecta a las suscripciones existentes (MP mantiene el monto autorizado). Usá "Repreciar suscriptores" para actualizarlas.
-          </p>
-        </div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <button onClick={()=>setView("designer")} style={{background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",padding:"10px 14px",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-            🎨 Diseño del selector
-          </button>
-          <button onClick={()=>setCreating(true)} style={{background:"linear-gradient(135deg, var(--green), var(--green-dark))",border:"none",color:"#fff",padding:"10px 16px",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 4px 12px rgba(16,185,129,0.3)"}}>
-            + Nuevo plan
-          </button>
-        </div>
-      </div>
+      <PageHeader T={T} title="Planes de suscripción" subtitle="Convertí cualquier producto Shopify en suscripción recurrente."
+        right={<>
+          <Btn T={T} variant="secondary" onClick={()=>setView("designer")}>🎨 Diseño del selector</Btn>
+          <Btn T={T} variant="solid" onClick={()=>setCreating(true)}>+ Nuevo plan</Btn>
+        </>}/>
+
+      <Callout T={T} tone="warning" style={{ marginBottom:DS.sp.lg }}>
+        Cambiar el precio de un plan <strong>no</strong> afecta a las suscripciones existentes (MP mantiene el monto autorizado). Usá <strong>💲 Repreciar</strong> en el plan para actualizarlas.
+      </Callout>
 
       {loading ? (
-        <div style={{color:"var(--text-sm)",fontSize:13}}>Cargando…</div>
+        <Loading T={T}/>
       ) : plans.length === 0 ? (
-        <div style={{background:"var(--card)",border:"1px dashed var(--border)",borderRadius:14,padding:"50px 30px",textAlign:"center"}}>
-          <div style={{fontSize:36,marginBottom:10}}>🎯</div>
-          <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>Todavía no creaste planes</div>
-          <div style={{fontSize:12,color:"var(--text-sm)"}}>Tocá "+ Nuevo plan" para arrancar.</div>
-        </div>
+        <DSEmpty T={T} icon="🎯" title="Todavía no creaste planes" subtitle="Un plan convierte un producto de tu Shopify en suscripción recurrente." action={<Btn T={T} variant="solid" onClick={()=>setCreating(true)}>+ Nuevo plan</Btn>}/>
       ) : (
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(330px, 1fr))",gap:14}}>
+        <div className="gh-stagger" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(330px, 1fr))", gap:DS.sp.lg }}>
           {plans.map(p => (
-            <div key={p.id} style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:12,padding:"16px 18px"}}>
-              <div style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:10}}>
-                {p.product_image && <img src={p.product_image} alt="" style={{width:48,height:48,borderRadius:8,objectFit:"cover"}}/>}
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:14,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.product_title}</div>
-                  <div style={{fontSize:11,color:"var(--text-sm)",marginTop:2}}>Cada {p.frequency_days} días · {p.discount_pct||0}% OFF</div>
-                  {pricingModeOf(p) === "packs" ? (
-                    <span title="Recurrentes arma el selector de packs en tu tienda" style={{display:"inline-block",marginTop:6,fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:5,background:"rgba(16,185,129,0.14)",color:"var(--accent)",letterSpacing:0.3}}>
-                      Packs: {(p.packs||[]).map(k=>k.qty).join("·") || "—"}
-                    </span>
-                  ) : (
-                    <span title="El precio, la cantidad y la frecuencia salen de tu tema" style={{display:"inline-block",marginTop:6,fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:5,background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text-md)",letterSpacing:0.3}}>
-                      Precio del tema
-                    </span>
-                  )}
+            <Card key={p.id} T={T} hoverable className="gh-card-enter" padding="md">
+              <div style={{ display:"flex", alignItems:"flex-start", gap:12, marginBottom:12 }}>
+                {p.product_image
+                  ? <img src={p.product_image} alt="" style={{ width:52, height:52, borderRadius:DS.r.lg, objectFit:"cover", border:`1px solid ${T.borderL}`, flexShrink:0 }}/>
+                  : <div style={{ width:52, height:52, borderRadius:DS.r.lg, background:T.surface, border:`1px solid ${T.borderL}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>📦</div>}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }} title={p.product_title}>{p.product_title}</div>
+                  <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:2 }}>Cada {p.frequency_days} días · {p.discount_pct||0}% OFF</div>
+                  <div style={{ marginTop:6, display:"flex", gap:6, flexWrap:"wrap" }}>
+                    {pricingModeOf(p) === "packs"
+                      ? <span title="Recurrentes arma el selector de packs en tu tienda"><DSBadge T={T} color={T.accent} size="sm">Packs: {(p.packs||[]).map(k=>k.qty).join("·") || "—"}</DSBadge></span>
+                      : <span title="El precio, la cantidad y la frecuencia salen de tu tema"><DSBadge T={T} color={T.textSm} size="sm">Precio del tema</DSBadge></span>}
+                    {p.active === false && <DSBadge T={T} color={T.yellow} size="sm">Inactivo</DSBadge>}
+                  </div>
                 </div>
               </div>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",padding:"10px 0",borderTop:"1px solid var(--border)",borderBottom:"1px solid var(--border)"}}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", padding:"10px 0", borderTop:`1px solid ${T.borderL}`, borderBottom:`1px solid ${T.borderL}` }}>
                 <div>
-                  <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:600,letterSpacing:0.4}}>Precio sub</div>
-                  <div style={{fontSize:17,fontWeight:800,color:"var(--accent)"}}>${(p.subscription_price_ars||0).toLocaleString("es-AR")}</div>
+                  <div style={{ fontSize:DS.font.xs, color:T.textSm, textTransform:"uppercase", fontWeight:DS.w.semibold, letterSpacing:0.4 }}>Precio sub</div>
+                  <div style={{ fontSize:18, fontWeight:DS.w.black, color:T.accent, letterSpacing:-0.4, fontVariantNumeric:"tabular-nums" }}>{fmtARS(p.subscription_price_ars)}</div>
                 </div>
-                <div style={{textAlign:"right"}}>
-                  <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:600,letterSpacing:0.4}}>Precio normal</div>
-                  <div style={{fontSize:13,color:"var(--text-md)",textDecoration:"line-through"}}>${(p.base_price_ars||0).toLocaleString("es-AR")}</div>
+                <div style={{ textAlign:"right" }}>
+                  <div style={{ fontSize:DS.font.xs, color:T.textSm, textTransform:"uppercase", fontWeight:DS.w.semibold, letterSpacing:0.4 }}>Precio normal</div>
+                  <div style={{ fontSize:DS.font.base, color:T.textMd, textDecoration:"line-through", fontVariantNumeric:"tabular-nums" }}>{fmtARS(p.base_price_ars)}</div>
                 </div>
               </div>
-              <div style={{display:"flex",gap:6,marginTop:10}}>
-                <button onClick={()=>setEditing(p)} style={{flex:1,background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",borderRadius:7,padding:"7px 10px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✏️ Editar</button>
-                <button onClick={()=>setEmbedFor(p)} style={{flex:1,background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",borderRadius:7,padding:"7px 10px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>📋 Snippet</button>
-                <button onClick={()=>repricePlan(p)} title="Repreciar suscriptores de este plan" style={{background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text)",borderRadius:7,padding:"7px 10px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>💲</button>
-                {/* Desactivar (soft): el plan deja de mostrarse pero las
-                    subs ya creadas con ese plan siguen vivas. */}
-                <button onClick={async()=>{
-                  if (!window.confirm(`¿Desactivar plan "${p.product_title}"?\n\nQueda inactivo (no se muestra en la storefront) pero los suscriptores actuales siguen cobrando.`)) return;
-                  await apiDelete("plans",{id:p.id});
-                  loadAll();
-                }} style={{background:"transparent",border:"1px solid rgba(245,158,11,0.4)",color:"var(--yellow)",borderRadius:7,padding:"7px 10px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}} title="Desactivar (mantiene historial)">⏸</button>
-                {/* Borrar definitivamente (hard): elimina el plan de Firestore.
-                    El preapproval_plan en MP queda allá (hay que cancelarlo aparte). */}
-                <button onClick={async()=>{
-                  if (!window.confirm(`⚠️ BORRAR DEFINITIVAMENTE el plan "${p.product_title}"?\n\nEsto NO se puede deshacer. El plan se elimina de Firestore.\n\nNota: el preapproval_plan en MP queda intacto — si querés que las subs existentes paren de cobrar, cancelalas también en mercadopago.com.ar/subscriptions.`)) return;
-                  await apiDelete("plans", { id: p.id, hard: "1" });
-                  loadAll();
-                }} style={{background:"transparent",border:"1px solid rgba(239,68,68,0.4)",color:"var(--red)",borderRadius:7,padding:"7px 10px",fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}} title="Borrar definitivamente">🗑</button>
+              <div style={{ display:"flex", gap:6, marginTop:12, flexWrap:"wrap" }}>
+                <Btn T={T} variant="secondary" size="sm" onClick={()=>setEditing(p)} style={{ flex:1 }}>✏️ Editar</Btn>
+                <Btn T={T} variant="secondary" size="sm" onClick={()=>setEmbedFor(p)} style={{ flex:1 }}>📋 Snippet</Btn>
+                <Btn T={T} variant="secondary" size="sm" onClick={()=>repricePlan(p)} title="Repreciar suscriptores de este plan" style={iconBtn}>💲</Btn>
+                {/* Desactivar (soft): el plan deja de mostrarse pero las subs ya creadas siguen vivas. */}
+                <Btn T={T} variant="secondary" size="sm" onClick={()=>deactivatePlan(p)} title="Desactivar (mantiene historial)" style={{ ...iconBtn, color:T.yellow, borderColor:T.yellow+"66" }}>⏸</Btn>
+                {/* Borrar definitivamente (hard): elimina el plan de Firestore. El preapproval_plan en MP queda allá. */}
+                <Btn T={T} variant="danger" size="sm" onClick={()=>hardDeletePlan(p)} title="Borrar definitivamente" style={iconBtn}>🗑</Btn>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
       )}
@@ -927,6 +905,8 @@ function PlansTab({ merchant, onMerchantChange }) {
 }
 
 function NewPlanModal({ products, onClose, editPlan }) {
+  const T = useT();
+  const iS = InputStyle(T);
   const isEdit = !!editPlan;
   const [productId, setProductId] = useState("");
   const [variantId, setVariantId] = useState("");
@@ -965,7 +945,7 @@ function NewPlanModal({ products, onClose, editPlan }) {
   }
 
   function addTier() {
-    // Default sugerido: si hay tier previo agrega +2 al min_qty y +5% al discount
+    // Default sugerido: si hay tier previo agrega +1 al min_qty y +5% al discount
     const last = qtyTiers[qtyTiers.length - 1];
     const nextMin = last ? last.min_qty + 1 : 2;
     const nextDisc = last ? Math.min(50, last.discount_pct + 5) : 5;
@@ -986,12 +966,12 @@ function NewPlanModal({ products, onClose, editPlan }) {
       .sort((a, b) => a.min_qty - b.min_qty);
     if (pricingMode === "packs") {
       const perr = validatePacks(packs);
-      if (perr) return alert(perr);
+      if (perr) return toast(perr, "warning", 5000);
     }
     if (isEdit) {
       // Editar: solo se cambian los términos del plan (precio, descuento, envío,
       // frecuencia, niveles). El producto/variante y el id de MP no se tocan.
-      if (!(parseFloat(editBasePrice) > 0)) return alert("El precio base tiene que ser mayor a 0");
+      if (!(parseFloat(editBasePrice) > 0)) return toast("El precio base tiene que ser mayor a 0", "warning");
       setSaving(true);
       const d = await apiPatch("plans", {
         ...packsPayload(),
@@ -1007,11 +987,11 @@ function NewPlanModal({ products, onClose, editPlan }) {
         max_pack_discount_pct: parseInt(maxPackDisc) || 0,
       }, { id: editPlan.id });
       setSaving(false);
-      if (d.error) alert("Error: " + d.error);
-      else { if (d.note) alert(d.note); onClose(); }
+      if (d.error) toast("Error: " + d.error, "error", 6000);
+      else { toast("Plan guardado", "success"); if (d.note) await appAlert(d.note, { title:"Aviso" }); onClose(); }
       return;
     }
-    if (!productId || !variantId) return alert("Elegí producto y variante");
+    if (!productId || !variantId) return toast("Elegí producto y variante", "warning");
     setSaving(true);
     const d = await apiPost("plans", {
       ...packsPayload(),
@@ -1031,183 +1011,167 @@ function NewPlanModal({ products, onClose, editPlan }) {
       max_pack_discount_pct: parseInt(maxPackDisc) || 0,
     });
     setSaving(false);
-    if (d.error) alert("Error: " + d.error);
-    else onClose();
+    if (d.error) toast("Error: " + d.error, "error", 6000);
+    else { toast("Plan creado", "success"); onClose(); }
   }
 
-  return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:9999}} onClick={onClose}>
-      <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:14,padding:"24px 26px",maxWidth:pricingMode==="packs"?680:520,width:"100%",maxHeight:"90vh",overflowY:"auto",transition:"max-width 0.2s"}} onClick={e=>e.stopPropagation()}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
-          <div style={{fontSize:17,fontWeight:700}}>{isEdit ? "Editar plan" : "Nuevo plan"}</div>
-          <button onClick={onClose} style={{background:"transparent",border:"none",color:"var(--text-sm)",fontSize:20,cursor:"pointer"}}>✕</button>
-        </div>
+  const canSave = !saving && (isEdit || !!variantId);
+  const smallNum = { ...iS, padding:"6px 8px", fontSize:DS.font.md, width:64 };
 
-        {isEdit ? (
-          <>
-            <label style={lbl}>Producto</label>
-            <div style={{...inp,display:"flex",alignItems:"center",opacity:0.8,cursor:"default"}}>{editPlan.product_title}</div>
-            <div style={{fontSize:11,color:"var(--text-sm)",margin:"-8px 0 12px"}}>El producto/variante no se cambia acá — editás precio, descuento, envío y niveles. Para cambiar el producto, creá un plan nuevo.</div>
-            <label style={lbl}>Precio normal ($)</label>
-            <input type="number" min="0" value={editBasePrice} onChange={e=>setEditBasePrice(e.target.value)} style={inp} placeholder="0"/>
-          </>
-        ) : (
-          <>
-            <label style={lbl}>Producto Shopify</label>
-            <select value={productId} onChange={e=>{setProductId(e.target.value); setVariantId("");}} style={inp}>
+  return (
+    <Modal T={T} open onClose={onClose} title={isEdit ? "Editar plan" : "Nuevo plan"} width={pricingMode === "packs" ? 700 : 540}
+      subtitle={isEdit ? editPlan.product_title : "Convertí un producto Shopify en suscripción recurrente."}
+      footer={<>
+        <Btn T={T} variant="secondary" onClick={onClose}>Cancelar</Btn>
+        <Btn T={T} variant="solid" onClick={save} disabled={!canSave}>{saving ? <><Spinner size={13}/> {isEdit ? "Guardando…" : "Creando…"}</> : (isEdit ? "Guardar cambios" : "Crear plan")}</Btn>
+      </>}>
+
+      {isEdit ? (
+        <>
+          <Field T={T} label="Producto">
+            <div style={{ ...iS, display:"flex", alignItems:"center", background:T.surface, color:T.textMd, cursor:"default" }}>{editPlan.product_title}</div>
+          </Field>
+          <Hint T={T}>El producto/variante no se cambia acá — editás precio, descuento, envío y niveles. Para cambiar el producto, creá un plan nuevo.</Hint>
+          <Field T={T} label="Precio normal ($)">
+            <input type="number" min="0" value={editBasePrice} onChange={e=>setEditBasePrice(e.target.value)} style={iS} placeholder="0"/>
+          </Field>
+        </>
+      ) : (
+        <>
+          <Field T={T} label="Producto Shopify" required>
+            <select value={productId} onChange={e=>{setProductId(e.target.value); setVariantId("");}} style={iS}>
               <option value="">— Elegí —</option>
               {products.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
             </select>
+          </Field>
+          {product && (
+            <Field T={T} label="Variante" required>
+              <select value={variantId} onChange={e=>setVariantId(e.target.value)} style={iS}>
+                <option value="">— Elegí —</option>
+                {product.variants.map(v => <option key={v.id} value={v.id}>{v.title} — ${v.price.toLocaleString("es-AR")}</option>)}
+              </select>
+            </Field>
+          )}
+        </>
+      )}
 
-            {product && (
-              <>
-                <label style={lbl}>Variante</label>
-                <select value={variantId} onChange={e=>setVariantId(e.target.value)} style={inp}>
-                  <option value="">— Elegí —</option>
-                  {product.variants.map(v => <option key={v.id} value={v.id}>{v.title} — ${v.price.toLocaleString("es-AR")}</option>)}
-                </select>
-              </>
-            )}
-          </>
-        )}
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 12px" }}>
+        <Field T={T} label="Frecuencia (días)">
+          <input type="number" min="1" value={frequency} onChange={e=>setFrequency(e.target.value)} style={iS}/>
+        </Field>
+        <Field T={T} label="Descuento (%)">
+          <input type="number" min="0" max="80" value={discount} onChange={e=>setDiscount(e.target.value)} style={iS}/>
+        </Field>
+      </div>
 
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          <div>
-            <label style={lbl}>Frecuencia (días)</label>
-            <input type="number" min="1" value={frequency} onChange={e=>setFrequency(e.target.value)} style={inp}/>
+      {/* ─── Precios y packs (modo packs | tema) ──────────────────── */}
+      <PacksEditor
+        mode={pricingMode} onModeChange={setPricingMode}
+        packs={packs} onPacksChange={setPacks}
+        basePrice={basePrice} discountPct={discount} frequencyDays={frequency}
+        freqScales={freqScales} onFreqScalesChange={setFreqScales}
+      />
+
+      {pricingMode === "theme" && (
+        <FormSection T={T} title="Comportamiento del widget">
+          <Field T={T} label="Unidades por envío (default cuando el cliente abre)">
+            <input type="number" min="1" value={units} onChange={e=>setUnits(e.target.value)} style={iS}/>
+          </Field>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 12px", alignItems:"end" }}>
+            <CheckLine T={T} checked={allowCustomFreq} onChange={setAllowCustomFreq} style={{ marginBottom:14 }}>El cliente puede elegir otra frecuencia</CheckLine>
+            <Field T={T} label="Tope de descuento por pack (%)">
+              <input type="number" min="0" max="80" value={maxPackDisc} onChange={e=>setMaxPackDisc(e.target.value)} style={iS}/>
+            </Field>
           </div>
-          <div>
-            <label style={lbl}>Descuento (%)</label>
-            <input type="number" min="0" max="80" value={discount} onChange={e=>setDiscount(e.target.value)} style={inp}/>
-          </div>
+        </FormSection>
+      )}
+
+      {/* ─── Envío ─────────────────────────────────────────────── */}
+      <FormSection T={T} title="Envío">
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 12px" }}>
+          <Field T={T} label="Costo de envío ($)">
+            <input type="number" min="0" value={shippingPrice} onChange={e=>setShippingPrice(e.target.value)} style={iS} placeholder="0"/>
+          </Field>
+          <Field T={T} label="Envío gratis desde ($)">
+            <input type="number" min="0" value={freeShipFrom} onChange={e=>setFreeShipFrom(e.target.value)} style={iS} placeholder="0 = nunca gratis"/>
+          </Field>
         </div>
+        <Field T={T} label="Nombre del método (lo que ve el cliente en Shopify)">
+          <input type="text" value={shippingName} onChange={e=>setShippingName(e.target.value)} style={iS} placeholder="Envío a domicilio"/>
+        </Field>
+      </FormSection>
 
-        {/* ─── Precios y packs (modo packs | tema) ──────────────────── */}
-        <PacksEditor
-          mode={pricingMode} onModeChange={setPricingMode}
-          packs={packs} onPacksChange={setPacks}
-          basePrice={basePrice} discountPct={discount} frequencyDays={frequency}
-          freqScales={freqScales} onFreqScalesChange={setFreqScales}
-        />
-
-        {pricingMode === "theme" && (
-          <>
-            <label style={lbl}>Unidades por envío (default cuando el cliente abre)</label>
-            <input type="number" min="1" value={units} onChange={e=>setUnits(e.target.value)} style={inp}/>
-
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,alignItems:"end"}}>
-              <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"var(--text-md)",marginTop:12}}>
-                <input type="checkbox" checked={allowCustomFreq} onChange={e=>setAllowCustomFreq(e.target.checked)}/>
-                El cliente puede elegir otra frecuencia
-              </label>
-              <div>
-                <label style={lbl}>Tope de descuento por pack (%)</label>
-                <input type="number" min="0" max="80" value={maxPackDisc} onChange={e=>setMaxPackDisc(e.target.value)} style={inp}/>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* ─── Envío ─────────────────────────────────────────────── */}
-        <div style={{marginTop:18,paddingTop:14,borderTop:"1px solid var(--border)"}}>
-          <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:10}}>Envío</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <div>
-              <label style={lbl}>Costo de envío ($)</label>
-              <input type="number" min="0" value={shippingPrice} onChange={e=>setShippingPrice(e.target.value)} style={inp} placeholder="0"/>
-            </div>
-            <div>
-              <label style={lbl}>Envío gratis desde ($)</label>
-              <input type="number" min="0" value={freeShipFrom} onChange={e=>setFreeShipFrom(e.target.value)} style={inp} placeholder="0 = nunca gratis"/>
-            </div>
-          </div>
-          <label style={lbl}>Nombre del método (lo que ve el cliente en Shopify)</label>
-          <input type="text" value={shippingName} onChange={e=>setShippingName(e.target.value)} style={inp} placeholder="Envío a domicilio"/>
-        </div>
-
-        {/* ─── Descuentos por cantidad (solo modo tema: en packs cada pack ya tiene su precio) ── */}
-        {pricingMode === "theme" && <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid var(--border)"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-            <div style={{fontSize:13,fontWeight:700,color:"var(--text)"}}>Descuentos por cantidad</div>
-            <button onClick={addTier} type="button" style={{background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text-md)",borderRadius:7,padding:"5px 10px",fontSize:11,cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>+ Agregar nivel</button>
-          </div>
+      {/* ─── Descuentos por cantidad (solo modo tema: en packs cada pack ya tiene su precio) ── */}
+      {pricingMode === "theme" && (
+        <FormSection T={T} title="Descuentos por cantidad" right={<Btn T={T} variant="secondary" size="sm" onClick={addTier} type="button">+ Agregar nivel</Btn>}>
           {qtyTiers.length === 0 ? (
-            <div style={{fontSize:11,color:"var(--text-sm)",padding:"10px 12px",background:"var(--surface)",borderRadius:8,lineHeight:1.5}}>
-              Sin descuentos por cantidad. Agregá un nivel para premiar a clientes que pidan más paquetes (ej: desde 3 paquetes, 10% off extra).
-            </div>
+            <SurfaceBox T={T}><div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5 }}>Sin descuentos por cantidad. Agregá un nivel para premiar a clientes que pidan más paquetes (ej: desde 3 paquetes, 10% off extra).</div></SurfaceBox>
           ) : (
-            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
               {qtyTiers.map((t, i) => (
-                <div key={i} style={{display:"flex",gap:6,alignItems:"center",background:"var(--surface)",padding:"7px 10px",borderRadius:8}}>
-                  <span style={{fontSize:11,color:"var(--text-sm)",whiteSpace:"nowrap"}}>Desde</span>
-                  <input type="number" min="2" max="10" value={t.min_qty} onChange={e=>updateTier(i, "min_qty", e.target.value)} style={{...inp,marginBottom:0,padding:"6px 8px",width:60,fontSize:12}}/>
-                  <span style={{fontSize:11,color:"var(--text-sm)",whiteSpace:"nowrap"}}>paquetes → descuento</span>
-                  <input type="number" min="1" max="80" value={t.discount_pct} onChange={e=>updateTier(i, "discount_pct", e.target.value)} style={{...inp,marginBottom:0,padding:"6px 8px",width:50,fontSize:12}}/>
-                  <span style={{fontSize:11,color:"var(--text-sm)"}}>%</span>
-                  <button onClick={()=>removeTier(i)} type="button" style={{marginLeft:"auto",background:"transparent",border:"none",color:"var(--red)",fontSize:14,cursor:"pointer",padding:"0 4px"}} title="Quitar">✕</button>
+                <div key={i} style={{ display:"flex", gap:8, alignItems:"center", background:T.surface, border:`1px solid ${T.borderL}`, padding:"7px 10px", borderRadius:DS.r.md, flexWrap:"wrap" }}>
+                  <span style={{ fontSize:DS.font.sm, color:T.textSm, whiteSpace:"nowrap" }}>Desde</span>
+                  <input type="number" min="2" max="10" value={t.min_qty} onChange={e=>updateTier(i, "min_qty", e.target.value)} style={smallNum}/>
+                  <span style={{ fontSize:DS.font.sm, color:T.textSm, whiteSpace:"nowrap" }}>paquetes → descuento</span>
+                  <input type="number" min="1" max="80" value={t.discount_pct} onChange={e=>updateTier(i, "discount_pct", e.target.value)} style={{ ...smallNum, width:56 }}/>
+                  <span style={{ fontSize:DS.font.sm, color:T.textSm }}>%</span>
+                  <button onClick={()=>removeTier(i)} type="button" title="Quitar" style={{ marginLeft:"auto", background:"transparent", border:"none", color:T.textSm, fontSize:14, cursor:"pointer", padding:"0 4px", fontFamily:"inherit" }}
+                    onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.textSm}>✕</button>
                 </div>
               ))}
             </div>
           )}
-        </div>}
+        </FormSection>
+      )}
 
-        {(variant || (isEdit && basePrice > 0)) && pricingMode === "theme" && (
-          <div style={{marginTop:14,padding:"12px 14px",background:"var(--surface)",borderRadius:10,fontSize:12}}>
-            <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-              <span style={{color:"var(--text-sm)"}}>Precio normal:</span>
-              <span style={{fontWeight:600}}>${basePrice.toLocaleString("es-AR")}</span>
-            </div>
-            <div style={{display:"flex",justifyContent:"space-between"}}>
-              <span style={{color:"var(--accent)",fontWeight:700}}>Precio suscripción base:</span>
-              <span style={{fontWeight:800,color:"var(--accent)",fontSize:14}}>${subPrice.toLocaleString("es-AR")} cada {frequency} días</span>
-            </div>
+      {(variant || (isEdit && basePrice > 0)) && pricingMode === "theme" && (
+        <SurfaceBox T={T} style={{ marginTop:14 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4, fontSize:DS.font.md }}>
+            <span style={{ color:T.textSm }}>Precio normal:</span>
+            <span style={{ fontWeight:DS.w.semibold, color:T.text }}>{fmtARS(basePrice)}</span>
           </div>
-        )}
-
-        <button onClick={save} disabled={saving || (!isEdit && !variantId)} style={{width:"100%",marginTop:18,background:"linear-gradient(135deg, var(--green), var(--green-dark))",border:"none",color:"#fff",padding:"11px",borderRadius:10,fontSize:14,fontWeight:700,cursor:saving?"wait":"pointer",fontFamily:"inherit",opacity:(saving||(!isEdit&&!variantId))?0.6:1}}>
-          {saving ? (isEdit ? "Guardando…" : "Creando…") : (isEdit ? "Guardar cambios" : "Crear plan")}
-        </button>
-      </div>
-    </div>
+          <div style={{ display:"flex", justifyContent:"space-between", fontSize:DS.font.md }}>
+            <span style={{ color:T.accent, fontWeight:DS.w.bold }}>Precio suscripción base:</span>
+            <span style={{ fontWeight:DS.w.black, color:T.accent, fontSize:DS.font.lg }}>{fmtARS(subPrice)} cada {frequency} días</span>
+          </div>
+        </SurfaceBox>
+      )}
+    </Modal>
   );
 }
 
 function EmbedSnippetModal({ plan, merchant, onClose }) {
+  const T = useT();
   const base = window.location.origin;
   const snippet = `<script src="${base}/widget.js?merchant=${merchant.id}" defer></script>`;
   const [copied, setCopied] = useState(false);
 
+  async function copy() {
+    try { await navigator.clipboard.writeText(snippet); setCopied(true); toast("Snippet copiado", "success"); setTimeout(()=>setCopied(false),2000); } catch(_) { toast("No se pudo copiar — seleccioná el texto y copialo a mano", "warning"); }
+  }
+
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:9999}} onClick={onClose}>
-      <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:14,padding:"24px 26px",maxWidth:600,width:"100%"}} onClick={e=>e.stopPropagation()}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
-          <div style={{fontSize:17,fontWeight:700}}>Embed snippet</div>
-          <button onClick={onClose} style={{background:"transparent",border:"none",color:"var(--text-sm)",fontSize:20,cursor:"pointer"}}>✕</button>
-        </div>
-
-        <div style={{fontSize:13,color:"var(--text-md)",lineHeight:1.6,marginBottom:14}}>
-          Pegá esto en el theme de tu Shopify, dentro de la página de producto (Online Store → Themes → Edit code → templates/product.json → al final del bloque buy_buttons o antes del cierre del form):
-        </div>
-
-        <pre style={{background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 14px",fontSize:12,fontFamily:"'Cascadia Code',monospace",overflowX:"auto",margin:0}}>{snippet}</pre>
-
-        <button onClick={async()=>{
-          try { await navigator.clipboard.writeText(snippet); setCopied(true); setTimeout(()=>setCopied(false),2000); } catch(_) {}
-        }} style={{width:"100%",marginTop:12,background:copied?"var(--green-dark)":"linear-gradient(135deg, var(--green), var(--green-dark))",border:"none",color:"#fff",padding:"10px",borderRadius:10,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-          {copied ? "✓ Copiado" : "📋 Copiar snippet"}
-        </button>
-
-        <div style={{marginTop:14,padding:"10px 12px",background:"var(--surface)",borderRadius:8,fontSize:11,color:"var(--text-sm)",lineHeight:1.55}}>
-          El widget detecta automáticamente el producto que el cliente está viendo. Si hay plan activo para ese producto, muestra el toggle Compra única / Suscripción. Si no hay plan, no aparece nada.
-        </div>
+    <Modal T={T} open onClose={onClose} title="Código para tu tienda" subtitle={plan?.product_title} width={620}
+      footer={<>
+        <Btn T={T} variant="secondary" onClick={onClose}>Cerrar</Btn>
+        <Btn T={T} variant="solid" onClick={copy}>{copied ? "✓ Copiado" : "📋 Copiar snippet"}</Btn>
+      </>}>
+      <div style={{ fontSize:DS.font.base, color:T.textMd, lineHeight:1.6, marginBottom:14 }}>
+        Pegá esto en el theme de tu Shopify, dentro de la página de producto (Online Store → Themes → Edit code → templates/product.json → al final del bloque buy_buttons o antes del cierre del form):
       </div>
-    </div>
+      <pre style={{ background:T.bg, border:`1px solid ${T.border}`, borderRadius:DS.r.lg, padding:"12px 14px", fontSize:DS.font.md, fontFamily:MONO, overflowX:"auto", margin:0, color:T.accent, lineHeight:1.5 }}>{snippet}</pre>
+      <Callout T={T} tone="info" style={{ marginTop:14 }}>
+        El widget detecta automáticamente el producto que el cliente está viendo. Si hay plan activo para ese producto, muestra el toggle Compra única / Suscripción. Si no hay plan, no aparece nada.
+      </Callout>
+    </Modal>
   );
 }
 
 // ─── Tab: Suscriptores ──────────────────────────────────────────
 
 function SubscribersTab({ mode = "active", devMode = false }) {
+  const T = useT();
+  const iS = InputStyle(T);
   // mode="active" → Tab "Suscriptores activos": solo status === "active"
   // mode="carts"  → Tab "Carritos de suscripción": el resto (pending,
   //                  cancelled, paused, payment_failed). Son intentos /
@@ -1250,36 +1214,42 @@ function SubscribersTab({ mode = "active", devMode = false }) {
       if (!isCarts) params.set("status", "active");
       else if (filter !== "all") params.set("status", filter);
       const r = await fetch(`/api/subscribers?${params}`, { headers: { Authorization: `Bearer ${token}` } });
-      if (!r.ok) { const d = await r.json().catch(() => ({})); return alert("Error: " + (d.error || r.status)); }
+      if (!r.ok) { const d = await r.json().catch(() => ({})); return toast("Error: " + (d.error || r.status), "error"); }
       const blob = await r.blob();
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = `suscriptores-${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-    } catch (e) { alert("Error: " + e.message); }
+      toast("CSV exportado", "success");
+    } catch (e) { toast("Error: " + e.message, "error"); }
   }
 
   const filtered = subs;
   const title = isCarts ? "Carritos de suscripción" : "Suscriptores activos";
   const subtitle = isCarts
-    ? "Intentos abandonados, cancelados o con pago fallido. NO cuentan como MRR ni aparecen en Inicio."
-    : "Clientes con suscripción activa cobrando recurrentemente. Click para gestionar.";
+    ? "Intentos abandonados, cancelados o con pago fallido. No cuentan como MRR ni aparecen en Inicio."
+    : "Clientes con suscripción activa cobrando recurrentemente. Tocá una fila para gestionarla.";
   const emptyTitle = isCarts ? "No hay carritos" : "Todavía no tenés suscriptores activos";
   const emptyDesc = isCarts
     ? "Cuando un cliente abandone el checkout o cancele su sub, aparece acá."
     : "Cuando un cliente complete el pago MP, aparece acá automáticamente.";
 
+  const columns = [
+    { key:"cliente", label:"Cliente", render: s => <CellStack T={T} main={s.customer_name || s.customer_email} sub={s.customer_name ? s.customer_email : (s.customer_phone || "")}/> },
+    { key:"plan", label:"Plan", render: s => <CellStack T={T} main={<>{s.plan_snapshot?.product_title || "—"}{s.quantity > 1 && <span style={{ color:T.accent }}> × {s.quantity}</span>}</>} sub={`cada ${s.plan_snapshot?.frequency_days||"-"} días`}/> },
+    { key:"monto", label:"Por cobro", align:"right", nowrap:true, render: s => <span style={{ fontWeight:DS.w.bold, fontVariantNumeric:"tabular-nums" }}>{fmtARS(s.plan_snapshot?.total_per_charge_ars || s.plan_snapshot?.subscription_price_ars || 0)}</span> },
+    { key:"ordenes", label:"Órdenes", align:"right", nowrap:true, hideMobile:true, render: s => <span style={{ color:T.textMd }}>{(s.shopify_orders||[]).length}</span> },
+    { key:"estado", label:"Estado", nowrap:true, render: s => <StatusBadge status={s.status} orderCount={(s.shopify_orders||[]).length}/> },
+    { key:"alta", label:"Alta", align:"right", nowrap:true, hideMobile:true, render: s => <span style={{ color:T.textSm, fontSize:DS.font.sm }}>{s.created_at ? fmtDateOnly(s.created_at) : "—"}</span> },
+  ];
+
   return (
     <div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,gap:14,flexWrap:"wrap"}}>
-        <div>
-          <h1 style={{fontSize:24,fontWeight:800,margin:"0 0 6px",letterSpacing:-0.5}}>{title}</h1>
-          <p style={{fontSize:13,color:"var(--text-sm)",margin:0,lineHeight:1.55}}>{subtitle}</p>
-        </div>
-        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+      <PageHeader T={T} title={title} subtitle={subtitle}
+        right={<>
           {isCarts && (
-            <select value={filter} onChange={e=>setFilter(e.target.value)} style={inp2}>
+            <select value={filter} onChange={e=>setFilter(e.target.value)} style={{ ...iS, width:"auto", padding:"7px 10px", fontSize:DS.font.md }}>
               <option value="all">Todos los carritos</option>
               <option value="pending">Pendientes</option>
               <option value="cancelled">Cancelados</option>
@@ -1287,43 +1257,18 @@ function SubscribersTab({ mode = "active", devMode = false }) {
               <option value="payment_failed">Pago falló</option>
             </select>
           )}
-          <input type="text" placeholder="🔍 Buscar email…" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")load();}} style={{...inp2,minWidth:180}}/>
-          <button onClick={exportCsv} style={{background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text-md)",borderRadius:8,padding:"7px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>⬇ Exportar CSV</button>
-          <button onClick={load} style={{background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text-md)",borderRadius:8,padding:"7px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>↻</button>
-        </div>
-      </div>
+          <input type="text" placeholder="Buscar email…" value={search} onChange={e=>setSearch(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")load();}} style={{ ...iS, width:"auto", minWidth:190, padding:"7px 10px", fontSize:DS.font.md }}/>
+          <Btn T={T} variant="secondary" size="sm" onClick={exportCsv}>⬇ Exportar CSV</Btn>
+          <Btn T={T} variant="secondary" size="sm" onClick={load} title="Refrescar" disabled={loading}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"}</Btn>
+        </>}/>
 
       {loading ? (
-        <div style={{color:"var(--text-sm)",fontSize:13}}>Cargando…</div>
+        <Loading T={T}/>
       ) : filtered.length === 0 ? (
-        <div style={{background:"var(--card)",border:"1px dashed var(--border)",borderRadius:14,padding:"50px 30px",textAlign:"center"}}>
-          <div style={{fontSize:36,marginBottom:10}}>{isCarts ? "🛒" : "👥"}</div>
-          <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>{emptyTitle}</div>
-          <div style={{fontSize:12,color:"var(--text-sm)",lineHeight:1.55,maxWidth:380,margin:"0 auto"}}>{emptyDesc}</div>
-        </div>
+        <DSEmpty T={T} icon={isCarts ? "🛒" : "👥"} title={emptyTitle} subtitle={emptyDesc}/>
       ) : (
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(340px, 1fr))",gap:12}}>
-          {filtered.map(s => (
-            <button key={s.id} onClick={()=>setDetail(s)}
-              style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:12,padding:"14px 16px",textAlign:"left",cursor:"pointer",fontFamily:"inherit",color:"var(--text)"}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:8}}>
-                <div style={{fontSize:13,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{s.customer_name || s.customer_email}</div>
-                <StatusBadge status={s.status} orderCount={(s.shopify_orders||[]).length}/>
-              </div>
-              <div style={{fontSize:11,color:"var(--text-sm)",marginBottom:8,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.customer_email}</div>
-              <div style={{padding:"8px 10px",background:"var(--surface)",borderRadius:8,fontSize:11}}>
-                <div style={{color:"var(--text-md)",fontWeight:600,marginBottom:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                  {s.plan_snapshot?.product_title || "—"}
-                  {(s.quantity > 1) && <span style={{color:"var(--accent)"}}> × {s.quantity}</span>}
-                </div>
-                <div style={{color:"var(--text-sm)",display:"flex",justifyContent:"space-between"}}>
-                  <span>${(s.plan_snapshot?.total_per_charge_ars || s.plan_snapshot?.subscription_price_ars || 0).toLocaleString("es-AR")} cada {s.plan_snapshot?.frequency_days||"-"}d</span>
-                  <span>{(s.shopify_orders||[]).length} órden{(s.shopify_orders||[]).length===1?"":"es"}</span>
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
+        <DSTable T={T} columns={columns} rows={filtered} rowKey={s=>s.id} onRowClick={s=>setDetail(s)} minWidth={720}
+          footer={<span>{filtered.length} {isCarts ? "carrito" : "suscriptor"}{filtered.length === 1 ? "" : (isCarts ? "s" : "es")}</span>}/>
       )}
 
       {detail && <SubscriberDetailModal sub={detail} devMode={devMode} onClose={()=>{setDetail(null); load();}}/>}
@@ -1331,27 +1276,8 @@ function SubscribersTab({ mode = "active", devMode = false }) {
   );
 }
 
-function StatusBadge({ status, orderCount = 0 }) {
-  // Si la sub está cancelled PERO tiene órdenes Shopify procesadas, lo
-  // indicamos en el label para que el merchant no piense "el cliente no
-  // pagó". Cancelled significa "no habrá más cobros" — pero los cobros
-  // anteriores SÍ se hicieron y las órdenes existen.
-  const cancelledLabel = orderCount > 0 ? `Cancelada · ${orderCount} cobro${orderCount>1?"s":""} OK` : "Cancelada";
-  const meta = {
-    active:        { label:"Activa",    color:"var(--accent)",  bg:"rgba(16,185,129,0.15)" },
-    pending:       { label:"Pendiente", color:"var(--yellow)",  bg:"rgba(245,158,11,0.15)" },
-    paused:        { label:"Pausada",   color:"var(--yellow)",  bg:"rgba(245,158,11,0.15)" },
-    cancelled:     { label: cancelledLabel, color: orderCount > 0 ? "var(--green)" : "var(--text-sm)", bg: orderCount > 0 ? "rgba(16,185,129,0.10)" : "rgba(126,138,147,0.15)" },
-    payment_failed:{ label:"Pago falló",color:"var(--red)",     bg:"rgba(239,68,68,0.15)" },
-  }[status] || { label: status || "—", color: "var(--text-sm)", bg: "rgba(126,138,147,0.15)" };
-  return (
-    <span style={{fontSize:9,padding:"2px 7px",borderRadius:4,background:meta.bg,color:meta.color,fontWeight:700,letterSpacing:0.4,textTransform:"uppercase",flexShrink:0}}>
-      {meta.label}
-    </span>
-  );
-}
-
 function SubscriberDetailModal({ sub, onClose, devMode = false }) {
+  const T = useT();
   const [data, setData] = useState({ subscriber: sub, charges: [] });
   const [busyAction, setBusyAction] = useState(null);
   const [editingAddress, setEditingAddress] = useState(false);
@@ -1364,66 +1290,69 @@ function SubscriberDetailModal({ sub, onClose, devMode = false }) {
     });
   }, [sub.id]);
 
+  async function refresh() {
+    const refreshed = await apiGet("subscribers", { id: sub.id });
+    if (refreshed?.subscriber) setData(refreshed);
+  }
+
   async function doAction(action) {
     if (action === "delete") {
-      const ok = window.confirm(
-        `⚠️ BORRAR DEFINITIVAMENTE este subscriber?\n\n` +
+      const ok = await appConfirm(
         `Esto elimina el subscriber + todos sus charges de Firestore.\n` +
         `Intenta cancelar en MP (si todavía está activo); si MP da error lo ignora.\n\n` +
-        `NO se puede deshacer. ¿Continuar?`
+        `NO se puede deshacer.`,
+        { title:"⚠️ ¿Borrar definitivamente este subscriber?", danger:true, okLabel:"Borrar definitivamente" }
       );
       if (!ok) return;
       setBusyAction("delete");
       try {
         const r = await apiDelete("subscribers", { id: sub.id });
         if (r?.error) {
-          alert("Error: " + r.error);
+          toast("Error: " + r.error, "error", 6000);
           setBusyAction(null);
         } else {
-          alert(`✓ Subscriber borrado.\n${r.charges_deleted || 0} charges asociados eliminados.`);
+          toast(`Subscriber borrado · ${r.charges_deleted || 0} charges asociados eliminados`, "success", 5000);
           onClose();
         }
       } catch (e) {
-        alert("Error: " + e.message);
+        toast("Error: " + e.message, "error");
         setBusyAction(null);
       }
       return;
     }
     if (action === "reprice") {
       const cur = data.subscriber?.plan_snapshot?.total_per_charge_ars || 0;
-      const v = window.prompt(`Nuevo monto TOTAL por cobro para este suscriptor (hoy $${cur.toLocaleString("es-AR")}). Se actualiza en Mercado Pago y aplica desde el próximo cobro.`, String(cur || ""));
+      const v = await appPrompt(`Hoy paga ${fmtARS(cur)}. Se actualiza en Mercado Pago y aplica desde el próximo cobro.`, String(cur || ""), { title:"Nuevo monto TOTAL por cobro para este suscriptor", placeholder:"Monto en $", okLabel:"Repreciar" });
       if (v === null) return;
       const amount = Math.round(Number(v));
-      if (!(amount > 0)) return alert("Monto inválido");
+      if (!(amount > 0)) return toast("Monto inválido", "warning");
       setBusyAction("reprice");
       try {
         const d = await apiPost("subscribers", { id: sub.id, new_amount: amount }, { action: "reprice" });
-        if (d?.error) alert("Error: " + d.error);
-        else if (d.failed?.length) alert("No se pudo repreciar: " + d.failed[0].error);
-        else alert(`✓ Repreciado a $${amount.toLocaleString("es-AR")} por cobro.`);
-        const refreshed = await apiGet("subscribers", { id: sub.id });
-        if (refreshed?.subscriber) setData(refreshed);
-      } catch (e) { alert("Error: " + e.message); }
+        if (d?.error) toast("Error: " + d.error, "error", 6000);
+        else if (d.failed?.length) toast("No se pudo repreciar: " + d.failed[0].error, "error", 6000);
+        else toast(`Repreciado a ${fmtARS(amount)} por cobro`, "success");
+        await refresh();
+      } catch (e) { toast("Error: " + e.message, "error"); }
       finally { setBusyAction(null); }
       return;
     }
     if (action === "simulate-charge") {
-      const ok = window.confirm("Simular el próximo cobro recurrente?\n\nVa a crear una orden Shopify nueva como si MP hubiera cobrado el siguiente mes, SIN cobrar plata real. Solo para testear que el flow de cobros recurrentes funciona.");
+      const ok = await appConfirm("Va a crear una orden Shopify nueva como si MP hubiera cobrado el siguiente mes, SIN cobrar plata real. Solo para testear que el flow de cobros recurrentes funciona.", { title:"¿Simular el próximo cobro recurrente?", okLabel:"Simular" });
       if (!ok) return;
       setBusyAction("simulate-charge");
       try {
         const d = await apiPost("subscribers", {}, { action: "simulate-charge", id: sub.id });
         if (d?.error) {
-          alert("Error: " + d.error);
+          toast("Error: " + d.error, "error", 6000);
         } else if (d.status === "ok") {
-          alert(`✓ Simulado cobro #${d.charge_number}\nOrden Shopify: #${d.shopify_order_id}\nMonto: $${(d.amount_ars || 0).toLocaleString("es-AR")}`);
+          await appAlert(`Cobro #${d.charge_number}\nOrden Shopify: #${d.shopify_order_id}\nMonto: ${fmtARS(d.amount_ars)}`, { title:"✓ Cobro simulado" });
         } else {
-          alert(`Falló: ${d.shopify_error || d.error || "desconocido"}`);
+          toast(`Falló: ${d.shopify_error || d.error || "desconocido"}`, "error", 7000);
         }
-        const refreshed = await apiGet("subscribers", { id: sub.id });
-        if (refreshed?.subscriber) setData(refreshed);
+        await refresh();
       } catch (e) {
-        alert("Error: " + e.message);
+        toast("Error: " + e.message, "error");
       } finally {
         setBusyAction(null);
       }
@@ -1431,26 +1360,26 @@ function SubscriberDetailModal({ sub, onClose, devMode = false }) {
     }
     if (action === "link-payment") {
       // Pedimos el payment_id al merchant (lo saca del panel de MP del comprador).
-      const paymentId = window.prompt(
-        "Pegá el ID del pago de MP (N.° de operación) — lo ves en mercadopago.com.ar → Actividad → click sobre el cobro de este cliente.\n\nEsto crea la orden Shopify usando ese payment_id específico (escape hatch para cuando MP no nos devuelve el payment por search)."
+      const paymentId = await appPrompt(
+        "Lo ves en mercadopago.com.ar → Actividad → click sobre el cobro de este cliente.\n\nEsto crea la orden Shopify usando ese payment_id específico (escape hatch para cuando MP no nos devuelve el payment por search).",
+        "", { title:"Pegá el ID del pago de MP (N.° de operación)", placeholder:"1234567890", okLabel:"Linkear" }
       );
       if (!paymentId || !paymentId.trim()) return;
       setBusyAction("link-payment");
       try {
         const d = await apiPost("subscribers", { payment_id: paymentId.trim() }, { action: "link-payment", id: sub.id });
         if (d?.error) {
-          alert("Error: " + d.error);
+          toast("Error: " + d.error, "error", 6000);
         } else if (d.status === "linked") {
-          alert(`✓ Payment ${paymentId} linkeado.\nOrden Shopify: #${d.shopify_order_id || "(error)"}\nMonto: $${(d.amount_ars || 0).toLocaleString("es-AR")}` + (d.shopify_error ? `\n\n⚠️ Shopify: ${d.shopify_error}` : ""));
+          await appAlert(`Payment ${paymentId} linkeado.\nOrden Shopify: #${d.shopify_order_id || "(error)"}\nMonto: ${fmtARS(d.amount_ars)}` + (d.shopify_error ? `\n\n⚠️ Shopify: ${d.shopify_error}` : ""), { title:"✓ Payment linkeado" });
         } else if (d.status === "already_linked") {
-          alert(`Este payment ya estaba linkeado.\nOrden Shopify: #${d.shopify_order_id}`);
+          await appAlert(`Este payment ya estaba linkeado.\nOrden Shopify: #${d.shopify_order_id}`, { title:"Ya estaba linkeado" });
         } else {
-          alert(`Resultado: ${d.status || "?"}\n${d.error || ""}`);
+          await appAlert(`Resultado: ${d.status || "?"}\n${d.error || ""}`, { title:"Resultado" });
         }
-        const refreshed = await apiGet("subscribers", { id: sub.id });
-        if (refreshed?.subscriber) setData(refreshed);
+        await refresh();
       } catch (e) {
-        alert("Error: " + e.message);
+        toast("Error: " + e.message, "error");
       } finally {
         setBusyAction(null);
       }
@@ -1463,7 +1392,7 @@ function SubscriberDetailModal({ sub, onClose, devMode = false }) {
       try {
         const d = await apiPost("subscribers", {}, { action: "sync", id: sub.id });
         if (d?.error) {
-          alert("Error: " + d.error);
+          toast("Error: " + d.error, "error", 6000);
         } else {
           // Mensaje detallado con info de qué encontró el sync
           let msg = "Estado del subscriber: " + (d.status || "?").toUpperCase();
@@ -1483,12 +1412,11 @@ function SubscriberDetailModal({ sub, onClose, devMode = false }) {
           if (d.shopify_errors && d.shopify_errors.length > 0) {
             msg += "\n\n⚠️ Errores Shopify:\n" + d.shopify_errors.join("\n");
           }
-          alert(msg);
+          await appAlert(msg, { title:"Sincronización con MP" });
         }
-        const refreshed = await apiGet("subscribers", { id: sub.id });
-        if (refreshed?.subscriber) setData(refreshed);
+        await refresh();
       } catch (e) {
-        alert("Error de red: " + e.message);
+        toast("Error de red: " + e.message, "error");
       } finally {
         setBusyAction(null);
       }
@@ -1502,42 +1430,45 @@ function SubscriberDetailModal({ sub, onClose, devMode = false }) {
       try {
         const r = await apiPatch("subscribers", { action: "resync" }, { id: sub.id });
         if (r?.error) {
-          alert("Error: " + r.error);
+          toast("Error: " + r.error, "error", 6000);
         } else {
-          let msg = "✓ Sub marcada como ACTIVA";
+          let msg = "";
           if (r.mp_preapproval_linked) {
-            msg += `\n\nLinkeada al preapproval MP: ${r.mp_preapproval_id}`;
+            msg += `Linkeada al preapproval MP: ${r.mp_preapproval_id}`;
             if (r.next_charge_at) {
               msg += `\nPróximo cobro: ${new Date(r.next_charge_at).toLocaleString("es-AR")}`;
             }
           } else {
-            msg += "\n\nNo encontramos preapproval activo en MP via search, pero igual está activa localmente. Cuando MP cobre el próximo mes, el webhook va a llegar con external_reference y va a crear la orden Shopify normal.";
+            msg += "No encontramos preapproval activo en MP via search, pero igual está activa localmente. Cuando MP cobre el próximo mes, el webhook va a llegar con external_reference y va a crear la orden Shopify normal.";
           }
-          alert(msg);
-          const refreshed = await apiGet("subscribers", { id: sub.id });
-          if (refreshed?.subscriber) setData(refreshed);
+          await appAlert(msg, { title:"✓ Sub marcada como ACTIVA" });
+          await refresh();
         }
       } catch (e) {
-        alert("Error de red: " + e.message);
+        toast("Error de red: " + e.message, "error");
       } finally {
         setBusyAction(null);
       }
       return;
     }
-    const ok = window.confirm({
-      pause: "¿Pausar esta suscripción? No se cobra más hasta reactivar.",
-      resume: "¿Reactivar esta suscripción?",
-      cancel: "¿Cancelar definitivamente esta suscripción? No se puede deshacer.",
-    }[action]);
+    const ok = await appConfirm({
+      pause: "No se cobra más hasta reactivar.",
+      resume: "Vuelve a cobrarse en la próxima fecha.",
+      cancel: "No se puede deshacer.",
+    }[action], {
+      title: { pause:"¿Pausar esta suscripción?", resume:"¿Reactivar esta suscripción?", cancel:"¿Cancelar definitivamente esta suscripción?" }[action],
+      danger: action === "cancel",
+      okLabel: { pause:"Pausar", resume:"Reactivar", cancel:"Sí, cancelar" }[action],
+    });
     if (!ok) return;
     setBusyAction(action);
     const r = await apiPatch("subscribers", { action }, { id: sub.id });
     setBusyAction(null);
     if (r?.error) {
-      alert("Error: " + r.error);
+      toast("Error: " + r.error, "error", 6000);
     } else {
-      const refreshed = await apiGet("subscribers", { id: sub.id });
-      if (refreshed?.subscriber) setData(refreshed);
+      toast({ pause:"Suscripción pausada", resume:"Suscripción reactivada", cancel:"Suscripción cancelada" }[action], action === "cancel" ? "warning" : "success");
+      await refresh();
     }
   }
 
@@ -1545,162 +1476,100 @@ function SubscriberDetailModal({ sub, onClose, devMode = false }) {
   const charges = data.charges || [];
   const status = s?.status || "unknown";
   const plan = s?.plan_snapshot || {};
+  const qty = s.quantity || plan.units_per_shipment || 1;
+  const unit = plan.subscription_price_ars || 0;
+  const total = plan.total_per_charge_ars || (unit * qty);
+  const busy = !!busyAction;
+  const act = ({ id, variant = "secondary", label, busyLabel, ...rest }) => (
+    <Btn T={T} variant={variant} size="sm" onClick={()=>doAction(id)} disabled={busy} {...rest}>
+      {busyAction === id ? <><Spinner size={11} color={variant === "solid" ? "#fff" : T.textMd}/> {busyLabel}</> : label}
+    </Btn>
+  );
+
+  const chargeCols = [
+    { key:"fecha", label:"Fecha", nowrap:true, render: c => <span style={{ color:T.textSm, fontSize:DS.font.sm }}>{fmtDateTime(c.created_at)}</span> },
+    { key:"monto", label:"Monto", nowrap:true, render: c => <span style={{ fontWeight:DS.w.bold, fontVariantNumeric:"tabular-nums" }}>{fmtARS(c.amount_ars)}</span> },
+    { key:"orden", label:"Orden", nowrap:true, render: c => c.shopify_order_id ? <span style={{ fontFamily:MONO, fontSize:DS.font.sm, color:T.textMd }}>#{c.shopify_order_id}</span> : <span style={{ color:T.textSm }}>—</span> },
+    { key:"estado", label:"Estado", align:"right", nowrap:true, render: c => <span title={c.error || ""} style={{ cursor:c.error?"help":"default" }}><DSBadge T={T} color={c.error ? T.red : T.green} size="sm">{c.error ? "✗ Error" : "✓ OK"}</DSBadge></span> },
+  ];
 
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.65)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:9999}} onClick={onClose}>
-      <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:14,padding:"24px 26px",maxWidth:620,width:"100%",maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:18,gap:14}}>
-          <div>
-            <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>{s.customer_name || s.customer_email}</div>
-            <div style={{fontSize:12,color:"var(--text-sm)"}}>{s.customer_email}{s.customer_phone?` · ${s.customer_phone}`:""}</div>
-          </div>
-          <button onClick={onClose} style={{background:"transparent",border:"none",color:"var(--text-sm)",fontSize:20,cursor:"pointer"}}>✕</button>
-        </div>
+    <Modal T={T} open onClose={onClose} width={660} title={s.customer_name || s.customer_email}
+      subtitle={<>{s.customer_email}{s.customer_phone ? ` · ${s.customer_phone}` : ""}</>}>
 
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18}}>
-          <StatusBadge status={status} orderCount={(s?.shopify_orders||[]).length}/>
-          <span style={{fontSize:11,color:"var(--text-sm)"}}>desde {s.created_at?new Date(s.created_at).toLocaleDateString("es-AR"):"—"}</span>
-        </div>
-        <div style={{background:"var(--surface)",borderRadius:10,padding:"14px 16px",marginBottom:14}}>
-          <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5,marginBottom:8}}>Plan</div>
-          <div style={{fontSize:13,fontWeight:600,marginBottom:6}}>{plan.product_title || "—"}</div>
-          {(() => {
-            const qty = s.quantity || plan.units_per_shipment || 1;
-            const unit = plan.subscription_price_ars || 0;
-            const total = plan.total_per_charge_ars || (unit * qty);
-            return (
-              <div style={{fontSize:11,color:"var(--text-md)"}}>
-                <strong>${total.toLocaleString("es-AR")}</strong> cada {plan.frequency_days||"-"} días
-                <span style={{color:"var(--text-sm)"}}> · {qty} paquete{qty===1?"":"s"} × ${unit.toLocaleString("es-AR")} c/u</span>
-              </div>
-            );
-          })()}
-        </div>
+      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14, flexWrap:"wrap" }}>
+        <StatusBadge status={status} orderCount={(s?.shopify_orders||[]).length} size="md"/>
+        <span style={{ fontSize:DS.font.sm, color:T.textSm }}>desde {s.created_at ? fmtDateOnly(s.created_at) : "—"}</span>
+        {s.next_charge_at && status !== "cancelled" && <span style={{ fontSize:DS.font.sm, color:T.textSm }}>· próximo cobro {fmtDateOnly(s.next_charge_at)}</span>}
+      </div>
 
-        <div style={{background:"var(--surface)",borderRadius:10,padding:"14px 16px",marginBottom:14}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-            <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5}}>Dirección de envío</div>
-            <button onClick={()=>setEditingAddress(true)} style={{background:"transparent",border:"1px solid var(--border)",color:"var(--text-md)",borderRadius:6,padding:"4px 10px",fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✏️ Editar</button>
+      <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:16 }}>
+        <SurfaceBox T={T} title="Plan">
+          <div style={{ fontSize:DS.font.base, fontWeight:DS.w.semibold, color:T.text, marginBottom:6 }}>{plan.product_title || "—"}</div>
+          <div style={{ fontSize:DS.font.sm, color:T.textMd, lineHeight:1.5 }}>
+            <strong style={{ color:T.accent, fontSize:DS.font.base }}>{fmtARS(total)}</strong> cada {plan.frequency_days||"-"} días
+            <div style={{ color:T.textSm }}>{qty} paquete{qty===1?"":"s"} × {fmtARS(unit)} c/u</div>
           </div>
-          <div style={{fontSize:12,color:"var(--text-md)",lineHeight:1.5}}>
+        </SurfaceBox>
+        <SurfaceBox T={T} title="Dirección de envío" right={<Btn T={T} variant="ghost" size="sm" onClick={()=>setEditingAddress(true)} style={{ padding:"2px 8px" }}>✏️ Editar</Btn>}>
+          <div style={{ fontSize:DS.font.md, color:T.textMd, lineHeight:1.5 }}>
             {s.shipping_address?.address1
               ? <>
                   {s.shipping_address.address1}{s.shipping_address.address2?", "+s.shipping_address.address2:""}<br/>
                   {s.shipping_address.city}{s.shipping_address.province?", "+s.shipping_address.province:""}{s.shipping_address.zip?" — CP "+s.shipping_address.zip:""}
                 </>
-              : <span style={{color:"var(--red)",fontWeight:700}}>⚠️ Sin dirección — editá para arreglar</span>
+              : <span style={{ color:T.red, fontWeight:DS.w.bold }}>⚠️ Sin dirección — editá para arreglar</span>
             }
           </div>
-        </div>
-        {editingAddress && (
-          <EditAddressModal
-            sub={s}
-            onClose={()=>setEditingAddress(false)}
-            onSaved={async()=>{
-              setEditingAddress(false);
-              const refreshed = await apiGet("subscribers", { id: sub.id });
-              if (refreshed?.subscriber) setData(refreshed);
-            }}
-          />
-        )}
-
-        {/* Acciones */}
-        <div style={{display:"flex",gap:8,marginBottom:18,flexWrap:"wrap"}}>
-          {status === "active" && (
-            <button onClick={()=>doAction("pause")} disabled={busyAction} style={{...btnSec,opacity:busyAction?0.6:1}}>
-              {busyAction==="pause"?"Pausando…":"⏸ Pausar"}
-            </button>
-          )}
-          {status === "paused" && (
-            <button onClick={()=>doAction("resume")} disabled={busyAction} style={{...btnPri,opacity:busyAction?0.6:1}}>
-              {busyAction==="resume"?"Reactivando…":"▶ Reactivar"}
-            </button>
-          )}
-          {/* Sync manual: idempotente, intenta procesar todos los pagos
-              aprobados que no tengan orden Shopify creada todavía. También
-              sirve en subs cancelled para recuperar pagos hechos antes de
-              cancelar. */}
-          <button onClick={()=>doAction("sync")} disabled={busyAction} style={{...btnPri,opacity:busyAction?0.6:1}}>
-            {busyAction==="sync"?"Sincronizando…":"⟳ Sincronizar con MP"}
-          </button>
-          {/* Marcar como activa: fuerza el sub local a "active". El merchant
-              verificó manualmente en MP que la sub sigue cobrando — confiamos
-              en eso. Best-effort linkea el preapproval si lo encontramos;
-              cuando MP cobre el próximo mes, el webhook matchea por
-              external_reference=mid:sid y crea la orden Shopify normal. */}
-          {(status === "cancelled" || status === "paused" || status === "pending") && (
-            <button onClick={()=>doAction("resync")} disabled={busyAction} style={{...btnPri,opacity:busyAction?0.6:1,background:"var(--green)",borderColor:"var(--green)"}}>
-              {busyAction==="resync"?"Marcando…":"✓ Marcar como activa (sigue en MP)"}
-            </button>
-          )}
-          {/* Link manual de payment ID — escape hatch para cuando los endpoints
-              search de MP están delayados y no devuelven el payment. */}
-          <button onClick={()=>doAction("link-payment")} disabled={busyAction} style={{...btnSec,opacity:busyAction?0.6:1}}>
-            {busyAction==="link-payment"?"Linkeando…":"🔗 Linkear payment ID"}
-          </button>
-          {/* Simulador del próximo cobro recurrente — crea orden Shopify SIN
-              pasar por MP. Útil para validar mes 2, 3, etc sin esperar 30 días. */}
-          {(status === "active" || status === "paused") && (
-            <button onClick={()=>doAction("reprice")} disabled={busyAction} style={{...btnSec,opacity:busyAction?0.6:1}}>
-              {busyAction==="reprice"?"Repreciando…":"💲 Repreciar"}
-            </button>
-          )}
-          {/* Solo en modo desarrollador (Integraciones → Configuración): crea una orden SIMULADA (sin mails ni pago). */}
-          {status === "active" && devMode && (
-            <button onClick={()=>doAction("simulate-charge")} disabled={busyAction} style={{...btnSec,opacity:busyAction?0.6:1}}>
-              {busyAction==="simulate-charge"?"Simulando…":"🧪 Simular próximo cobro"}
-            </button>
-          )}
-          {(status === "active" || status === "paused" || status === "payment_failed") && (
-            <button onClick={()=>doAction("cancel")} disabled={busyAction} style={{...btnDan,opacity:busyAction?0.6:1}}>
-              {busyAction==="cancel"?"Cancelando…":"✕ Cancelar"}
-            </button>
-          )}
-          {/* Borrar definitivamente — elimina el sub + charges de Firestore.
-              Best effort para cancelar en MP si todavía está activo. Útil para
-              limpiar tests basura que no quedaron bien sincronizados con MP. */}
-          <button onClick={()=>doAction("delete")} disabled={busyAction} style={{...btnDan,opacity:busyAction?0.6:1,background:"rgba(239,68,68,0.15)"}}>
-            {busyAction==="delete"?"Borrando…":"🗑 Borrar definitivamente"}
-          </button>
-        </div>
-
-        {/* Historial de cargos */}
-        <div>
-          <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5,marginBottom:10}}>Historial de cobros</div>
-          {loading ? (
-            <div style={{fontSize:12,color:"var(--text-sm)"}}>Cargando…</div>
-          ) : charges.length === 0 ? (
-            <div style={{fontSize:12,color:"var(--text-sm)",padding:"14px",background:"var(--surface)",borderRadius:8,textAlign:"center"}}>
-              Sin cargos todavía
-            </div>
-          ) : charges.map(c => (
-            <div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",borderBottom:"1px solid var(--border)",fontSize:12}}>
-              <div>
-                <div style={{fontWeight:600}}>${(c.amount_ars||0).toLocaleString("es-AR")}</div>
-                <div style={{fontSize:10,color:"var(--text-sm)",marginTop:2}}>{new Date(c.created_at).toLocaleString("es-AR")}</div>
-              </div>
-              <div style={{display:"flex",alignItems:"center",gap:8}}>
-                {c.shopify_order_id && <span style={{fontSize:10,color:"var(--text-sm)",fontFamily:"'Cascadia Code',monospace"}}>orden #{c.shopify_order_id}</span>}
-                <span title={c.error || ""} style={{fontSize:9,padding:"2px 6px",borderRadius:4,background:c.error?"rgba(239,68,68,0.15)":"rgba(16,185,129,0.15)",color:c.error?"var(--red)":"var(--accent)",fontWeight:700,letterSpacing:0.4,textTransform:"uppercase",cursor:c.error?"help":"default"}}>
-                  {c.error?"✗ ERROR":"✓ OK"}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
+        </SurfaceBox>
       </div>
-    </div>
+      {editingAddress && (
+        <EditAddressModal
+          sub={s}
+          onClose={()=>setEditingAddress(false)}
+          onSaved={async()=>{ setEditingAddress(false); await refresh(); }}
+        />
+      )}
+
+      {/* Acciones */}
+      <SectionTitle T={T}>Acciones</SectionTitle>
+      <div style={{ display:"flex", gap:6, marginBottom:18, flexWrap:"wrap" }}>
+        {status === "active" && act({ id: "pause", label: "⏸ Pausar", busyLabel: "Pausando…" })}
+        {status === "paused" && act({ id: "resume", variant: "primary", label: "▶ Reactivar", busyLabel: "Reactivando…" })}
+        {/* Sync manual: idempotente, intenta procesar todos los pagos aprobados
+            que no tengan orden Shopify creada todavía. */}
+        {act({ id: "sync", variant: "primary", label: "⟳ Sincronizar con MP", busyLabel: "Sincronizando…" })}
+        {/* Marcar como activa: fuerza el sub local a "active". */}
+        {(status === "cancelled" || status === "paused" || status === "pending") && act({ id: "resync", variant: "success", label: "✓ Marcar como activa (sigue en MP)", busyLabel: "Marcando…" })}
+        {/* Link manual de payment ID — escape hatch. */}
+        {act({ id: "link-payment", label: "🔗 Linkear payment ID", busyLabel: "Linkeando…" })}
+        {(status === "active" || status === "paused") && act({ id: "reprice", label: "💲 Repreciar", busyLabel: "Repreciando…" })}
+        {/* Solo en modo desarrollador: crea una orden SIMULADA (sin mails ni pago). */}
+        {status === "active" && devMode && act({ id: "simulate-charge", label: "🧪 Simular próximo cobro", busyLabel: "Simulando…" })}
+        {(status === "active" || status === "paused" || status === "payment_failed") && act({ id: "cancel", variant: "danger", label: "✕ Cancelar", busyLabel: "Cancelando…" })}
+        {/* Borrar definitivamente — elimina el sub + charges de Firestore. */}
+        {act({ id: "delete", variant: "danger", label: "🗑 Borrar definitivamente", busyLabel: "Borrando…", style: { background:T.red+"26", } })}
+      </div>
+
+      {/* Historial de cargos */}
+      <SectionTitle T={T}>Historial de cobros</SectionTitle>
+      {loading ? (
+        <Loading T={T}/>
+      ) : charges.length === 0 ? (
+        <SurfaceBox T={T}><div style={{ fontSize:DS.font.md, color:T.textSm, textAlign:"center" }}>Sin cargos todavía</div></SurfaceBox>
+      ) : (
+        <DSTable T={T} columns={chargeCols} rows={charges} rowKey={c=>c.id} dense minWidth={420} style={{ boxShadow:"none" }}/>
+      )}
+    </Modal>
   );
 }
 
-// ─── Tab: Cobros ─────────────────────────────────────────────────
-
 // ─── Tab: Carritos abandonados ──────────────────────────────────
 function AbandonedTab() {
+  const T = useT();
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
-  const btnSec = {background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text-md)",borderRadius:8,padding:"7px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"};
 
   async function load() {
     setLoading(true);
@@ -1712,47 +1581,37 @@ function AbandonedTab() {
 
   function copyEmails() {
     const emails = list.map(x => x.email).filter(Boolean).join(", ");
-    try { navigator.clipboard.writeText(emails); setCopied(true); setTimeout(()=>setCopied(false), 1500); } catch (_) {}
+    try { navigator.clipboard.writeText(emails); setCopied(true); toast(`${list.length} email${list.length===1?"":"s"} copiado${list.length===1?"":"s"}`, "success"); setTimeout(()=>setCopied(false), 1500); } catch (_) { toast("No se pudo copiar", "warning"); }
   }
-  const fmtDate = iso => { try { return new Date(iso).toLocaleString("es-AR",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}); } catch(e){ return "—"; } };
+
+  const ABANDON = "#8b5cf6";
+  const columns = [
+    { key:"cliente", label:"Cliente", render: a => <CellStack T={T} main={a.name || a.email} sub={<>{a.email}{a.phone ? ` · ${a.phone}` : ""}</>}/> },
+    { key:"producto", label:"Producto", render: a => <CellStack T={T} main={<>{a.product_title || "—"}{a.quantity>1 ? <span style={{ color:T.accent }}> × {a.quantity}</span> : ""}</>} sub={a.capture ? "lead" : null}/> },
+    { key:"valor", label:"Valor", align:"right", nowrap:true, render: a => <span style={{ fontWeight:DS.w.bold, fontVariantNumeric:"tabular-nums" }}>{fmtARS(a.value_ars)}</span> },
+    { key:"fecha", label:"Abandonó", nowrap:true, hideMobile:true, render: a => <span style={{ color:T.textSm, fontSize:DS.font.sm }}>{fmtDateShort(a.created_at)}</span> },
+    { key:"recupero", label:"Recupero", nowrap:true, render: a => a.abandoned_step
+        ? <span title={a.abandoned_step_at ? `Enviado ${fmtDateShort(a.abandoned_step_at)}` : ""}><DSBadge T={T} color={ABANDON} size="sm">📭 Mail paso {a.abandoned_step}</DSBadge></span>
+        : <span style={{ color:T.textSm, fontSize:DS.font.sm }}>Sin mails enviados</span> },
+    { key:"accion", label:"", align:"right", nowrap:true, render: a => a.recover_url
+        ? <a href={a.recover_url} target="_blank" rel="noreferrer" title={a.recover_url} onClick={e=>e.stopPropagation()} style={{ ...BtnSecondary(T), textDecoration:"none", padding:"5px 10px", fontSize:DS.font.sm }}>Ver en la tienda →</a>
+        : null },
+  ];
 
   return (
     <div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,gap:14,flexWrap:"wrap"}}>
-        <div>
-          <h1 style={{fontSize:24,fontWeight:800,margin:"0 0 6px",letterSpacing:-0.5}}>Carritos abandonados</h1>
-          <p style={{fontSize:13,color:"var(--text-sm)",margin:0,lineHeight:1.55}}>Clientas que iniciaron el checkout de suscripción y no completaron el pago (+45 min). Base para el flujo de recupero.</p>
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          {list.length>0 && <button onClick={copyEmails} style={btnSec}>{copied ? "✓ Copiado" : "📋 Copiar emails"}</button>}
-          <button onClick={load} style={btnSec}>↻</button>
-        </div>
-      </div>
+      <PageHeader T={T} title="Carritos abandonados" subtitle="Clientes que iniciaron el checkout de suscripción y no completaron el pago (+45 min). Base para el flujo de recupero."
+        right={<>
+          {list.length>0 && <Btn T={T} variant="secondary" size="sm" onClick={copyEmails}>{copied ? "✓ Copiado" : "📋 Copiar emails"}</Btn>}
+          <Btn T={T} variant="secondary" size="sm" onClick={load} title="Refrescar" disabled={loading}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"}</Btn>
+        </>}/>
       {loading ? (
-        <div style={{color:"var(--text-sm)",fontSize:13}}>Cargando…</div>
+        <Loading T={T}/>
       ) : list.length === 0 ? (
-        <div style={{background:"var(--card)",border:"1px dashed var(--border)",borderRadius:14,padding:"50px 30px",textAlign:"center"}}>
-          <div style={{fontSize:36,marginBottom:10}}>📭</div>
-          <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>No hay carritos abandonados</div>
-          <div style={{fontSize:12,color:"var(--text-sm)"}}>Cuando alguien inicie el checkout y no pague, aparece acá a los 45 min.</div>
-        </div>
+        <DSEmpty T={T} icon="📭" title="No hay carritos abandonados" subtitle="Cuando alguien inicie el checkout y no pague, aparece acá a los 45 min."/>
       ) : (
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          <div style={{fontSize:12,color:"var(--text-sm)"}}>{list.length} recuperable{list.length===1?"":"s"}</div>
-          {list.map(a => (
-            <div key={a.id} style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:12,padding:"14px 16px",display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:14,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.name || a.email}</div>
-                <div style={{fontSize:12,color:"var(--text-sm)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.email}{a.phone ? ` · ${a.phone}` : ""}</div>
-                <div style={{fontSize:12,color:"var(--text-md)",marginTop:4}}>{a.product_title || "—"}{a.quantity>1 ? ` × ${a.quantity}` : ""} · ${(a.value_ars||0).toLocaleString("es-AR")} · {fmtDate(a.created_at)}{a.capture ? " · lead" : ""}</div>
-                <div style={{fontSize:11,color:a.abandoned_step ? "#8b5cf6" : "var(--text-sm)",marginTop:3}}>
-                  {a.abandoned_step ? `📭 Mail paso ${a.abandoned_step} enviado ${a.abandoned_step_at ? fmtDate(a.abandoned_step_at) : ""}` : "Sin mails de recupero enviados"}
-                </div>
-              </div>
-              {a.recover_url && <a href={a.recover_url} target="_blank" rel="noreferrer" style={{...btnSec,textDecoration:"none"}} title={a.recover_url}>Ver en la tienda →</a>}
-            </div>
-          ))}
-        </div>
+        <DSTable T={T} columns={columns} rows={list} rowKey={a=>a.id} minWidth={760}
+          footer={<span>{list.length} recuperable{list.length===1?"":"s"}</span>}/>
       )}
     </div>
   );
@@ -1760,10 +1619,10 @@ function AbandonedTab() {
 
 // ─── Tab: Actividad (Mails / Envíos / Facturación) ─────────────────
 function ActivityTab() {
+  const T = useT();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("mails");
-  const btnSec = {background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text-md)",borderRadius:8,padding:"7px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"};
 
   async function load() {
     setLoading(true);
@@ -1773,129 +1632,105 @@ function ActivityTab() {
   }
   useEffect(() => { load(); }, []);
 
-  const fmtDate = iso => { try { return new Date(iso).toLocaleString("es-AR",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}); } catch(e){ return "—"; } };
-  const money = n => "$" + (n||0).toLocaleString("es-AR");
-
+  const ABANDON = "#8b5cf6";
   const MAIL_LABEL = {
-    activation:      { t:"Activación",     c:"#10b981", e:"✅" },
-    cancellation:    { t:"Cancelación",    c:"#ef4444", e:"🚫" },
-    payment_failed:  { t:"Pago fallido",   c:"#f59e0b", e:"⚠️" },
+    activation:      { t:"Activación",     c:T.green,  e:"✅" },
+    cancellation:    { t:"Cancelación",    c:T.red,    e:"🚫" },
+    payment_failed:  { t:"Pago fallido",   c:T.yellow, e:"⚠️" },
   };
   const mailLabel = (m) => {
-    if (m.type === "abandoned") return { t:`Abandono · Paso ${m.step||1}`, c:"#8b5cf6", e:"📭" };
-    return MAIL_LABEL[m.type] || { t:m.type, c:"var(--text-md)", e:"📧" };
+    if (m.type === "abandoned") return { t:`Abandono · Paso ${m.step||1}`, c:ABANDON, e:"📭" };
+    return MAIL_LABEL[m.type] || { t:m.type, c:T.textMd, e:"📧" };
   };
 
   const views = [
-    { id:"mails",  label:"📧 Mails" },
-    { id:"envios", label:"📦 Envíos" },
-    { id:"cobros", label:"💵 Facturación" },
+    { id:"mails",  label:"📧 Mails",        count: data?.mails?.length },
+    { id:"envios", label:"📦 Envíos",       count: data?.envios?.length },
+    { id:"cobros", label:"💵 Facturación",  count: data?.cobros?.length },
   ];
-
-  const th = {textAlign:"left",fontSize:11,fontWeight:700,color:"var(--text-sm)",textTransform:"uppercase",letterSpacing:0.4,padding:"0 14px 8px"};
-  const td = {fontSize:13,color:"var(--text-md)",padding:"11px 14px",borderTop:"1px solid var(--border)",verticalAlign:"top"};
-  const chip = (label, val, col) => (
-    <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:12,padding:"12px 16px",minWidth:120}}>
-      <div style={{fontSize:11,color:"var(--text-sm)",fontWeight:600,marginBottom:4}}>{label}</div>
-      <div style={{fontSize:20,fontWeight:800,color:col||"var(--text)",letterSpacing:-0.5}}>{val}</div>
-    </div>
-  );
-  const emptyBox = (emoji, txt) => (
-    <div style={{background:"var(--card)",border:"1px dashed var(--border)",borderRadius:14,padding:"50px 30px",textAlign:"center"}}>
-      <div style={{fontSize:36,marginBottom:10}}>{emoji}</div>
-      <div style={{fontSize:13,color:"var(--text-sm)"}}>{txt}</div>
-    </div>
-  );
-  const tableWrap = (inner) => (
-    <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:14,overflow:"hidden"}}>
-      <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:560}}>{inner}</table></div>
-    </div>
-  );
 
   const ms = data?.mail_summary || {};
   const cs = data?.cobro_summary || {};
   const es = data?.envio_summary || {};
+  const dateCol = { key:"fecha", label:"Fecha", nowrap:true, render: r => <span style={{ color:T.textSm, fontSize:DS.font.sm }}>{fmtDateShort(r.created_at)}</span> };
+  const clientCol = (nameKey, mailKey) => ({ key:"cliente", label:"Cliente", render: r => <CellStack T={T} main={r[nameKey]||"—"} sub={r[mailKey]}/> });
+  const prodCol = { key:"producto", label:"Producto", hideMobile:true, render: r => <span style={{ color:T.textSm }}>{r.product_title||"—"}</span> };
 
   return (
     <div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,gap:14,flexWrap:"wrap"}}>
-        <div>
-          <h1 style={{fontSize:24,fontWeight:800,margin:"0 0 6px",letterSpacing:-0.5}}>Actividad</h1>
-          <p style={{fontSize:13,color:"var(--text-sm)",margin:0,lineHeight:1.55}}>Resumen de los mails que manda Recurrentes, los envíos generados y la facturación de las suscripciones.</p>
-        </div>
-        <button onClick={load} style={btnSec}>↻</button>
-      </div>
+      <PageHeader T={T} title="Actividad" subtitle="Resumen de los mails que manda Recurrentes, los envíos generados y la facturación de las suscripciones."
+        right={<Btn T={T} variant="secondary" size="sm" onClick={load} title="Refrescar" disabled={loading}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Refrescar</Btn>}/>
 
-      <div style={{display:"flex",gap:6,marginBottom:18,flexWrap:"wrap"}}>
-        {views.map(v => (
-          <button key={v.id} onClick={()=>setView(v.id)} style={{
-            padding:"8px 14px",borderRadius:9,border:"1px solid var(--border)",cursor:"pointer",fontFamily:"inherit",fontSize:13,
-            fontWeight: view===v.id?700:500,
-            background: view===v.id?"rgba(16,185,129,0.12)":"var(--surface)",
-            color: view===v.id?"var(--accent)":"var(--text-md)",
-          }}>{v.label}</button>
-        ))}
+      <div style={{ marginBottom:DS.sp.lg }}>
+        <SubTabs T={T} tabs={views} active={view} onChange={setView}/>
       </div>
 
       {loading ? (
-        <div style={{color:"var(--text-sm)",fontSize:13}}>Cargando…</div>
+        <Loading T={T}/>
       ) : view === "mails" ? (
-        <div style={{display:"flex",flexDirection:"column",gap:16}}>
-          <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-            {chip("Total enviados", ms.total||0)}
-            {chip("Abandono P1", ms.abandoned_1||0, "#8b5cf6")}
-            {chip("Abandono P2", ms.abandoned_2||0, "#8b5cf6")}
-            {chip("Abandono P3", ms.abandoned_3||0, "#8b5cf6")}
-            {chip("Activación", ms.activation||0, "#10b981")}
-            {chip("Cancelación", ms.cancellation||0, "#ef4444")}
+        <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
+          <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+            <StatCard T={T} label="Total enviados" value={ms.total||0}/>
+            <StatCard T={T} label="Abandono P1" value={ms.abandoned_1||0} color={ABANDON}/>
+            <StatCard T={T} label="Abandono P2" value={ms.abandoned_2||0} color={ABANDON}/>
+            <StatCard T={T} label="Abandono P3" value={ms.abandoned_3||0} color={ABANDON}/>
+            <StatCard T={T} label="Activación" value={ms.activation||0} color={T.green}/>
+            <StatCard T={T} label="Cancelación" value={ms.cancellation||0} color={T.red}/>
           </div>
-          {(data?.mails||[]).length === 0 ? emptyBox("📭","Todavía no se envió ningún mail. Aparecen acá a medida que el sistema los manda.") : tableWrap(
-            <><thead><tr><th style={th}>Fecha</th><th style={th}>Tipo</th><th style={th}>Cliente</th><th style={th}>Producto</th></tr></thead>
-            <tbody>{data.mails.map(m => { const L = mailLabel(m); return (
-              <tr key={m.id}>
-                <td style={{...td,whiteSpace:"nowrap",color:"var(--text-sm)"}}>{fmtDate(m.created_at)}</td>
-                <td style={td}><span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:12,fontWeight:700,color:L.c}}>{L.e} {L.t}</span>{m.coupon?<span style={{marginLeft:6,fontSize:11,fontWeight:700,color:"var(--text-sm)",border:"1px solid var(--border)",borderRadius:5,padding:"1px 5px"}}>{m.coupon}</span>:null}{m.status==="error"?<span style={{marginLeft:6,fontSize:11,color:"#ef4444"}}>error</span>:null}</td>
-                <td style={td}><div style={{fontWeight:600}}>{m.customer_name||"—"}</div><div style={{fontSize:11,color:"var(--text-sm)"}}>{m.to}</div></td>
-                <td style={{...td,color:"var(--text-sm)"}}>{m.product_title||"—"}</td>
-              </tr>); })}</tbody></>
+          {(data?.mails||[]).length === 0 ? (
+            <DSEmpty T={T} icon="📭" title="Todavía no se envió ningún mail" subtitle="Aparecen acá a medida que el sistema los manda."/>
+          ) : (
+            <DSTable T={T} rows={data.mails} rowKey={m=>m.id} minWidth={640} columns={[
+              dateCol,
+              { key:"tipo", label:"Tipo", nowrap:true, render: m => { const L = mailLabel(m); return (
+                <span style={{ display:"inline-flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+                  <span style={{ fontSize:DS.font.md, fontWeight:DS.w.bold, color:L.c }}>{L.e} {L.t}</span>
+                  {m.coupon ? <DSBadge T={T} color={T.textSm} size="sm">{m.coupon}</DSBadge> : null}
+                  {m.status==="error" ? <DSBadge T={T} color={T.red} size="sm">error</DSBadge> : null}
+                </span>); } },
+              clientCol("customer_name", "to"),
+              prodCol,
+            ]}/>
           )}
         </div>
       ) : view === "envios" ? (
-        <div style={{display:"flex",flexDirection:"column",gap:16}}>
-          <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-            {chip("Envíos totales", es.total||0)}
-            {chip("Este mes", es.this_month||0, "#10b981")}
+        <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
+          <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+            <StatCard T={T} label="Envíos totales" value={es.total||0}/>
+            <StatCard T={T} label="Este mes" value={es.this_month||0} color={T.green}/>
           </div>
-          {(data?.envios||[]).length === 0 ? emptyBox("📦","Todavía no se generó ninguna orden de envío. Cada cobro aprobado crea una orden en Shopify.") : tableWrap(
-            <><thead><tr><th style={th}>Fecha</th><th style={th}>Orden</th><th style={th}>Cliente</th><th style={th}>Producto</th></tr></thead>
-            <tbody>{data.envios.map(e => (
-              <tr key={e.id}>
-                <td style={{...td,whiteSpace:"nowrap",color:"var(--text-sm)"}}>{fmtDate(e.created_at)}</td>
-                <td style={td}>{e.order_url ? <a href={e.order_url} target="_blank" rel="noreferrer" style={{color:"var(--accent)",fontWeight:700,textDecoration:"none"}}>#{e.order_id} →</a> : <span style={{fontWeight:700}}>#{e.order_id}</span>}</td>
-                <td style={td}><div style={{fontWeight:600}}>{e.customer_name||"—"}</div><div style={{fontSize:11,color:"var(--text-sm)"}}>{e.customer_email}</div></td>
-                <td style={{...td,color:"var(--text-sm)"}}>{e.product_title||"—"}</td>
-              </tr>))}</tbody></>
+          {(data?.envios||[]).length === 0 ? (
+            <DSEmpty T={T} icon="📦" title="Todavía no se generó ninguna orden de envío" subtitle="Cada cobro aprobado crea una orden en Shopify."/>
+          ) : (
+            <DSTable T={T} rows={data.envios} rowKey={e=>e.id} minWidth={640} columns={[
+              dateCol,
+              { key:"orden", label:"Orden", nowrap:true, render: e => e.order_url
+                  ? <a href={e.order_url} target="_blank" rel="noreferrer" style={{ color:T.accent, fontWeight:DS.w.bold, textDecoration:"none" }}>#{e.order_id} →</a>
+                  : <span style={{ fontWeight:DS.w.bold }}>#{e.order_id}</span> },
+              clientCol("customer_name", "customer_email"),
+              prodCol,
+            ]}/>
           )}
         </div>
       ) : (
-        <div style={{display:"flex",flexDirection:"column",gap:16}}>
-          <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-            {chip("Cobrado hoy", money(cs.today?.amount||0), "#10b981")}
-            {chip("Cobros hoy", cs.today?.count||0)}
-            {chip("Este mes", money(cs.this_month?.amount||0), "#10b981")}
-            {chip("Cobros del mes", cs.this_month?.count||0)}
-            {chip("Histórico", money(cs.all_time||0))}
+        <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
+          <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+            <StatCard T={T} label="Cobrado hoy" value={fmtARS(cs.today?.amount)} color={T.green}/>
+            <StatCard T={T} label="Cobros hoy" value={cs.today?.count||0}/>
+            <StatCard T={T} label="Este mes" value={fmtARS(cs.this_month?.amount)} color={T.green}/>
+            <StatCard T={T} label="Cobros del mes" value={cs.this_month?.count||0}/>
+            <StatCard T={T} label="Histórico" value={fmtARS(cs.all_time)}/>
           </div>
-          {(data?.cobros||[]).length === 0 ? emptyBox("💵","Todavía no hay cobros registrados.") : tableWrap(
-            <><thead><tr><th style={th}>Fecha</th><th style={th}>Monto</th><th style={th}>Estado</th><th style={th}>Cliente</th><th style={th}>Orden</th></tr></thead>
-            <tbody>{data.cobros.map(c => { const okk = c.status!=="error" && c.status!=="rejected"; return (
-              <tr key={c.id}>
-                <td style={{...td,whiteSpace:"nowrap",color:"var(--text-sm)"}}>{fmtDate(c.created_at)}</td>
-                <td style={{...td,fontWeight:800,fontVariantNumeric:"tabular-nums"}}>{money(c.amount)}</td>
-                <td style={td}><span style={{fontSize:11,fontWeight:700,color:okk?"#10b981":"#ef4444"}}>{okk?"✓ aprobado":"✕ "+(c.status||"error")}</span></td>
-                <td style={td}><div style={{fontWeight:600}}>{c.customer_name||"—"}</div><div style={{fontSize:11,color:"var(--text-sm)"}}>{c.customer_email}</div></td>
-                <td style={{...td,color:"var(--text-sm)"}}>{c.order_id?`#${c.order_id}`:"—"}</td>
-              </tr>); })}</tbody></>
+          {(data?.cobros||[]).length === 0 ? (
+            <DSEmpty T={T} icon="💵" title="Todavía no hay cobros registrados" subtitle="Aparecen acá cuando MP procesa el primer pago de una suscripción."/>
+          ) : (
+            <DSTable T={T} rows={data.cobros} rowKey={c=>c.id} minWidth={680} columns={[
+              dateCol,
+              { key:"monto", label:"Monto", nowrap:true, render: c => <span style={{ fontWeight:DS.w.black, fontVariantNumeric:"tabular-nums" }}>{fmtARS(c.amount)}</span> },
+              { key:"estado", label:"Estado", nowrap:true, render: c => { const okk = c.status!=="error" && c.status!=="rejected"; return <DSBadge T={T} color={okk?T.green:T.red} size="sm">{okk?"✓ aprobado":"✕ "+(c.status||"error")}</DSBadge>; } },
+              clientCol("customer_name", "customer_email"),
+              { key:"orden", label:"Orden", nowrap:true, hideMobile:true, render: c => <span style={{ color:T.textSm, fontFamily:MONO, fontSize:DS.font.sm }}>{c.order_id?`#${c.order_id}`:"—"}</span> },
+            ]}/>
           )}
         </div>
       )}
@@ -1903,7 +1738,9 @@ function ActivityTab() {
   );
 }
 
+// ─── Tab: Cobros ─────────────────────────────────────────────────
 function ChargesTab() {
+  const T = useT();
   const [charges, setCharges] = useState([]);
   const [totals, setTotals] = useState({ amount_ars:0, ok:0, failed:0, total:0 });
   const [loading, setLoading] = useState(true);
@@ -1925,89 +1762,64 @@ function ChargesTab() {
 
   // Reintenta la orden Shopify de un charge que quedó con error (mismo payment_id).
   async function retryOrder(c) {
-    if (!c.subscriber_id || !c.mp_payment_id) return alert("Este cobro no tiene suscriptor o payment_id asociado.");
-    if (!window.confirm(`¿Reintentar la orden Shopify del cobro MP ${c.mp_payment_id}?`)) return;
+    if (!c.subscriber_id || !c.mp_payment_id) return toast("Este cobro no tiene suscriptor o payment_id asociado.", "warning");
+    const ok = await appConfirm(`Se vuelve a intentar crear la orden con el mismo payment_id.`, { title:`¿Reintentar la orden Shopify del cobro MP ${c.mp_payment_id}?`, okLabel:"Reintentar" });
+    if (!ok) return;
     setRetrying(c.id);
     try {
       const d = await apiPost("subscribers", { id: c.subscriber_id, payment_id: String(c.mp_payment_id) }, { action: "retry-order" });
-      if (d?.error) alert("Error: " + d.error);
-      else if (d.shopify_order_id) alert(`✓ Orden Shopify #${d.shopify_order_id} creada.`);
-      else alert(`No se pudo crear la orden: ${d.shopify_error || d.error || d.status || "sin detalle"}`);
+      if (d?.error) toast("Error: " + d.error, "error", 6000);
+      else if (d.shopify_order_id) toast(`Orden Shopify #${d.shopify_order_id} creada`, "success");
+      else toast(`No se pudo crear la orden: ${d.shopify_error || d.error || d.status || "sin detalle"}`, "error", 7000);
       load();
-    } catch (e) { alert("Error: " + e.message); }
+    } catch (e) { toast("Error: " + e.message, "error"); }
     finally { setRetrying(null); }
   }
 
+  const columns = [
+    { key:"fecha", label:"Fecha", nowrap:true, render: c => <span style={{ color:T.textSm, fontSize:DS.font.sm }}>{fmtDateTime(c.created_at)}</span> },
+    { key:"monto", label:"Monto", nowrap:true, render: c => <span style={{ fontWeight:DS.w.black, fontSize:DS.font.lg, fontVariantNumeric:"tabular-nums" }}>{fmtARS(c.amount_ars)}</span> },
+    { key:"ids", label:"Referencias", hideMobile:true, render: c => (
+      <div style={{ fontFamily:MONO, fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5 }}>
+        <div>MP {c.mp_payment_id}</div>
+        {c.shopify_order_id && <div>Shopify #{c.shopify_order_id}</div>}
+      </div>) },
+    { key:"estado", label:"Estado", render: c => c.error ? (
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:5, maxWidth:320 }}>
+        <span title={c.error} style={{ cursor:"help" }}><DSBadge T={T} color={T.red} size="sm">✗ Falló</DSBadge></span>
+        <span style={{ fontSize:DS.font.sm, color:T.red, lineHeight:1.35, overflow:"hidden", textOverflow:"ellipsis", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }} title={c.error}>{c.error}</span>
+        {!c.shopify_order_id && (
+          <Btn T={T} variant="secondary" size="sm" onClick={(e)=>{ e.stopPropagation(); retryOrder(c); }} disabled={retrying===c.id} style={{ padding:"4px 9px", fontSize:DS.font.xs }}>{retrying===c.id ? <><Spinner size={10} color={T.textMd}/> Reintentando…</> : "↻ Reintentar orden"}</Btn>
+        )}
+      </div>
+    ) : <DSBadge T={T} color={T.green} size="sm">✓ OK</DSBadge> },
+    { key:"status", label:"MP", align:"right", nowrap:true, hideMobile:true, render: c => <span style={{ fontSize:DS.font.sm, color:T.textSm }}>{c.status || ""}</span> },
+  ];
+
   return (
     <div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,gap:14,flexWrap:"wrap"}}>
-        <div>
-          <h1 style={{fontSize:24,fontWeight:800,margin:"0 0 6px",letterSpacing:-0.5}}>Cobros</h1>
-          <p style={{fontSize:13,color:"var(--text-sm)",margin:0,lineHeight:1.55}}>
-            Historial de cobros recurrentes procesados por Mercado Pago.
-          </p>
-        </div>
-        <button onClick={load} style={{background:"var(--surface)",border:"1px solid var(--border)",color:"var(--text-md)",borderRadius:8,padding:"7px 12px",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>↻ Refrescar</button>
-      </div>
+      <PageHeader T={T} title="Cobros" subtitle="Historial de cobros recurrentes procesados por Mercado Pago."
+        right={<Btn T={T} variant="secondary" size="sm" onClick={()=>load()} disabled={loading}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Refrescar</Btn>}/>
 
       {/* KPIs */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))",gap:12,marginBottom:18}}>
-        <Kpi label="Total recaudado" value={`$${totals.amount_ars.toLocaleString("es-AR")}`} color="var(--accent)"/>
-        <Kpi label="Cobros OK" value={totals.ok}/>
-        <Kpi label="Cobros fallidos" value={totals.failed} color={totals.failed>0?"var(--red)":undefined}/>
-        <Kpi label="Total cobros" value={totals.total}/>
+      <div className="kpi-grid gh-stagger" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))", gap:DS.sp.md, marginBottom:DS.sp.xl }}>
+        <KPI T={T} compact label="Total recaudado" value={fmtARS(totals.amount_ars)} accent color={T.accent} loading={loading && charges.length===0}/>
+        <KPI T={T} compact label="Cobros OK" value={totals.ok} color={T.text} loading={loading && charges.length===0}/>
+        <KPI T={T} compact label="Cobros fallidos" value={totals.failed} color={totals.failed>0?T.red:T.text} loading={loading && charges.length===0}/>
+        <KPI T={T} compact label="Total cobros" value={totals.total} color={T.text} loading={loading && charges.length===0}/>
       </div>
 
-      {loading ? (
-        <div style={{color:"var(--text-sm)",fontSize:13}}>Cargando…</div>
+      {loading && charges.length === 0 ? (
+        <Loading T={T}/>
       ) : charges.length === 0 ? (
-        <div style={{background:"var(--card)",border:"1px dashed var(--border)",borderRadius:14,padding:"50px 30px",textAlign:"center"}}>
-          <div style={{fontSize:36,marginBottom:10}}>💸</div>
-          <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>Sin cobros todavía</div>
-          <div style={{fontSize:12,color:"var(--text-sm)"}}>Aparecen acá cuando MP procesa el primer pago de una suscripción.</div>
-        </div>
+        <DSEmpty T={T} icon="💸" title="Sin cobros todavía" subtitle="Aparecen acá cuando MP procesa el primer pago de una suscripción."/>
       ) : (
-        <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:12,overflow:"hidden"}}>
-          {charges.map((c, i) => (
-            <div key={c.id} style={{display:"grid",gridTemplateColumns:"1fr auto auto auto",gap:14,alignItems:"center",padding:"12px 18px",borderBottom:i<charges.length-1?"1px solid var(--border)":"none",fontSize:12}}>
-              <div style={{minWidth:0}}>
-                <div style={{fontWeight:700,fontSize:14}}>${(c.amount_ars||0).toLocaleString("es-AR")}</div>
-                <div style={{fontSize:10,color:"var(--text-sm)",marginTop:2}}>{new Date(c.created_at).toLocaleString("es-AR")}</div>
-              </div>
-              <div style={{fontSize:10,color:"var(--text-sm)",fontFamily:"'Cascadia Code',monospace",textAlign:"right"}}>
-                <div>MP {c.mp_payment_id}</div>
-                {c.shopify_order_id && <div>Shopify #{c.shopify_order_id}</div>}
-              </div>
-              {c.error ? (
-                <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,maxWidth:260}}>
-                  <span title={c.error} style={{fontSize:9,padding:"2px 7px",borderRadius:4,background:"rgba(239,68,68,0.15)",color:"var(--red)",fontWeight:700,letterSpacing:0.4,textTransform:"uppercase",cursor:"help"}}>✗ Falló</span>
-                  <span style={{fontSize:10,color:"var(--red)",textAlign:"right",lineHeight:1.3,overflow:"hidden",textOverflow:"ellipsis",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical"}} title={c.error}>{c.error}</span>
-                  {!c.shopify_order_id && (
-                    <button onClick={()=>retryOrder(c)} disabled={retrying===c.id} style={{...btnSec,padding:"4px 9px",fontSize:10,opacity:retrying===c.id?0.6:1}}>{retrying===c.id ? "Reintentando…" : "↻ Reintentar orden"}</button>
-                  )}
-                </div>
-              ) : (
-                <span style={{fontSize:9,padding:"2px 7px",borderRadius:4,background:"rgba(16,185,129,0.15)",color:"var(--accent)",fontWeight:700,letterSpacing:0.4,textTransform:"uppercase"}}>✓ OK</span>
-              )}
-              <span style={{fontSize:10,color:"var(--text-sm)"}}>{c.status || ""}</span>
-            </div>
-          ))}
-          {cursor && (
-            <div style={{padding:12,textAlign:"center"}}>
-              <button onClick={()=>load(true)} disabled={loading} style={btnSec}>{loading ? "Cargando…" : "Cargar más"}</button>
-            </div>
-          )}
-        </div>
+        <DSTable T={T} columns={columns} rows={charges} rowKey={c=>c.id} minWidth={720}
+          footer={<>
+            <span>{charges.length} cobro{charges.length===1?"":"s"} cargado{charges.length===1?"":"s"}</span>
+            {cursor && <Btn T={T} variant="secondary" size="sm" onClick={()=>load(true)} disabled={loading}>{loading ? <><Spinner size={11} color={T.textMd}/> Cargando…</> : "Cargar más"}</Btn>}
+          </>}/>
       )}
-    </div>
-  );
-}
-
-function Kpi({ label, value, color }) {
-  return (
-    <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:12,padding:"14px 16px"}}>
-      <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5}}>{label}</div>
-      <div style={{fontSize:22,fontWeight:800,marginTop:6,letterSpacing:-0.4,color:color||"var(--text)"}}>{value}</div>
     </div>
   );
 }
@@ -2015,47 +1827,35 @@ function Kpi({ label, value, color }) {
 // ─── Helpers ─────────────────────────────────────────────────────
 
 function PlaceholderTab({ title, desc, next }) {
+  const T = useT();
   return (
     <div>
-      <h1 style={{fontSize:24,fontWeight:800,margin:"0 0 6px",letterSpacing:-0.5}}>{title}</h1>
-      <p style={{fontSize:13,color:"var(--text-sm)",margin:"0 0 24px",lineHeight:1.55}}>{desc}</p>
-      <div style={{background:"var(--card)",border:"1px dashed var(--border)",borderRadius:14,padding:"50px 30px",textAlign:"center"}}>
-        <div style={{fontSize:36,marginBottom:10}}>🚧</div>
-        <div style={{fontSize:13,color:"var(--text-md)"}}>{next || "En construcción."}</div>
-      </div>
+      <PageHeader T={T} title={title} subtitle={desc}/>
+      <DSEmpty T={T} icon="🚧" title={next || "En construcción."}/>
     </div>
   );
 }
 
 function NeedsIntegrations({ title, onGo }) {
+  const T = useT();
   return (
     <div>
-      <h1 style={{fontSize:24,fontWeight:800,margin:"0 0 6px",letterSpacing:-0.5}}>{title}</h1>
-      <div style={{marginTop:20,background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.3)",borderRadius:12,padding:"22px 24px"}}>
-        <div style={{fontSize:13,fontWeight:700,color:"var(--yellow)",marginBottom:6}}>⚠ Falta conectar integraciones</div>
-        <div style={{fontSize:12,color:"var(--text-md)",lineHeight:1.55,marginBottom:14}}>
-          Necesitás conectar Shopify y Mercado Pago antes de usar esta sección.
-        </div>
-        <button onClick={onGo} style={{background:"linear-gradient(135deg, var(--green), var(--green-dark))",border:"none",color:"#fff",padding:"8px 14px",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-          Ir a Integraciones →
-        </button>
-      </div>
+      <PageHeader T={T} title={title}/>
+      <Callout T={T} tone="warning" title="Falta conectar integraciones" right={<Btn T={T} variant="solid" size="sm" onClick={onGo}>Ir a Integraciones →</Btn>}>
+        Necesitás conectar Shopify y Mercado Pago antes de usar esta sección.
+      </Callout>
     </div>
   );
 }
 
-const lbl = { display:"block", fontSize:11, fontWeight:600, color:"var(--text-md)", marginBottom:5, marginTop:12, textTransform:"uppercase", letterSpacing:0.4 };
-const lblSmall = { display:"block", fontSize:11, fontWeight:600, color:"var(--text-md)", marginBottom:5, letterSpacing:0.3 };
-const inp = { width:"100%", background:"var(--surface)", border:"1px solid var(--border)", color:"var(--text)", borderRadius:9, padding:"9px 12px", fontSize:13, outline:"none", fontFamily:"inherit", boxSizing:"border-box" };
-const inp2 = { background:"var(--surface)", border:"1px solid var(--border)", color:"var(--text)", borderRadius:8, padding:"7px 11px", fontSize:12, outline:"none", fontFamily:"inherit" };
-const btnPri = { border:"none", padding:"8px 14px", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", background:"linear-gradient(135deg, var(--green), var(--green-dark))", color:"#fff" };
-const btnSec = { border:"1px solid var(--border)", padding:"8px 14px", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", background:"var(--surface)", color:"var(--text-md)" };
-const btnDan = { border:"1px solid rgba(239,68,68,0.4)", padding:"8px 14px", borderRadius:8, fontSize:12, fontWeight:700, cursor:"pointer", fontFamily:"inherit", background:"transparent", color:"var(--red)" };
-
 // ─── Modal para editar la dirección de un subscriber ──────────────
 // Edita el shipping_address y propaga el cambio a TODAS las órdenes Shopify
 // ya creadas + las que se generen en cobros recurrentes futuros.
+const PROVINCIAS_AR = ["Buenos Aires","Ciudad Autónoma de Buenos Aires","Catamarca","Chaco","Chubut","Córdoba","Corrientes","Entre Ríos","Formosa","Jujuy","La Pampa","La Rioja","Mendoza","Misiones","Neuquén","Río Negro","Salta","San Juan","San Luis","Santa Cruz","Santa Fe","Santiago del Estero","Tierra del Fuego","Tucumán"];
+
 function EditAddressModal({ sub, onClose, onSaved }) {
+  const T = useT();
+  const iS = InputStyle(T);
   const a = sub?.shipping_address || {};
   const [name, setName]         = React.useState(sub?.customer_name || "");
   const [phone, setPhone]       = React.useState(sub?.customer_phone || a.phone || "");
@@ -2068,13 +1868,13 @@ function EditAddressModal({ sub, onClose, onSaved }) {
   const [saving, setSaving]     = React.useState(false);
 
   async function save() {
-    if (!address1.trim()) return alert("Falta dirección (calle + número)");
-    if (!city.trim())     return alert("Falta ciudad");
-    if (!province)        return alert("Falta provincia");
-    if (!zip.trim())      return alert("Falta código postal");
+    if (!address1.trim()) return toast("Falta dirección (calle + número)", "warning");
+    if (!city.trim())     return toast("Falta ciudad", "warning");
+    if (!province)        return toast("Falta provincia", "warning");
+    if (!zip.trim())      return toast("Falta código postal", "warning");
     const cleanTax = (taxId || "").replace(/[^0-9]/g, "");
     if (cleanTax && !(cleanTax.length === 7 || cleanTax.length === 8 || cleanTax.length === 11)) {
-      return alert("DNI o CUIL/CUIT inválido. DNI son 7-8 dígitos, CUIL/CUIT son 11.");
+      return toast("DNI o CUIL/CUIT inválido. DNI son 7-8 dígitos, CUIL/CUIT son 11.", "warning", 5000);
     }
     setSaving(true);
     const r = await apiSend("subscribers", "PATCH",
@@ -2082,79 +1882,56 @@ function EditAddressModal({ sub, onClose, onSaved }) {
       { action: "update-address", id: sub.id }
     );
     setSaving(false);
-    if (r?.error) { alert("Error: " + r.error); return; }
-    let msg = "✓ Dirección actualizada en Recurrentes.";
-    if (r.updated_orders?.length) msg += `\n📦 ${r.updated_orders.length} órdenes Shopify actualizadas.`;
-    if (r.failed_orders?.length)  msg += `\n⚠️ ${r.failed_orders.length} órdenes Shopify fallaron al actualizar (verificá manual en Shopify Admin).`;
-    alert(msg);
+    if (r?.error) { toast("Error: " + r.error, "error", 6000); return; }
+    if (r.failed_orders?.length) {
+      await appAlert(`Dirección actualizada en Recurrentes.` + (r.updated_orders?.length ? `\n📦 ${r.updated_orders.length} órdenes Shopify actualizadas.` : "") + `\n⚠️ ${r.failed_orders.length} órdenes Shopify fallaron al actualizar (verificá manual en Shopify Admin).`, { title:"Dirección guardada con avisos" });
+    } else {
+      toast("Dirección actualizada" + (r.updated_orders?.length ? ` · ${r.updated_orders.length} órdenes Shopify actualizadas` : ""), "success", 5000);
+    }
     onSaved?.();
   }
 
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:99999}} onClick={onClose}>
-      <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:14,padding:"24px 26px",maxWidth:520,width:"100%",maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-          <div style={{fontSize:17,fontWeight:700}}>Editar dirección</div>
-          <button onClick={onClose} style={{background:"transparent",border:"none",color:"var(--text-sm)",fontSize:20,cursor:"pointer"}}>✕</button>
-        </div>
-        <div style={{fontSize:11,color:"var(--text-sm)",marginBottom:14,lineHeight:1.5}}>
-          Los cambios se aplican al sub Y a todas las órdenes Shopify ya creadas + las que se generen en cobros futuros.
-        </div>
-
-        <label style={lbl}>Nombre completo</label>
-        <input type="text" value={name} onChange={e=>setName(e.target.value)} style={inp}/>
-
-        <label style={lbl}>Teléfono</label>
-        <input type="tel" value={phone} onChange={e=>setPhone(e.target.value)} style={inp}/>
-
-        <label style={lbl}>DNI o CUIL / CUIT (solo números)</label>
-        <input type="text" inputMode="numeric" value={taxId} onChange={e=>setTaxId(e.target.value.replace(/[^0-9]/g, ""))} style={inp} placeholder="12345678 ó 20123456789"/>
-        <div style={{fontSize:10,color:"var(--text-sm)",marginTop:-12,marginBottom:14,lineHeight:1.4}}>
-          7-8 dígitos para DNI · 11 dígitos para CUIL/CUIT. Se guarda como "Company" en la orden Shopify para facturación.
-        </div>
-
-        <label style={lbl}>Dirección (calle + número) *</label>
-        <input type="text" value={address1} onChange={e=>setAddress1(e.target.value)} style={inp} placeholder="Av. Corrientes 1234"/>
-
-        <label style={lbl}>Departamento / piso (opcional)</label>
-        <input type="text" value={address2} onChange={e=>setAddress2(e.target.value)} style={inp} placeholder="Depto 4B"/>
-
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          <div>
-            <label style={lbl}>Ciudad *</label>
-            <input type="text" value={city} onChange={e=>setCity(e.target.value)} style={inp}/>
-          </div>
-          <div>
-            <label style={lbl}>Código postal *</label>
-            <input type="text" value={zip} onChange={e=>setZip(e.target.value)} style={inp}/>
-          </div>
-        </div>
-
-        <label style={lbl}>Provincia *</label>
-        <select value={province} onChange={e=>setProvince(e.target.value)} style={inp}>
-          <option value="">— Seleccioná —</option>
-          {["Buenos Aires","Ciudad Autónoma de Buenos Aires","Catamarca","Chaco","Chubut","Córdoba","Corrientes","Entre Ríos","Formosa","Jujuy","La Pampa","La Rioja","Mendoza","Misiones","Neuquén","Río Negro","Salta","San Juan","San Luis","Santa Cruz","Santa Fe","Santiago del Estero","Tierra del Fuego","Tucumán"].map(p=>(
-            <option key={p} value={p}>{p}</option>
-          ))}
-        </select>
-
-        <button onClick={save} disabled={saving} style={{width:"100%",marginTop:18,background:"linear-gradient(135deg, var(--green), var(--green-dark))",border:"none",color:"#fff",padding:"11px",borderRadius:10,fontSize:14,fontWeight:700,cursor:saving?"wait":"pointer",fontFamily:"inherit",opacity:saving?0.6:1}}>
-          {saving ? "Guardando…" : "Guardar y sincronizar con Shopify"}
-        </button>
+    <Modal T={T} open onClose={onClose} title="Editar dirección" width={540} zIndex={1100}
+      subtitle="Los cambios se aplican al sub y a todas las órdenes Shopify ya creadas + las que se generen en cobros futuros."
+      footer={<>
+        <Btn T={T} variant="secondary" onClick={onClose} disabled={saving}>Cancelar</Btn>
+        <Btn T={T} variant="solid" onClick={save} disabled={saving}>{saving ? <><Spinner size={13}/> Guardando…</> : "Guardar y sincronizar con Shopify"}</Btn>
+      </>}>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 12px" }}>
+        <Field T={T} label="Nombre completo"><input type="text" value={name} onChange={e=>setName(e.target.value)} style={iS}/></Field>
+        <Field T={T} label="Teléfono"><input type="tel" value={phone} onChange={e=>setPhone(e.target.value)} style={iS}/></Field>
       </div>
-    </div>
+      <Field T={T} label="DNI o CUIL / CUIT (solo números)">
+        <input type="text" inputMode="numeric" value={taxId} onChange={e=>setTaxId(e.target.value.replace(/[^0-9]/g, ""))} style={iS} placeholder="12345678 ó 20123456789"/>
+      </Field>
+      <Hint T={T}>7-8 dígitos para DNI · 11 dígitos para CUIL/CUIT. Se guarda como "Company" en la orden Shopify para facturación.</Hint>
+      <Field T={T} label="Dirección (calle + número)" required><input type="text" value={address1} onChange={e=>setAddress1(e.target.value)} style={iS} placeholder="Av. Corrientes 1234"/></Field>
+      <Field T={T} label="Departamento / piso (opcional)"><input type="text" value={address2} onChange={e=>setAddress2(e.target.value)} style={iS} placeholder="Depto 4B"/></Field>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 12px" }}>
+        <Field T={T} label="Ciudad" required><input type="text" value={city} onChange={e=>setCity(e.target.value)} style={iS}/></Field>
+        <Field T={T} label="Código postal" required><input type="text" value={zip} onChange={e=>setZip(e.target.value)} style={iS}/></Field>
+      </div>
+      <Field T={T} label="Provincia" required>
+        <select value={province} onChange={e=>setProvince(e.target.value)} style={iS}>
+          <option value="">— Seleccioná —</option>
+          {PROVINCIAS_AR.map(p=><option key={p} value={p}>{p}</option>)}
+        </select>
+      </Field>
+    </Modal>
   );
 }
 
 
 // ─── Pantalla "Verificá tu email" (403 email_unverified del backend) ────────
 function VerifyEmailScreen({ user, onLogout, onRetry }) {
+  const T = useT();
   const [sent, setSent] = React.useState(() => { try { return sessionStorage.getItem("rec_verify_sent") === "1"; } catch (_) { return false; } });
   const [busy, setBusy] = React.useState(false);
   async function resend() {
     setBusy(true);
-    try { await sendEmailVerification(auth.currentUser); setSent(true); try { sessionStorage.setItem("rec_verify_sent", "1"); } catch (_) {} }
-    catch (e) { alert("No se pudo reenviar: " + (e.message || e.code)); }
+    try { await sendEmailVerification(auth.currentUser); setSent(true); try { sessionStorage.setItem("rec_verify_sent", "1"); } catch (_) {} toast("Mail de verificación reenviado", "success"); }
+    catch (e) { toast("No se pudo reenviar: " + (e.message || e.code), "error", 6000); }
     finally { setBusy(false); }
   }
   async function check() {
@@ -2163,19 +1940,19 @@ function VerifyEmailScreen({ user, onLogout, onRetry }) {
     finally { setBusy(false); }
   }
   return (
-    <div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:24,background:"var(--bg)"}}>
-      <div style={{maxWidth:440,width:"100%",background:"var(--card)",border:"1px solid var(--border)",borderRadius:16,padding:"28px 26px",textAlign:"center"}}>
-        <div style={{fontSize:40,marginBottom:12}}>📬</div>
-        <h1 style={{fontSize:20,fontWeight:800,margin:"0 0 8px"}}>Verificá tu email</h1>
-        <p style={{fontSize:13,color:"var(--text-md)",lineHeight:1.55,margin:"0 0 18px"}}>
-          {sent ? "Te mandamos un mail para verificar tu cuenta a " : "Para operar necesitamos verificar "}<strong style={{color:"var(--text)"}}>{user?.email}</strong>. Abrí el link del mail y después tocá "Ya verifiqué".
+    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", padding:24, background:T.bg, color:T.text, fontFamily:"'Inter',system-ui,sans-serif" }}>
+      <Card T={T} padding="xl" className="gh-card-enter" style={{ maxWidth:460, width:"100%", textAlign:"center" }}>
+        <div style={{ fontSize:40, marginBottom:12 }}>📬</div>
+        <div style={{ fontSize:DS.font["2xl"], fontWeight:DS.w.black, margin:"0 0 8px", letterSpacing:-0.4 }}>Verificá tu email</div>
+        <p style={{ fontSize:DS.font.base, color:T.textMd, lineHeight:1.55, margin:"0 0 18px" }}>
+          {sent ? "Te mandamos un mail para verificar tu cuenta a " : "Para operar necesitamos verificar "}<strong style={{ color:T.text }}>{user?.email}</strong>. Abrí el link del mail y después tocá "Ya verifiqué".
         </p>
-        <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
-          <button onClick={check} disabled={busy} style={btnPri}>{busy ? "…" : "Ya verifiqué"}</button>
-          <button onClick={resend} disabled={busy} style={btnSec}>Reenviar mail</button>
-          <button onClick={onLogout} style={btnSec}>Salir</button>
+        <div style={{ display:"flex", gap:8, justifyContent:"center", flexWrap:"wrap" }}>
+          <Btn T={T} variant="solid" onClick={check} disabled={busy}>{busy ? <Spinner size={13}/> : "Ya verifiqué"}</Btn>
+          <Btn T={T} variant="secondary" onClick={resend} disabled={busy}>Reenviar mail</Btn>
+          <Btn T={T} variant="ghost" onClick={onLogout} style={{ color:T.textSm }}>Salir</Btn>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
@@ -2183,6 +1960,8 @@ function VerifyEmailScreen({ user, onLogout, onRetry }) {
 // ─── Configuración operativa: mails, abandono, envíos del checkout, cupones, dev ──
 // Guarda PARCIAL por sección con merchant?action=save-settings (solo lo que se manda).
 export function OperationalSettingsCard({ merchant, onChange }) {
+  const T = useT();
+  const iS = InputStyle(T);
   const m = merchant || {};
   const [emailFrom, setEmailFrom]     = React.useState(m.email_from || "");
   const [emailBrand, setEmailBrand]   = React.useState(m.email_brand || "");
@@ -2214,173 +1993,171 @@ export function OperationalSettingsCard({ merchant, onChange }) {
     setBusy(section);
     const d = await apiPatch("merchant", body, { action: "save-settings" });
     setBusy("");
-    if (d?.error) return alert("Error: " + d.error);
+    if (d?.error) return toast("Error: " + d.error, "error", 6000);
+    toast("Guardado", "success");
     onChange?.();
   }
   async function saveCodes() {
     setBusy("codes");
     const d = await apiPatch("merchant", { discount_codes: codes }, { action: "save-discount-codes" });
     setBusy("");
-    if (d?.error) return alert("Error: " + d.error);
+    if (d?.error) return toast("Error: " + d.error, "error", 6000);
+    toast("Códigos guardados", "success");
     onChange?.();
   }
   async function sendTest(step) {
-    if (!testTo.trim()) return alert("Ingresá el mail destino (tu mail de cuenta o uno del dominio del remitente)");
+    if (!testTo.trim()) return toast("Ingresá el mail destino (tu mail de cuenta o uno del dominio del remitente)", "warning", 5000);
     setBusy("test");
     const d = await apiPost("merchant", { to: testTo.trim(), step }, { action: "test-email" });
     setBusy("");
-    if (d?.error) return alert("Error: " + d.error);
-    alert(`✓ Mail de prueba (paso ${step}) enviado a ${testTo.trim()}. Quedan ${d.remaining ?? "?"} pruebas hoy.`);
+    if (d?.error) return toast("Error: " + d.error, "error", 6000);
+    toast(`Mail de prueba (paso ${step}) enviado a ${testTo.trim()}. Quedan ${d.remaining ?? "?"} pruebas hoy.`, "success", 6000);
   }
   const updRate = (i, k, v) => setRates(rs => rs.map((r, j) => j === i ? { ...r, [k]: v } : r));
   const updCode = (i, k, v) => setCodes(cs => cs.map((c, j) => j === i ? { ...c, [k]: v } : c));
   const activeCodes = codes.filter(c => c.code && c.active !== false);
-  const sec = { marginTop:18, paddingTop:14, borderTop:"1px solid var(--border)" };
-  const h = { fontSize:13, fontWeight:700, marginBottom:4 };
-  const saveBtn = (section, body) => (
-    <button onClick={()=>save(section, body)} disabled={!!busy} style={{...btnPri,marginTop:10,opacity:busy?0.6:1}}>{busy===section ? "Guardando…" : "Guardar"}</button>
+  const inl = { ...iS, padding:"7px 10px", fontSize:DS.font.md };
+  const xBtn = (onClick, title="Quitar") => (
+    <button type="button" onClick={onClick} title={title} style={{ background:"transparent", border:"none", color:T.textSm, cursor:"pointer", fontSize:14, padding:"4px 6px", fontFamily:"inherit", lineHeight:1 }}
+      onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.textSm}>✕</button>
   );
+  const saveBtn = (section, body, label="Guardar") => (
+    <Btn T={T} variant="primary" onClick={()=>save(section, body)} disabled={!!busy} style={{ marginTop:4 }}>{busy===section ? <><Spinner size={12} color={T.accent}/> Guardando…</> : label}</Btn>
+  );
+  const chk = { width:14, height:14, accentColor:T.accentSolid };
 
   return (
-    <div style={{marginTop:24,padding:"18px 22px",background:"var(--card)",border:"1px solid var(--border)",borderRadius:12}}>
-      <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>Configuración</div>
-      <div style={{fontSize:12,color:"var(--text-sm)",lineHeight:1.55}}>Remitente de mails, tienda, envíos del checkout, cupones y recupero de carritos.</div>
+    <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
+      <div>
+        <div style={{ fontSize:DS.font.xl, fontWeight:DS.w.bold, color:T.text, letterSpacing:-0.2 }}>Configuración operativa</div>
+        <div style={{ fontSize:DS.font.md, color:T.textSm, lineHeight:1.55, marginTop:2 }}>Remitente de mails, tienda, envíos del checkout, cupones y recupero de carritos.</div>
+      </div>
 
       {/* Tienda */}
-      <div style={sec}>
-        <div style={h}>Tienda</div>
-        <label style={lbl}>Dominio público de la tienda (sin https://)</label>
-        <input value={storeDomain} onChange={e=>setStoreDomain(e.target.value)} style={inp} placeholder="www.mitienda.com"/>
-        <label style={lbl}>Ruta de la página de checkout de suscripción</label>
-        <input value={pagePath} onChange={e=>setPagePath(e.target.value)} style={inp} placeholder="/pages/suscripcion-form"/>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          <div>
-            <label style={lbl}>Flujo del checkout del widget</label>
-            <select value={flow} onChange={e=>setFlow(e.target.value)} style={inp}>
+      <Card T={T}>
+        <CardHeader T={T} title="Tienda" sub="Dominio público y flujo del checkout de suscripción."/>
+        <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 14px" }}>
+          <Field T={T} label="Dominio público de la tienda (sin https://)">
+            <input value={storeDomain} onChange={e=>setStoreDomain(e.target.value)} style={iS} placeholder="www.mitienda.com"/>
+          </Field>
+          <Field T={T} label="Ruta de la página de checkout de suscripción">
+            <input value={pagePath} onChange={e=>setPagePath(e.target.value)} style={iS} placeholder="/pages/suscripcion-form"/>
+          </Field>
+          <Field T={T} label="Flujo del checkout del widget">
+            <select value={flow} onChange={e=>setFlow(e.target.value)} style={iS}>
               <option value="redirect">Redirigir a la página de checkout</option>
               <option value="inline">Inline (formulario en el producto)</option>
             </select>
-          </div>
-          <div>
-            <label style={lbl}>Selector CSS a ocultar en modo suscripción</label>
-            <input value={hideSel} onChange={e=>setHideSel(e.target.value)} style={inp} placeholder=".product-form__buttons, ..."/>
-          </div>
+          </Field>
+          <Field T={T} label="Selector CSS a ocultar en modo suscripción">
+            <input value={hideSel} onChange={e=>setHideSel(e.target.value)} style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} placeholder=".product-form__buttons, ..."/>
+          </Field>
         </div>
         {saveBtn("store", { store_domain: storeDomain, widget_checkout_page_path: pagePath, widget_checkout_flow: flow, widget_hide_selector: hideSel })}
-      </div>
+      </Card>
 
       {/* Envíos del checkout */}
-      <div style={sec}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={h}>Métodos de envío del checkout</div>
-          {rates.length < 6 && <button type="button" onClick={()=>setRates(rs=>[...rs,{name:"",price:0,code:""}])} style={{...btnSec,padding:"5px 10px",fontSize:11}}>+ Agregar</button>}
-        </div>
-        <div style={{fontSize:11,color:"var(--text-sm)",lineHeight:1.5,marginBottom:8}}>Lo que el cliente elige al suscribirse y queda en cada orden recurrente. Sin tarifas → se usa el envío del plan.</div>
+      <Card T={T}>
+        <CardHeader T={T} title="Métodos de envío del checkout" sub="Lo que el cliente elige al suscribirse y queda en cada orden recurrente. Sin tarifas → se usa el envío del plan."
+          right={rates.length < 6 && <Btn T={T} variant="secondary" size="sm" onClick={()=>setRates(rs=>[...rs,{name:"",price:0,code:""}])} type="button">+ Agregar</Btn>}/>
+        {rates.length === 0 && <SurfaceBox T={T} style={{ marginBottom:12 }}><div style={{ fontSize:DS.font.sm, color:T.textSm }}>Sin métodos propios: el checkout usa el costo de envío configurado en cada plan.</div></SurfaceBox>}
         {rates.map((r, i) => (
-          <div key={i} style={{display:"grid",gridTemplateColumns:"2fr 1fr 1fr auto",gap:6,alignItems:"center",marginBottom:6}}>
-            <input value={r.name} onChange={e=>updRate(i,"name",e.target.value)} style={{...inp,marginBottom:0}} placeholder="Nombre (ej. Andreani a domicilio)"/>
-            <input type="number" min="0" value={r.price} onChange={e=>updRate(i,"price",e.target.value)} style={{...inp,marginBottom:0}} placeholder="Precio $"/>
-            <input value={r.code || ""} onChange={e=>updRate(i,"code",e.target.value)} style={{...inp,marginBottom:0}} placeholder="Código (opcional)"/>
-            <button type="button" onClick={()=>setRates(rs=>rs.filter((_,j)=>j!==i))} style={{background:"transparent",border:"none",color:"var(--red)",cursor:"pointer",fontSize:14}}>✕</button>
+          <div key={i} style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr auto", gap:6, alignItems:"center", marginBottom:6 }}>
+            <input value={r.name} onChange={e=>updRate(i,"name",e.target.value)} style={inl} placeholder="Nombre (ej. Andreani a domicilio)"/>
+            <input type="number" min="0" value={r.price} onChange={e=>updRate(i,"price",e.target.value)} style={inl} placeholder="Precio $"/>
+            <input value={r.code || ""} onChange={e=>updRate(i,"code",e.target.value)} style={inl} placeholder="Código (opcional)"/>
+            {xBtn(()=>setRates(rs=>rs.filter((_,j)=>j!==i)))}
           </div>
         ))}
-        {saveBtn("rates", { checkout_shipping_rates: rates.map(r => ({ name: r.name, price: parseInt(r.price, 10) || 0, code: r.code || "" })) })}
-      </div>
+        <div style={{ marginTop:8 }}>{saveBtn("rates", { checkout_shipping_rates: rates.map(r => ({ name: r.name, price: parseInt(r.price, 10) || 0, code: r.code || "" })) })}</div>
+      </Card>
 
       {/* Códigos de descuento */}
-      <div style={sec}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={h}>Códigos de descuento</div>
-          <button type="button" onClick={()=>setCodes(cs=>[...cs,{code:"",type:"percent",value:10,active:true,recovery_only:false,first_charge_only:false}])} style={{...btnSec,padding:"5px 10px",fontSize:11}}>+ Agregar</button>
-        </div>
-        <div style={{fontSize:11,color:"var(--text-sm)",lineHeight:1.5,marginBottom:8}}>"Solo recupero" = solo aplica desde el link del mail de abandono. "Solo 1er cobro" = las renovaciones van a precio pleno.</div>
+      <Card T={T}>
+        <CardHeader T={T} title="Códigos de descuento" sub={<>"Solo recupero" = solo aplica desde el link del mail de abandono. "Solo 1er cobro" = las renovaciones van a precio pleno.</>}
+          right={<Btn T={T} variant="secondary" size="sm" onClick={()=>setCodes(cs=>[...cs,{code:"",type:"percent",value:10,active:true,recovery_only:false,first_charge_only:false}])} type="button">+ Agregar</Btn>}/>
+        {codes.length === 0 && <SurfaceBox T={T} style={{ marginBottom:12 }}><div style={{ fontSize:DS.font.sm, color:T.textSm }}>Todavía no hay códigos. Agregá uno para usarlo en el checkout o en los mails de recupero.</div></SurfaceBox>}
         {codes.map((c, i) => (
-          <div key={i} style={{display:"grid",gridTemplateColumns:"1.4fr 1fr 0.8fr auto auto auto auto",gap:6,alignItems:"center",marginBottom:6,fontSize:11}}>
-            <input value={c.code} onChange={e=>updCode(i,"code",e.target.value.toUpperCase())} style={{...inp,marginBottom:0,fontFamily:"monospace"}} placeholder="CODIGO"/>
-            <select value={c.type || "percent"} onChange={e=>updCode(i,"type",e.target.value)} style={{...inp,marginBottom:0}}>
+          <div key={i} style={{ display:"flex", gap:8, alignItems:"center", marginBottom:6, flexWrap:"wrap", background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:DS.r.md, padding:"6px 8px" }}>
+            <input value={c.code} onChange={e=>updCode(i,"code",e.target.value.toUpperCase())} style={{ ...inl, fontFamily:MONO, flex:"1 1 130px" }} placeholder="CODIGO"/>
+            <select value={c.type || "percent"} onChange={e=>updCode(i,"type",e.target.value)} style={{ ...inl, flex:"0 1 100px" }}>
               <option value="percent">% off</option>
               <option value="fixed">$ fijo</option>
             </select>
-            <input type="number" min="0" value={c.value} onChange={e=>updCode(i,"value",e.target.value)} style={{...inp,marginBottom:0}}/>
-            <label style={{display:"flex",gap:4,alignItems:"center",whiteSpace:"nowrap"}}><input type="checkbox" checked={c.active !== false} onChange={e=>updCode(i,"active",e.target.checked)}/>Activo</label>
-            <label style={{display:"flex",gap:4,alignItems:"center",whiteSpace:"nowrap"}}><input type="checkbox" checked={c.recovery_only === true} onChange={e=>updCode(i,"recovery_only",e.target.checked)}/>Solo recupero</label>
-            <label style={{display:"flex",gap:4,alignItems:"center",whiteSpace:"nowrap"}}><input type="checkbox" checked={c.first_charge_only === true} onChange={e=>updCode(i,"first_charge_only",e.target.checked)}/>Solo 1er cobro</label>
-            <button type="button" onClick={()=>setCodes(cs=>cs.filter((_,j)=>j!==i))} style={{background:"transparent",border:"none",color:"var(--red)",cursor:"pointer",fontSize:14}}>✕</button>
+            <input type="number" min="0" value={c.value} onChange={e=>updCode(i,"value",e.target.value)} style={{ ...inl, flex:"0 1 80px" }}/>
+            <label style={{ display:"flex", gap:5, alignItems:"center", whiteSpace:"nowrap", fontSize:DS.font.sm, color:T.textMd, cursor:"pointer" }}><input type="checkbox" style={chk} checked={c.active !== false} onChange={e=>updCode(i,"active",e.target.checked)}/>Activo</label>
+            <label style={{ display:"flex", gap:5, alignItems:"center", whiteSpace:"nowrap", fontSize:DS.font.sm, color:T.textMd, cursor:"pointer" }}><input type="checkbox" style={chk} checked={c.recovery_only === true} onChange={e=>updCode(i,"recovery_only",e.target.checked)}/>Solo recupero</label>
+            <label style={{ display:"flex", gap:5, alignItems:"center", whiteSpace:"nowrap", fontSize:DS.font.sm, color:T.textMd, cursor:"pointer" }}><input type="checkbox" style={chk} checked={c.first_charge_only === true} onChange={e=>updCode(i,"first_charge_only",e.target.checked)}/>Solo 1er cobro</label>
+            <span style={{ marginLeft:"auto" }}>{xBtn(()=>setCodes(cs=>cs.filter((_,j)=>j!==i)))}</span>
           </div>
         ))}
-        <button onClick={saveCodes} disabled={!!busy} style={{...btnPri,marginTop:10,opacity:busy?0.6:1}}>{busy==="codes" ? "Guardando…" : "Guardar códigos"}</button>
-      </div>
+        <div style={{ marginTop:8 }}>
+          <Btn T={T} variant="primary" onClick={saveCodes} disabled={!!busy}>{busy==="codes" ? <><Spinner size={12} color={T.accent}/> Guardando…</> : "Guardar códigos"}</Btn>
+        </div>
+      </Card>
 
       {/* Mails */}
-      <div style={sec}>
-        <div style={h}>Mails a tus clientes</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          <div>
-            <label style={lbl}>Remitente (Nombre &lt;mail@tudominio&gt;)</label>
-            <input value={emailFrom} onChange={e=>setEmailFrom(e.target.value)} style={inp} placeholder="Mi Tienda <hola@mitienda.com>"/>
-          </div>
-          <div>
-            <label style={lbl}>Marca (título en los mails, máx 40)</label>
-            <input value={emailBrand} onChange={e=>setEmailBrand(e.target.value)} style={inp} maxLength={40} placeholder="Mi Tienda"/>
-          </div>
-          <div>
-            <label style={lbl}>Responder a</label>
-            <input value={emailReply} onChange={e=>setEmailReply(e.target.value)} style={inp} placeholder="ayuda@mitienda.com"/>
-          </div>
-          <div>
-            <label style={lbl}>Color de acento (#hex, vacío = color del widget)</label>
-            <input value={emailAccent} onChange={e=>setEmailAccent(e.target.value)} style={{...inp,fontFamily:"monospace"}} placeholder="#10b981"/>
-          </div>
+      <Card T={T}>
+        <CardHeader T={T} title="Mails a tus clientes" sub="El dominio del remitente tiene que estar verificado en Resend; si no, los mails salen con el remitente por defecto."/>
+        <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 14px" }}>
+          <Field T={T} label="Remitente (Nombre <mail@tudominio>)">
+            <input value={emailFrom} onChange={e=>setEmailFrom(e.target.value)} style={iS} placeholder="Mi Tienda <hola@mitienda.com>"/>
+          </Field>
+          <Field T={T} label="Marca (título en los mails, máx 40)">
+            <input value={emailBrand} onChange={e=>setEmailBrand(e.target.value)} style={iS} maxLength={40} placeholder="Mi Tienda"/>
+          </Field>
+          <Field T={T} label="Responder a">
+            <input value={emailReply} onChange={e=>setEmailReply(e.target.value)} style={iS} placeholder="ayuda@mitienda.com"/>
+          </Field>
+          <Field T={T} label="Color de acento (#hex, vacío = color del widget)">
+            <input value={emailAccent} onChange={e=>setEmailAccent(e.target.value)} style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} placeholder="#10b981"/>
+          </Field>
         </div>
-        <div style={{fontSize:10,color:"var(--text-sm)",lineHeight:1.5,marginTop:-6}}>El dominio del remitente tiene que estar verificado en Resend; si no, los mails salen con el remitente por defecto.</div>
         {saveBtn("email", { email_from: emailFrom, email_brand: emailBrand, email_reply_to: emailReply, email_accent: emailAccent })}
-        <div style={{display:"flex",gap:6,alignItems:"center",marginTop:10,flexWrap:"wrap"}}>
-          <input value={testTo} onChange={e=>setTestTo(e.target.value)} style={{...inp,marginBottom:0,maxWidth:260}} placeholder="mail de prueba"/>
-          {[1,2,3].map(st => <button key={st} onClick={()=>sendTest(st)} disabled={!!busy} style={{...btnSec,padding:"6px 10px",fontSize:11}}>Probar paso {st}</button>)}
-          <span style={{fontSize:10,color:"var(--text-sm)"}}>Máx 10 por día · solo a tu mail o al dominio del remitente</span>
+        <Divider T={T}/>
+        <SectionTitle T={T} sub="Máx 10 por día · solo a tu mail o al dominio del remitente.">Probar los mails</SectionTitle>
+        <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
+          <input value={testTo} onChange={e=>setTestTo(e.target.value)} style={{ ...inl, maxWidth:260 }} placeholder="mail de prueba"/>
+          {[1,2,3].map(st => <Btn key={st} T={T} variant="secondary" size="sm" onClick={()=>sendTest(st)} disabled={!!busy}>Probar paso {st}</Btn>)}
         </div>
-      </div>
+      </Card>
 
       {/* Abandono */}
-      <div style={sec}>
-        <div style={h}>Recupero de carritos abandonados</div>
-        <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"var(--text)",marginTop:8}}>
-          <input type="checkbox" checked={abandoned} onChange={e=>setAbandoned(e.target.checked)}/>
+      <Card T={T}>
+        <CardHeader T={T} title="Recupero de carritos abandonados" sub="Secuencia automática de 3 mails a quienes no completan el pago."/>
+        <CheckLine T={T} checked={abandoned} onChange={setAbandoned} style={{ color:T.text, marginBottom:12 }}>
           Enviar la secuencia de 3 mails (15 min · 2 hs · 24 hs) a quienes no completan el pago
-        </label>
+        </CheckLine>
         {abandoned && (
-          <div style={{fontSize:11,color:"var(--yellow)",lineHeight:1.5,marginTop:6,padding:"8px 10px",background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.3)",borderRadius:8}}>
-            ⚠ Al activarlo salen mails reales a tus clientes desde el remitente configurado arriba. Los pasos 2 y 3 son marketing con cupón: incluyen link de baja. Probá primero con "Probar paso N".
-          </div>
+          <Callout T={T} tone="warning" style={{ marginBottom:14 }}>
+            Al activarlo salen mails reales a tus clientes desde el remitente configurado arriba. Los pasos 2 y 3 son marketing con cupón: incluyen link de baja. Probá primero con "Probar paso N".
+          </Callout>
         )}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-          <div>
-            <label style={lbl}>Cupón del paso 2 (2 hs)</label>
-            <select value={cp2} onChange={e=>setCp2(e.target.value)} style={inp}>
+        <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 14px" }}>
+          <Field T={T} label="Cupón del paso 2 (2 hs)">
+            <select value={cp2} onChange={e=>setCp2(e.target.value)} style={iS}>
               <option value="">Sin cupón</option>
               {activeCodes.map(c => <option key={c.code} value={c.code}>{c.code} ({c.type === "fixed" ? `$${c.value}` : `${c.value}%`})</option>)}
             </select>
-          </div>
-          <div>
-            <label style={lbl}>Cupón del paso 3 (24 hs)</label>
-            <select value={cp3} onChange={e=>setCp3(e.target.value)} style={inp}>
+          </Field>
+          <Field T={T} label="Cupón del paso 3 (24 hs)">
+            <select value={cp3} onChange={e=>setCp3(e.target.value)} style={iS}>
               <option value="">Sin cupón</option>
               {activeCodes.map(c => <option key={c.code} value={c.code}>{c.code} ({c.type === "fixed" ? `$${c.value}` : `${c.value}%`})</option>)}
             </select>
-          </div>
+          </Field>
         </div>
         {saveBtn("abandoned", { abandoned_enabled: abandoned, abandoned_coupons: { step2: cp2 ? { code: cp2 } : null, step3: cp3 ? { code: cp3 } : null } })}
-      </div>
+      </Card>
 
       {/* Dev */}
-      <div style={sec}>
-        <div style={h}>Modo desarrollador</div>
-        <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"var(--text)",marginTop:8}}>
-          <input type="checkbox" checked={devMode} onChange={e=>setDevMode(e.target.checked)}/>
+      <Card T={T}>
+        <CardHeader T={T} title="Modo desarrollador" sub="Herramientas de prueba para validar el flujo sin cobrar."/>
+        <CheckLine T={T} checked={devMode} onChange={setDevMode} style={{ color:T.text, marginBottom:12 }}>
           Habilitar herramientas de prueba (ej. "Simular próximo cobro": crea una orden Shopify SIMULADA, sin cobro ni mails)
-        </label>
+        </CheckLine>
         {saveBtn("dev", { dev_mode: devMode })}
-      </div>
+      </Card>
     </div>
   );
 }

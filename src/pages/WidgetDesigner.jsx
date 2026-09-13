@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { apiPatch } from "../lib/api.js";
-import { useTheme } from "../ui/theme.js";
-import { Card, Field, InputStyle, BtnPrimary, BtnSecondary, DSToggle, toast } from "../ui/components.jsx";
+import { DS, useT } from "../ui/theme.js";
+import { Card, Field, InputStyle, BtnPrimary, BtnSecondary, Btn, DSToggle, Callout, SectionTitle, DSBadge, toast } from "../ui/components.jsx";
 import { BUNDLE_VARIANTS, renderBundle } from "../../shared/bundle/templates.js";
 import { buildBundleVM } from "../../shared/bundle/viewmodel.js";
 import { pricingModeOf } from "./PacksEditor.jsx";
@@ -144,7 +144,7 @@ function safeVM(plan, merchant) {
 }
 
 export default function WidgetDesigner({ merchant, plans = [], onSaved }) {
-  const { T } = useTheme();
+  const T = useT();
   const inputS = InputStyle(T);
   const m = merchant || {};
 
@@ -249,20 +249,18 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved }) {
 
   const selectedVariant = (BUNDLE_VARIANTS || []).find(v => v.id === variant);
   const themeWarning = firstActive && pricingModeOf(firstActive) === "theme";
-  const sectionH = { fontSize:13, fontWeight:700, color:T.text, marginBottom:8 };
-  const small = { fontSize:11, color:T.textSm, lineHeight:1.5 };
+  const sectionH = { fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, marginBottom:8, letterSpacing:-0.2 };
+  const small = { fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5 };
 
   return (
     <div>
       {themeWarning && (
-        <div style={{marginBottom:14,padding:"10px 12px",borderRadius:10,background:"rgba(245,158,11,0.08)",border:"1px solid rgba(245,158,11,0.35)",fontSize:12,color:T.textMd,lineHeight:1.5}}>
-          ⚠ <strong style={{color:T.text}}>{firstActive.product_title}</strong> usa el precio de tu tema; pasalo a modo packs (Editar plan → Precios y packs) para usar el selector.
-        </div>
+        <Callout T={T} tone="warning" style={{marginBottom:14}}>
+          <strong style={{color:T.text}}>{firstActive.product_title}</strong> usa el precio de tu tema; pasalo a modo packs (Editar plan → Precios y packs) para usar el selector.
+        </Callout>
       )}
       {vm?._error && (
-        <div style={{marginBottom:14,padding:"10px 12px",borderRadius:10,background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.35)",fontSize:12,color:T.red}}>
-          No se pudo armar la vista previa: {vm._error}
-        </div>
+        <Callout T={T} tone="danger" style={{marginBottom:14}}>No se pudo armar la vista previa: {vm._error}</Callout>
       )}
 
       {/* ── Vista previa grande + panel ─────────────────────────────── */}
@@ -315,7 +313,7 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved }) {
 
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",margin:"6px 0 8px"}}>
             <div style={{fontSize:12,fontWeight:700,color:T.text}}>Textos</div>
-            <button type="button" onClick={resetTexts} style={{...BtnSecondary(T),padding:"5px 10px",fontSize:11}}>Restablecer textos</button>
+            <Btn T={T} variant="secondary" size="sm" type="button" onClick={resetTexts}>Restablecer textos</Btn>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))",gap:"0 10px"}}>
             {TEXT_FIELDS.map(([k, label]) => (
@@ -333,7 +331,7 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved }) {
           </Field>
 
           <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-            <button type="button" onClick={save} disabled={saving} style={{...BtnPrimary(T),opacity:saving?0.6:1}}>{saving ? "Guardando…" : "Guardar diseño"}</button>
+            <Btn T={T} variant="solid" type="button" onClick={save} disabled={saving}>{saving ? "Guardando…" : "Guardar diseño"}</Btn>
             <span style={small}>Visible en la tienda en ~5 min (caché del widget).</span>
           </div>
         </Card>
@@ -347,7 +345,7 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved }) {
           {gallery.map(v => {
             const active = v.id === variant;
             return (
-              <div key={v.id} onClick={()=>setVariant(v.id)} style={{background:T.card,border:`2px solid ${active?T.accentSolid:T.border}`,borderRadius:14,overflow:"hidden",cursor:"pointer",boxShadow:active?"0 0 0 4px rgba(16,185,129,0.15)":"none",transition:"border-color 0.15s, box-shadow 0.15s",display:"flex",flexDirection:"column"}}>
+              <div key={v.id} onClick={()=>setVariant(v.id)} className="gh-clickable" style={{background:T.card,border:`2px solid ${active?T.accentSolid:T.border}`,borderRadius:DS.r.xl,overflow:"hidden",cursor:"pointer",boxShadow:active?`0 0 0 4px ${T.accentSolid}26`:"0 1px 2px rgba(0,0,0,0.06), 0 3px 10px rgba(0,0,0,0.04)",transition:"border-color 0.15s, box-shadow 0.15s",display:"flex",flexDirection:"column"}}>
                 <div style={{background:"#fff",padding:8,borderBottom:`1px solid ${T.borderL}`,maxHeight:380,overflow:"hidden",position:"relative"}}>
                   <BundleFrame html={v.html} css={v.css} minHeight={160}/>
                   {active && <div style={{position:"absolute",top:8,right:8,background:T.accentSolid,color:"#fff",fontSize:10,fontWeight:700,padding:"3px 8px",borderRadius:6,letterSpacing:0.3}}>EN USO</div>}
@@ -357,7 +355,7 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved }) {
                     <div style={{fontSize:13,fontWeight:700,color:T.text}}>{v.name || v.id} <span style={{fontSize:10,color:T.textSm,fontWeight:500}}>{v.id}</span></div>
                     <div style={{fontSize:11,color:T.textSm,lineHeight:1.45}}>{v.description || ""}</div>
                   </div>
-                  <button type="button" onClick={(e)=>{e.stopPropagation(); setVariant(v.id);}} style={active ? {...BtnPrimary(T),padding:"6px 10px",fontSize:11} : {...BtnSecondary(T),padding:"6px 10px",fontSize:11}}>{active ? "✓ Elegido" : "Usar este"}</button>
+                  <Btn T={T} variant={active ? "primary" : "secondary"} size="sm" type="button" onClick={(e)=>{e.stopPropagation(); setVariant(v.id);}}>{active ? "✓ Elegido" : "Usar este"}</Btn>
                 </div>
               </div>
             );

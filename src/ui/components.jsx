@@ -31,7 +31,8 @@ export function Card({T, children, hoverable, onClick, style={}, padding="lg", c
       onMouseLeave={()=>setHover(false)}
       style={{
         background: T.card,
-        border: `1px solid ${hover&&hoverable ? T.accentSolid+"66" : T.border}`,
+        borderWidth: 1, borderStyle: "solid",
+        borderColor: hover&&hoverable ? T.accentSolid+"66" : T.border,
         borderRadius: DS.r.xl,
         padding: padMap[padding]||padMap.lg,
         transition: `all 0.2s ${DS.ease}`,
@@ -408,7 +409,7 @@ export function AsyncButton({onClick, children, style, disabled, ...props}) {
 }
 
 // ─── Modal + piezas de formulario ──────────────────────────────────────
-export function Modal({T, open, onClose, title, width, children, zIndex=1000}) {
+export function Modal({T, open, onClose, title, subtitle, width, children, footer, zIndex=1000, bodyStyle={}}) {
   const [visible, setVisible] = React.useState(false);
   const [mounted, setMounted] = React.useState(open);
   const lastChildren = React.useRef(children);
@@ -423,11 +424,15 @@ export function Modal({T, open, onClose, title, width, children, zIndex=1000}) {
   return ReactDOM.createPortal(
     <div onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}} style={{position:"fixed",inset:0,background:`rgba(0,0,0,${visible?0.65:0})`,backdropFilter:"blur(4px)",display:"flex",alignItems:"flex-start",justifyContent:"center",overflowY:"auto",zIndex:zIndex,padding:"24px 16px",transition:"background 0.2s ease",fontFamily:F}}>
       <div onMouseDown={e=>e.stopPropagation()} style={{background:T.card,borderRadius:16,width:"100%",maxWidth:width||560,maxHeight:"90vh",overflow:"hidden",boxShadow:"0 32px 80px rgba(0,0,0,0.45)",border:`1px solid ${T.border}`,display:"flex",flexDirection:"column",transform:visible?"translateY(0) scale(1)":"translateY(16px) scale(0.97)",opacity:visible?1:0,transition:"transform 0.22s cubic-bezier(0.34,1.26,0.64,1), opacity 0.18s ease"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"20px 24px 16px",borderBottom:`1px solid ${T.borderL}`,flexShrink:0}}>
-          <div style={{margin:0,fontSize:17,fontWeight:700,color:T.text,fontFamily:F}}>{title}</div>
-          <button onClick={onClose} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:8,width:32,height:32,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.textMd}}>✕</button>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,padding:"18px 24px 14px",borderBottom:`1px solid ${T.borderL}`,flexShrink:0}}>
+          <div style={{minWidth:0}}>
+            <div style={{margin:0,fontSize:17,fontWeight:700,color:T.text,fontFamily:F,letterSpacing:-0.2,lineHeight:1.25,overflow:"hidden",textOverflow:"ellipsis"}}>{title}</div>
+            {subtitle&&<div style={{fontSize:12,color:T.textSm,marginTop:3,lineHeight:1.45}}>{subtitle}</div>}
+          </div>
+          <button onClick={onClose} aria-label="Cerrar" style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:8,width:32,height:32,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",color:T.textMd,flexShrink:0,padding:0}}>✕</button>
         </div>
-        <div style={{padding:"18px 24px 24px",overflowY:"auto",flex:1}}>{open?children:lastChildren.current}</div>
+        <div style={{padding:"18px 24px 22px",overflowY:"auto",flex:1,...bodyStyle}}>{open?children:lastChildren.current}</div>
+        {footer&&<div style={{display:"flex",gap:8,justifyContent:"flex-end",alignItems:"center",flexWrap:"wrap",padding:"12px 24px 16px",borderTop:`1px solid ${T.borderL}`,flexShrink:0,background:T.card}}>{footer}</div>}
       </div>
     </div>,
     document.body
@@ -610,4 +615,161 @@ export class ErrorBoundary extends React.Component {
       </div>
     );
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Piezas de página (portadas del patrón de secciones de Growith)
+// ═══════════════════════════════════════════════════════════════════
+
+// Título de sección: 20px black + bajada. `back` muestra un "← volver".
+export function PageHeader({T, title, subtitle, right, back, onBack, style={}}) {
+  return (
+    <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:14,flexWrap:"wrap",marginBottom:DS.sp.xl,...style}}>
+      <div style={{minWidth:0,flex:"1 1 320px"}}>
+        {back&&<button onClick={onBack} style={{background:"transparent",border:"none",color:T.textSm,fontSize:DS.font.md,cursor:"pointer",fontFamily:F,padding:0,marginBottom:6,fontWeight:DS.w.semibold,display:"inline-flex",alignItems:"center",gap:4}}
+          onMouseEnter={e=>e.currentTarget.style.color=T.text} onMouseLeave={e=>e.currentTarget.style.color=T.textSm}>← {back}</button>}
+        <div style={{fontSize:DS.font["2xl"],fontWeight:DS.w.black,color:T.text,letterSpacing:-0.4,lineHeight:1.2}}>{title}</div>
+        {subtitle&&<div style={{fontSize:DS.font.base,color:T.textSm,marginTop:4,lineHeight:1.55,maxWidth:760}}>{subtitle}</div>}
+      </div>
+      {right&&<div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",flexShrink:0}}>{right}</div>}
+    </div>
+  );
+}
+
+// Etiqueta chica en mayúsculas para separar bloques dentro de una card.
+export function SectionTitle({T, children, sub, right, style={}}) {
+  return (
+    <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,marginBottom:DS.sp.md,...style}}>
+      <div style={{minWidth:0,flex:1}}>
+        <div style={{fontSize:DS.font.sm,textTransform:"uppercase",color:T.textSm,fontWeight:DS.w.semibold,letterSpacing:0.6}}>{children}</div>
+        {sub&&<div style={{fontSize:DS.font.md,color:T.textMd,marginTop:3,lineHeight:1.5}}>{sub}</div>}
+      </div>
+      {right&&<div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0,flexWrap:"wrap"}}>{right}</div>}
+    </div>
+  );
+}
+
+// Cabecera de card: ícono opcional + título 15px bold + bajada + acciones a la derecha.
+export function CardHeader({T, icon, title, sub, right, badge, style={}}) {
+  return (
+    <div style={{display:"flex",alignItems:"flex-start",gap:12,marginBottom:DS.sp.lg,...style}}>
+      {icon&&<div style={{width:40,height:40,borderRadius:DS.r.lg,background:T.surface,border:`1px solid ${T.borderL}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>{icon}</div>}
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+          <div style={{fontSize:15,fontWeight:DS.w.bold,color:T.text,letterSpacing:-0.2,lineHeight:1.3}}>{title}</div>
+          {badge}
+        </div>
+        {sub&&<div style={{fontSize:DS.font.md,color:T.textSm,marginTop:3,lineHeight:1.5}}>{sub}</div>}
+      </div>
+      {right&&<div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0,flexWrap:"wrap"}}>{right}</div>}
+    </div>
+  );
+}
+
+// Tabs internas tipo píldora (mismo look que AppTabs pero sin sticky).
+export function SubTabs({T, tabs, active, onChange, style={}}) {
+  return (
+    <div className="no-scrollbar" style={{display:"inline-flex",background:T.surface,borderRadius:10,padding:3,border:`1px solid ${T.border}`,gap:2,maxWidth:"100%",overflowX:"auto",...style}}>
+      {tabs.map(t=>{
+        const a=active===t.id;
+        return (
+          <button key={t.id} className="gh-tab" onClick={()=>onChange(t.id)}
+            onMouseEnter={e=>{if(!a)e.currentTarget.style.color=T.text;}} onMouseLeave={e=>{if(!a)e.currentTarget.style.color=T.textMd;}}
+            style={{padding:"7px 14px",fontSize:DS.font.base,fontWeight:a?DS.w.bold:DS.w.medium,borderRadius:8,border:"none",background:a?T.accent+"16":"transparent",color:a?T.accent:T.textMd,cursor:"pointer",fontFamily:F,display:"flex",alignItems:"center",gap:6,boxShadow:a?`inset 0 0 0 1px ${T.accent}3a`:"none",whiteSpace:"nowrap"}}>
+            {t.icon&&<span style={{display:"inline-flex",opacity:a?1:0.8}}>{t.icon}</span>}
+            {t.label}
+            {t.count!=null&&<span style={{fontSize:10,fontWeight:DS.w.bold,background:a?T.accent+"22":T.border,color:a?T.accent:T.textSm,borderRadius:10,padding:"1px 7px",lineHeight:1.5}}>{t.count}</span>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Aviso en bloque: info / success / warning / danger.
+export function Callout({T, tone="info", title, children, right, style={}}) {
+  const c = ({info:T.blue, success:T.green, warning:T.yellow, danger:T.red})[tone] || T.blue;
+  return (
+    <div style={{display:"flex",gap:12,alignItems:"flex-start",padding:"12px 14px",borderRadius:DS.r.lg,background:c+"12",border:`1px solid ${c}40`,fontSize:DS.font.md,color:T.textMd,lineHeight:1.55,...style}}>
+      <div style={{width:8,height:8,borderRadius:"50%",background:c,marginTop:6,flexShrink:0,boxShadow:`0 0 0 3px ${c}22`}}/>
+      <div style={{flex:1,minWidth:0}}>
+        {title&&<div style={{fontSize:DS.font.base,fontWeight:DS.w.bold,color:c,marginBottom:children?3:0}}>{title}</div>}
+        {children}
+      </div>
+      {right&&<div style={{flexShrink:0,display:"flex",gap:6,alignItems:"center"}}>{right}</div>}
+    </div>
+  );
+}
+
+// Texto de ayuda debajo de un input.
+export function Hint({T, children, style={}}) {
+  return <div style={{fontSize:DS.font.sm,color:T.textSm,lineHeight:1.5,marginTop:-8,marginBottom:DS.sp.md,...style}}>{children}</div>;
+}
+
+// Estado de carga inline (spinner + texto).
+export function Loading({T, text="Cargando…", style={}}) {
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:8,color:T.textSm,fontSize:DS.font.base,padding:"10px 0",...style}}>
+      <Spinner size={13} color={T.accent}/> {text}
+    </div>
+  );
+}
+
+// Tabla de datos estilo Growith: card sin padding, thead en T.bg con
+// labels chicos en mayúsculas, filas separadas por borderL, hover suave,
+// click en fila opcional y footer para paginación/"cargar más".
+//   columns: [{ key, label, align, width, nowrap, render(row,i), tdStyle, hideMobile }]
+export function DSTable({T, columns, rows=[], rowKey, onRowClick, minWidth=560, emptyText="Sin datos", stickyHead=false, dense=false, footer, style={}, rowStyle}) {
+  const padTh = dense?"8px 10px":"10px 12px";
+  const padTd = dense?"8px 10px":"11px 12px";
+  return (
+    <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:DS.r.xl,overflow:"hidden",boxShadow:"0 1px 2px rgba(0,0,0,0.06), 0 3px 10px rgba(0,0,0,0.04)",...style}}>
+      <div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:DS.font.md,fontFamily:F,minWidth}}>
+          <thead style={{background:T.bg,position:stickyHead?"sticky":"static",top:0,zIndex:1}}>
+            <tr>
+              {columns.map(c=>(
+                <th key={c.key} className={c.hideMobile?"hide-mobile":undefined} style={{padding:padTh,textAlign:c.align||"left",fontSize:DS.font.xs,fontWeight:DS.w.bold,color:T.textSm,textTransform:"uppercase",letterSpacing:0.5,borderBottom:`1px solid ${T.border}`,whiteSpace:"nowrap",width:c.width}}>{c.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length===0 ? (
+              <tr><td colSpan={columns.length} style={{padding:"28px 12px",textAlign:"center",color:T.textSm,fontSize:DS.font.base}}>{emptyText}</td></tr>
+            ) : rows.map((r,i)=>(
+              <tr key={rowKey?rowKey(r,i):i} className={onRowClick?"gh-row":undefined} onClick={onRowClick?()=>onRowClick(r,i):undefined}
+                style={{borderBottom:i<rows.length-1?`1px solid ${T.borderL}`:"none",...(rowStyle?rowStyle(r,i):{})}}>
+                {columns.map(c=>(
+                  <td key={c.key} className={c.hideMobile?"hide-mobile":undefined} style={{padding:padTd,textAlign:c.align||"left",color:T.text,verticalAlign:"middle",whiteSpace:c.nowrap?"nowrap":"normal",...(c.tdStyle||{})}}>
+                    {c.render?c.render(r,i):r[c.key]}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {footer&&<div style={{padding:"10px 14px",borderTop:`1px solid ${T.borderL}`,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap",fontSize:DS.font.sm,color:T.textSm}}>{footer}</div>}
+    </div>
+  );
+}
+
+// Celda "principal + secundaria" (nombre + email, título + detalle) para DSTable.
+export function CellStack({T, main, sub, mono}) {
+  return (
+    <div style={{minWidth:0}}>
+      <div style={{fontWeight:DS.w.semibold,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontFamily:mono?"ui-monospace, SFMono-Regular, Menlo, monospace":undefined}}>{main}</div>
+      {sub!=null&&sub!==""&&<div style={{fontSize:DS.font.sm,color:T.textSm,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{sub}</div>}
+    </div>
+  );
+}
+
+// Checkbox con etiqueta, en el acento de la marca.
+export function CheckLine({T, checked, onChange, children, style={}}) {
+  return (
+    <label style={{display:"flex",alignItems:"flex-start",gap:9,fontSize:DS.font.md,color:T.textMd,cursor:"pointer",lineHeight:1.5,userSelect:"none",...style}}>
+      <input type="checkbox" checked={!!checked} onChange={e=>onChange?.(e.target.checked)} style={{width:15,height:15,marginTop:2,accentColor:T.accentSolid,flexShrink:0}}/>
+      <span>{children}</span>
+    </label>
+  );
 }

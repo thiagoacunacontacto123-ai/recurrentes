@@ -1,4 +1,6 @@
 import React from "react";
+import { DS, useT } from "../ui/theme.js";
+import { Btn, Field, InputStyle, CheckLine, Callout, DSBadge } from "../ui/components.jsx";
 
 // Editor de "Precios y packs" del plan (alta y edición). Vive fuera de
 // Dashboard.jsx para no engordarlo. Contrato de datos: shared/bundle/SPEC.md.
@@ -110,29 +112,29 @@ export function serializePacks(rows) {
   return out;
 }
 
-// ── estilos locales (CSS vars del dashboard) ─────────────────────────────
-const lbl = { display:"block", fontSize:10, fontWeight:600, color:"var(--text-sm)", marginBottom:3, textTransform:"uppercase", letterSpacing:0.4 };
-const inp = { width:"100%", background:"var(--card)", border:"1px solid var(--border)", color:"var(--text)", borderRadius:8, padding:"7px 9px", fontSize:12, outline:"none", fontFamily:"inherit", boxSizing:"border-box" };
-const btnSm = { background:"var(--card)", border:"1px solid var(--border)", color:"var(--text-md)", borderRadius:7, padding:"5px 10px", fontSize:11, cursor:"pointer", fontFamily:"inherit", fontWeight:600 };
-
-function ModeOption({ active, title, desc, tag, onClick }) {
+// ── piezas visuales (tema del DS vía useT) ─────────────────────────────
+function ModeOption({ T, active, title, desc, tag, onClick }) {
   return (
-    <button type="button" onClick={onClick} style={{textAlign:"left",background:active?"rgba(16,185,129,0.08)":"var(--surface)",border:`1.5px solid ${active?"var(--green)":"var(--border)"}`,borderRadius:10,padding:"10px 12px",cursor:"pointer",fontFamily:"inherit",color:"var(--text)",display:"flex",gap:10,alignItems:"flex-start"}}>
-      <span style={{width:16,height:16,borderRadius:"50%",border:`2px solid ${active?"var(--green)":"var(--border)"}`,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}>
-        {active && <span style={{width:8,height:8,borderRadius:"50%",background:"var(--green)"}}/>}
+    <button type="button" onClick={onClick} className="gh-chip" style={{textAlign:"left",background:active?T.accentSolid+"12":T.surface,border:`1.5px solid ${active?T.accentSolid:T.border}`,borderRadius:DS.r.lg,padding:"10px 12px",cursor:"pointer",fontFamily:"inherit",color:T.text,display:"flex",gap:10,alignItems:"flex-start",boxShadow:active?`0 0 0 3px ${T.accentSolid}1f`:"none"}}>
+      <span style={{width:16,height:16,borderRadius:"50%",border:`2px solid ${active?T.accentSolid:T.inputBorder}`,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:1}}>
+        {active && <span style={{width:8,height:8,borderRadius:"50%",background:T.accentSolid}}/>}
       </span>
       <span style={{minWidth:0}}>
         <span style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
-          <span style={{fontSize:12,fontWeight:700}}>{title}</span>
-          {tag && <span style={{fontSize:9,fontWeight:700,padding:"1px 6px",borderRadius:4,background:active?"var(--green)":"var(--border)",color:active?"#fff":"var(--text-md)",textTransform:"uppercase",letterSpacing:0.4}}>{tag}</span>}
+          <span style={{fontSize:DS.font.md,fontWeight:DS.w.bold}}>{title}</span>
+          {tag && <DSBadge T={T} color={active?T.accent:T.textSm} size="sm">{tag}</DSBadge>}
         </span>
-        <span style={{display:"block",fontSize:11,color:"var(--text-sm)",lineHeight:1.45,marginTop:2}}>{desc}</span>
+        <span style={{display:"block",fontSize:DS.font.sm,color:T.textSm,lineHeight:1.45,marginTop:2}}>{desc}</span>
       </span>
     </button>
   );
 }
 
+const Lbl = ({ T, children }) => <label style={{display:"block",fontSize:DS.font.xs,fontWeight:DS.w.semibold,color:T.textSm,marginBottom:3,textTransform:"uppercase",letterSpacing:0.4}}>{children}</label>;
+
 export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, basePrice, discountPct, frequencyDays, freqScales, onFreqScalesChange }) {
+  const T = useT();
+  const inp = { ...InputStyle(T), padding:"7px 9px", fontSize:DS.font.md };
   const ctx = { basePrice, discountPct, frequencyDays, freqScales, rows: packs };
   const error = mode === "packs" ? validatePacks(packs) : null;
 
@@ -163,23 +165,23 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
   };
 
   return (
-    <div style={{marginTop:18,paddingTop:14,borderTop:"1px solid var(--border)"}}>
-      <div style={{fontSize:13,fontWeight:700,color:"var(--text)",marginBottom:8}}>Precios y packs</div>
+    <div style={{marginTop:16,paddingTop:14,borderTop:`1px solid ${T.borderL}`}}>
+      <div style={{fontSize:DS.font.base,fontWeight:DS.w.bold,color:T.text,marginBottom:10}}>Precios y packs</div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))",gap:8}}>
-        <ModeOption active={mode === "packs"} tag="Recomendado" title="Packs de Recurrentes" desc="Recurrentes arma el selector de packs en tu tienda (1·2·3 unidades, compra única o suscripción)." onClick={()=>onModeChange("packs")}/>
-        <ModeOption active={mode === "theme"} tag="Avanzado" title="Mi tema manda el precio" desc="El widget solo agrega el toggle de suscripción; precio, cantidad y frecuencia salen de tu tema." onClick={()=>onModeChange("theme")}/>
+        <ModeOption T={T} active={mode === "packs"} tag="Recomendado" title="Packs de Recurrentes" desc="Recurrentes arma el selector de packs en tu tienda (1·2·3 unidades, compra única o suscripción)." onClick={()=>onModeChange("packs")}/>
+        <ModeOption T={T} active={mode === "theme"} tag="Avanzado" title="Mi tema manda el precio" desc="El widget solo agrega el toggle de suscripción; precio, cantidad y frecuencia salen de tu tema." onClick={()=>onModeChange("theme")}/>
       </div>
 
       {mode === "packs" && (
         <div style={{marginTop:12}}>
           <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:8}}>
-            <button type="button" onClick={generate} disabled={!(num(basePrice) > 0)} title={num(basePrice) > 0 ? "" : "Elegí primero el producto (necesito el precio base)"} style={{...btnSm,opacity:num(basePrice)>0?1:0.5,cursor:num(basePrice)>0?"pointer":"not-allowed"}}>✨ Generar 1·2·3 automáticamente</button>
-            <button type="button" onClick={add} disabled={packs.length >= PACKS_MAX} style={{...btnSm,opacity:packs.length>=PACKS_MAX?0.5:1}}>+ Agregar pack</button>
-            <span style={{fontSize:10,color:"var(--text-sm)",marginLeft:"auto"}}>{packs.length}/{PACKS_MAX}</span>
+            <Btn T={T} variant="secondary" size="sm" type="button" onClick={generate} disabled={!(num(basePrice) > 0)} title={num(basePrice) > 0 ? "" : "Elegí primero el producto (necesito el precio base)"}>✨ Generar 1·2·3 automáticamente</Btn>
+            <Btn T={T} variant="secondary" size="sm" type="button" onClick={add} disabled={packs.length >= PACKS_MAX}>+ Agregar pack</Btn>
+            <span style={{fontSize:DS.font.xs,color:T.textSm,marginLeft:"auto"}}>{packs.length}/{PACKS_MAX}</span>
           </div>
 
           {packs.length === 0 ? (
-            <div style={{fontSize:11,color:"var(--text-sm)",padding:"10px 12px",background:"var(--surface)",borderRadius:8,lineHeight:1.5}}>
+            <div style={{fontSize:DS.font.sm,color:T.textSm,padding:"10px 12px",background:T.surface,border:`1px solid ${T.borderL}`,borderRadius:DS.r.md,lineHeight:1.5}}>
               Sin packs todavía. Tocá "Generar 1·2·3" (0 / 15 / 25 % off por cantidad sobre el precio base) o agregá uno a mano.
             </div>
           ) : (
@@ -187,31 +189,32 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
               {packs.map((r, i) => {
                 const d = derivePack(r, ctx);
                 return (
-                  <div key={i} style={{background:"var(--surface)",border:`1px solid ${r.default?"rgba(16,185,129,0.5)":"var(--border)"}`,borderRadius:10,padding:"10px 12px"}}>
+                  <div key={i} className="gh-list-item" style={{background:T.surface,border:`1px solid ${r.default?T.accentSolid+"80":T.borderL}`,borderRadius:DS.r.lg,padding:"10px 12px"}}>
                     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(105px, 1fr))",gap:8}}>
-                      <div><label style={lbl}>Cantidad</label><input type="number" min="1" max="99" value={r.qty} onChange={e=>upd(i,"qty",e.target.value)} style={inp}/></div>
-                      <div><label style={lbl}>Precio del pack ($)</label><input type="number" min="0" value={r.price_ars} onChange={e=>upd(i,"price_ars",e.target.value)} style={inp} placeholder="compra única"/></div>
-                      <div><label style={lbl}>Precio tachado ($)</label><input type="number" min="0" value={r.compare_at_ars} onChange={e=>upd(i,"compare_at_ars",e.target.value)} style={inp} placeholder={`auto (${d.compareAt.toLocaleString("es-AR")})`}/></div>
-                      <div><label style={lbl}>Frecuencia (días)</label><input type="number" min="1" value={r.frequency_days} onChange={e=>upd(i,"frequency_days",e.target.value)} style={inp} placeholder={freqAutoPh(r)}/></div>
+                      <div><Lbl T={T}>Cantidad</Lbl><input type="number" min="1" max="99" value={r.qty} onChange={e=>upd(i,"qty",e.target.value)} style={inp}/></div>
+                      <div><Lbl T={T}>Precio del pack ($)</Lbl><input type="number" min="0" value={r.price_ars} onChange={e=>upd(i,"price_ars",e.target.value)} style={inp} placeholder="compra única"/></div>
+                      <div><Lbl T={T}>Precio tachado ($)</Lbl><input type="number" min="0" value={r.compare_at_ars} onChange={e=>upd(i,"compare_at_ars",e.target.value)} style={inp} placeholder={`auto (${d.compareAt.toLocaleString("es-AR")})`}/></div>
+                      <div><Lbl T={T}>Frecuencia (días)</Lbl><input type="number" min="1" value={r.frequency_days} onChange={e=>upd(i,"frequency_days",e.target.value)} style={inp} placeholder={freqAutoPh(r)}/></div>
                     </div>
                     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(105px, 1fr))",gap:8,marginTop:8}}>
-                      <div><label style={lbl}>Etiqueta</label><input type="text" value={r.label} onChange={e=>upd(i,"label",e.target.value)} style={inp} placeholder={`${d.qty} ${d.qty===1?"pote":"potes"}`} maxLength={40}/></div>
-                      <div><label style={lbl}>Badge</label><input type="text" value={r.badge} onChange={e=>upd(i,"badge",e.target.value)} style={inp} placeholder="Más elegido" maxLength={24}/></div>
-                      <div><label style={lbl}>Precio suscripción ($)</label><input type="number" min="0" value={r.sub_price_ars} onChange={e=>upd(i,"sub_price_ars",e.target.value)} style={inp} placeholder={subAutoPh(r)}/></div>
+                      <div><Lbl T={T}>Etiqueta</Lbl><input type="text" value={r.label} onChange={e=>upd(i,"label",e.target.value)} style={inp} placeholder={`${d.qty} ${d.qty===1?"pote":"potes"}`} maxLength={40}/></div>
+                      <div><Lbl T={T}>Badge</Lbl><input type="text" value={r.badge} onChange={e=>upd(i,"badge",e.target.value)} style={inp} placeholder="Más elegido" maxLength={24}/></div>
+                      <div><Lbl T={T}>Precio suscripción ($)</Lbl><input type="number" min="0" value={r.sub_price_ars} onChange={e=>upd(i,"sub_price_ars",e.target.value)} style={inp} placeholder={subAutoPh(r)}/></div>
                       <div style={{display:"flex",alignItems:"flex-end",gap:8}}>
-                        <label style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--text-md)",cursor:"pointer",whiteSpace:"nowrap",paddingBottom:8}}>
-                          <input type="radio" name="rc-pack-default" checked={r.default === true} onChange={()=>setDefault(i)} style={{accentColor:"var(--green)"}}/>
+                        <label style={{display:"flex",alignItems:"center",gap:6,fontSize:DS.font.sm,color:T.textMd,cursor:"pointer",whiteSpace:"nowrap",paddingBottom:8}}>
+                          <input type="radio" name="rc-pack-default" checked={r.default === true} onChange={()=>setDefault(i)} style={{accentColor:T.accentSolid}}/>
                           Por defecto
                         </label>
-                        <button type="button" onClick={()=>remove(i)} title="Quitar pack" style={{marginLeft:"auto",background:"transparent",border:"none",color:"var(--red)",fontSize:15,cursor:"pointer",padding:"0 4px 6px"}}>✕</button>
+                        <button type="button" onClick={()=>remove(i)} title="Quitar pack" style={{marginLeft:"auto",background:"transparent",border:"none",color:T.textSm,fontSize:15,cursor:"pointer",padding:"0 4px 6px",fontFamily:"inherit"}}
+                          onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.textSm}>✕</button>
                       </div>
                     </div>
-                    <div style={{marginTop:8,fontSize:11,color:"var(--text-md)",display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-                      <span style={{color:"var(--accent)",fontWeight:700}}>Suscripción: {fmt(d.subPrice)} cada {d.freqDays} días</span>
-                      <span style={{color:"var(--text-sm)"}}>·</span>
+                    <div style={{marginTop:8,fontSize:DS.font.sm,color:T.textMd,display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                      <span style={{color:T.accent,fontWeight:DS.w.bold}}>Suscripción: {fmt(d.subPrice)} cada {d.freqDays} días</span>
+                      <span style={{color:T.textSm}}>·</span>
                       <span>ahorrás {d.savingsPct}%</span>
-                      <span style={{color:"var(--text-sm)"}}>·</span>
-                      <span style={{color:"var(--text-sm)"}}>{fmt(d.perUnitSub)} c/u · tachado {fmt(d.compareAt)}</span>
+                      <span style={{color:T.textSm}}>·</span>
+                      <span style={{color:T.textSm}}>{fmt(d.perUnitSub)} c/u · tachado {fmt(d.compareAt)}</span>
                     </div>
                   </div>
                 );
@@ -219,23 +222,18 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
             </div>
           )}
 
-          <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:"var(--text-md)",marginTop:12,cursor:"pointer"}}>
-            <input type="checkbox" checked={freqScales !== false} onChange={e=>onFreqScalesChange(e.target.checked)} style={{accentColor:"var(--green)"}}/>
-            <span>La frecuencia se multiplica por la cantidad <span style={{color:"var(--text-sm)"}}>(2 potes → cada {Math.max(1,int(frequencyDays))*2} días)</span></span>
-          </label>
+          <CheckLine T={T} checked={freqScales !== false} onChange={v=>onFreqScalesChange(v)} style={{marginTop:12}}>
+            La frecuencia se multiplica por la cantidad <span style={{color:T.textSm}}>(2 potes → cada {Math.max(1,int(frequencyDays))*2} días)</span>
+          </CheckLine>
 
-          {error && (
-            <div style={{marginTop:10,fontSize:11,color:"var(--red)",padding:"8px 10px",background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8}}>
-              {error}
-            </div>
-          )}
+          {error && <Callout T={T} tone="danger" style={{marginTop:10}}>{error}</Callout>}
         </div>
       )}
 
       {mode === "theme" && (
-        <div style={{marginTop:10,fontSize:11,color:"var(--text-sm)",padding:"8px 10px",background:"var(--surface)",borderRadius:8,lineHeight:1.5}}>
+        <Callout T={T} tone="info" style={{marginTop:10}}>
           El precio base, el % de descuento y la frecuencia de arriba mandan. El diseñador del selector de packs no aplica a este plan.
-        </div>
+        </Callout>
       )}
     </div>
   );
