@@ -224,7 +224,8 @@ async function activity(merchantId, req, res) {
       if (c.shopify_order_id) {
         envios.push({
           id: d.id, order_id: c.shopify_order_id,
-          order_url: shop ? `https://${shop}/admin/orders/${c.shopify_order_id}` : null,
+          // rec_<payment_id> = cobro sin tienda (servicios / link de pago): no hay orden que linkear.
+          order_url: shop && !String(c.shopify_order_id).startsWith("rec_") ? `https://${shop}/admin/orders/${c.shopify_order_id}` : null,
           customer_name: cust.name || "", customer_email: cust.email || "",
           product_title: cust.product || "", created_at: ts,
         });

@@ -134,6 +134,22 @@ MP_WEBHOOK_SECRET
 2. Recurrentes llama MP API: `PUT preapproval/{id}` con `status: cancelled`
 3. Marca subscriber `cancelled`, no más cobros
 
+## Multiplataforma: perfil del negocio (desde 2026-09-14)
+
+Recurrentes deja de ser solo "Shopify + MP". Cada merchant tiene un **perfil** en su doc (`shared/platform/profile.js`, fuente única para `api/*` y `src/*`):
+
+| Campo | Valores | Default histórico |
+|---|---|---|
+| `business_type` | `physical` · `digital` (ebooks, cursos) · `service` (gimnasios, clases, membresías) | `physical` |
+| `channel` | `shopify` · `tiendanube` (próximamente) · `impultienda` (ebooks, próximamente) · `none` (link de suscripción) | `shopify` |
+| `payment_provider` | `mercadopago` · `stripe` (próximamente) | `mercadopago` |
+
+- `merchantProfile(m)` devuelve `caps` (shipping, requireAddress/Phone/TaxId, catalog, orders, widget, link, packs), `ready`, `missing` y `vocab` (suscriptor/socio, producto/membresía…). **Merchants sin los campos (Lumina) = físico + Shopify + MP: comportamiento idéntico.**
+- Cobro → `fulfillCharge()` en `_lib/sync.js`: `shopify` crea la orden como siempre; `none` registra el comprobante interno `rec_<payment_id>` en el lugar del id de orden (así chargeclaim / `shopify_orders[]` / `last_charge_at` no cambian). Canales "soon" devuelven error visible.
+- Sin tienda: planes con `item_source:"manual"` (nombre + precio), link público `#/checkout?merchant=<id>&plan=<id>` (Checkout.jsx), sin dirección/envío si el tipo no tiene envío.
+- Se elige en Configuración → Negocio (`save-settings` con `business_type/channel/payment_provider`, solo dueño; dejar Shopify con token pide `confirm_channel_change`).
+- Pendiente: adapters Tiendanube / Impultienda / Stripe, moneda por merchant (todo asume ARS), renombrar `shopify_orders`/`shopify_order_id` a genéricos.
+
 ## Decisiones de diseño
 
 - **Multi-tenant desde día 1** — la app es SaaS, no para 1 sólo cliente. Cada merchant tiene su scope completo aislado en `merchants/{uid}/*`.

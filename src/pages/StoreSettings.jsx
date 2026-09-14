@@ -3,6 +3,7 @@ import { apiGet, apiPost, apiPatch } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
 import { Card, Btn, DSBadge, InputStyle, Spinner, CardHeader, Callout, Hint, toast } from "../ui/components.jsx";
 import { MONO, SurfaceBox } from "./_shared.jsx";
+import { merchantProfile } from "../../shared/platform/profile.js";
 
 // ─── Configuración → Tienda ──────────────────────────────────────
 // 1) "Datos de tu tienda": SOLO LECTURA, salen de Shopify (shop.json) y de MP.
@@ -20,18 +21,39 @@ export default function StoreSettings({ merchant, onChange }) {
   const T = useT();
   const m = merchant || {};
   const isOwner = (m.role || "owner") === "owner";
+  // Perfil del negocio: sin envío (servicios, digitales) no hay tarifas que configurar.
+  const profile = merchantProfile(m);
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
-      <StoreDataCard T={T} m={m} isOwner={isOwner} onChange={onChange}/>
-      <ShippingRatesCard T={T} m={m} isOwner={isOwner} onChange={onChange}/>
+      <StoreDataCard T={T} m={m} isOwner={isOwner} onChange={onChange} profile={profile}/>
+      {profile.caps.shipping ? (
+        <ShippingRatesCard T={T} m={m} isOwner={isOwner} onChange={onChange}/>
+      ) : (
+        <Callout T={T} tone="info" title="Sin envíos">
+          Tu negocio es de {profile.type.label.toLowerCase()}: el checkout no pide dirección ni cobra envío. Si eso cambia, actualizalo en Configuración → Negocio.
+        </Callout>
+      )}
     </div>
   );
 }
 
 // ── Datos de la tienda (solo lectura) ─────────────────────────────
-function StoreDataCard({ T, m, isOwner, onChange }) {
+function StoreDataCard({ T, m, isOwner, onChange, profile }) {
   const iS = InputStyle(T);
   const shopifyOk = Boolean(m.shopify_token);
+  // Sin tienda online (servicios, link): los datos se cargan a mano, no hay Shopify del cual leerlos.
+  const fromShopify = !profile || profile.channel === "shopify";
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(m.store_name || "");
+  useEffect(() => { setNameDraft(m.store_name || ""); }, [m.store_name]);
+  async function saveName() {
+    const v = String(nameDraft || "").trim().slice(0, 60);
+    const d = await apiPatch("merchant", { store_name: v }, { action: "save-settings" });
+    if (d?.error) return toast("Error: " + d.error, "error", 6000);
+    toast("Nombre guardado", "success");
+    setEditingName(false);
+    onChange?.();
+  }
   const domain = m.store_domain_effective || m.store_domain || (m.shopify_shop ? m.shopify_shop : "");
   const source = m.store_domain_source || (m.store_domain ? "manual" : (domain ? "shopify" : null));
   const [refreshing, setRefreshing] = useState(false);
@@ -61,17 +83,29 @@ function StoreDataCard({ T, m, isOwner, onChange }) {
 
   const rows = [
     ["Nombre", m.store_name || m.shop_name || "—"],
-    ["Dominio público", domain ? <span style={{ fontFamily:MONO }}>{domain}</span> : "—", source === "manual" ? <DSBadge T={T} color={T.yellow} size="sm">manual</DSBadge> : source === "shopify" ? <DSBadge T={T} color={T.green} size="sm">de Shopify</DSBadge> : null],
-    ["Moneda", m.shop_currency || "—"],
-    ["Mail de la tienda", m.shop_email || "—"],
-    ["Cuenta de Mercado Pago", m.mp_email || (m.mp_access_token ? (m.mp_user_id ? `ID ${m.mp_user_id}` : "Conectada") : "Sin conectar")],
+    ["Dominio público", domain ? <span style={{ fontFamily:MONO }}>{domain}</span> : "—", source === "manual" && fromShopify ? <DSBadge T={T} color={T.yellow} size="sm">manual</DSBadge> : source === "shopify" ? <DSBadge T={T} color={T.green} size="sm">de Shopify</DSBadge> : null],
+    ["Moneda", m.shop_currency || profile?.currency || "—"],
+    [fromShopify ? "Mail de la tienda" : "Mail del negocio", m.shop_email || m.email_reply_to || (fromShopify ? "—" : (m.email || "—"))],
+    [`Cuenta de ${profile?.providerInfo?.label || "Mercado Pago"}`, m.mp_email || (m.mp_access_token ? (m.mp_user_id ? `ID ${m.mp_user_id}` : "Conectada") : "Sin conectar")],
   ];
 
   return (
     <Card T={T}>
-      <CardHeader T={T} title="Datos de tu tienda" sub="Los tomamos de tu Shopify y de tu cuenta de Mercado Pago. No hace falta cargar nada a mano."
-        right={isOwner && <Btn T={T} variant="secondary" size="sm" onClick={refresh} disabled={!shopifyOk || refreshing} title={shopifyOk ? "" : "Conectá Shopify primero"}>{refreshing ? <><Spinner size={12} color={T.textMd}/> Actualizando…</> : "↻ Actualizar desde Shopify"}</Btn>}/>
-      {!shopifyOk && (
+      {fromShopify ? (
+        <CardHeader T={T} title="Datos de tu tienda" sub="Los tomamos de tu Shopify y de tu cuenta de Mercado Pago. No hace falta cargar nada a mano."
+          right={isOwner && <Btn T={T} variant="secondary" size="sm" onClick={refresh} disabled={!shopifyOk || refreshing} title={shopifyOk ? "" : "Conectá Shopify primero"}>{refreshing ? <><Spinner size={12} color={T.textMd}/> Actualizando…</> : "↻ Actualizar desde Shopify"}</Btn>}/>
+      ) : (
+        <CardHeader T={T} title="Datos de tu negocio" sub="El nombre aparece en el checkout de tus links y en los mails. El dominio es opcional: arma los links de los mails y del portal."
+          right={isOwner && !editingName && <Btn T={T} variant="secondary" size="sm" onClick={()=>setEditingName(true)}>Editar nombre</Btn>}/>
+      )}
+      {!fromShopify && editingName && (
+        <div className="gh-accordion" style={{ marginBottom:12, background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:DS.r.lg, padding:"12px 14px", display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+          <input value={nameDraft} onChange={e=>setNameDraft(e.target.value)} maxLength={60} style={{ ...iS, marginBottom:0, flex:"1 1 220px" }} placeholder="Ej: Gimnasio Olimpo" onKeyDown={e=>{ if (e.key === "Enter") saveName(); }}/>
+          <Btn T={T} variant="primary" size="sm" onClick={saveName}>Guardar</Btn>
+          <Btn T={T} variant="ghost" size="sm" onClick={()=>setEditingName(false)} style={{ color:T.textSm }}>Cancelar</Btn>
+        </div>
+      )}
+      {fromShopify && !shopifyOk && (
         <Callout T={T} tone="warning" style={{ marginBottom:12 }} right={<a href="#/config/integraciones" style={{ color:T.accent, fontWeight:DS.w.bold, fontSize:DS.font.sm, textDecoration:"none" }}>Conectar →</a>}>
           Conectá Shopify en Configuración → Integraciones para traer nombre, dominio, moneda y mail.
         </Callout>
@@ -91,11 +125,11 @@ function StoreDataCard({ T, m, isOwner, onChange }) {
       {editingDomain && (
         <div className="gh-accordion" style={{ marginTop:12, background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:DS.r.lg, padding:"12px 14px" }}>
           <div style={{ fontSize:DS.font.md, fontWeight:DS.w.bold, color:T.text, marginBottom:6 }}>Dominio público (caso raro)</div>
-          <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, marginBottom:8 }}>Solo si el dominio que ve tu cliente no es el que figura en Shopify. Sin https://. Se usa en los links de los mails y el portal.</div>
+          <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, marginBottom:8 }}>{fromShopify ? "Solo si el dominio que ve tu cliente no es el que figura en Shopify." : "Tu web, si tenés (opcional)."} Sin https://. Se usa en los links de los mails y el portal.</div>
           <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
             <input value={domainDraft} onChange={e=>setDomainDraft(e.target.value)} style={{ ...iS, marginBottom:0, flex:"1 1 220px", fontFamily:MONO, fontSize:DS.font.md }} placeholder="www.mitienda.com" onKeyDown={e=>{ if (e.key === "Enter") saveDomain(domainDraft); }}/>
             <Btn T={T} variant="primary" size="sm" onClick={()=>saveDomain(domainDraft)} disabled={savingDomain}>{savingDomain ? "Guardando…" : "Guardar"}</Btn>
-            {source === "manual" && <Btn T={T} variant="secondary" size="sm" onClick={()=>saveDomain("")} disabled={savingDomain}>Volver al de Shopify</Btn>}
+            {source === "manual" && fromShopify && <Btn T={T} variant="secondary" size="sm" onClick={()=>saveDomain("")} disabled={savingDomain}>Volver al de Shopify</Btn>}
             <Btn T={T} variant="ghost" size="sm" onClick={()=>setEditingDomain(false)} style={{ color:T.textSm }}>Cancelar</Btn>
           </div>
         </div>

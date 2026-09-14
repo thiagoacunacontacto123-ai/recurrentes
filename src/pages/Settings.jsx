@@ -8,6 +8,8 @@ import StoreSettings from "./StoreSettings.jsx";
 import { PlanPage } from "./Billing.jsx";
 import { AdvancedSettingsCard } from "./OperationalSettings.jsx";
 import GuidePage from "./Guide.jsx";
+import BusinessProfileSection from "./BusinessProfile.jsx";
+import { merchantProfile } from "../../shared/platform/profile.js";
 import {
   BtnPrimary, BtnSecondary, BtnDanger, InputStyle,
   AsyncButton, appConfirm, appAlert, toast as uiToast,
@@ -19,16 +21,17 @@ const { apiGet, apiPost } = api;
 // ─────────────────────────────────────────────────────────────────
 // Configuración — nav a la izquierda, una sección por vez (#/config/<sec>).
 //   cuenta        → email, contraseña, eliminar cuenta
+//   negocio       → qué vende, dónde y con qué cobra (BusinessProfile.jsx)
 //   tiendas       → tiendas del perfil (crear / gestionar / activar / eliminar)
 //   equipo        → miembros con acceso por secciones (solo owner)
-//   integraciones → Shopify, Mercado Pago, Meta, Klaviyo (Integrations.jsx)
-//   tienda        → datos de la tienda (de Shopify) + envíos del checkout (StoreSettings.jsx)
+//   integraciones → tienda (según el negocio), Mercado Pago, Meta, Klaviyo (Integrations.jsx)
+//   tienda        → datos de la tienda + envíos del checkout (StoreSettings.jsx)
 //   facturacion   → tu plan de Recurrentes (Billing.jsx)
 //   avanzado      → checkout del widget, códigos de descuento, modo dev (OperationalSettings.jsx)
 //   ayuda         → Guía escrita (Guide.jsx) embebida
 // ─────────────────────────────────────────────────────────────────
 
-export const CFG_SECS = ["cuenta", "tiendas", "equipo", "integraciones", "tienda", "facturacion", "avanzado", "ayuda"];
+export const CFG_SECS = ["cuenta", "negocio", "tiendas", "equipo", "integraciones", "tienda", "facturacion", "avanzado", "ayuda"];
 // Secciones viejas → nuevas (links guardados / plan de acción viejo).
 const CFG_ALIASES = { operacion: "avanzado", widget: "__planes_widget__" };
 
@@ -121,22 +124,31 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
     return () => window.removeEventListener("hashchange", onHash);
   }, [sec, goPlanesWidget]);
 
+  // Perfil del negocio: descripciones de las secciones según qué vende y dónde.
+  const profile = merchantProfile(merchant);
+  const withStore = profile.channel !== "none";
   const NAVS = [
     { id: "cuenta",        l: "Cuenta",        d: "Email, contraseña y baja",   icon: "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" },
+    { id: "negocio",       l: "Negocio",       d: profile.explicit ? `${profile.type.emoji} ${profile.type.short} · ${profile.channelInfo.label}` : "Qué vendés, dónde y cómo cobrás", icon: "M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 10h.01M15 10h.01" },
     { id: "tiendas",       l: "Tiendas",       d: "Tus tiendas y cuál está activa", icon: "M3 9l1-5h16l1 5M3 9h18v11H3zM9 20v-6h6v6" },
     ...(isOwner ? [{ id: "equipo", l: "Equipo", d: "Quién entra y qué ve", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" }] : []),
-    { id: "integraciones", l: "Integraciones", d: "Shopify, Mercado Pago, Meta, Klaviyo", icon: "M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" },
-    { id: "tienda",        l: "Tienda",        d: "Datos de Shopify y envíos del checkout", icon: "M3 9l1-5h16l1 5M3 9h18v11H3zM3 9a3 3 0 006 0 3 3 0 006 0 3 3 0 006 0" },
+    { id: "integraciones", l: "Integraciones", d: withStore ? `${profile.channelInfo.label}, ${profile.providerInfo.label}, Meta, Klaviyo` : `${profile.providerInfo.label}, Meta, Klaviyo`, icon: "M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" },
+    { id: "tienda",        l: withStore ? "Tienda" : "Datos",        d: profile.caps.shipping ? (withStore ? "Datos de la tienda y envíos del checkout" : "Datos del negocio y envíos") : "Nombre y datos del negocio", icon: "M3 9l1-5h16l1 5M3 9h18v11H3zM3 9a3 3 0 006 0 3 3 0 006 0 3 3 0 006 0" },
     { id: "facturacion",   l: "Facturación",   d: "Tu plan de Recurrentes", icon: "M1 6a2 2 0 012-2h18a2 2 0 012 2v12a2 2 0 01-2 2H3a2 2 0 01-2-2zM1 10h22M5 15h4" },
     { id: "avanzado",      l: "Avanzado",      d: "Checkout, cupones y modo dev", icon: "M12 20a8 8 0 100-16 8 8 0 000 16zM12 14a2 2 0 100-4 2 2 0 000 4zM12 2v2M12 20v2M2 12h2M20 12h2" },
     { id: "ayuda",         l: "Ayuda",         d: "Guía paso a paso y soporte", icon: "M12 22a10 10 0 100-20 10 10 0 000 20zM9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" },
   ];
   const HEAD = {
     cuenta:        ["Cuenta", "Tu acceso a Recurrentes: email de inicio de sesión, contraseña y eliminación de la cuenta."],
+    negocio:       ["Negocio", "Qué vendés, dónde lo vendés y con qué cobrás. El panel, el onboarding y el checkout se adaptan a esto."],
     tiendas:       ["Tiendas", "Un mismo login puede manejar varias tiendas. Cada tienda tiene su propia conexión a Shopify y Mercado Pago, sus planes y sus suscriptores."],
     equipo:        ["Equipo", "Invitá a gente de tu equipo con su propio login. Ven solo las secciones que les habilites."],
-    integraciones: ["Integraciones", "Conectá tu Shopify y tu Mercado Pago (necesarios) y, si querés, Meta Ads y Klaviyo."],
-    tienda:        ["Tienda", "Nombre, dominio, moneda y mail salen de tu Shopify; la cuenta de cobro, de Mercado Pago. Y los envíos que el cliente elige al suscribirse."],
+    integraciones: ["Integraciones", withStore
+      ? `Conectá tu ${profile.channelInfo.label} y tu ${profile.providerInfo.label} (necesarios) y, si querés, Meta Ads y Klaviyo.`
+      : `Conectá tu ${profile.providerInfo.label} (necesario) y, si querés, Meta Ads y Klaviyo. Sin tienda online no hay nada más que conectar.`],
+    tienda:        [withStore ? "Tienda" : "Datos", withStore
+      ? "Nombre, dominio, moneda y mail salen de tu Shopify; la cuenta de cobro, de Mercado Pago. Y los envíos que el cliente elige al suscribirse."
+      : `Nombre del negocio, dominio (opcional) y la cuenta de ${profile.providerInfo.label}.${profile.caps.shipping ? " Y los envíos que el cliente elige al suscribirse." : ""}`],
     facturacion:   ["Facturación", "Tu plan de Recurrentes: qué incluye, cuántos pedidos llevás este mes y cómo cambiarlo."],
     avanzado:      ["Avanzado", "Flujo del checkout del widget, selector CSS a ocultar, códigos de descuento y modo desarrollador."],
     ayuda:         ["Ayuda", "La guía completa de Recurrentes: conectar Shopify y Mercado Pago, crear planes con packs, pegar el snippet y probar. Y el WhatsApp de soporte."],
@@ -174,6 +186,7 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
           </div>
 
           {cur === "cuenta"        && <CuentaSection T={T} DS={DS} user={user} merchant={merchant} toast={toast} />}
+          {cur === "negocio"       && <BusinessProfileSection merchant={merchant} onChange={reloadMerchant} />}
           {cur === "tiendas"       && <TiendasSection T={T} DS={DS} user={user} merchant={merchant} workspace={workspace} reloadMerchant={reloadMerchant} toast={toast} />}
           {cur === "equipo"        && isOwner && <MiembrosCuentaCard T={T} DS={DS} user={user} merchant={merchant} toast={toast} />}
           {cur === "integraciones" && <IntegrationsTab merchant={merchant} onChange={reloadMerchant} embedded />}

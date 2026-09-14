@@ -16,7 +16,7 @@ import { claimCharge } from "../_lib/chargeclaim.js";
 import { timingSafeEqualStr } from "../_lib/token.js";
 import { fetchWithTimeout } from "../_lib/http.js";
 import {
-  syncSubscriber, createShopifyOrderForSub, notifyActivation, notifyRenewal, applyPaymentFailed, repriceAfterFirstCharge,
+  syncSubscriber, fulfillCharge, notifyActivation, notifyRenewal, applyPaymentFailed, repriceAfterFirstCharge,
 } from "../_lib/sync.js";
 
 // Vercel Pro: crear una orden puede llevar varias llamadas a Shopify + MP.
@@ -287,7 +287,7 @@ async function processPaymentForMerchant(merchantId, merchant, payment) {
   // dirección (tag FALTA-DIRECCION → el merchant la completa desde Recurrentes).
   const addrOk = !!(sub.shipping_address?.address1 && sub.shipping_address?.city);
   if (!addrOk) console.warn(`[mp-webhook] sub ${subscriberId} sin address1/city → orden Shopify se crea con tag FALTA-DIRECCION`);
-  const { shopifyOrderId, orderStatusUrl, shopifyError } = await createShopifyOrderForSub(merchant, subscriberId, sub, {
+  const { shopifyOrderId, orderStatusUrl, shopifyError } = await fulfillCharge(merchant, subscriberId, sub, {
     payment_id: payment.id,
     total_price: payment.transaction_amount,
     charge_number: (sub.shopify_orders || []).length + 1,

@@ -5,6 +5,7 @@ import { Card, KPI, Btn, DSBadge, Spinner, CellStack, PageHeader, SectionTitle, 
 import { PlanDeAccionCard } from "./Onboarding.jsx";
 import { fmtARS, fmtDayMonth } from "./_shared.jsx";
 import { fetchUpcoming, fetchErrors } from "./Charges.jsx";
+import { merchantProfile } from "../../shared/platform/profile.js";
 
 // ─── Tab: Inicio (KPIs + plan de acción + próximos 30 días + alertas) ─────
 export function HomeTab({ merchant, onGo, onGoConfig, onOpenGuide }) {
@@ -37,10 +38,15 @@ export function HomeTab({ merchant, onGo, onGoConfig, onOpenGuide }) {
 
   // Alertas: cosas que requieren acción hoy.
   const alerts = [];
-  if (!merchant?.shopify_token) alerts.push({ tone:"warning", title:"Shopify no está conectado", desc:"Sin Shopify no se crean las órdenes de cada cobro.", cta:"Conectar", go: () => onGoConfig?.("integraciones") });
+  // Perfil del negocio: sin tienda (servicios, link) no hay Shopify que conectar ni órdenes.
+  const profile = merchantProfile(merchant);
+  if (profile.channel === "shopify" && !merchant?.shopify_token) alerts.push({ tone:"warning", title:"Shopify no está conectado", desc:"Sin Shopify no se crean las órdenes de cada cobro.", cta:"Conectar", go: () => onGoConfig?.("integraciones") });
   if (!merchant?.mp_access_token) alerts.push({ tone:"warning", title:"Mercado Pago no está conectado", desc:"Es la cuenta que cobra las suscripciones.", cta:"Conectar", go: () => onGoConfig?.("integraciones") });
   if ((totals.payment_failed || 0) > 0) alerts.push({ tone:"danger", title:`${totals.payment_failed} suscripci${totals.payment_failed === 1 ? "ón" : "ones"} con pago fallido`, desc:"MP reintenta solo; podés mandarles el link del portal para actualizar la tarjeta.", cta:"Ver", go: () => onGo?.("suscripciones", "status=payment_failed") });
-  if (errorsCount > 0) alerts.push({ tone:"danger", title:`${errorsCount} cobro${errorsCount === 1 ? "" : "s"} sin orden en Shopify`, desc:"Se cobró pero la orden no se creó. Reintentala desde Cobros.", cta:"Ver", go: () => onGo?.("cobros", "view=errors") });
+  if (errorsCount > 0) alerts.push({ tone:"danger",
+    title: profile.caps.orders ? `${errorsCount} cobro${errorsCount === 1 ? "" : "s"} sin orden en ${profile.channelInfo.label}` : `${errorsCount} cobro${errorsCount === 1 ? "" : "s"} con error`,
+    desc: profile.caps.orders ? "Se cobró pero la orden no se creó. Reintentala desde Cobros." : "Se cobró pero no se pudo registrar. Reintentalo desde Cobros.",
+    cta:"Ver", go: () => onGo?.("cobros", "view=errors") });
   if (merchant && !merchant.klaviyo_connected && (totals.active || 0) > 0) alerts.push({ tone:"info", title:"Klaviyo sin conectar", desc:"Recuperá checkouts sin pagar y mandá los mails con tu marca.", cta:"Configurar", go: () => onGoConfig?.("integraciones") });
 
   return (

@@ -4,7 +4,9 @@ import { DS, useT } from "../ui/theme.js";
 import { Card, Btn, Field, InputStyle, Spinner, PageHeader, Callout, Hint, CheckLine, appAlert, toast } from "../ui/components.jsx";
 import PacksEditor, { packsFromPlan, serializePacks, validatePacks, pricingModeOf } from "./PacksEditor.jsx";
 import { BundlePreview, SAMPLE_PLAN } from "./WidgetDesigner.jsx";
-import { fmtARS, SurfaceBox } from "./_shared.jsx";
+import { fmtARS, fmtFreq, SurfaceBox, MONO, copyText } from "./_shared.jsx";
+import { merchantProfile, hostedCheckoutUrl } from "../../shared/platform/profile.js";
+import { planExample } from "../lib/onboarding.js";
 
 // Título de bloque dentro de un formulario (con línea arriba). Plans.jsx la re-exporta.
 export function FormSection({ T, title, right, children, first }) {
@@ -21,9 +23,53 @@ export function FormSection({ T, title, right, children, first }) {
   );
 }
 
+// Frecuencias típicas (chips): semanal para clases, mensual para cuotas, etc.
+const FREQ_PRESETS = [7, 15, 30, 60, 90, 365];
+
+// Link público de suscripción de un plan (checkout hosteado) con copiar / abrir /
+// compartir por WhatsApp. Lo usan el editor y la grilla de Planes.
+export function SubscriptionLinkBox({ T, merchantId, planId, title }) {
+  const url = hostedCheckoutUrl(window.location.origin, merchantId, planId);
+  const wa = `https://wa.me/?text=${encodeURIComponent(`${title ? title + ": " : ""}${url}`)}`;
+  return (
+    <div>
+      <div style={{ background:T.bg, border:`1px solid ${T.border}`, borderRadius:DS.r.lg, padding:"10px 12px", fontFamily:MONO, fontSize:DS.font.sm, color:T.accent, lineHeight:1.5, overflowWrap:"anywhere" }}>{url}</div>
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:8 }}>
+        <Btn T={T} variant="solid" size="sm" onClick={() => copyText(url, "Link copiado")}>Copiar link</Btn>
+        <Btn T={T} variant="secondary" size="sm" onClick={() => window.open(url, "_blank", "noopener")}>Abrir</Btn>
+        <Btn T={T} variant="secondary" size="sm" onClick={() => window.open(wa, "_blank", "noopener")}>Compartir por WhatsApp</Btn>
+      </div>
+    </div>
+  );
+}
+
+// Mini checkout (vista previa del link): lo que ve el cliente al abrirlo.
+function LinkCheckoutPreview({ T, title, image, price, frequency, color, kindLabel, storeName }) {
+  const accent = /^#[0-9a-fA-F]{6}$/.test(color || "") ? color : "#10b981";
+  return (
+    <div style={{ background:"#f6f6f7", borderRadius:DS.r.xl, padding:14, border:`1px solid ${T.borderL}` }}>
+      {storeName && <div style={{ fontSize:13, fontWeight:800, color:"#1a1a1a", marginBottom:10, overflowWrap:"anywhere" }}>{storeName}</div>}
+      <div style={{ background:"#fff", border:"1px solid #e5e5e7", borderRadius:12, padding:14, color:"#1a1a1a" }}>
+        <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:12 }}>
+          {image ? <img src={image} alt="" style={{ width:44, height:44, borderRadius:9, objectFit:"cover", border:"1px solid #eee", flexShrink:0 }}/> : <div style={{ width:44, height:44, borderRadius:9, background:accent + "1a", display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>🔁</div>}
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontSize:9.5, fontWeight:800, color:accent, textTransform:"uppercase", letterSpacing:0.5 }}>{kindLabel} · {fmtFreq(frequency)}</div>
+            <div style={{ fontSize:13.5, fontWeight:700, lineHeight:1.3, overflowWrap:"anywhere" }}>{title}</div>
+          </div>
+        </div>
+        <div style={{ display:"flex", justifyContent:"space-between", borderTop:"1px solid #eee", paddingTop:10, fontSize:14 }}><b>Total {fmtFreq(frequency)}</b><b>{fmtARS(price)}</b></div>
+        <div style={{ marginTop:12, padding:"11px", borderRadius:10, background:accent, color:"#fff", fontWeight:700, fontSize:13.5, textAlign:"center" }}>Suscribirme y pagar {fmtARS(price)}</div>
+        <div style={{ marginTop:8, fontSize:10.5, color:"#888", lineHeight:1.45, textAlign:"center" }}>Se renueva sola. Pausás o cancelás cuando quieras.</div>
+      </div>
+    </div>
+  );
+}
+
 // Editor de plan a pantalla completa (alta y edición), estilo Recharge:
-// izquierda el formulario, derecha la vista previa EN VIVO del widget con el
-// diseño global del merchant y el borrador del plan (packs, % off, frecuencia).
+// izquierda el formulario, derecha la vista previa EN VIVO.
+//   · Con tienda (Shopify): el producto sale del catálogo; vista previa del widget con packs.
+//   · Sin tienda (servicios, digitales, link): nombre + precio a mano; vista previa del
+//     checkout del link y, al guardar, el link para compartir.
 // Guardar = mismo POST /api/plans (alta) o PATCH /api/plans?id= (edición).
 //
 // Props: plan (null = nuevo) · products (shopify?action=products) · merchant ·
@@ -33,23 +79,34 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
   const iS = InputStyle(T);
   const isEdit = !!plan;
   const m = merchant || {};
+  const profile = useMemo(() => merchantProfile(m), [m]);
+  // Ítem manual: el merchant no tiene catálogo (o el plan se creó así).
+  const manual = !profile.caps.catalog || plan?.item_source === "manual";
+  const showPacks = profile.caps.packs && !manual;
+  const showShipping = profile.caps.shipping;
+  const isService = profile.businessType === "service";
 
-  // ── producto / variante ───────────────────────────────────────────────
+  // ── producto / variante (catálogo) ────────────────────────────────────
   const [productId, setProductId] = useState("");
   const [variantId, setVariantId] = useState("");
   const product = products.find(p => String(p.id) === String(productId));
   const variant = product?.variants?.find(v => String(v.id) === String(variantId));
   // En edición: la variante actual del plan en Shopify (para mostrar su precio de hoy).
   const shopifyVariant = useMemo(() => {
-    if (!isEdit) return null;
+    if (!isEdit || manual) return null;
     const p = products.find(x => String(x.id) === String(plan.shopify_product_id));
     return p?.variants?.find(v => String(v.id) === String(plan.shopify_variant_id)) || null;
-  }, [isEdit, plan, products]);
+  }, [isEdit, manual, plan, products]);
   const shopifyPrice = shopifyVariant ? Number(shopifyVariant.price) || 0 : null;
+
+  // ── ítem manual (sin tienda) ──────────────────────────────────────────
+  const [itemTitle, setItemTitle] = useState(plan?.product_title || "");
+  const [itemImage, setItemImage] = useState(plan?.product_image || "");
+  const [manualPrice, setManualPrice] = useState(plan?.base_price_ars || "");
 
   // ── términos ──────────────────────────────────────────────────────────
   const [frequency, setFrequency] = useState(plan?.frequency_days ?? 30);
-  const [discount, setDiscount] = useState(plan?.discount_pct ?? 15);
+  const [discount, setDiscount] = useState(plan?.discount_pct ?? (manual ? 0 : 15));
   const [units, setUnits] = useState(plan?.units_per_shipment ?? 1);
   // Precio normal (edición): el guardado en el plan; si está en 0, el de Shopify.
   const [editBasePrice, setEditBasePrice] = useState(() => (Number(plan?.base_price_ars) > 0 ? plan.base_price_ars : (shopifyPrice || 0)));
@@ -62,24 +119,27 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
   const [allowCustomFreq, setAllowCustomFreq] = useState(plan?.allow_custom_frequency === true);
   const [maxPackDisc, setMaxPackDisc] = useState(plan?.max_pack_discount_pct ?? 35);
   const [advOpen, setAdvOpen] = useState(false);
-  // Precios y packs (shared/bundle/SPEC.md). Plan nuevo → packs (recomendado).
-  const [pricingMode, setPricingMode] = useState(isEdit ? pricingModeOf(plan) : "packs");
+  // Precios y packs (shared/bundle/SPEC.md). Plan nuevo con widget → packs (recomendado).
+  const [pricingMode, setPricingMode] = useState(isEdit ? pricingModeOf(plan) : (showPacks ? "packs" : "theme"));
   const [packs, setPacks] = useState(() => packsFromPlan(plan));
   const [freqScales, setFreqScales] = useState(plan ? plan.frequency_scales_with_qty !== false : true);
   const [saving, setSaving] = useState(false);
 
-  const basePrice = isEdit ? (parseFloat(editBasePrice) || 0) : (Number(variant?.price) || 0);
-  const discountNum = Math.max(0, Math.min(80, parseInt(discount, 10) || 0));
+  const basePrice = isEdit ? (parseFloat(editBasePrice) || 0) : manual ? (parseFloat(manualPrice) || 0) : (Number(variant?.price) || 0);
+  const discountNum = isService && manual ? 0 : Math.max(0, Math.min(80, parseInt(discount, 10) || 0));
   const freqNum = Math.max(1, parseInt(frequency, 10) || 30);
   const subPrice = Math.round(basePrice * (1 - discountNum / 100));
-  const title = isEdit ? plan.product_title : (product ? product.title + (variant && variant.title !== "Default Title" ? ` — ${variant.title}` : "") : "Nuevo plan");
+  const title = manual
+    ? (itemTitle.trim() || (isEdit ? plan.product_title : "Nuevo plan"))
+    : isEdit ? plan.product_title : (product ? product.title + (variant && variant.title !== "Default Title" ? ` — ${variant.title}` : "") : "Nuevo plan");
+  const effectiveMode = showPacks ? pricingMode : "theme";
 
   // Envíos del checkout (Configuración → Tienda): si hay, el cliente elige entre esos.
   const checkoutRates = Array.isArray(m.checkout_shipping_rates) ? m.checkout_shipping_rates : [];
   const hasCheckoutRates = checkoutRates.length > 0;
   const goStoreSettings = () => { try { window.location.hash = "#/config/tienda"; } catch (_) {} };
 
-  // ── borrador para la vista previa ─────────────────────────────────────
+  // ── borrador para la vista previa del widget ──────────────────────────
   const draftPacks = useMemo(() => serializePacks(packs), [packs]);
   const draftPlan = useMemo(() => {
     const base = {
@@ -109,29 +169,32 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
   function termsPayload() {
     const tiers = qtyTiers.filter(t => t.min_qty >= 2 && t.discount_pct > 0).sort((a, b) => a.min_qty - b.min_qty);
     return {
-      pricing_mode: pricingMode,
-      packs: serializePacks(packs),
+      pricing_mode: effectiveMode,
+      packs: showPacks ? serializePacks(packs) : [],
       frequency_scales_with_qty: freqScales !== false,
       frequency_days: freqNum,
       discount_pct: discountNum,
       units_per_shipment: Math.max(1, parseInt(units, 10) || 1),
-      shipping_price_ars: parseFloat(shippingPrice) || 0,
-      free_shipping_from_ars: parseFloat(freeShipFrom) || 0,
+      shipping_price_ars: showShipping ? (parseFloat(shippingPrice) || 0) : 0,
+      free_shipping_from_ars: showShipping ? (parseFloat(freeShipFrom) || 0) : 0,
       shipping_method_name: String(shippingName || "").trim() || "Envío a domicilio",
-      qty_discount_tiers: tiers,
-      allow_custom_frequency: allowCustomFreq,
+      qty_discount_tiers: showPacks ? tiers : [],
+      allow_custom_frequency: showPacks ? allowCustomFreq : false,
       max_pack_discount_pct: parseInt(maxPackDisc, 10) || 0,
     };
   }
+  const manualFields = () => ({ product_title: itemTitle.trim(), product_image: itemImage.trim() || null });
   async function save() {
-    if (pricingMode === "packs") {
+    if (effectiveMode === "packs") {
       const perr = validatePacks(packs);
       if (perr) return toast(perr, "warning", 5000);
     }
+    if (manual && !itemTitle.trim()) return toast("Poné un nombre al plan", "warning");
+    if (manual && itemImage.trim() && !/^https:\/\//i.test(itemImage.trim())) return toast("La imagen tiene que ser un link https://", "warning");
     if (isEdit) {
-      if (!(basePrice > 0)) return toast("El precio normal tiene que ser mayor a 0", "warning");
+      if (!(basePrice > 0)) return toast(manual ? "El precio tiene que ser mayor a 0" : "El precio normal tiene que ser mayor a 0", "warning");
       setSaving(true);
-      const d = await apiPatch("plans", { ...termsPayload(), base_price_ars: basePrice }, { id: plan.id });
+      const d = await apiPatch("plans", { ...termsPayload(), base_price_ars: basePrice, ...(manual ? manualFields() : {}) }, { id: plan.id });
       setSaving(false);
       if (d?.error) return toast("Error: " + d.error, "error", 6000);
       toast("Plan guardado", "success");
@@ -139,9 +202,15 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
       onSaved?.();
       return;
     }
-    if (!productId || !variantId) return toast("Elegí producto y variante", "warning");
+    if (manual) {
+      if (!(basePrice > 0)) return toast("El precio tiene que ser mayor a 0", "warning");
+    } else if (!productId || !variantId) return toast("Elegí producto y variante", "warning");
     setSaving(true);
-    const d = await apiPost("plans", {
+    const d = await apiPost("plans", manual ? {
+      ...termsPayload(),
+      ...manualFields(),
+      base_price_ars: basePrice,
+    } : {
       ...termsPayload(),
       shopify_product_id: productId,
       shopify_variant_id: variantId,
@@ -151,26 +220,41 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
     });
     setSaving(false);
     if (d?.error) return toast("Error: " + d.error, "error", 6000);
-    toast("Plan creado", "success");
-    onSaved?.();
+    toast(manual ? "Plan creado: ya tenés tu link para compartir" : "Plan creado", "success");
+    onSaved?.(d?.plan);
   }
 
-  const canSave = !saving && (isEdit || !!variantId);
+  const canSave = !saving && (isEdit || (manual ? (!!itemTitle.trim() && basePrice > 0) : !!variantId));
   const smallNum = { ...iS, padding:"6px 8px", fontSize:DS.font.md, width:64, marginBottom:0 };
   const small = { fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5 };
   const linkBtn = { background:"transparent", border:"none", color:T.accent, fontWeight:DS.w.semibold, cursor:"pointer", fontFamily:"inherit", fontSize:DS.font.sm, padding:0 };
   const saveBtn = <Btn T={T} variant="solid" onClick={save} disabled={!canSave}>{saving ? <><Spinner size={13}/> {isEdit ? "Guardando…" : "Creando…"}</> : (isEdit ? "Guardar cambios" : "Crear plan")}</Btn>;
+  const priceLabel = manual ? (isService ? "Precio de la cuota ($)" : "Precio de cada cobro ($)") : "Precio normal ($)";
 
   return (
     <div>
       <PageHeader T={T} back="Volver a planes" onBack={onBack} title={isEdit ? "Editar plan" : "Nuevo plan"}
-        subtitle={isEdit ? plan.product_title : "Convertí un producto Shopify en suscripción recurrente. Lo que cargás se ve a la derecha al instante."}
+        subtitle={isEdit ? plan.product_title : manual
+          ? `Nombre, precio y cada cuántos días se cobra (ej: "${planExample(profile)}"). Al guardar te damos el link para compartir.`
+          : "Convertí un producto Shopify en suscripción recurrente. Lo que cargás se ve a la derecha al instante."}
         right={<><Btn T={T} variant="secondary" onClick={onBack}>Cancelar</Btn>{saveBtn}</>}/>
 
       <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"minmax(0, 1.25fr) minmax(300px, 1fr)", gap:DS.sp.lg, alignItems:"start" }}>
         {/* ── Columna izquierda: formulario ─────────────────────────── */}
         <Card T={T}>
-          {isEdit ? (
+          {manual ? (
+            <>
+              <Field T={T} label="Nombre del plan" required>
+                <input value={itemTitle} onChange={e=>setItemTitle(e.target.value)} maxLength={120} style={iS} placeholder={planExample(profile)}/>
+              </Field>
+              <Field T={T} label={<>Imagen <span style={{ color:T.textSm, fontWeight:DS.w.regular, textTransform:"none" }}>(link https://, opcional)</span></>}>
+                <input value={itemImage} onChange={e=>setItemImage(e.target.value)} style={iS} placeholder="https://…/foto.jpg"/>
+              </Field>
+              <Field T={T} label={priceLabel} required>
+                <input type="number" min="0" value={isEdit ? editBasePrice : manualPrice} onChange={e=>isEdit ? setEditBasePrice(e.target.value) : setManualPrice(e.target.value)} style={iS} placeholder="0"/>
+              </Field>
+            </>
+          ) : isEdit ? (
             <>
               <Field T={T} label="Producto">
                 <div style={{ ...iS, display:"flex", alignItems:"center", gap:10, background:T.surface, color:T.textMd, cursor:"default" }}>
@@ -209,54 +293,71 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
             </>
           )}
 
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 12px" }}>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap", margin:"2px 0 8px" }} role="group" aria-label="Frecuencias típicas">
+            {FREQ_PRESETS.map(d => {
+              const on = freqNum === d;
+              return (
+                <button key={d} type="button" onClick={()=>setFrequency(d)} aria-pressed={on}
+                  style={{ padding:"5px 11px", borderRadius:99, border:`1px solid ${on ? T.accentSolid : T.border}`, background: on ? T.accentSolid + "18" : "transparent", color: on ? T.accent : T.textMd, fontSize:DS.font.sm, fontWeight:DS.w.semibold, cursor:"pointer", fontFamily:"inherit" }}>
+                  {fmtFreq(d).replace(/^./, c => c.toUpperCase())}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns: isService && manual ? "1fr" : "1fr 1fr", gap:"0 12px" }}>
             <Field T={T} label="Frecuencia (días)">
               <input type="number" min="1" value={frequency} onChange={e=>setFrequency(e.target.value)} style={iS}/>
             </Field>
-            <Field T={T} label="Descuento por suscripción (%)">
-              <input type="number" min="0" max="80" value={discount} onChange={e=>setDiscount(e.target.value)} style={iS}/>
-            </Field>
+            {!(isService && manual) && (
+              <Field T={T} label={manual ? "Descuento por suscribirse (%)" : "Descuento por suscripción (%)"}>
+                <input type="number" min="0" max="80" value={discount} onChange={e=>setDiscount(e.target.value)} style={iS}/>
+              </Field>
+            )}
           </div>
 
-          {/* ─── Precios y packs (modo packs | tema) ─────────────────── */}
-          <PacksEditor
-            mode={pricingMode} onModeChange={setPricingMode}
-            packs={packs} onPacksChange={setPacks}
-            basePrice={basePrice} discountPct={discount} frequencyDays={frequency}
-            freqScales={freqScales} onFreqScalesChange={setFreqScales}
-          />
+          {/* ─── Precios y packs (modo packs | tema) — solo con widget en la tienda ─── */}
+          {showPacks && (
+            <PacksEditor
+              mode={pricingMode} onModeChange={setPricingMode}
+              packs={packs} onPacksChange={setPacks}
+              basePrice={basePrice} discountPct={discount} frequencyDays={frequency}
+              freqScales={freqScales} onFreqScalesChange={setFreqScales}
+            />
+          )}
 
-          {/* ─── Envío ───────────────────────────────────────────────── */}
-          <FormSection T={T} title="Envío">
-            {hasCheckoutRates ? (
-              <SurfaceBox T={T}>
-                <div style={{ fontSize:DS.font.md, color:T.textMd, lineHeight:1.55 }}>
-                  El cliente elige entre los <strong style={{ color:T.text }}>envíos del checkout</strong> ({checkoutRates.slice(0, 3).map(r => r.name).join(" · ")}{checkoutRates.length > 3 ? ` · +${checkoutRates.length - 3}` : ""}).
-                  {" "}Se configuran en <button type="button" style={linkBtn} onClick={goStoreSettings}>Configuración → Tienda →</button>
-                </div>
-              </SurfaceBox>
-            ) : (
-              <>
-                <Callout T={T} tone="info" style={{ marginBottom:12 }} right={<Btn T={T} variant="secondary" size="sm" type="button" onClick={goStoreSettings}>Cargar envíos →</Btn>}>
-                  <strong style={{ color:T.text }}>Envío por defecto de este plan.</strong> Si cargás envíos del checkout en Configuración → Tienda (o los importás de Shopify), el cliente elige entre esos y estos campos dejan de usarse.
-                </Callout>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 12px" }}>
-                  <Field T={T} label="Costo de envío ($)">
-                    <input type="number" min="0" value={shippingPrice} onChange={e=>setShippingPrice(e.target.value)} style={iS} placeholder="0"/>
+          {/* ─── Envío (solo negocios con envío) ─────────────────────── */}
+          {showShipping && (
+            <FormSection T={T} title="Envío">
+              {hasCheckoutRates ? (
+                <SurfaceBox T={T}>
+                  <div style={{ fontSize:DS.font.md, color:T.textMd, lineHeight:1.55 }}>
+                    El cliente elige entre los <strong style={{ color:T.text }}>envíos del checkout</strong> ({checkoutRates.slice(0, 3).map(r => r.name).join(" · ")}{checkoutRates.length > 3 ? ` · +${checkoutRates.length - 3}` : ""}).
+                    {" "}Se configuran en <button type="button" style={linkBtn} onClick={goStoreSettings}>Configuración → Tienda →</button>
+                  </div>
+                </SurfaceBox>
+              ) : (
+                <>
+                  <Callout T={T} tone="info" style={{ marginBottom:12 }} right={<Btn T={T} variant="secondary" size="sm" type="button" onClick={goStoreSettings}>Cargar envíos →</Btn>}>
+                    <strong style={{ color:T.text }}>Envío por defecto de este plan.</strong> Si cargás envíos del checkout en Configuración → Tienda{profile.channel === "shopify" ? " (o los importás de Shopify)" : ""}, el cliente elige entre esos y estos campos dejan de usarse.
+                  </Callout>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 12px" }}>
+                    <Field T={T} label="Costo de envío ($)">
+                      <input type="number" min="0" value={shippingPrice} onChange={e=>setShippingPrice(e.target.value)} style={iS} placeholder="0"/>
+                    </Field>
+                    <Field T={T} label="Envío gratis desde ($)">
+                      <input type="number" min="0" value={freeShipFrom} onChange={e=>setFreeShipFrom(e.target.value)} style={iS} placeholder="0 = nunca gratis"/>
+                    </Field>
+                  </div>
+                  <Field T={T} label={profile.channel === "shopify" ? "Nombre del método (lo que ve el cliente en Shopify)" : "Nombre del método (lo que ve el cliente)"}>
+                    <input type="text" value={shippingName} onChange={e=>setShippingName(e.target.value)} style={iS} placeholder="Envío a domicilio"/>
                   </Field>
-                  <Field T={T} label="Envío gratis desde ($)">
-                    <input type="number" min="0" value={freeShipFrom} onChange={e=>setFreeShipFrom(e.target.value)} style={iS} placeholder="0 = nunca gratis"/>
-                  </Field>
-                </div>
-                <Field T={T} label="Nombre del método (lo que ve el cliente en Shopify)">
-                  <input type="text" value={shippingName} onChange={e=>setShippingName(e.target.value)} style={iS} placeholder="Envío a domicilio"/>
-                </Field>
-              </>
-            )}
-          </FormSection>
+                </>
+              )}
+            </FormSection>
+          )}
 
-          {/* ─── Avanzado (solo modo tema: en packs cada pack ya trae precio/frecuencia) ── */}
-          {pricingMode === "theme" && (
+          {/* ─── Avanzado (solo modo tema con widget: en packs cada pack ya trae precio/frecuencia) ── */}
+          {showPacks && pricingMode === "theme" && (
             <FormSection T={T} title={<button type="button" onClick={()=>setAdvOpen(o=>!o)} style={{ background:"transparent", border:"none", padding:0, cursor:"pointer", fontFamily:"inherit", fontSize:DS.font.base, fontWeight:DS.w.bold, color:T.text, display:"inline-flex", alignItems:"center", gap:6 }}><span style={{ display:"inline-block", transition:"transform .15s", transform: advOpen ? "rotate(90deg)" : "none" }}>▸</span> Avanzado</button>}
               right={!advOpen && <span style={small}>frecuencia libre, tope de descuento, niveles por cantidad, unidades</span>}>
               {advOpen && (
@@ -297,14 +398,16 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
             </FormSection>
           )}
 
-          {pricingMode === "theme" && basePrice > 0 && (
+          {effectiveMode === "theme" && basePrice > 0 && (
             <SurfaceBox T={T} style={{ marginTop:14 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4, fontSize:DS.font.md }}>
-                <span style={{ color:T.textSm }}>Precio normal:</span>
-                <span style={{ fontWeight:DS.w.semibold, color:T.text }}>{fmtARS(basePrice)}</span>
-              </div>
-              <div style={{ display:"flex", justifyContent:"space-between", fontSize:DS.font.md }}>
-                <span style={{ color:T.accent, fontWeight:DS.w.bold }}>Precio suscripción base:</span>
+              {discountNum > 0 && (
+                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4, fontSize:DS.font.md }}>
+                  <span style={{ color:T.textSm }}>Precio normal:</span>
+                  <span style={{ fontWeight:DS.w.semibold, color:T.text }}>{fmtARS(basePrice)}</span>
+                </div>
+              )}
+              <div style={{ display:"flex", justifyContent:"space-between", gap:10, flexWrap:"wrap", fontSize:DS.font.md }}>
+                <span style={{ color:T.accent, fontWeight:DS.w.bold }}>{manual ? "Se cobra:" : "Precio suscripción base:"}</span>
                 <span style={{ fontWeight:DS.w.black, color:T.accent, fontSize:DS.font.lg }}>{fmtARS(subPrice)} cada {freqNum} días</span>
               </div>
             </SurfaceBox>
@@ -321,11 +424,22 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:10, flexWrap:"wrap", marginBottom:10 }}>
             <div>
               <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, letterSpacing:-0.2 }}>Vista previa en vivo</div>
-              <div style={small}>Así se ve en tu tienda con el diseño global.</div>
+              <div style={small}>{showPacks ? "Así se ve en tu tienda con el diseño global." : "Así lo ve tu cliente al abrir el link."}</div>
             </div>
-            {onGoWidget && <button type="button" style={linkBtn} onClick={onGoWidget}>Cambiar diseño →</button>}
+            {showPacks && onGoWidget && <button type="button" style={linkBtn} onClick={onGoWidget}>Cambiar diseño →</button>}
           </div>
-          {pricingMode === "theme" ? (
+          {!showPacks ? (
+            <>
+              <LinkCheckoutPreview T={T} title={title} image={itemImage.trim() || plan?.product_image} price={subPrice} frequency={freqNum}
+                color={m.widget_color} kindLabel={isService ? "Membresía" : "Suscripción"} storeName={m.store_name || m.shop_name}/>
+              <div style={{ marginTop:14 }}>
+                <div style={{ fontSize:DS.font.md, fontWeight:DS.w.bold, color:T.text, marginBottom:6 }}>Link para compartir</div>
+                {isEdit
+                  ? <SubscriptionLinkBox T={T} merchantId={m.id} planId={plan.id} title={plan.product_title}/>
+                  : <div style={small}>Aparece acá cuando guardes el plan. Lo pegás en Instagram, WhatsApp, tu web o lo imprimís como QR.</div>}
+              </div>
+            </>
+          ) : pricingMode === "theme" ? (
             <Callout T={T} tone="info">
               Este plan toma precio, cantidad y frecuencia <strong style={{ color:T.text }}>de tu tema</strong>: el widget solo agrega el toggle Suscripción / Compra única. El selector de packs no aplica acá.
             </Callout>

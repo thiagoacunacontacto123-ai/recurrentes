@@ -1,25 +1,34 @@
-// Plan de acción del comerciante nuevo — cálculo compartido de los 8 pasos.
+// Plan de acción del comerciante nuevo — cálculo compartido de los pasos.
 // Lo consumen: el wizard de bienvenida (Onboarding.jsx), la card "Tu plan de
 // acción" de Inicio, el badge/quehaceres del sidebar (Shell.jsx), los estados
 // vacíos de cada sección y la Guía.
 //
+// Los pasos se ADAPTAN al perfil del negocio (shared/platform/profile.js):
+//   · físico + Shopify (histórico): email · negocio · Shopify · MP · plan con packs ·
+//     diseño · snippet · tienda y envíos · Klaviyo.
+//   · sin tienda (servicios, digitales, link): email · negocio · MP · plan ·
+//     compartir el link · (envíos si es físico) · Klaviyo.
+//
 // Estado de cada paso:
-//   - calculado desde `merchant` (shopify_token, mp_access_token, store_domain,
-//     checkout_shipping_rates, klaviyo_connected, widget_variant/color/radius)
+//   - calculado desde `merchant` (business_type, shopify_token, mp_access_token,
+//     store_domain, checkout_shipping_rates, klaviyo_connected, widget_variant/color/radius)
 //   - GET /api/plans para "primer plan"
-//   - localStorage para los manuales (snippet pegado, diseño elegido, Klaviyo
-//     "más tarde"), siempre por tienda: rec_onb_<algo>_<merchantId>.
+//   - localStorage para los manuales (snippet pegado, diseño elegido, link
+//     compartido, Klaviyo "más tarde"), siempre por tienda: rec_onb_<algo>_<merchantId>.
 // Mismo criterio que Growith: localStorage para lo que el usuario marca a mano,
 // el doc del merchant para lo que se puede verificar.
 import React from "react";
 import { apiGet } from "./api.js";
+import { merchantProfile } from "../../shared/platform/profile.js";
 
 export const WHATSAPP_SOPORTE = "https://wa.me/5491164117974";
-export const TOTAL_PASOS = 8;
+// Pasos del perfil histórico (físico + Shopify). El total real sale de computeSteps().
+export const TOTAL_PASOS = 9;
 
 // ─── Claves de localStorage (todas por tienda) ─────────────────────────
 export const widgetKey       = (mid) => `rec_onb_widget_${mid || "default"}`;        // snippet pegado (manual)
 export const designKey       = (mid) => `rec_onb_design_${mid || "default"}`;        // "me quedo con este diseño" (manual)
+export const linkKey         = (mid) => `rec_onb_link_${mid || "default"}`;          // link de suscripción compartido (manual)
 export const klaviyoLaterKey = (mid) => `rec_onb_klaviyo_later_${mid || "default"}`; // Klaviyo "más tarde"
 export const seenKey         = (mid) => `rec_onb_seen_${mid || "default"}`;          // ya vio el wizard de bienvenida
 export const doneKeyLegacy   = (mid) => `rec_onb_done_${mid || "default"}`;          // clave vieja (equivale a seen)
@@ -50,14 +59,23 @@ export function goPlanesWidget(goTab) {
 // ─── Íconos (paths SVG 24x24, stroke) de cada paso ─────────────────────
 export const STEP_ICONS = {
   email:    "M4 4h16v16H4zM4 4l8 8 8-8",
+  negocio:  "M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 10h.01M15 10h.01",
   shopify:  "M6 2l1.5 4h9L18 2M3 6h18l-1.5 14h-15zM9 10a3 3 0 006 0",
   mp:       "M2 7h20v10H2zM2 11h20M6 15h4",
   plan:     "M12 22a10 10 0 100-20 10 10 0 000 20zM12 18a6 6 0 100-12 6 6 0 000 12zM12 14a2 2 0 100-4 2 2 0 000 4z",
   design:   "M4 4h16v16H4zM4 9h16M9 9v11",
   snippet:  "M16 18l6-6-6-6M8 6l-6 6 6 6",
+  link:     "M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71",
   settings: "M3 9l1-5h16l1 5M3 9h18v11H3zM9 20v-6h6v6",
   klaviyo:  "M4 4h16v16H4zM4 7l8 6 8-6",
 };
+
+// Ejemplo de plan según el tipo de negocio (textos del onboarding y del editor).
+export function planExample(profile) {
+  if (profile?.businessType === "service") return "Pase libre mensual";
+  if (profile?.businessType === "digital") return "Club de lectura: un ebook por mes";
+  return "Café de especialidad cada 15 días";
+}
 
 // ─── Cálculo de pasos ──────────────────────────────────────────────────
 // Devuelve [{ id, n, title, short, done, locked, lockedMsg, manual, tab,
@@ -65,64 +83,103 @@ export const STEP_ICONS = {
 export function computeSteps({ merchant, user, plansCount }) {
   const m = merchant || {};
   const mid = m.id || null;
+  const p = merchantProfile(m);
+  const v = p.vocab;
   const shopifyOk = Boolean(m.shopify_token);
   const mpOk = Boolean(m.mp_access_token);
-  const integ = shopifyOk && mpOk;
   const planOk = (Number(plansCount) || 0) > 0;
   // Si el merchant cargó, el backend ya validó el mail (403 email_unverified si no).
   const emailOk = user?.emailVerified === true || Boolean(m.id);
+  // Negocio: lo eligió, o es un merchant histórico que ya conectó Shopify (físico).
+  const negocioOk = p.explicit || shopifyOk;
   const color = String(m.widget_color || "#10b981").toLowerCase();
   const designOk = readFlag(designKey(mid))
     || (m.widget_variant && m.widget_variant !== "v01")
     || (color !== "#10b981")
     || (Number.isInteger(m.widget_radius) && m.widget_radius !== 14);
   const snippetOk = readFlag(widgetKey(mid));
-  const settingsOk = Boolean(m.store_domain) && Array.isArray(m.checkout_shipping_rates) && m.checkout_shipping_rates.length > 0;
+  const linkOk = readFlag(linkKey(mid));
+  const ratesOk = Array.isArray(m.checkout_shipping_rates) && m.checkout_shipping_rates.length > 0;
+  const settingsOk = p.channel === "shopify" ? Boolean(m.store_domain) && ratesOk : ratesOk;
   const klaviyoOk = Boolean(m.klaviyo_connected || m.klaviyo_api_key || m.klaviyo_public_key);
   const klaviyoLater = readFlag(klaviyoLaterKey(mid));
+  const lockedMsg = p.missing.length ? `Primero conectá ${p.missing.join(" y ")}.` : "";
 
-  return [
-    { id:"email", n:1, done:emailOk, title:"Verificar tu email",
-      short:"Confirmá tu casilla para que podamos avisarte de cobros y fallas.",
-      why:"Te mandamos avisos de cobros fallidos, cancelaciones y novedades de tu cuenta a este mail.",
-      needs:["Acceso a la casilla con la que te registraste"],
-      tab:"configuracion", configSec:"cuenta", cta:"Ver mi cuenta" },
-    { id:"shopify", n:2, done:shopifyOk, title:"Conectar Shopify",
+  const steps = [];
+  steps.push({ id:"email", done:emailOk, title:"Verificar tu email",
+    short:"Confirmá tu casilla para que podamos avisarte de cobros y fallas.",
+    why:"Te mandamos avisos de cobros fallidos, cancelaciones y novedades de tu cuenta a este mail.",
+    needs:["Acceso a la casilla con la que te registraste"],
+    tab:"configuracion", configSec:"cuenta", cta:"Ver mi cuenta" });
+
+  steps.push({ id:"negocio", done:negocioOk, title:"Contanos qué vendés",
+    short:"Productos físicos, digitales o servicios: el panel se adapta a tu negocio.",
+    why:"Con esto sabemos si tu checkout pide dirección, si cada cobro crea una orden en tu tienda o si vendés con un link, y cómo llamamos a tus clientes y a tus planes.",
+    needs:["Saber si vendés productos que se envían, contenido digital o un servicio con cuota (gimnasio, clases, club…)"],
+    tab:"configuracion", configSec:"negocio", cta:"Elegir mi tipo de negocio" });
+
+  if (p.channel === "shopify") {
+    steps.push({ id:"shopify", done:shopifyOk, title:"Conectar Shopify",
       short:"Para leer tus productos y crear una orden en tu tienda con cada cobro.",
       why:"Recurrentes lee tu catálogo para armar los planes y crea una orden en Shopify cada vez que Mercado Pago cobra una suscripción. Sin esto no hay envíos.",
       needs:["Ser dueño o staff con permisos de la tienda","Crear una app personalizada en Shopify (5 min, la guía te lleva paso a paso)","Tu dominio tu-tienda.myshopify.com"],
-      tab:"configuracion", configSec:"integraciones", guideSec:"shopify", cta:"Conectar Shopify" },
-    { id:"mp", n:3, done:mpOk, title:"Conectar Mercado Pago",
-      short:"Es la cuenta que cobra: la plata va directo a vos.",
-      why:"Las suscripciones se crean y se cobran en TU cuenta de Mercado Pago. Recurrentes solo las da de alta y escucha los pagos.",
-      needs:["Tu cuenta de Mercado Pago de comercio (la que cobra)","El Access Token de producción (APP_USR-…) desde el panel de developers"],
-      tab:"configuracion", configSec:"integraciones", guideSec:"mp", cta:"Conectar Mercado Pago" },
-    { id:"plan", n:4, done:planOk, locked:!integ, lockedMsg:"Primero conectá Shopify y Mercado Pago.", title:"Crear tu primer plan con packs",
+      tab:"configuracion", configSec:"integraciones", guideSec:"shopify", cta:"Conectar Shopify" });
+  }
+
+  steps.push({ id:"mp", done:mpOk, title:"Conectar Mercado Pago",
+    short:"Es la cuenta que cobra: la plata va directo a vos.",
+    why:"Las suscripciones se crean y se cobran en TU cuenta de Mercado Pago. Recurrentes solo las da de alta y escucha los pagos.",
+    needs:["Tu cuenta de Mercado Pago de comercio (la que cobra)","El Access Token de producción (APP_USR-…) desde el panel de developers"],
+    tab:"configuracion", configSec:"integraciones", guideSec:"mp", cta:"Conectar Mercado Pago" });
+
+  if (p.caps.catalog) {
+    steps.push({ id:"plan", done:planOk, locked:!p.ready, lockedMsg, title: p.caps.packs ? "Crear tu primer plan con packs" : "Crear tu primer plan",
       short:"Elegí un producto, la frecuencia, el descuento y los packs (x1, x2, x3…).",
-      why:"Un plan convierte un producto de tu Shopify en suscripción. Los packs son las cantidades que ofrecés en el mismo selector (1, 2 o 3 unidades) con su precio cada uno.",
-      needs:["Shopify y Mercado Pago conectados","Saber cada cuántos días querés cobrar y qué descuento dar"],
-      tab:"planes", guideSec:"planes", cta:"Crear mi primer plan" },
-    { id:"design", n:5, done:designOk, manual:true, manualLabel:"Me quedo con este diseño", manualKey:designKey(mid), title:"Elegir el diseño del widget",
+      why:"Un plan convierte un producto de tu tienda en suscripción. Los packs son las cantidades que ofrecés en el mismo selector (1, 2 o 3 unidades) con su precio cada uno.",
+      needs:[`${p.channelInfo.label} y ${p.providerInfo.label} conectados`,"Saber cada cuántos días querés cobrar y qué descuento dar"],
+      tab:"planes", guideSec:"planes", cta:"Crear mi primer plan" });
+  } else {
+    steps.push({ id:"plan", done:planOk, locked:!p.ready, lockedMsg, title:`Crear tu primer plan`,
+      short:`Nombre, precio y cada cuántos días se cobra. Ej: "${planExample(p)}".`,
+      why:`Un plan es lo que tus ${v.customers} pagan de forma recurrente. No necesitás tienda: lo cargás acá y Recurrentes te da el link para cobrarlo.`,
+      needs:[`${p.providerInfo.label} conectado`,"El precio y cada cuántos días querés cobrar"],
+      tab:"planes", cta:"Crear mi primer plan" });
+  }
+
+  if (p.caps.widget) {
+    steps.push({ id:"design", done:designOk, manual:true, manualLabel:"Me quedo con este diseño", manualKey:designKey(mid), title:"Elegir el diseño del widget",
       short:"10 diseños del selector de packs, con tu color y tus textos.",
       why:"El widget es lo que ve tu cliente en la página de producto. Elegí uno de los 10 diseños con vista previa real, ajustá el color, las esquinas y los textos.",
       needs:["El color principal de tu marca (hex)","Un plan creado para ver la vista previa con tus packs (opcional)"],
-      tab:"planes", planesSub:"widget", guideSec:"diseno", cta:"Abrir el diseñador" },
-    { id:"snippet", n:6, done:snippetOk, manual:true, manualLabel:"Ya lo pegué en mi tienda", manualKey:widgetKey(mid), title:"Pegar el snippet en tu tienda",
+      tab:"planes", planesSub:"widget", guideSec:"diseno", cta:"Abrir el diseñador" });
+    steps.push({ id:"snippet", done:snippetOk, manual:true, manualLabel:"Ya lo pegué en mi tienda", manualKey:widgetKey(mid), title:"Pegar el snippet en tu tienda",
       short:"Una línea de código en tu theme y el widget aparece solo en los productos con plan.",
       why:"El snippet carga el widget en tu página de producto. Detecta el producto que se está viendo y, si tiene plan, muestra el selector de suscripción.",
       needs:["Acceso a Online Store → Themes → Edit code (o al editor de temas)","El snippet lo copiás desde Planes → </> Código"],
-      tab:"planes", guideSec:"snippet", cta:"Cómo pegarlo" },
-    { id:"settings", n:7, done:settingsOk, title:"Configurar tienda y envíos",
-      short:"Dominio público de tu tienda y las tarifas de envío del checkout.",
-      why:"El dominio arma los links de los mails y del portal del cliente. Las tarifas de envío son las que el cliente elige en el checkout de suscripción y se repiten en cada orden.",
-      needs:["El dominio público (ej: www.mitienda.com)","Nombre y precio de cada opción de envío (hasta 6)"],
-      tab:"configuracion", configSec:"tienda", guideSec:"tienda", cta:"Configurar tienda" },
-    { id:"klaviyo", n:8, done:klaviyoOk || klaviyoLater, optional:true, later:klaviyoLater && !klaviyoOk, manual:true, manualLabel:"Más tarde", manualKey:klaviyoLaterKey(mid), title:"Conectar Klaviyo (opcional)",
-      short:"Para recuperar checkouts sin pagar y mandar los mails con tu marca.",
-      why:"Recurrentes manda a Klaviyo los eventos de suscripción (checkout iniciado, activada, cancelada, pago fallido). Con eso armás flows de recupero y de retención. Si no usás Klaviyo, los mails básicos los manda Recurrentes.",
-      needs:["Una cuenta de Klaviyo (plan gratis alcanza)","Su API key privada (Settings → API keys)"],
-      tab:"configuracion", configSec:"integraciones", guideSec:"klaviyo", cta:"Conectar Klaviyo" },
-  ];
+      tab:"planes", guideSec:"snippet", cta:"Cómo pegarlo" });
+  } else {
+    steps.push({ id:"link", done:linkOk, manual:true, manualLabel:"Ya lo compartí", manualKey:linkKey(mid), locked:!planOk, lockedMsg:"Primero creá un plan.", title:"Compartir tu link de suscripción",
+      short:"Pegalo en tu bio de Instagram, en WhatsApp, en tu web o imprimilo como QR.",
+      why:`Cada plan tiene su link: tu cliente entra, deja sus datos y paga con ${p.providerInfo.label}. Desde ahí se cobra solo cada período y lo ves en Suscripciones.`,
+      needs:["Un plan creado","Dónde publicarlo: Instagram, WhatsApp, tu web o el mostrador"],
+      tab:"planes", cta:"Ver mis links" });
+  }
+
+  if (p.caps.shipping) {
+    steps.push({ id:"settings", done:settingsOk, title: p.channel === "shopify" ? "Configurar tienda y envíos" : "Configurar tus envíos",
+      short: p.channel === "shopify" ? "Dominio público de tu tienda y las tarifas de envío del checkout." : "Las opciones de envío que el cliente elige al suscribirse.",
+      why:"Las tarifas de envío son las que el cliente elige en el checkout de suscripción y se repiten en cada cobro." + (p.channel === "shopify" ? " El dominio arma los links de los mails y del portal del cliente." : ""),
+      needs: p.channel === "shopify" ? ["El dominio público (ej: www.mitienda.com)","Nombre y precio de cada opción de envío (hasta 6)"] : ["Nombre y precio de cada opción de envío (hasta 6)"],
+      tab:"configuracion", configSec:"tienda", guideSec:"tienda", cta: p.channel === "shopify" ? "Configurar tienda" : "Configurar envíos" });
+  }
+
+  steps.push({ id:"klaviyo", done:klaviyoOk || klaviyoLater, optional:true, later:klaviyoLater && !klaviyoOk, manual:true, manualLabel:"Más tarde", manualKey:klaviyoLaterKey(mid), title:"Conectar Klaviyo (opcional)",
+    short:"Para recuperar checkouts sin pagar y mandar los mails con tu marca.",
+    why:"Recurrentes manda a Klaviyo los eventos de suscripción (checkout iniciado, activada, cancelada, pago fallido). Con eso armás flows de recupero y de retención. Si no usás Klaviyo, los mails básicos los manda Recurrentes.",
+    needs:["Una cuenta de Klaviyo (plan gratis alcanza)","Su API key privada (Settings → API keys)"],
+    tab:"configuracion", configSec:"integraciones", guideSec:"klaviyo", cta:"Conectar Klaviyo" });
+
+  return steps.map((s, i) => ({ ...s, n: i + 1 }));
 }
 
 export function summarize(steps) {
@@ -178,17 +235,18 @@ export function useOnboarding({ merchant, user, goTab }) {
 export const OnboardingContext = React.createContext(null);
 export function useOnb() { return React.useContext(OnboardingContext); }
 
-// Qué pasos hacen falta para que aparezca algo en cada sección.
+// Qué pasos hacen falta para que aparezca algo en cada sección. Los ids que no
+// existen en el perfil del merchant (ej. "shopify" en un gimnasio) se ignoran solos.
 export const SECTION_NEEDS = {
-  suscripciones:["shopify", "mp", "plan", "snippet"],
-  analiticas:   ["shopify", "mp", "plan", "snippet"],
-  retencion:    ["shopify", "mp", "plan", "snippet"],
-  portal:       ["shopify", "mp", "plan", "snippet", "settings"],
-  suscriptores: ["shopify", "mp", "plan", "snippet"],
-  carritos:     ["shopify", "mp", "plan", "snippet"],
-  abandonados:  ["shopify", "mp", "plan", "snippet"],
-  cobros:       ["shopify", "mp", "plan", "snippet"],
-  actividad:    ["shopify", "mp", "plan", "snippet", "settings"],
+  suscripciones:["shopify", "mp", "plan", "snippet", "link"],
+  analiticas:   ["shopify", "mp", "plan", "snippet", "link"],
+  retencion:    ["shopify", "mp", "plan", "snippet", "link"],
+  portal:       ["shopify", "mp", "plan", "snippet", "link", "settings"],
+  suscriptores: ["shopify", "mp", "plan", "snippet", "link"],
+  carritos:     ["shopify", "mp", "plan", "snippet", "link"],
+  abandonados:  ["shopify", "mp", "plan", "snippet", "link"],
+  cobros:       ["shopify", "mp", "plan", "snippet", "link"],
+  actividad:    ["shopify", "mp", "plan", "snippet", "link", "settings"],
 };
 
 // ─── Textos de tips contextuales (?) ───────────────────────────────────
@@ -197,6 +255,7 @@ export const TIPS = {
   widgetDesign: "El diseño del widget es global para tu tienda: elegís 1 de los 10 layouts, tu color, las esquinas y los textos. Los packs y precios NO se cargan acá, salen de cada plan. La vista previa usa tus planes reales.",
   mpToken: "El Access Token de PRODUCCIÓN empieza con APP_USR-. Lo sacás en mercadopago.com.ar/developers → Tus integraciones → tu aplicación → Credenciales de producción. Tiene que ser de la cuenta que cobra, con el producto Suscripciones habilitado. Nunca lo compartas: es la llave de tu caja.",
   shopifyApp: "Recurrentes entra a tu Shopify con una app personalizada que creás vos en dev.shopify.com/dashboard → Crear app. Le das los permisos read_products, write_orders, read_customers, write_customers y read_shipping, y copiás el Client ID y el Secret acá. La guía tiene el paso a paso con la Redirect URL exacta.",
+  subscriptionLink: "Cada plan tiene un link propio a un checkout de Recurrentes: el cliente deja sus datos, paga y queda suscripto. Funciona en Instagram, WhatsApp, mails, tu web o impreso como QR. No necesitás tienda online.",
   subscribersEmpty: "Un suscriptor aparece acá recién cuando completó el pago en Mercado Pago. Mientras no pague figura en Suscripciones → Sin pagar.",
-  chargesEmpty: "Cada cobro que procesa Mercado Pago (el primero y las renovaciones) queda acá con su orden de Shopify. Si la orden falla, podés reintentarla desde la fila.",
+  chargesEmpty: "Cada cobro que procesa Mercado Pago (el primero y las renovaciones) queda acá. Con tienda conectada, con su orden; si la orden falla, podés reintentarla desde la fila.",
 };

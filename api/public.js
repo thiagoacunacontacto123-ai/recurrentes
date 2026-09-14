@@ -48,6 +48,7 @@ import { emailSubscriptionCancelled } from "./_lib/email.js";
 import { logEmail } from "./_lib/emaillog.js";
 import { planPacks, planPricingMode } from "./_lib/packs.js";
 import { klaviyoEnabled, klaviyoLifecycle, KLAVIYO_METRICS } from "./_lib/klaviyo.js";
+import { merchantProfile } from "../shared/platform/profile.js";
 
 // Tokens viejos (portal / back_url de MP ya emitidos) se firmaron con
 // MP_WEBHOOK_SECRET aunque hubiera PORTAL_SECRET. Si el secreto vigente es otro,
@@ -183,7 +184,31 @@ async function handlePlan(req, res) {
     }
     if (!doc) return res.json({ plan: null });
     const data = doc.data();
+    // ?checkout=1 (checkout hosteado #/checkout): qué datos pedir según el perfil del
+    // negocio. Solo en ese caso leemos el merchant (el widget de producto no lo necesita).
+    let checkout;
+    if (String(req.query.checkout || "") === "1") {
+      const mSnap = await db().collection("merchants").doc(merchantId).get();
+      const m = mSnap.exists ? mSnap.data() : {};
+      const p = merchantProfile(m);
+      checkout = {
+        business_type: p.businessType,
+        channel: p.channel,
+        ask_address: p.caps.requireAddress,
+        require_phone: p.caps.requirePhone,
+        require_tax_id: p.caps.requireTaxId,
+        shipping_from_store: p.channel === "shopify",
+        provider: p.paymentProvider,
+        provider_label: p.providerInfo.label,
+        currency: p.currency,
+        store_name: m.store_name || m.shop_name || m.email_brand || "",
+        color: /^#[0-9a-fA-F]{6}$/.test(String(m.widget_color || "")) ? m.widget_color : "#10b981",
+        shipping_rates: p.caps.shipping && Array.isArray(m.checkout_shipping_rates) ? m.checkout_shipping_rates : [],
+        vocab: p.vocab,
+      };
+    }
     return res.json({
+      ...(checkout ? { checkout } : {}),
       plan: {
         id: doc.id,
         shopify_product_id: data.shopify_product_id,
@@ -313,6 +338,12 @@ async function handleSub(req, res) {
         allow_address: merchant?.portal?.allow_address !== false,
       },
       portal_welcome: merchant?.portal_welcome || "",
+      // Perfil del negocio: la pantalla de gracias y el portal adaptan los textos
+      // (envío vs cuota, "Volver a la tienda" solo si hay tienda).
+      business: (() => {
+        const p = merchantProfile(merchant || {});
+        return { type: p.businessType, channel: p.channel, shipping: p.caps.shipping, provider_label: p.providerInfo.label, vocab: p.vocab };
+      })(),
     });
   }
 

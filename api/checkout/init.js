@@ -45,6 +45,7 @@ import { resolveCheckoutShippingRates, PLAN_SHIPPING_CODE } from "../widget.js";
 import { isPacksPlan, resolvePack, parsePackIndex, defaultPackIndex } from "../_lib/packs.js";
 import { klaviyoEnabled, klaviyoCheckoutStarted, klaviyoUpsertProfile, checkoutKeyFor, splitName } from "../_lib/klaviyo.js";
 import { computeRecoverUrl } from "../_lib/abandoned.js";
+import { merchantProfile, hostedCheckoutUrl } from "../../shared/platform/profile.js";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 // Subs que ya son cliente: su perfil en Klaviyo no se degrada a "checkout_started".
@@ -434,31 +435,40 @@ export default async function handler(req, res) {
   // Alberto perez 7-jun-2026). El widget ya valida en JS, pero si el cliente
   // tiene cache vieja del widget, JS bloqueado, o entra por un flow raro,
   // necesitamos defensa server-side igual.
+  // Perfil del negocio (shared/platform/profile.js): sin envío (servicios, digitales)
+  // no pedimos dirección y teléfono / DNI son opcionales. Merchants históricos son
+  // "físicos": exactamente las mismas validaciones de siempre.
+  const profile = merchantProfile(merchant);
+  const caps = profile.caps;
   const customerName = String(customer.name || "").trim();
   const customerPhone = String(customer.phone || "").trim();
   if (!customerName) return res.status(400).json({ error: "Falta nombre del cliente" });
-  if (!customerPhone) return res.status(400).json({ error: "Falta teléfono del cliente" });
+  if (caps.requirePhone && !customerPhone) return res.status(400).json({ error: "Falta teléfono del cliente" });
 
   const addr = shipping_address || {};
-  const addrMissing = [];
-  if (!String(addr.address1 || "").trim()) addrMissing.push("calle + número");
-  if (!String(addr.city || "").trim()) addrMissing.push("ciudad");
-  if (!String(addr.province || "").trim()) addrMissing.push("provincia");
-  if (!String(addr.zip || "").trim()) addrMissing.push("código postal");
-  if (addrMissing.length > 0) {
-    return res.status(400).json({
-      error: `Falta dirección de envío. Cargá: ${addrMissing.join(", ")}. No se puede procesar el pago sin estos datos.`,
-    });
+  if (caps.requireAddress) {
+    const addrMissing = [];
+    if (!String(addr.address1 || "").trim()) addrMissing.push("calle + número");
+    if (!String(addr.city || "").trim()) addrMissing.push("ciudad");
+    if (!String(addr.province || "").trim()) addrMissing.push("provincia");
+    if (!String(addr.zip || "").trim()) addrMissing.push("código postal");
+    if (addrMissing.length > 0) {
+      return res.status(400).json({
+        error: `Falta dirección de envío. Cargá: ${addrMissing.join(", ")}. No se puede procesar el pago sin estos datos.`,
+      });
+    }
   }
 
-  // Sanitizar tax_id: solo dígitos. DNI (7-8) o CUIL/CUIT (11). Es obligatorio
-  // para facturación AR — lo guardamos en el subscriber + lo pasamos a la
-  // orden Shopify (note_attributes + customer tag) cuando se cree.
+  // Sanitizar tax_id: solo dígitos. DNI (7-8) o CUIL/CUIT (11). Con envío es
+  // obligatorio para facturación AR — lo guardamos en el subscriber + lo pasamos a
+  // la orden Shopify (note_attributes + customer tag) cuando se cree. Sin envío es
+  // opcional, pero si viene tiene que ser válido.
   const taxIdClean = String(customer.tax_id || "").replace(/[^0-9]/g, "");
-  if (!taxIdClean || !(taxIdClean.length === 7 || taxIdClean.length === 8 || taxIdClean.length === 11)) {
+  const taxIdValid = taxIdClean.length === 7 || taxIdClean.length === 8 || taxIdClean.length === 11;
+  if (caps.requireTaxId ? !taxIdValid : (taxIdClean && !taxIdValid)) {
     return res.status(400).json({ error: "DNI o CUIL/CUIT inválido (debe ser 7-8 dígitos para DNI, 11 para CUIL/CUIT)" });
   }
-  const taxIdKind = taxIdClean.length === 11 ? "CUIT" : "DNI";
+  const taxIdKind = taxIdClean ? (taxIdClean.length === 11 ? "CUIT" : "DNI") : null;
 
   const unitPrice = parseFloat(plan.subscription_price_ars) || 0;
 
@@ -517,7 +527,7 @@ export default async function handler(req, res) {
   const freeShippingFrom = parseFloat(plan.free_shipping_from_ars) || 0;
   let shippingCost, shippingName, shippingCode = "";
   let matchedRate = null;
-  if (shipping_method && typeof shipping_method === "object" && (shipping_method.name || shipping_method.code)) {
+  if (caps.shipping && shipping_method && typeof shipping_method === "object" && (shipping_method.name || shipping_method.code)) {
     const wantName = String(shipping_method.name || "").trim().toLowerCase();
     const wantCode = String(shipping_method.code || "").trim();
     const rates = merchantShippingRates(merchant);
@@ -529,7 +539,11 @@ export default async function handler(req, res) {
     }
     if (!matchedRate && !wantsPlanRate && rates.length) console.warn("[checkout/init] shipping_method sin match, uso envío del plan:", { merchantId, name: wantName, code: wantCode, bodyPrice: shipping_method.price });
   }
-  if (matchedRate) {
+  if (!caps.shipping) {
+    // Sin envío (servicios, digitales): el cobro es solo el plan.
+    shippingCost = 0;
+    shippingName = "";
+  } else if (matchedRate) {
     shippingCost = Math.max(0, Math.round(Number(matchedRate.price) || 0));
     // Nombre EXACTO de la tarifa (hasta 250 = límite de Shopify). Las apps de
     // envío como Envialo matchean el método por nombre + code exacto.
@@ -588,11 +602,11 @@ export default async function handler(req, res) {
     customer_email: email,
     customer_name: customerName.slice(0, 120),
     customer_phone: customerPhone.slice(0, 40),
-    customer_tax_id: taxIdClean,
-    customer_tax_id_kind: taxIdKind, // "DNI" | "CUIT"
-    // Shipping address sanitizada — la validación previa garantiza que
-    // address1/city/province/zip nunca sean undefined o "".
-    shipping_address: {
+    customer_tax_id: taxIdClean || null,
+    customer_tax_id_kind: taxIdKind, // "DNI" | "CUIT" | null (opcional en negocios sin envío)
+    // Shipping address sanitizada — con envío, la validación previa garantiza que
+    // address1/city/province/zip nunca sean undefined o "". Sin envío: null.
+    shipping_address: caps.requireAddress ? {
       address1:   String(addr.address1).trim(),
       address2:   String(addr.address2 || "").trim(),
       city:       String(addr.city).trim(),
@@ -602,13 +616,20 @@ export default async function handler(req, res) {
       first_name: customerName.split(" ")[0] || "",
       last_name:  customerName.split(" ").slice(1).join(" ") || "",
       phone:      customerPhone,
-    },
+    } : null,
+    // Sin tienda (link de suscripción): a dónde vuelve el cliente para retomar el
+    // checkout (abandoned.js recoverTarget → evento "Checkout Started" de Klaviyo).
+    hosted_checkout_url: caps.link && process.env.APP_BASE_URL ? hostedCheckoutUrl(process.env.APP_BASE_URL, merchantId, plan.id) : null,
     plan_id: plan.id,
     quantity: finalQty,
     plan_snapshot: {
       shopify_variant_id: plan.shopify_variant_id || null,
       shopify_product_id: plan.shopify_product_id || null,
       product_title: plan.product_title || "Suscripción",
+      // Perfil del negocio al momento de suscribirse (para reportes y soporte).
+      business_type: profile.businessType,
+      channel: profile.channel,
+      item_source: plan.item_source || (plan.shopify_variant_id ? "shopify" : "manual"),
       frequency_days: freqDays,
       subscription_price_ars: pack ? pack.subPrice : unitPrice,
       units_per_shipment: finalQty,

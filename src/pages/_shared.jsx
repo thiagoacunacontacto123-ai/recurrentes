@@ -34,6 +34,8 @@ export function fmtFreq(days) {
   if (d === 30) return "mensual";
   if (d === 60) return "bimestral";
   if (d === 90) return "trimestral";
+  if (d === 180) return "semestral";
+  if (d === 365) return "anual";
   return `cada ${d} días`;
 }
 
@@ -41,7 +43,12 @@ export function fmtFreq(days) {
 export const portalUrl = (sub) => sub?.portal_token ? `${window.location.origin}/#/portal?token=${encodeURIComponent(sub.portal_token)}` : null;
 export const mpPaymentUrl = (paymentId) => paymentId ? `https://www.mercadopago.com.ar/activities/detail/${encodeURIComponent(paymentId)}` : null;
 export const mpPreapprovalUrl = (preapprovalId) => preapprovalId ? `https://www.mercadopago.com.ar/subscriptions/${encodeURIComponent(preapprovalId)}` : null;
-export const shopifyOrderUrl = (shop, orderId) => (shop && orderId) ? `https://${shop}/admin/orders/${orderId}` : null;
+// Cobros sin tienda (servicios, link de pago) guardan un comprobante interno
+// "rec_<payment_id>" en lugar del id de orden: no hay orden a la que linkear.
+export const isInternalOrderId = (orderId) => String(orderId || "").startsWith("rec_");
+export const shopifyOrderUrl = (shop, orderId) => (shop && orderId && !isInternalOrderId(orderId)) ? `https://${shop}/admin/orders/${orderId}` : null;
+// Texto corto para mostrar el id de orden / comprobante en tablas y avisos.
+export const orderLabel = (orderId) => !orderId ? "—" : isInternalOrderId(orderId) ? "Cobro registrado" : `#${orderId}`;
 
 export async function copyText(text, okMsg = "Copiado") {
   if (!text) return toast("Nada para copiar", "warning");

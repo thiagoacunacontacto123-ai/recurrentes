@@ -4,7 +4,9 @@ import { auth } from "../lib/firebase.js";
 import { DS as DS_, useT } from "../ui/theme.js";
 import { BtnPrimary, BtnSecondary, Btn, Card, SectionIcon, Callout, DSEmpty, Tip, toast } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
-import { STEP_ICONS, TIPS, SECTION_NEEDS, WHATSAPP_SOPORTE, useOnb, planHiddenKey, readFlag, writeFlag, goGuideSection } from "../lib/onboarding.js";
+import { STEP_ICONS, TIPS, SECTION_NEEDS, WHATSAPP_SOPORTE, useOnb, planHiddenKey, readFlag, writeFlag, goGuideSection, planExample } from "../lib/onboarding.js";
+import { merchantProfile } from "../../shared/platform/profile.js";
+import BusinessProfileSection from "./BusinessProfile.jsx";
 
 // ─────────────────────────────────────────────────────────────────
 // Experiencia de usuario nuevo de Recurrentes — portada de Growith:
@@ -24,7 +26,7 @@ const F = "'Inter',system-ui,sans-serif";
 // ═══════════════════════════════════════════════════════════════════
 // Wizard de bienvenida
 // ═══════════════════════════════════════════════════════════════════
-export default function OnboardingWizard({ T: Tp, DS: DSp, merchant, onb, onClose, goTab }) {
+export default function OnboardingWizard({ T: Tp, DS: DSp, merchant, onb, onClose, goTab, onMerchantChange }) {
   const Tt = useT(); const T = Tp || Tt;
   const DS = DSp || DS_;
   const steps = onb?.steps || [];
@@ -55,12 +57,48 @@ export default function OnboardingWizard({ T: Tp, DS: DSp, merchant, onb, onClos
     finally { setBusy(false); }
   }
 
-  const COMO_FUNCIONA = [
+  // El recorrido se adapta al perfil del negocio (shared/platform/profile.js).
+  const profile = merchantProfile(merchant);
+  const COMO_FUNCIONA = profile.caps.widget ? [
     { id:"plan",     nombre:"Planes con packs",         desc:"Elegís un producto de tu Shopify, cada cuántos días se cobra, el descuento y los packs (x1, x2, x3) con su precio." },
     { id:"snippet",  nombre:"Widget en tu tienda",      desc:"Una línea de código y el selector de suscripción aparece en la página de producto, con el diseño que elijas." },
     { id:"mp",       nombre:"Cobros automáticos",       desc:"El cliente paga en Mercado Pago. MP cobra solo cada período y Recurrentes crea la orden en Shopify para que despaches." },
     { id:"klaviyo",  nombre:"Recupero y mails",         desc:"Los checkouts sin pagar y los eventos de cada suscripción llegan a tu Klaviyo, para recuperarlos con tu marca y tus flows." },
+  ] : [
+    { id:"plan",     nombre:"Tus planes",               desc:`Cargás cada plan acá (ej: "${planExample(profile)}"): precio y cada cuántos días se cobra. No hace falta tienda.` },
+    { id:"link",     nombre:"Link de suscripción",      desc:"Cada plan tiene su link. Lo compartís por Instagram, WhatsApp, tu web o un QR en el mostrador." },
+    { id:"mp",       nombre:"Cobros automáticos",       desc:`Tu cliente paga una vez con ${profile.providerInfo.label} y después se cobra solo cada período. Cada cobro queda registrado en el panel.` },
+    { id:"klaviyo",  nombre:"Avisos y retención",       desc:`Mails de activación y de pago fallido, un portal para que tus ${profile.vocab.customers} pausen o cancelen solos, y eventos a Klaviyo si lo usás.` },
   ];
+  // Bienvenida: Shopify (histórico) · negocio sin tienda ya elegido · todavía sin elegir.
+  const welcome = profile.caps.widget && (profile.explicit || merchant?.shopify_token) ? {
+    h: <>Suscripciones en tu Shopify,<br/>cobradas por Mercado Pago</>,
+    p: "Recurrentes convierte cualquier producto de tu tienda en una suscripción: el cliente elige el pack y la frecuencia, paga en Mercado Pago y cada cobro genera solo la orden en Shopify. Vos solo despachás.",
+    bullets: [
+      "Cobros recurrentes en tu propia cuenta de MP, sin intermediarios",
+      "Una orden en Shopify por cada cobro, con envío y dirección",
+      "Widget con packs (x1, x2, x3) y 10 diseños para tu página de producto",
+      "Checkouts sin pagar enviados a tu Klaviyo para recuperarlos",
+    ],
+  } : profile.explicit ? {
+    h: <>Cobros recurrentes para tu negocio,<br/>sin tienda online</>,
+    p: `Cargás tus planes, compartís el link y tus ${profile.vocab.customers} pagan con ${profile.providerInfo.label}. Después se cobra solo cada período y lo ves todo en el panel.`,
+    bullets: [
+      `Cobros recurrentes en tu propia cuenta de ${profile.providerInfo.label}, sin intermediarios`,
+      "Un link de suscripción por plan: Instagram, WhatsApp, tu web o un QR",
+      `Portal para que tus ${profile.vocab.customers} pausen o cancelen solos`,
+      "Avisos automáticos de pago fallido y eventos a Klaviyo",
+    ],
+  } : {
+    h: <>Cobros recurrentes<br/>para cualquier negocio</>,
+    p: "Tiendas online, productos digitales o servicios con cuota: tu cliente paga una vez y después se cobra solo. Primero contanos qué vendés y armamos el panel a tu medida.",
+    bullets: [
+      "Tiendas con Shopify (Tiendanube e Impultienda, muy pronto)",
+      "Productos digitales: ebooks, cursos, contenido exclusivo",
+      "Gimnasios, clases, clubes y membresías con cuota",
+      "Cobros en tu propia cuenta de Mercado Pago",
+    ],
+  };
 
   const Header = ({ small }) => (
     <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom: small ? DS.sp.lg : DS.sp.xl }}>
@@ -105,18 +143,12 @@ export default function OnboardingWizard({ T: Tp, DS: DSp, merchant, onb, onClos
           <div>
             <Header/>
             <div style={{ fontSize:DS.font["3xl"], fontWeight:DS.w.black, color:T.text, letterSpacing:-0.8, lineHeight:1.2, marginBottom:DS.sp.md }}>
-              Suscripciones en tu Shopify,<br/>cobradas por Mercado Pago
+              {welcome.h}
             </div>
             <div style={{ fontSize:DS.font.lg, color:T.textMd, lineHeight:1.6, marginBottom:DS.sp.xl }}>
-              Recurrentes convierte cualquier producto de tu tienda en una suscripción: el cliente elige el pack y la frecuencia,
-              paga en Mercado Pago y cada cobro genera solo la orden en Shopify. Vos solo despachás.
+              {welcome.p}
             </div>
-            {[
-              "Cobros recurrentes en tu propia cuenta de MP, sin intermediarios",
-              "Una orden en Shopify por cada cobro, con envío y dirección",
-              "Widget con packs (x1, x2, x3) y 10 diseños para tu página de producto",
-              "Checkouts sin pagar enviados a tu Klaviyo para recuperarlos",
-            ].map((b, i) => (
+            {welcome.bullets.map((b, i) => (
               <div key={i} style={{ display:"flex", gap:DS.sp.sm, alignItems:"center", marginBottom:DS.sp.sm }}>
                 <Check/><span style={{ fontSize:DS.font.lg, color:T.text }}>{b}</span>
               </div>
@@ -173,6 +205,13 @@ export default function OnboardingWizard({ T: Tp, DS: DSp, merchant, onb, onClos
             ) : null}
 
             <p style={{ fontSize:DS.font.base, color:T.textMd, lineHeight:1.65, margin:"0 0 12px" }}>{s.why}</p>
+
+            {/* Tipo de negocio: se elige acá mismo (el canal y la pasarela toman el default del tipo). */}
+            {s.id === "negocio" && (
+              <div style={{ marginBottom:DS.sp.md }}>
+                <BusinessProfileSection merchant={merchant} compact onChange={onMerchantChange}/>
+              </div>
+            )}
 
             <div style={{ background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:DS.r.lg, padding:"12px 14px", marginBottom:DS.sp.md }}>
               <div style={{ fontSize:DS.font.sm, textTransform:"uppercase", letterSpacing:0.6, color:T.textSm, fontWeight:DS.w.bold, marginBottom:8 }}>Qué vas a necesitar</div>
@@ -276,7 +315,7 @@ export function PlanDeAccionCard({ onOpenGuide }) {
         <div style={{ flex:1, minWidth:220 }}>
           <div style={{ fontSize:15, fontWeight:DS.w.bold, color:T.text, letterSpacing:-0.2 }}>{allDone ? "🎉 Tu tienda ya acepta suscripciones" : "🎯 Tu plan de acción"}</div>
           <div style={{ fontSize:DS.font.md, color:T.textSm, marginTop:3, lineHeight:1.5 }}>
-            {allDone ? "Completaste los 8 pasos. Probá una suscripción desde tu tienda para ver todo el circuito." : `${done} de ${total} pasos listos · el siguiente es "${nextStep?.title}".`}
+            {allDone ? `Completaste los ${total} pasos. Probá una suscripción para ver todo el circuito.` : `${done} de ${total} pasos listos · el siguiente es "${nextStep?.title}".`}
           </div>
         </div>
         <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>

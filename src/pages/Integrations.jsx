@@ -4,6 +4,47 @@ import { DS, useT } from "../ui/theme.js";
 import { Card, Btn, DSBadge, Field, InputStyle, Spinner, PageHeader, SectionTitle, CardHeader, Callout, Hint, CheckLine, Divider, appConfirm, appPrompt, toast } from "../ui/components.jsx";
 import { MpTokenTip, ShopifyAppTip } from "./Onboarding.jsx";
 import { MONO, fmtDateShort } from "./_shared.jsx";
+import { CHANNELS, PAYMENT_PROVIDERS, merchantProfile } from "../../shared/platform/profile.js";
+
+// Resumen del perfil del negocio arriba de las integraciones (se cambia en Configuración → Negocio).
+function ProfileStrip({ T, profile }) {
+  const sep = <span aria-hidden="true" style={{ color:T.border }}>·</span>;
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", padding:"10px 14px", marginBottom:DS.sp.lg, background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:DS.r.lg, fontSize:DS.font.md, color:T.textMd }}>
+      <span style={{ fontWeight:DS.w.bold, color:T.text }}>Tu negocio:</span>
+      <span>{profile.type.emoji} {profile.type.label}</span>{sep}
+      <span>{profile.channelInfo.emoji} {profile.channelInfo.label}</span>{sep}
+      <span>{profile.providerInfo.emoji} {profile.providerInfo.label}</span>
+      <a href="#/config/negocio" style={{ marginLeft:"auto", color:T.accent, fontWeight:DS.w.bold, fontSize:DS.font.sm, textDecoration:"none" }}>Cambiar →</a>
+    </div>
+  );
+}
+
+// Sin tienda online: del lado de la tienda no hay nada que conectar.
+function NoStoreCard({ T, profile }) {
+  return (
+    <IntegrationCard T={T} icon="🔗" title="Sin tienda online" ok statusLabel="No hace falta conectar" description="Vendés con links de suscripción a un checkout de Recurrentes.">
+      <div style={{ fontSize:DS.font.md, color:T.textMd, lineHeight:1.55 }}>
+        Cada plan tiene su link. Lo compartís por Instagram, WhatsApp, tu web o un QR, y cada cobro queda registrado en el panel{profile.caps.shipping ? " con la dirección de envío del cliente" : ""}.
+      </div>
+    </IntegrationCard>
+  );
+}
+
+// Tiendas y pasarelas que vienen (Tiendanube, Impultienda, Stripe…): visibles, no elegibles.
+function SoonStrip({ T, profile }) {
+  const items = [
+    ...Object.values(CHANNELS).filter(c => c.status !== "available" && c.types.includes(profile.businessType)),
+    ...Object.values(PAYMENT_PROVIDERS).filter(p => p.status !== "available"),
+  ];
+  if (!items.length) return null;
+  return (
+    <div style={{ marginTop:DS.sp.lg, display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+      <span style={{ fontSize:DS.font.sm, color:T.textSm, fontWeight:DS.w.semibold }}>Muy pronto:</span>
+      {items.map(c => <span key={c.id} title={c.desc}><DSBadge T={T} color={T.textSm} size="sm">{c.emoji} {c.label}</DSBadge></span>)}
+    </div>
+  );
+}
 
 // ─── Integraciones (vive en Configuración → Integraciones) ──────
 // embedded=true: sin PageHeader (Configuración ya pone el título).
@@ -24,6 +65,8 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
   const iS = InputStyle(T);
   const shopifyOk = Boolean(merchant?.shopify_token);
   const mpOk = Boolean(merchant?.mp_access_token);
+  // Perfil del negocio: sin tienda (servicios, link de suscripción) no se conecta Shopify.
+  const profile = merchantProfile(merchant);
   const [shopifyShop, setShopifyShop] = useState("");
   // "Reconectar": muestra el formulario aunque ya haya token; se cierra solo al reconectar.
   const [reconnect, setReconnect] = useState(false);
@@ -165,9 +208,14 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
 
   return (
     <div>
-      {!embedded && <PageHeader T={T} title="Integraciones" subtitle="Conectá tu tienda Shopify y tu cuenta de Mercado Pago. Necesitás ambas para crear planes y cobrar suscripciones."/>}
+      {!embedded && <PageHeader T={T} title="Integraciones" subtitle={profile.channel === "shopify"
+        ? "Conectá tu tienda Shopify y tu cuenta de Mercado Pago. Necesitás ambas para crear planes y cobrar suscripciones."
+        : `Conectá ${profile.providerInfo.label} para cobrar. Sin tienda online: vendés con links de suscripción.`}/>}
+
+      <ProfileStrip T={T} profile={profile}/>
 
       <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:DS.sp.lg, alignItems:"start" }}>
+        {profile.channel !== "shopify" ? <NoStoreCard T={T} profile={profile}/> : (
         <IntegrationCard T={T} icon="🛍️" title="Shopify" ok={shopifyOk} statusLabel={shopifyOk ? merchant.shopify_shop : "Sin conectar"} description="Para leer productos, crear órdenes y manejar clientes.">
           {shopifyOk && !reconnect ? (
             <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
@@ -209,6 +257,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
             </>
           )}
         </IntegrationCard>
+        )}
 
         <IntegrationCard T={T} icon="💳" title="Mercado Pago" ok={mpOk} statusLabel={mpOk ? `Conectada${merchant.mp_email ? ` · ${merchant.mp_email}` : ""}` : "Sin conectar"} description="Para crear suscripciones y procesar cobros recurrentes.">
           <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
@@ -232,9 +281,11 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
         </IntegrationCard>
       </div>
 
-      {shopifyOk && mpOk && (
+      <SoonStrip T={T} profile={profile}/>
+
+      {profile.ready && (
         <Callout T={T} tone="success" title="✓ Todo listo" style={{ marginTop:DS.sp["2xl"] }} right={<a href="#/dashboard/planes" style={{ color:T.accent, fontWeight:DS.w.bold, fontSize:DS.font.sm, textDecoration:"none" }}>Ir a Planes →</a>}>
-          Ahora andá a <strong style={{ color:T.text }}>Planes</strong> y creá tu primer plan de suscripción a partir de un producto Shopify.
+          Ahora andá a <strong style={{ color:T.text }}>Planes</strong> y creá tu primer plan de suscripción{profile.caps.catalog ? ` a partir de un producto de ${profile.channelInfo.label}` : ": nombre, precio y cada cuántos días se cobra. Te damos el link para compartir"}.
         </Callout>
       )}
 

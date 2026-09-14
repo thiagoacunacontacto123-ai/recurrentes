@@ -27,6 +27,31 @@ import { logEmail } from "./emaillog.js";
 import { claimCharge } from "./chargeclaim.js";
 import { appBaseUrl } from "./config.js";
 import { klaviyoEnabled, klaviyoLifecycle, klaviyoPlacedOrder, KLAVIYO_METRICS } from "./klaviyo.js";
+import { merchantProfile, internalFulfillmentId } from "../../shared/platform/profile.js";
+
+/**
+ * Cumple un cobro según el canal del merchant (shared/platform/profile.js).
+ * Mismo contrato que createShopifyOrderForSub: { shopifyOrderId, orderStatusUrl, shopifyError }.
+ *   · shopify → crea la orden PAGA en Shopify (comportamiento histórico, sin cambios).
+ *   · none    → sin tienda (servicios, link de pago): no hay orden que crear; el cobro
+ *               queda cumplido con el comprobante interno "rec_<payment_id>", que ocupa
+ *               el lugar del id de orden para que chargeclaim, shopify_orders[] y
+ *               last_charge_at funcionen igual.
+ *   · resto   → canal todavía no implementado: error visible (el panel no lo deja elegir).
+ */
+export async function fulfillCharge(merchant, subscriberId, sub, params, tag = "sync") {
+  const { channel, channelInfo } = merchantProfile(merchant);
+  if (channel === "shopify") return createShopifyOrderForSub(merchant, subscriberId, sub, params, tag);
+  if (channel === "none") {
+    if (params?.requireAddress && !(sub.shipping_address?.address1 && sub.shipping_address?.city)) {
+      return { shopifyOrderId: null, orderStatusUrl: null, shopifyError: "Faltan datos: shipping_address.address1/city" };
+    }
+    return { shopifyOrderId: internalFulfillmentId(params.payment_id), orderStatusUrl: null, shopifyError: null };
+  }
+  const shopifyError = `El canal ${channelInfo?.label || channel} todavía no crea órdenes`;
+  console.error(`[${tag}] ${shopifyError} (sub=${subscriberId})`);
+  return { shopifyOrderId: null, orderStatusUrl: null, shopifyError };
+}
 
 const nowIso = () => new Date().toISOString();
 // Date.parse tolerante: MP manda fechas con offset (-04:00) y nosotros en Z.
@@ -504,7 +529,7 @@ export async function syncSubscriber(merchantId, subscriberId) {
       chargeRef = chargeRef0;
     }
 
-    const { shopifyOrderId, orderStatusUrl: thisOrderStatusUrl, shopifyError } = await createShopifyOrderForSub(merchant, subscriberId, sub, {
+    const { shopifyOrderId, orderStatusUrl: thisOrderStatusUrl, shopifyError } = await fulfillCharge(merchant, subscriberId, sub, {
       payment_id: payment.id,
       total_price: payment.transaction_amount,
       charge_number: chargeNumber,
@@ -713,7 +738,7 @@ export async function linkPaymentToSubscriber(merchantId, subscriberId, paymentI
     return { status: "already_linked", shopify_order_id: claim.existingOrderId || null };
   }
 
-  const { shopifyOrderId, orderStatusUrl, shopifyError } = await createShopifyOrderForSub(merchant, subscriberId, sub, {
+  const { shopifyOrderId, orderStatusUrl, shopifyError } = await fulfillCharge(merchant, subscriberId, sub, {
     payment_id: payment.id,
     total_price: payment.transaction_amount,
     charge_number: (sub.shopify_orders || []).length + 1,
@@ -810,7 +835,7 @@ export async function simulateNextCharge(merchantId, subscriberId) {
   }
 
   const simId = `SIM-${Date.now()}`;
-  const { shopifyOrderId, orderStatusUrl, shopifyError } = await createShopifyOrderForSub(merchant, subscriberId, sub, {
+  const { shopifyOrderId, orderStatusUrl, shopifyError } = await fulfillCharge(merchant, subscriberId, sub, {
     payment_id: simId,
     total_price: amount,
     charge_number: chargeNumber,
