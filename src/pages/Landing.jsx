@@ -21,7 +21,7 @@ const FLOW_STORES = [
   { n:"Tiendanube", s:"soon" },
   { n:"Impultienda", s:"soon" },
   { n:"Empretienda", s:"radar" },
-  { n:"Link de suscripción", s:"live" },
+  { n:"Desarrollo propio", s:"live" },
 ];
 const FLOW_PAYMENTS = [
   { n:"Mercado Pago", s:"live" },
