@@ -129,8 +129,8 @@ export const PAYMENT_PROVIDERS = {
     emoji: "🌎",
     status: "soon",
     currency: "USD",
-    region: "Fuera de Argentina",
-    desc: "Para tiendas de otros países: Stripe no opera con comercios argentinos.",
+    region: "Exterior (USD)",
+    desc: "Para vender afuera en dólares (ebooks, cursos, digitales). Se usa con una cuenta Stripe fuera de Argentina, por ejemplo una empresa en EE.UU.",
   },
   // Whop: API con planes recurrentes, webhooks y cuentas conectadas. Encaja con
   // digitales vendidos al exterior en USD (Impultienda); no cobra en pesos a
