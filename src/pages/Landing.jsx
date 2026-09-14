@@ -224,13 +224,13 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
           <div>
             <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"5px 12px",borderRadius:20,background:T.accentSolid+"16",border:`1px solid ${T.accentSolid}44`,color:T.accent,fontSize:11,fontWeight:700,letterSpacing:0.4,marginBottom:20,textTransform:"uppercase"}}>
               <span style={{width:7,height:7,borderRadius:99,background:T.accentSolid,boxShadow:`0 0 0 3px ${T.accentSolid}33`}}/>
-              Suscripciones para tiendas online · Argentina
+              Tiendas online · Cursos · Argentina
             </div>
             <h1 className="rec-land-h1" style={{fontSize:50,fontWeight:800,lineHeight:1.06,margin:"0 0 18px",letterSpacing:-1.6,color:T.text,textWrap:"balance"}}>
-              Vendé por <span style={{background:`linear-gradient(135deg, ${T.accentSolid}, #34d399)`,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent"}}>suscripción</span> en tu tienda online
+              Vendé por <span style={{background:`linear-gradient(135deg, ${T.accentSolid}, #34d399)`,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent"}}>suscripción</span> en tu negocio desde hoy mismo
             </h1>
             <p style={{fontSize:17,color:T.textMd,lineHeight:1.6,margin:"0 0 22px",maxWidth:520}}>
-              Tus clientes eligen <strong style={{color:T.text}}>Compra única</strong> o <strong style={{color:T.text}}>Suscripción</strong> en cada producto. Mercado Pago cobra solo cada período y Recurrentes crea la orden en tu tienda. Vos solo despachás.
+              Tu tienda online o tu curso: el cliente se suscribe una vez, <strong style={{color:T.text}}>Mercado Pago cobra solo</strong> cada período y Recurrentes crea la orden en tu tienda o te muestra quién está al día. Vos te ocupás de vender.
             </p>
             <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:26}}>
               {STORES.map(s=>(
@@ -322,7 +322,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
       {/* Features */}
       <section className="rec-land-wrap" style={{padding:"64px 24px"}}>
         <h2 style={{fontSize:28,fontWeight:800,letterSpacing:-0.7,textAlign:"center",margin:"0 0 10px",textWrap:"balance"}}>Todo lo que necesitás para vender por suscripción</h2>
-        <p style={{fontSize:14,color:T.textSm,textAlign:"center",maxWidth:560,margin:"0 auto 32px",lineHeight:1.6}}>Pensado para tiendas argentinas que venden productos que se compran una y otra vez: suplementos, café, cosmética, alimento para mascotas, ebooks.</p>
+        <p style={{fontSize:14,color:T.textSm,textAlign:"center",maxWidth:560,margin:"0 auto 32px",lineHeight:1.6}}>Pensado para negocios argentinos que venden algo que se compra una y otra vez: suplementos, café, cosmética, alimento para mascotas, ebooks y cursos.</p>
         <div className="rec-land-grid">
           {FEATURES.map(f=>(
             <div key={f.t} className="rec-land-card" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:DS.r.xl,padding:"18px 18px 20px"}}>
