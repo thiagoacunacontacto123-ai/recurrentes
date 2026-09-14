@@ -4,7 +4,7 @@ import { DS, useT } from "../ui/theme.js";
 import { KPI, Btn, DSBadge, Spinner, DSTable, CellStack, PageHeader, SubTabs, Loading, appConfirm, toast } from "../ui/components.jsx";
 import { OnbEmpty } from "./Onboarding.jsx";
 import { TIPS } from "../lib/onboarding.js";
-import { MONO, fmtARS, fmtDateTime, fmtDateOnly, ExtLink, mpPaymentUrl, shopifyOrderUrl, weekBucket, hashQuery } from "./_shared.jsx";
+import { MONO, fmtARS, fmtDateTime, fmtDateOnly, ExtLink, mpPaymentUrl, shopifyOrderUrl, orderLabel, weekBucket, hashQuery } from "./_shared.jsx";
 
 // ─── Próximos cobros: GET /api/charges?view=upcoming con fallback a los subs
 // activos (next_charge_at ≤ 30 días) si el backend todavía no lo tiene.
@@ -101,8 +101,8 @@ export function ChargesPage({ shop = null }) {
     { key:"cliente", label:"Cliente", render: customerCell },
     { key:"monto", label:"Monto", nowrap:true, align:"right", render: c => <span style={{ fontWeight:DS.w.black, fontSize:DS.font.lg, fontVariantNumeric:"tabular-nums" }}>{fmtARS(c.amount_ars)}</span> },
     { key:"mp", label:"Pago MP", nowrap:true, hideMobile:true, render: c => c.mp_payment_id ? <ExtLink T={T} href={mpPaymentUrl(c.mp_payment_id)} style={{ fontFamily:MONO, fontSize:DS.font.sm }}>{c.mp_payment_id}</ExtLink> : <span style={{ color:T.textSm }}>—</span> },
-    { key:"orden", label:"Orden Shopify", nowrap:true, render: c => c.shopify_order_id
-        ? <ExtLink T={T} href={shopifyOrderUrl(shop, c.shopify_order_id)} style={{ fontFamily:MONO, fontSize:DS.font.sm }}>#{c.shopify_order_id}</ExtLink>
+    { key:"orden", label:"Orden", nowrap:true, render: c => c.shopify_order_id
+        ? <ExtLink T={T} href={shopifyOrderUrl(shop, c.shopify_order_id)} style={{ fontFamily:MONO, fontSize:DS.font.sm }}>{orderLabel(c.shopify_order_id)}</ExtLink>
         : <span style={{ color:T.textSm }}>—</span> },
     { key:"estado", label:"Estado", render: c => c.error ? (
       <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:5, maxWidth:320 }}>
@@ -119,7 +119,7 @@ export function ChargesPage({ shop = null }) {
     { key:"mp", label:"Pago MP", nowrap:true, hideMobile:true, render: c => c.mp_payment_id ? <ExtLink T={T} href={mpPaymentUrl(c.mp_payment_id)} style={{ fontFamily:MONO, fontSize:DS.font.sm }}>{c.mp_payment_id}</ExtLink> : <span style={{ color:T.textSm }}>—</span> },
     { key:"error", label:"Error", render: c => <span style={{ fontSize:DS.font.sm, color:T.red, lineHeight:1.35, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden", maxWidth:360 }} title={c.error}>{c.error || "—"}</span> },
     { key:"accion", label:"", align:"right", nowrap:true, render: c => c.shopify_order_id
-        ? <ExtLink T={T} href={shopifyOrderUrl(shop, c.shopify_order_id)}>#{c.shopify_order_id}</ExtLink>
+        ? <ExtLink T={T} href={shopifyOrderUrl(shop, c.shopify_order_id)}>{orderLabel(c.shopify_order_id)}</ExtLink>
         : <Btn T={T} variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); retryOrder(c); }} disabled={retrying === c.id} style={{ padding:"4px 9px", fontSize:DS.font.xs }}>{retrying === c.id ? <><Spinner size={10} color={T.textMd}/> Reintentando…</> : "↻ Reintentar orden"}</Btn> },
   ];
 

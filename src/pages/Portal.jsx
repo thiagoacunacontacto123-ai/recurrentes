@@ -49,10 +49,14 @@ export default function Portal() {
 
   async function doAction(action) {
     if (action === "cancel" && data?.retention?.enabled !== false) { setCancelOpen(true); return; }
+    // Sin envío (servicios, digitales) no hablamos de "envíos".
+    const withShipping = data?.business ? data.business.shipping !== false : true;
     const confirmText = {
       pause: "Pausamos tu suscripción. No se hacen más cobros hasta que la reactives. ¿Confirmás?",
-      resume: "Reactivamos tu suscripción y volvés a recibir tus envíos. ¿Confirmás?",
-      cancel: "Cancelamos tu suscripción. No se hacen más cobros y no recibís más envíos. Esta acción no se puede deshacer. ¿Confirmás?",
+      resume: withShipping ? "Reactivamos tu suscripción y volvés a recibir tus envíos. ¿Confirmás?" : "Reactivamos tu suscripción y vuelve a cobrarse sola cada período. ¿Confirmás?",
+      cancel: withShipping
+        ? "Cancelamos tu suscripción. No se hacen más cobros y no recibís más envíos. Esta acción no se puede deshacer. ¿Confirmás?"
+        : "Cancelamos tu suscripción. No se hacen más cobros. Esta acción no se puede deshacer. ¿Confirmás?",
     }[action];
     const ok = await appConfirm(confirmText, { title: { pause:"Pausar suscripción", resume:"Reactivar suscripción", cancel:"Cancelar suscripción" }[action], danger: action === "cancel", okLabel: { pause:"Sí, pausar", resume:"Sí, reactivar", cancel:"Sí, cancelar" }[action] });
     if (!ok) return;
@@ -142,9 +146,13 @@ export default function Portal() {
 
   const plan = sub.plan_snapshot || {};
   const perms = data.portal || {};
+  // Perfil del negocio: sin envío (servicios, digitales) no hay dirección ni paquetes.
+  const biz = data.business || null;
+  const shipping = biz ? biz.shipping !== false : true;
+  const kind = biz?.type === "service" ? "membresía" : "suscripción";
   const canPause = perms.allow_pause !== false;
   const canCancel = perms.allow_cancel !== false;
-  const canAddress = perms.allow_address !== false;
+  const canAddress = perms.allow_address !== false && shipping;
   const formattedNext = sub.next_charge_at ? new Date(sub.next_charge_at).toLocaleDateString("es-AR", { day:"2-digit", month:"long", year:"numeric" }) : null;
 
   return (
@@ -167,7 +175,7 @@ export default function Portal() {
         <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:16,padding:"24px 26px",marginBottom:14}}>
           <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:14,marginBottom:18,flexWrap:"wrap"}}>
             <div>
-              <div style={{fontSize:11,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5,marginBottom:4}}>Tu suscripción</div>
+              <div style={{fontSize:11,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5,marginBottom:4}}>Tu {kind}</div>
               <div style={{fontSize:22,fontWeight:800,letterSpacing:-0.4}}>{plan.product_title || "Suscripción"}</div>
             </div>
             <div style={{fontSize:11,padding:"4px 11px",borderRadius:6,background:statusMeta.bg,color:statusMeta.color,fontWeight:700,letterSpacing:0.4,textTransform:"uppercase"}}>
@@ -179,12 +187,12 @@ export default function Portal() {
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))",gap:10,padding:"14px 0",borderTop:"1px solid var(--border)",borderBottom:"1px solid var(--border)",marginBottom:18}}>
             <Stat label="Total por cobro" value={`$${(plan.total_per_charge_ars||plan.subscription_price_ars||0).toLocaleString("es-AR")}`}/>
             <Stat label="Frecuencia" value={`cada ${plan.frequency_days||"-"} días`}/>
-            <Stat label="Paquetes por envío" value={sub.quantity || plan.units_per_shipment || 1}/>
+            {shipping && <Stat label="Paquetes por envío" value={sub.quantity || plan.units_per_shipment || 1}/>}
             {formattedNext && status !== "cancelled" && <Stat label={status === "paused" ? "Próximo cobro (al reactivar)" : "Próximo cobro"} value={formattedNext}/>}
           </div>
 
-          {/* Dirección */}
-          <div style={{padding:"12px 14px",background:"var(--surface)",borderRadius:10,fontSize:12,color:"var(--text-md)",lineHeight:1.55,marginBottom:18}}>
+          {/* Dirección (solo negocios con envío) */}
+          {shipping && <div style={{padding:"12px 14px",background:"var(--surface)",borderRadius:10,fontSize:12,color:"var(--text-md)",lineHeight:1.55,marginBottom:18}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
               <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5}}>Dirección de envío</div>
               {status !== "cancelled" && canAddress && (
@@ -200,7 +208,7 @@ export default function Portal() {
             {editingAddr && (
               <AddressForm sub={sub} token={token} onSaved={async()=>{ setEditingAddr(false); await load(token, true); }}/>
             )}
-          </div>
+          </div>}
 
           {/* Acciones */}
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>

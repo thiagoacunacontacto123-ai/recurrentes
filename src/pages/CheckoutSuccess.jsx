@@ -3,11 +3,12 @@ import React, { useEffect, useState } from "react";
 // Página de GRACIAS que ve el cliente final al volver del checkout de MP.
 // MP redirige acá (back_url) con ?sub=<id>&token=<jwt>.
 //
-// Tres estados, NUNCA decimos "pago confirmado" antes de tener la orden:
+// Tres estados, NUNCA decimos "pago confirmado" antes de tener la orden / el cobro registrado:
 //   confirming → "Confirmando tu pago con Mercado Pago…" (polling al sync).
-//   active     → "¡Listo! Tu suscripción está activa" (llegó la orden Shopify).
+//   active     → "¡Listo! Tu suscripción está activa" (llegó la orden o el cobro sin tienda).
 //   pending    → tras el timeout: "Tu pago está en proceso. Te avisamos por mail…"
-// Siempre: botón "Volver a la tienda" (merchant_store_url) y link al portal.
+// Los textos se adaptan al negocio (public?action=sub → business): con envío hablamos
+// de envíos; en servicios, de cuotas. "Volver a la tienda" solo si hay tienda.
 const POLL_MS = 3000;
 const MAX_POLLS = 60; // ~3 min: el primer cobro de MP se procesa async (~60s)
 
@@ -16,6 +17,7 @@ export default function CheckoutSuccess() {
   const [phase, setPhase] = useState("confirming"); // confirming | active | pending
   const [storeUrl, setStoreUrl] = useState(null);
   const [info, setInfo] = useState(null); // { product_title, frequency_days, next_charge_at }
+  const [biz, setBiz] = useState(null);   // { type, channel, shipping, provider_label, vocab }
 
   useEffect(() => {
     const hashQ = window.location.hash.split("?")[1] || "";
@@ -31,7 +33,7 @@ export default function CheckoutSuccess() {
 
     let cancelled = false;
 
-    // Polling al sync (respaldo del webhook) hasta que aparezca la orden Shopify.
+    // Polling al sync (respaldo del webhook) hasta que aparezca la orden / el cobro.
     async function poll() {
       for (let i = 0; i < MAX_POLLS && !cancelled; i++) {
         try {
@@ -46,6 +48,7 @@ export default function CheckoutSuccess() {
           const d = await r.json().catch(() => null);
           if (d?.sub && !cancelled) {
             if (d.merchant_store_url) setStoreUrl(d.merchant_store_url);
+            if (d.business) setBiz(d.business);
             setInfo({
               product_title: d.sub.plan_snapshot?.product_title || d.sub.product_title,
               frequency_days: d.sub.plan_snapshot?.frequency_days,
@@ -66,9 +69,11 @@ export default function CheckoutSuccess() {
   const freqTxt = (() => {
     const d = info?.frequency_days;
     if (!d) return null;
+    if (d === 7) return "cada semana";
     if (d === 30) return "cada mes";
     if (d === 60) return "cada 2 meses";
     if (d === 90) return "cada 3 meses";
+    if (d === 365) return "cada año";
     if (d % 30 === 0) return `cada ${d / 30} meses`;
     return `cada ${d} días`;
   })();
@@ -82,14 +87,19 @@ export default function CheckoutSuccess() {
   })();
 
   const portalUrl = portalToken ? `#/portal?token=${encodeURIComponent(portalToken)}` : null;
+  // Sin datos del negocio todavía → textos históricos (físico con envío).
+  const shipping = biz ? biz.shipping !== false : true;
+  const isService = biz?.type === "service";
+  const provider = biz?.provider_label || "Mercado Pago";
+  const kind = isService ? "membresía" : "suscripción";
 
   const copy = {
     confirming: {
-      h1: "Confirmando tu pago con Mercado Pago…",
+      h1: `Confirmando tu pago con ${provider}…`,
       sub: "Esto puede tardar un minuto. No cierres esta página ni vuelvas a pagar.",
     },
     active: {
-      h1: "¡Listo! Tu suscripción está activa",
+      h1: `¡Listo! Tu ${kind} está activa`,
       sub: "Ya está todo en marcha. No tenés que hacer nada más. 💜",
     },
     pending: {
@@ -97,6 +107,16 @@ export default function CheckoutSuccess() {
       sub: "Te avisamos por mail apenas se confirme; no hace falta que hagas nada.",
     },
   }[phase];
+
+  const steps = shipping
+    ? [
+        { icon: "📦", text: "Preparamos tu envío y te avisamos por email cuando salga en camino." },
+        { icon: "🔁", text: "Se renueva automáticamente. Cancelás cuando quieras." },
+      ]
+    : [
+        { icon: "🔁", text: `La ${kind} se cobra sola ${freqTxt || "cada período"}. Pausás o cancelás cuando quieras.` },
+        { icon: "💳", text: "Si algún cobro falla, te avisamos por mail para que actualices la tarjeta." },
+      ];
 
   return (
     <div style={S.page}>
@@ -126,7 +146,7 @@ export default function CheckoutSuccess() {
           <div style={S.detail}>
             {info?.product_title && (
               <div style={S.detailRow}>
-                <span style={S.detailLabel}>Producto</span>
+                <span style={S.detailLabel}>{isService ? "Plan" : "Producto"}</span>
                 <b style={S.detailVal}>{info.product_title}</b>
               </div>
             )}
@@ -138,7 +158,7 @@ export default function CheckoutSuccess() {
             )}
             {phase === "active" && nextTxt && (
               <div style={S.detailRow}>
-                <span style={S.detailLabel}>Próximo envío</span>
+                <span style={S.detailLabel}>{biz?.vocab?.next || "Próximo envío"}</span>
                 <b style={S.detailVal}>{nextTxt}</b>
               </div>
             )}
@@ -148,24 +168,27 @@ export default function CheckoutSuccess() {
         {phase === "active" && (
           <>
             <div style={S.mailNote}>
-              📩 En unos minutos te llega el email con la confirmación de tu compra.
+              📩 En unos minutos te llega el email con la confirmación{shipping ? " de tu compra" : ""}.
             </div>
             <div style={S.steps}>
-              <Step icon="📦" text="Preparamos tu envío y te avisamos por email cuando salga en camino." />
-              <Step icon="🔁" text="Se renueva automáticamente. Cancelás cuando quieras." />
+              {steps.map((s, i) => <Step key={i} icon={s.icon} text={s.text} />)}
             </div>
           </>
         )}
         {phase === "pending" && (
           <div style={S.mailNote}>
-            📩 Cuando Mercado Pago confirme el cobro te mandamos el email de confirmación con el link para gestionar tu suscripción.
+            📩 Cuando {provider} confirme el cobro te mandamos el email de confirmación con el link para gestionar tu {kind}.
           </div>
         )}
 
-        <a href={storeUrl || "/"} style={S.btn} className="tk-btn">Volver a la tienda</a>
-        {portalUrl && (
-          <a href={portalUrl} style={S.link}>Gestionar mi suscripción</a>
-        )}
+        {storeUrl ? (
+          <>
+            <a href={storeUrl} style={S.btn} className="tk-btn">Volver a la tienda</a>
+            {portalUrl && <a href={portalUrl} style={S.link}>Gestionar mi {kind}</a>}
+          </>
+        ) : portalUrl ? (
+          <a href={portalUrl} style={S.btn} className="tk-btn">Gestionar mi {kind}</a>
+        ) : null}
 
         <p style={S.foot}>Cualquier duda, respondé el email de confirmación y te ayudamos.</p>
       </div>

@@ -9,6 +9,7 @@ import SettingsPage from "./Settings.jsx";
 import OnboardingWizard from "./Onboarding.jsx";
 import GuidePage from "./Guide.jsx";
 import { useOnboarding, OnboardingContext } from "../lib/onboarding.js";
+import { merchantProfile } from "../../shared/platform/profile.js";
 import { TrialBanner, PlanWall } from "./Billing.jsx";
 import { HomeTab } from "./Home.jsx";
 import { PlansTab } from "./Plans.jsx";
@@ -200,7 +201,10 @@ export default function Dashboard({ user, onLogout }) {
   }
   const manageStore = manageStoreId ? (effectiveWorkspace?.stores || []).find(s => s.id === manageStoreId) : null;
 
-  const integrationsReady = Boolean(merchant?.shopify_token && merchant?.mp_access_token);
+  // Perfil del negocio: qué hace falta conectar depende de qué vende y dónde
+  // (servicios / link de suscripción no necesitan tienda). Histórico: Shopify + MP.
+  const profile = useMemo(() => merchantProfile(merchant), [merchant]);
+  const integrationsReady = profile.ready;
   const shop = merchant?.shopify_shop || null;
   const devMode = merchant?.dev_mode === true;
 
@@ -226,7 +230,7 @@ export default function Dashboard({ user, onLogout }) {
 
   const navItem = NAV.find(n => n.id === tab) || NAV[0];
   const shellProps = { T, nav: navList, activeTab: tab, onTab: goTab, user, merchant, workspace: effectiveWorkspace, onSwitchStore: switchStore, onCreateStore: () => setNewStoreOpen(true), onManageStore: (id) => setManageStoreId(id), darkMode, setDarkMode, onLogout, alerts: { onboarding: onb.ready ? onb.pending : 0 }, pendientes: pendientesSidebar, onVerPlan: () => goTab("inicio") };
-  const needs = (title) => <NeedsIntegrations title={title} onGo={() => goConfig("integraciones")}/>;
+  const needs = (title) => <NeedsIntegrations title={title} missing={profile.missing} onGo={() => goConfig("integraciones")}/>;
 
   // Prueba de 7 días vencida (plan trial): el panel queda detrás del wall de planes.
   if (merchant?.billing?.locked) return (
@@ -244,7 +248,7 @@ export default function Dashboard({ user, onLogout }) {
   return (
     <OnboardingContext.Provider value={onbCtx}>
     <div style={{minHeight:"100vh",display:"flex",background:T.bg,color:T.text,fontFamily:"'Inter',system-ui,sans-serif"}}>
-      {wizardOpen && merchant && <OnboardingWizard T={T} DS={DS} merchant={merchant} onb={onb} goTab={goTab} onClose={closeWizard}/>}
+      {wizardOpen && merchant && <OnboardingWizard T={T} DS={DS} merchant={merchant} onb={onb} goTab={goTab} onClose={closeWizard} onMerchantChange={reloadMerchant}/>}
       <Sidebar {...shellProps} collapsed={collapsed} setCollapsed={setCollapsed}/>
 
       <div className="main-content" style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}>
@@ -319,13 +323,14 @@ function RedirectTo({ onGo }) {
   return null;
 }
 
-function NeedsIntegrations({ title, onGo }) {
+function NeedsIntegrations({ title, missing = [], onGo }) {
   const T = useT();
+  const what = missing.length ? missing.join(" y ") : "tus integraciones";
   return (
     <div>
       <PageHeader T={T} title={title}/>
       <Callout T={T} tone="warning" title="Falta conectar integraciones" right={<Btn T={T} variant="solid" size="sm" onClick={onGo}>Ir a Integraciones →</Btn>}>
-        Necesitás conectar Shopify y Mercado Pago antes de usar esta sección.
+        Necesitás conectar {what} antes de usar esta sección.
       </Callout>
     </div>
   );

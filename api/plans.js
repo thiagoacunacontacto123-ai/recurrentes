@@ -42,20 +42,30 @@ export default async function handler(req, res) {
       // Packs (bundle)
       pricing_mode, packs, frequency_scales_with_qty,
     } = body;
-    if (!shopify_product_id || !shopify_variant_id || !product_title)
+    const merchantSnap = await merchantRef.get();
+    const merchant = merchantSnap.data() || {};
+    // Perfil del negocio (shared/platform/profile.js): con tienda, el plan sale de
+    // un producto del catálogo; sin tienda (servicios, link de suscripción) es un
+    // ítem cargado a mano (nombre + precio), sin packs y sin envío si no aplica.
+    const profile = merchantProfile(merchant);
+    const manualItem = !profile.caps.catalog;
+    if (manualItem) {
+      if (!String(product_title || "").trim()) return res.status(400).json({ error: "Poné un nombre al plan" });
+      if (!(parseFloat(base_price_ars) > 0)) return res.status(400).json({ error: "El precio tiene que ser mayor a 0" });
+    } else if (!shopify_product_id || !shopify_variant_id || !product_title) {
       return res.status(400).json({ error: "Faltan datos del producto" });
+    }
     if (!frequency_days || frequency_days < 1)
       return res.status(400).json({ error: "frequency_days inválido" });
 
-    // Packs: validar + resolver pricing_mode.
-    const pk = normalizePacks(packs);
+    // Packs: validar + resolver pricing_mode. Los packs viven en el widget de la
+    // tienda: sin widget el plan es siempre precio simple ("theme").
+    const pk = profile.caps.packs ? normalizePacks(packs) : { packs: [] };
     if (pk.error) return res.status(400).json({ error: pk.error });
-    const modeRes = resolvePricingMode(pricing_mode, pk.packs);
+    const modeRes = profile.caps.packs ? resolvePricingMode(pricing_mode, pk.packs) : { mode: "theme" };
     if (modeRes.error) return res.status(400).json({ error: modeRes.error });
     const packsMode = modeRes.mode === "packs";
 
-    const merchantSnap = await merchantRef.get();
-    const merchant = merchantSnap.data() || {};
     if (!merchant.mp_access_token) return res.status(400).json({ error: "Conectá MP primero" });
 
     // En modo packs, si no mandan base_price_ars lo tomamos del pack de 1 unidad
@@ -115,9 +125,11 @@ export default async function handler(req, res) {
 
     const planRef = plansCol.doc();
     const data = {
-      shopify_product_id: String(shopify_product_id),
-      shopify_variant_id: String(shopify_variant_id),
-      product_title,
+      // Ítem manual (sin tienda): sin ids de Shopify; el checkout lo resuelve por plan id.
+      shopify_product_id: manualItem ? null : String(shopify_product_id),
+      shopify_variant_id: manualItem ? null : String(shopify_variant_id),
+      item_source: manualItem ? "manual" : profile.channel,
+      product_title: manualItem ? String(product_title).trim().slice(0, 120) : product_title,
       product_image: product_image || null,
       frequency_days: parseInt(frequency_days),
       discount_pct: discountNum,
@@ -128,9 +140,9 @@ export default async function handler(req, res) {
       pricing_mode: modeRes.mode,
       packs: pk.packs,
       frequency_scales_with_qty: frequency_scales_with_qty !== false,
-      // Envío
-      shipping_price_ars: Math.max(0, parseFloat(shipping_price_ars) || 0),
-      free_shipping_from_ars: Math.max(0, parseFloat(free_shipping_from_ars) || 0), // 0 = nunca gratis
+      // Envío (sin envío en el perfil — servicios, digitales — queda en 0)
+      shipping_price_ars: profile.caps.shipping ? Math.max(0, parseFloat(shipping_price_ars) || 0) : 0,
+      free_shipping_from_ars: profile.caps.shipping ? Math.max(0, parseFloat(free_shipping_from_ars) || 0) : 0, // 0 = nunca gratis
       shipping_method_name: (shipping_method_name || "Envío a domicilio").trim().slice(0, 60),
       // Descuentos por cantidad
       qty_discount_tiers: tiers,
@@ -159,6 +171,11 @@ export default async function handler(req, res) {
     const num = (v, min = 0) => Math.max(min, parseFloat(v) || 0);
     const out = {};
     if (patch.product_title != null) out.product_title = String(patch.product_title);
+    // Ítems manuales (sin tienda): la imagen se edita acá (en Shopify sale del catálogo).
+    if (patch.product_image !== undefined && cur.item_source === "manual") {
+      const img = String(patch.product_image || "").trim().slice(0, 500);
+      out.product_image = /^https:\/\//i.test(img) ? img : null;
+    }
     if (patch.frequency_days != null) out.frequency_days = Math.max(1, parseInt(patch.frequency_days) || cur.frequency_days || 30);
     if (patch.discount_pct != null) out.discount_pct = Math.max(0, Math.min(80, parseInt(patch.discount_pct) || 0));
     if (patch.units_per_shipment != null) out.units_per_shipment = Math.max(1, parseInt(patch.units_per_shipment) || 1);

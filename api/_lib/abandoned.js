@@ -93,6 +93,9 @@ export function recoverTarget(merchant, sub) {
       if (hosts.includes(u.hostname.toLowerCase())) return { url: esu, allowsQuery: true };
     } catch (e) { console.warn("[abandoned] event_source_url inválida:", esu.slice(0, 120), e.message); }
   }
+  // Sin tienda (link de suscripción): volver al checkout hosteado de Recurrentes.
+  // La query vive dentro del hash (#/checkout?…) → no se le puede sumar ?rc=.
+  if (sub?.hosted_checkout_url) return { url: String(sub.hosted_checkout_url), allowsQuery: false };
   if (sub?.mp_init_point) return { url: String(sub.mp_init_point), allowsQuery: false };
   return { url: "", allowsQuery: false };
 }

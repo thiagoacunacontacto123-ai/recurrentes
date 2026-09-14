@@ -56,6 +56,7 @@ import { signToken } from "./_lib/token.js";
 import { appBaseUrl } from "./_lib/config.js";
 import { rateLimit } from "./_lib/ratelimit.js";
 import { klaviyoEnabled, klaviyoValidateKey, klaviyoCheckoutStarted } from "./_lib/klaviyo.js";
+import { merchantProfile, validateProfilePatch } from "../shared/platform/profile.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
@@ -171,6 +172,10 @@ export default async function handler(req, res) {
         portal_welcome: merchant.portal_welcome || "",
         dev_mode: merchant.dev_mode === true,
         requires_email_verification: merchant.requires_email_verification === true,
+        // Perfil del negocio (shared/platform/profile.js). null = histórico → físico + Shopify + MP.
+        business_type: merchant.business_type || null,
+        channel: merchant.channel || null,
+        payment_provider: merchant.payment_provider || null,
       };
       return res.json({ merchant: safe });
     } catch (e) {
@@ -184,6 +189,10 @@ export default async function handler(req, res) {
     // conecta/desconecta MP ni Shopify de una tienda ajena.
     const ownerOnly = ["save-mp-token", "mp-oauth-start", "disconnect-mp", "disconnect-shopify", "save-meta", "save-klaviyo", "disconnect-klaviyo", "klaviyo-test", "import-shipping-rates"];
     if (ownerOnly.includes(action) && ctx.role !== "owner") return res.status(403).json({ error: "Solo el dueño de la tienda puede administrar las integraciones." });
+    // El perfil del negocio (tipo / canal / pasarela) cambia cómo se cumple cada cobro: solo el dueño.
+    if (action === "save-settings" && ctx.role !== "owner" && ["business_type", "channel", "payment_provider"].some(k => k in (req.body || {}))) {
+      return res.status(403).json({ error: "Solo el dueño de la tienda puede cambiar el tipo de negocio." });
+    }
 
     if (action === "save-mp-token")        return saveMpToken(merchantId, req, res);
     if (action === "save-klaviyo")         return saveKlaviyo(merchantId, req, res);
@@ -610,6 +619,23 @@ async function saveSettings(merchantId, req, res) {
   if ("dev_mode" in b) out.dev_mode = b.dev_mode === true;
   // Klaviyo: mandar también "Placed Order" (solo si su Klaviyo NO está conectado a Shopify).
   if ("klaviyo_send_orders" in b) out.klaviyo_send_orders = b.klaviyo_send_orders === true;
+
+  // Perfil del negocio (shared/platform/profile.js): tipo, canal y pasarela. Dejar
+  // Shopify con la tienda conectada corta la creación de órdenes → se confirma
+  // explícitamente (409 confirm_channel_change → el panel pregunta y reenvía).
+  if (["business_type", "channel", "payment_provider"].some(k => k in b)) {
+    const cur = await getCur();
+    const r = validateProfilePatch(cur, b);
+    if (r.error) return bad(r.error);
+    const before = merchantProfile(cur);
+    if (before.channel === "shopify" && r.value.channel !== "shopify" && cur.shopify_token && b.confirm_channel_change !== true) {
+      return res.status(409).json({
+        code: "confirm_channel_change",
+        error: "Tu Shopify está conectado. Si dejás de usarlo, los próximos cobros NO van a crear órdenes en Shopify: quedan como cobros registrados en Recurrentes. Las suscripciones siguen cobrando igual.",
+      });
+    }
+    Object.assign(out, r.value);
+  }
 
   if ("email_from" in b) {
     const v = String(b.email_from || "").trim();

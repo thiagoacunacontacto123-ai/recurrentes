@@ -5,7 +5,7 @@ import { DS, useT } from "../ui/theme.js";
 import { Btn, BtnSecondary, DSBadge, Modal, Field, InputStyle, Spinner, DSTable, CellStack, PageHeader, SubTabs, Hint, Loading, appConfirm, appAlert, appPrompt, toast } from "../ui/components.jsx";
 import { OnbEmpty } from "./Onboarding.jsx";
 import { TIPS } from "../lib/onboarding.js";
-import { MONO, fmtARS, fmtDateShort, fmtDateOnly, fmtDateTime, fmtDayMonth, fmtAgo, fmtFreq, SurfaceBox, KV, ExtLink, RowMenu, portalUrl, mpPaymentUrl, mpPreapprovalUrl, shopifyOrderUrl, copyText, hashQuery } from "./_shared.jsx";
+import { MONO, fmtARS, fmtDateShort, fmtDateOnly, fmtDateTime, fmtDayMonth, fmtAgo, fmtFreq, SurfaceBox, KV, ExtLink, RowMenu, portalUrl, mpPaymentUrl, mpPreapprovalUrl, shopifyOrderUrl, orderLabel, copyText, hashQuery } from "./_shared.jsx";
 
 // Estado de una suscripción → color del DS.
 function subStatusMeta(T, status, orderCount = 0) {
@@ -395,7 +395,7 @@ export function SubscriberDetailModal({ sub, onClose, devMode = false, shop = nu
     push(s.resumed_at, "Reactivada", T.green);
     push(s.payment_failed_at, "Pago rechazado por MP", T.red);
     push(s.cancelled_at, "Cancelada", T.red, s.cancel_reason_label || s.cancel_reason || s.cancellation_reason || null);
-    for (const c of charges) push(c.created_at, c.error ? `Cobro con error · ${fmtARS(c.amount_ars)}` : `Cobro OK · ${fmtARS(c.amount_ars)}`, c.error ? T.red : T.accent, c.shopify_order_id ? `Orden #${c.shopify_order_id}` : (c.error || null));
+    for (const c of charges) push(c.created_at, c.error ? `Cobro con error · ${fmtARS(c.amount_ars)}` : `Cobro OK · ${fmtARS(c.amount_ars)}`, c.error ? T.red : T.accent, c.shopify_order_id ? (orderLabel(c.shopify_order_id).startsWith("#") ? `Orden ${orderLabel(c.shopify_order_id)}` : orderLabel(c.shopify_order_id)) : (c.error || null));
     return ev.sort((a, b) => String(b.at).localeCompare(String(a.at)));
   }, [s, charges]);
 
@@ -404,7 +404,7 @@ export function SubscriberDetailModal({ sub, onClose, devMode = false, shop = nu
     { key:"monto", label:"Monto", nowrap:true, render: c => <span style={{ fontWeight:DS.w.bold, fontVariantNumeric:"tabular-nums" }}>{fmtARS(c.amount_ars)}</span> },
     { key:"mp", label:"MP", nowrap:true, render: c => c.mp_payment_id ? <ExtLink T={T} href={mpPaymentUrl(c.mp_payment_id)} style={{ fontFamily:MONO, fontSize:DS.font.sm }}>{c.mp_payment_id}</ExtLink> : <span style={{ color:T.textSm }}>—</span> },
     { key:"orden", label:"Shopify", nowrap:true, render: c => c.shopify_order_id
-        ? <ExtLink T={T} href={shopifyOrderUrl(shop, c.shopify_order_id)} style={{ fontFamily:MONO, fontSize:DS.font.sm }}>#{c.shopify_order_id}</ExtLink>
+        ? <ExtLink T={T} href={shopifyOrderUrl(shop, c.shopify_order_id)} style={{ fontFamily:MONO, fontSize:DS.font.sm }}>{orderLabel(c.shopify_order_id)}</ExtLink>
         : (c.error && c.mp_payment_id
             ? <Btn T={T} variant="secondary" size="sm" disabled={busy} onClick={() => doAction("retry-order", { paymentId: c.mp_payment_id })} style={{ padding:"3px 8px", fontSize:DS.font.xs }}>{busyAction === "retry-order" ? <Spinner size={10} color={T.textMd}/> : "↻ Reintentar orden"}</Btn>
             : <span style={{ color:T.textSm }}>—</span>) },
