@@ -51,10 +51,10 @@ export function tierRangeLabel(t) {
 export const PLAN_FEATURES = [
   "Widget de suscripción en tu página de producto",
   "Cobros automáticos con Mercado Pago",
-  "Una orden en tu tienda por cada cobro",
+  "Una orden en tu negocio por cada cobro",
   "Portal para que tus clientes pausen o cancelen",
   "Avisos de pago fallido y ofertas de retención",
   "Klaviyo y Meta Conversions API",
-  "Varias tiendas y equipo con permisos",
+  "Varios negocios y equipo con permisos",
   "Soporte por WhatsApp",
 ];

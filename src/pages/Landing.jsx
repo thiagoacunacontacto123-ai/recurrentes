@@ -11,14 +11,6 @@ const F = "'Inter',system-ui,sans-serif";
 // Argentina, para tiendas online: Shopify hoy; Tiendanube e Impultienda (ebooks)
 // muy pronto. Los botones llevan a #/registro y #/login — el login vive en Auth.jsx.
 
-// Tiendas con las que Recurrentes se conecta (el estado es el del catálogo de
-// shared/platform/profile.js: Shopify disponible, el resto "muy pronto").
-const STORES = [
-  { id:"shopify",     name:"Shopify",     live:true,  d:"Widget en la página de producto y una orden en tu Shopify por cada cobro." },
-  { id:"tiendanube",  name:"Tiendanube",  live:false, d:"Tus productos de Tiendanube como suscripción, con su orden en cada cobro." },
-  { id:"impultienda", name:"Impultienda", live:false, d:"Para tu tienda de ebooks: cada cobro renueva el acceso al contenido." },
-];
-
 // ─── Mapa "todo se conecta": tiendas → pasarelas → panel ─────────────────
 // Estados honestos (ver CLAUDE.md → Integraciones evaluadas): live = ya
 // funciona · soon = en desarrollo · radar = evaluando. Los descartados (Stripe
@@ -26,20 +18,19 @@ const STORES = [
 const FLOW_STORES = [
   { n:"Shopify", s:"live" },
   { n:"Tiendanube", s:"soon" },
-  { n:"Impultienda", s:"soon", d:"ebooks" },
+  { n:"Impultienda", s:"soon" },
   { n:"Empretienda", s:"radar" },
   { n:"Link de suscripción", s:"live" },
 ];
-// `d` corto: el ítem tiene alto fijo de una línea (si no, el texto se corta).
 const FLOW_PAYMENTS = [
   { n:"Mercado Pago", s:"live" },
   { n:"Mobbex", s:"soon" },
-  { n:"Stripe", s:"radar", d:"exterior" },
-  { n:"Whop", s:"radar", d:"digitales" },
+  { n:"Stripe", s:"radar" },
+  { n:"Whop", s:"radar" },
 ];
 const FLOW_ACTIONS = [
   { t:"Cobro aprobado · $ 40.500", s:"live" },
-  { t:"Orden #1042 creada en tu tienda", s:"live" },
+  { t:"Orden #1042 creada en tu negocio", s:"live" },
   { t:"Klaviyo · Subscription Renewed", s:"live" },
   { t:"Factura B emitida en ARCA", s:"soon" },
   { t:"WhatsApp · aviso de tarjeta rechazada", s:"soon" },
@@ -94,7 +85,7 @@ function FlowItem({ T, it }) {
 // un elemento display:none no ocupa lugar en el flex, así no corre las curvas).
 // Sin `gap`: con ítems de alto fijo y space-around, el centro del ítem i queda
 // exacto en (i + 0.5) / N del alto, que es donde FlowConnector dibuja cada curva.
-const FLOW_MLABEL = new Map([[FLOW_STORES, "1 · Tu tienda"], [FLOW_PAYMENTS, "2 · Tu pasarela"]]);
+const FLOW_MLABEL = new Map([[FLOW_STORES, "1 · Tu negocio"], [FLOW_PAYMENTS, "2 · Tu pasarela"]]);
 function FlowColumn({ T, items, label = FLOW_MLABEL.get(items) }) {
   return (
     <div style={{display:"flex",flexDirection:"column",justifyContent:"space-around",height:"100%",minHeight:items.length * (FLOW_ITEM_H + 12),minWidth:0}}>
@@ -115,7 +106,7 @@ function FlowMap({ T }) {
   return (
     <div>
       <div className="rec-flow-grid rec-flow-head">
-        {head(1, "Tu tienda", "Donde vendés")}<span/>
+        {head(1, "Tu negocio", "Donde vendés")}<span/>
         {head(2, "Tu pasarela", "Con qué cobrás")}<span/>
         {head(3, "Tu panel", "Lo que pasa en cada cobro")}
       </div>
@@ -155,6 +146,38 @@ function FlowMap({ T }) {
   );
 }
 
+// ─── Etiqueta del hero: "Para ___" con los rubros donde sirve Recurrentes ──
+// Rota cada 1,8 s. El ancho se reserva con todas las palabras apiladas e
+// invisibles en la misma celda (la etiqueta no salta). Sin animación si el
+// usuario pidió reducir movimiento.
+const BUSINESS_WORDS = [
+  "tiendas online", "cursos", "membresías", "clubes", "gimnasios", "yoga y pilates",
+  "academias", "comunidades", "newsletters", "cajas de suscripción", "clubes de vino",
+  "café de especialidad", "suplementos", "alimento para mascotas", "ebooks",
+  "software", "coworkings", "mentorías", "podcasts",
+];
+function RotatingWords({ T }) {
+  const [i, setI] = React.useState(0);
+  React.useEffect(() => {
+    let reduce = false;
+    try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (_) {}
+    if (reduce) return;
+    const id = setInterval(() => setI(n => (n + 1) % BUSINESS_WORDS.length), 1800);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <span style={{display:"inline-flex",alignItems:"baseline",gap:5}}>
+      <style>{`@keyframes recWordIn{from{opacity:0;transform:translateY(70%)}to{opacity:1;transform:none}} .rec-word{animation:recWordIn .38s cubic-bezier(.2,.8,.2,1) both} @media (prefers-reduced-motion: reduce){.rec-word{animation:none}}`}</style>
+      <span style={{opacity:0.75}}>Para</span>
+      <span aria-hidden="true" style={{display:"inline-grid",overflow:"hidden"}}>
+        {BUSINESS_WORDS.map(w => <span key={w} style={{gridArea:"1 / 1",visibility:"hidden",whiteSpace:"nowrap"}}>{w}</span>)}
+        <span key={i} className="rec-word" style={{gridArea:"1 / 1",whiteSpace:"nowrap",color:T.accent}}>{BUSINESS_WORDS[i]}</span>
+      </span>
+      <span style={{position:"absolute",width:1,height:1,overflow:"hidden",clip:"rect(0 0 0 0)",whiteSpace:"nowrap"}}>tiendas online, cursos, membresías, clubes, gimnasios y más</span>
+    </span>
+  );
+}
+
 export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister }) {
   const irRegistro = () => { if (onRegister) onRegister(); else window.location.hash = "#/registro"; };
   const irLogin = () => { if (onLogin) onLogin(); else window.location.hash = "#/login"; };
@@ -162,24 +185,17 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
 
   const FEATURES = [
     { icon:"M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15", t:"Cobros recurrentes automáticos", d:"Mercado Pago cobra cada N días con la tarjeta del cliente. La plata entra en tu cuenta, sin intermediarios." },
-    { icon:"M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16zM3.27 6.96L12 12.01l8.73-5.05M12 22.08V12", t:"Una orden por cada cobro", d:"Cada cobro aprobado crea la orden en tu tienda, con dirección, envío y stock descontado. Vos empaquetás." },
+    { icon:"M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16zM3.27 6.96L12 12.01l8.73-5.05M12 22.08V12", t:"Una orden por cada cobro", d:"Cada cobro aprobado crea la orden en tu negocio, con dirección, envío y stock descontado. Vos empaquetás." },
     { icon:"M9 22a1 1 0 100-2 1 1 0 000 2zM20 22a1 1 0 100-2 1 1 0 000 2zM1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6", t:"Widget con packs", d:"Compra única o Suscripción en la misma página de producto, con packs x1, x2, x3 y 10 diseños para elegir." },
     { icon:"M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z", t:"Portal del suscriptor", d:"Tus clientes pausan, cambian la dirección o cancelan solos desde un link. Menos mensajes de soporte." },
     { icon:"M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z", t:"Pagos fallidos y retención", d:"Avisos cuando una tarjeta rebota y ofertas de pausa antes de que alguien cancele." },
     { icon:"M18 20V10M12 20V4M6 20v-6M2 20h20", t:"Métricas, Klaviyo y Meta", d:"MRR, churn y próximos cobros en el panel. Eventos a Klaviyo y ventas reportadas a Meta para tus campañas." },
   ];
   const PASOS = [
-    { n:"1", t:"Conectá tu tienda y Mercado Pago", d:"Autorizás Recurrentes en tu tienda y vinculás la cuenta de Mercado Pago que cobra. Diez minutos, sin código." },
+    { n:"1", t:"Conectá tu negocio y Mercado Pago", d:"Autorizás Recurrentes en tu negocio y vinculás la cuenta de Mercado Pago que cobra. Diez minutos, sin código." },
     { n:"2", t:"Creá tus planes", d:"Elegís el producto, cada cuántos días se cobra, el descuento y los packs. Pegás el widget en la página de producto." },
-    { n:"3", t:"Cobrá y despachá en piloto automático", d:"Cada cobro crea la orden en tu tienda. Tus clientes gestionan su suscripción desde el portal." },
+    { n:"3", t:"Cobrá y despachá en piloto automático", d:"Cada cobro crea la orden en tu negocio. Tus clientes gestionan su suscripción desde el portal." },
   ];
-
-  const chip = (live) => (
-    <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:11,fontWeight:700,padding:"2px 9px",borderRadius:99,whiteSpace:"nowrap",
-      color: live ? T.accent : T.yellow, background: live ? T.accentSolid+"18" : T.yellow+"1c"}}>
-      <span style={{width:6,height:6,borderRadius:99,background:"currentColor"}}/>{live ? "Disponible" : "Muy pronto"}
-    </span>
-  );
 
   return (
     <div style={{fontFamily:F,background:T.bg,minHeight:"100vh",color:T.text}}>
@@ -224,19 +240,32 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
           <div>
             <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"5px 12px",borderRadius:20,background:T.accentSolid+"16",border:`1px solid ${T.accentSolid}44`,color:T.accent,fontSize:11,fontWeight:700,letterSpacing:0.4,marginBottom:20,textTransform:"uppercase"}}>
               <span style={{width:7,height:7,borderRadius:99,background:T.accentSolid,boxShadow:`0 0 0 3px ${T.accentSolid}33`}}/>
-              Tiendas online · Cursos · Argentina
+              <RotatingWords T={T}/>
             </div>
             <h1 className="rec-land-h1" style={{fontSize:50,fontWeight:800,lineHeight:1.06,margin:"0 0 18px",letterSpacing:-1.6,color:T.text,textWrap:"balance"}}>
               Vendé por <span style={{background:`linear-gradient(135deg, ${T.accentSolid}, #34d399)`,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent"}}>suscripción</span> en tu negocio online desde hoy mismo
             </h1>
             <p style={{fontSize:17,color:T.textMd,lineHeight:1.6,margin:"0 0 22px",maxWidth:520}}>
-              Tu tienda online o tu curso: el cliente se suscribe una vez, <strong style={{color:T.text}}>Mercado Pago cobra solo</strong> cada período y Recurrentes crea la orden en tu tienda o te muestra quién está al día. Vos te ocupás de vender.
+              Tu tienda online o tu curso: el cliente se suscribe una vez, <strong style={{color:T.text}}>Mercado Pago cobra solo</strong> cada período y Recurrentes crea la orden en tu negocio o te muestra quién está al día. Vos te ocupás de vender.
             </p>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:26}}>
-              {STORES.map(s=>(
-                <span key={s.id} style={{display:"inline-flex",alignItems:"center",gap:8,padding:"6px 10px 6px 12px",borderRadius:10,border:`1px solid ${T.border}`,background:T.card,fontSize:13,fontWeight:700,color:T.text}}>
-                  {s.name}{chip(s.live)}
-                </span>
+            {/* Mismas plataformas y estados que el mapa de abajo (FLOW_STORES / FLOW_PAYMENTS). */}
+            <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:26}}>
+              {[["Vendé en", FLOW_STORES], ["Cobrá con", FLOW_PAYMENTS]].map(([label, list]) => (
+                <div key={label} style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                  <span style={{fontSize:11,fontWeight:800,color:T.textSm,textTransform:"uppercase",letterSpacing:0.6,minWidth:74}}>{label}</span>
+                  {list.map(it => {
+                    const c = it.s === "live" ? T.accentSolid : it.s === "soon" ? T.yellow : T.textSm;
+                    return (
+                      <span key={it.n} style={{display:"inline-flex",alignItems:"center",gap:7,padding:"5px 9px 5px 11px",borderRadius:9,background:T.card,
+                        border:`1px ${it.s === "live" ? "solid" : "dashed"} ${it.s === "live" ? T.accentSolid + "88" : T.border}`,fontSize:12.5,fontWeight:700,color:it.s === "radar" ? T.textMd : T.text}}>
+                        {it.n}
+                        <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,color:c,whiteSpace:"nowrap"}}>
+                          <span style={{width:5,height:5,borderRadius:99,background:c}}/>{FLOW_STATUS[it.s]}
+                        </span>
+                      </span>
+                    );
+                  })}
+                </div>
               ))}
             </div>
             <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
@@ -309,7 +338,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         `}</style>
         <div className="rec-land-wrap">
           <h2 style={{fontSize:28,fontWeight:800,letterSpacing:-0.7,textAlign:"center",margin:"0 0 10px",textWrap:"balance"}}>Todo se conecta con Recurrentes</h2>
-          <p style={{fontSize:14,color:T.textSm,textAlign:"center",maxWidth:600,margin:"0 auto 32px",lineHeight:1.6}}>Tu tienda vende, tu pasarela cobra y Recurrentes hace el resto: cobra cada período, crea la orden y te muestra todo en un panel. Arrancamos con Shopify y Mercado Pago, y vamos sumando las plataformas que usan las tiendas argentinas.</p>
+          <p style={{fontSize:14,color:T.textSm,textAlign:"center",maxWidth:600,margin:"0 auto 32px",lineHeight:1.6}}>Tu negocio vende, tu pasarela cobra y Recurrentes hace el resto: cobra cada período, crea la orden y te muestra todo en un panel. Arrancamos con Shopify y Mercado Pago, y vamos sumando las plataformas que usan los negocios online.</p>
           <FlowMap T={T}/>
           <div style={{marginTop:22,display:"flex",justifyContent:"center",gap:"8px 18px",flexWrap:"wrap",fontSize:12,color:T.textSm}}>
             {[["Disponible",T.accentSolid],["Próximamente",T.yellow],["En el radar",T.textSm]].map(([l,c])=>(
@@ -340,7 +369,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
       <section id="rec-como-funciona" style={{background:T.surface,borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,padding:"56px 0"}}>
         <div className="rec-land-wrap">
           <h2 style={{fontSize:28,fontWeight:800,letterSpacing:-0.7,textAlign:"center",margin:"0 0 10px"}}>Cómo funciona</h2>
-          <p style={{fontSize:14,color:T.textSm,textAlign:"center",maxWidth:520,margin:"0 auto 32px",lineHeight:1.6}}>Tres pasos y tu tienda acepta suscripciones.</p>
+          <p style={{fontSize:14,color:T.textSm,textAlign:"center",maxWidth:520,margin:"0 auto 32px",lineHeight:1.6}}>Tres pasos y tu negocio acepta suscripciones.</p>
           <div className="rec-land-pasos">
             {PASOS.map(p=>(
               <div key={p.n} className="rec-land-card" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:DS.r.xl,padding:"20px 20px 22px"}}>
@@ -372,7 +401,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         <div style={{background:`linear-gradient(135deg, ${T.accentSolid}22, ${T.card})`,border:`1px solid ${T.accentSolid}44`,borderRadius:20,padding:"40px 28px",textAlign:"center"}}>
           <RecLogo size={40} style={{marginBottom:14}}/>
           <h2 style={{fontSize:26,fontWeight:800,letterSpacing:-0.6,margin:"0 0 8px",textWrap:"balance"}}>Empezá a vender por suscripción hoy</h2>
-          <p style={{fontSize:14,color:T.textMd,margin:"0 auto 22px",maxWidth:480,lineHeight:1.6}}>Los primeros {FREE_SUBSCRIBERS} suscriptores son gratis. Conectás tu tienda, creás un plan y ves el primer cobro recurrente entrar solo.</p>
+          <p style={{fontSize:14,color:T.textMd,margin:"0 auto 22px",maxWidth:480,lineHeight:1.6}}>Los primeros {FREE_SUBSCRIBERS} suscriptores son gratis. Conectás tu negocio, creás un plan y ves el primer cobro recurrente entrar solo.</p>
           <button onClick={irRegistro} style={{...BtnSolid(T),padding:"13px 24px",fontSize:15}}>Empezar gratis</button>
           <div style={{fontSize:12,color:T.textSm,marginTop:12}}>¿Ya tenés cuenta? <button onClick={irLogin} style={{background:"none",border:"none",color:T.accent,fontWeight:600,cursor:"pointer",fontFamily:F,fontSize:12,padding:0}}>Iniciá sesión</button></div>
         </div>
