@@ -50,7 +50,8 @@ import { mpMe } from "./_lib/mp.js";
 import { emailSubscriptionActivated, emailTeamInvite, emailPlanRequest, effectiveBrand, effectiveFrom } from "./_lib/email.js";
 import { shGetShopInfo, buildShopInfoPatch, shopifyRatesForPanel } from "./_lib/shopify.js";
 import { REASON_CODE_RE, retentionFor } from "./_lib/retention.js";
-import { PLAN_BY_ID, buildBilling, monthRange, trialEndFrom } from "./_lib/plans_saas.js";
+import { PLAN_BY_ID, buildBilling } from "./_lib/plans_saas.js";
+import { BILLABLE_STATUSES } from "../shared/platform/pricing.js";
 import { logEmail } from "./_lib/emaillog.js";
 import { signToken } from "./_lib/token.js";
 import { appBaseUrl } from "./_lib/config.js";
@@ -225,38 +226,30 @@ export default async function handler(req, res) {
   return res.status(405).json({ error: "Method not allowed" });
 }
 
-// ─── Billing del SaaS (Starter / Growth / Pro) ─────────────────────────────
-// "Pedidos por mes" = charges con shopify_order_id creados en el mes calendario
-// (hora Argentina), sin simulados (SIM-). Solo informa al dashboard: el widget,
-// el checkout, los webhooks y el cron NUNCA miran esto.
+// ─── Billing del SaaS (tramos por suscriptores activos) ─────────────────────
+// El precio sale de los SUSCRIPTORES ACTIVOS de la tienda (status active o
+// payment_failed; ver shared/platform/pricing.js). Solo informa al dashboard:
+// el widget, el checkout, los webhooks y el cron NUNCA miran esto.
 const BILLING_CACHE_MS = 5 * 60 * 1000;
-const isSimCharge = (id, c) => c.simulated === true || String(c.mp_payment_id || "").startsWith("SIM-") || /-SIM$/.test(String(id));
 
-// Cuenta los pedidos del mes. Cache 5 min en el doc (`billing_cache`) para no
-// leer la subcolección en cada GET /api/merchant.
-async function ordersThisMonth(merchantId, merchant) {
-  const { key, start, end } = monthRange();
+// Cuenta los suscriptores activos con una agregación count() (no baja los docs).
+// Cache 5 min en el doc (`billing_cache.subs`) para no contar en cada GET.
+async function activeSubscribers(merchantId, merchant) {
   const c = merchant.billing_cache;
-  if (c && c.month === key && Number.isFinite(Number(c.count)) && c.at && Date.now() - Date.parse(c.at) < BILLING_CACHE_MS) return Number(c.count);
+  if (c && Number.isFinite(Number(c.subs)) && c.at && Date.now() - Date.parse(c.at) < BILLING_CACHE_MS) return Number(c.subs);
   const ref = db().collection("merchants").doc(merchantId);
-  const snap = await ref.collection("charges")
-    .where("created_at", ">=", start)
-    .where("created_at", "<", end)
-    .select("shopify_order_id", "mp_payment_id", "simulated")
-    .limit(5000)
-    .get();
-  let count = 0;
-  snap.forEach(d => { const x = d.data() || {}; if (x.shopify_order_id && !isSimCharge(d.id, x)) count++; });
-  ref.set({ billing_cache: { month: key, count, at: new Date().toISOString() } }, { merge: true }).catch(e => console.warn("[billing] cache:", e.message));
-  return count;
+  const agg = await ref.collection("subscribers").where("status", "in", BILLABLE_STATUSES).count().get();
+  const subs = Number(agg.data().count) || 0;
+  ref.set({ billing_cache: { subs, at: new Date().toISOString() } }, { merge: true }).catch(e => console.warn("[billing] cache:", e.message));
+  return subs;
 }
 
 // Nunca tira: si falla el conteo, usa el último cache (o 0) y sigue.
 async function billingFor(merchantId, merchant) {
-  let count = 0;
-  try { count = await ordersThisMonth(merchantId, merchant); }
-  catch (e) { console.warn("[billing] count:", e.message); count = Number(merchant?.billing_cache?.count) || 0; }
-  return buildBilling(merchant, count);
+  let subs = 0;
+  try { subs = await activeSubscribers(merchantId, merchant); }
+  catch (e) { console.warn("[billing] count:", e.message); subs = Number(merchant?.billing_cache?.subs) || 0; }
+  return buildBilling(merchant, subs);
 }
 
 // POST ?action=plan-request { plan } → guarda plan_requested(+_at) y avisa al
@@ -264,7 +257,7 @@ async function billingFor(merchantId, merchant) {
 async function planRequest(ctx, merchantId, req, res) {
   const plan = String(req.body?.plan || "").trim().toLowerCase();
   const p = PLAN_BY_ID[plan];
-  if (!p) return res.status(400).json({ error: "Plan inválido. Opciones: starter, growth o pro." });
+  if (!p) return res.status(400).json({ error: `Plan inválido. Opciones: ${Object.keys(PLAN_BY_ID).join(", ")}.` });
   const OK_MSG = "Te contactamos en el día para activarlo. Mientras tanto tu cuenta sigue funcionando.";
   try {
     const ref = db().collection("merchants").doc(merchantId);
@@ -289,7 +282,7 @@ async function planRequest(ctx, merchantId, req, res) {
         merchantId,
         storeName: merchant.store_name || merchant.shopify_shop || "",
         plan, planLabel: p.label, usd: p.usd,
-        ordersThisMonth: billing.orders_this_month,
+        activeSubscribers: billing.active_subscribers,
         currentPlan: billing.plan_label,
         requesterEmail: ctx.email || "",
       });
@@ -1201,8 +1194,7 @@ async function storeCreate(ctx, req, res) {
       ownerEmail: email,
       teamUids: [uid],
       teamMembers: { [uid]: { email, name: my.displayName || "", role: "owner", secciones: {}, since: created_at } },
-      plan: "trial",
-      trial_end: trialEndFrom(created_at),
+      plan: "free", // gratis hasta 5 suscriptores activos (shared/platform/pricing.js)
       created_at,
       requires_email_verification: false,
     });

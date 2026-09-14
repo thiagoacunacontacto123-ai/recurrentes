@@ -150,6 +150,19 @@ Recurrentes deja de ser solo "Shopify + MP". Cada merchant tiene un **perfil** e
 - Se elige en Configuración → Negocio (`save-settings` con `business_type/channel/payment_provider`, solo dueño; dejar Shopify con token pide `confirm_channel_change`).
 - Pendiente: adapters Tiendanube / Impultienda / Stripe, moneda por merchant (todo asume ARS), renombrar `shopify_orders`/`shopify_order_id` a genéricos.
 
+## Foco y comunicación (desde 2026-09-14)
+Tiendas online de **Argentina**: Shopify hoy; Tiendanube e Impultienda (tienda de ebooks) próximos. La landing habla de ecommerce argentino. Los tipos digital/servicio y la venta por link siguen en el producto, pero no son el foco comercial.
+
+## Planes del SaaS (desde 2026-09-14)
+Precio por **suscriptores activos** (`status` active o payment_failed), fuente única en `shared/platform/pricing.js`: Free hasta 5 · Starter USD 29 (6–30) · Growth 69 (31–100) · Scale 99 (101–300) · Pro 149 (301–1000) · Unlimited 299 (+1000). Todo incluido en todos. Sin prueba de 7 días ni bloqueo del panel: si le corresponde un tramo pago muestra aviso y "Activar plan" (plan-request); lo confirmamos a mano con `plan_activated: "<tier>"` en el merchant. Cuentas creadas antes de 2026-09-13 sin plan pago = **beta** (Lumina), sin cargo.
+
+## Integraciones evaluadas (investigación 2026-09-14)
+- **Tiendanube**: API confirmada para leer productos, crear órdenes pagas (`POST /orders`, `payment_status: paid`) e inyectar scripts (app de Partner, scope `scripts`). **Tiene suscripciones nativas** (solo Pago Nube + crédito, plan Impulso+, sin variantes, 1 producto con suscripción por carrito): nuestro espacio es MP / débito, variantes y packs.
+- **Impultienda**: sin API pública ni app store encontrada → pedirles acceso.
+- **Pasarelas**: Mobbex (API de suscripciones + tokenización + plugins Shopify/TN) y Pagos360 (débito CBU/tarjeta) son las próximas. Payway tokeniza. Getnet/Nave: recurrencia no confirmada. Ualá Bis/MODO/Naranja X: sin recurrencia por API. **Stripe no opera con comercios argentinos.** PayPal: solo USD (ventas internacionales).
+- **Después del cobro**: factura ARCA (TusFacturas con webhook, Facturante en TN, Xubio, Contabilium), WhatsApp (Twilio / Botmaker), logística (Zipnova con OAuth multi-cliente, Andreani, Correo Argentino, Envia, Enviopack), email (Perfit, Doppler).
+- Prioridad sugerida: 1) app Tiendanube · 2) Mobbex · 3) factura ARCA por cobro · 4) débito Pagos360 · 5) avisos por WhatsApp.
+
 ## Decisiones de diseño
 
 - **Multi-tenant desde día 1** — la app es SaaS, no para 1 sólo cliente. Cada merchant tiene su scope completo aislado en `merchants/{uid}/*`.

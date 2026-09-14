@@ -325,7 +325,7 @@ export async function emailTeamInvite({ to, inviterEmail, storeName, merchant, a
 
 // ─── Aviso INTERNO (al admin de Recurrentes): un merchant pidió activar un plan.
 // `to` = ADMIN_EMAIL (o EMAIL_FROM). Reply-To = mail del merchant para contestar directo.
-export async function emailPlanRequest({ to, merchantEmail, merchantId, storeName, plan, planLabel, usd, ordersThisMonth, currentPlan, requesterEmail }) {
+export async function emailPlanRequest({ to, merchantEmail, merchantId, storeName, plan, planLabel, usd, activeSubscribers, currentPlan, requesterEmail }) {
   const store = plain(storeName, 60) || "(tienda sin nombre)";
   const label = plain(planLabel || plan, 40);
   const title = `Pedido de plan ${label} · ${store}`;
@@ -337,7 +337,7 @@ export async function emailPlanRequest({ to, merchantEmail, merchantId, storeNam
       ${row("Email de la cuenta", merchantEmail)}
       ${requesterEmail && requesterEmail !== merchantEmail ? row("Pedido por", requesterEmail) : ""}
       ${row("Plan actual", currentPlan)}
-      ${row("Pedidos este mes", String(ordersThisMonth ?? 0))}
+      ${row("Suscriptores activos", String(activeSubscribers ?? 0))}
       ${row("Fecha", new Date().toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }))}
     </table>
     <p>Contestá este mail para coordinar el pago. Para activarlo, seteá <code>plan: "${escapeHtml(plan)}"</code> en <code>merchants/${escapeHtml(merchantId)}</code>.</p>`;

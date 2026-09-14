@@ -185,9 +185,9 @@ export async function getOrCreateMerchant(merchantId, email) {
   const created_at = new Date().toISOString();
   const data = {
     email: email || null,
-    // Plan del SaaS: 7 días de prueba con todo habilitado (ver _lib/plans_saas.js).
-    plan: "trial",
-    trial_end: trialEndFrom(created_at),
+    // Plan del SaaS: gratis hasta 5 suscriptores activos; después, el tramo que
+    // corresponda (shared/platform/pricing.js). Ya no hay prueba con vencimiento.
+    plan: "free",
     created_at,
     // Solo cuentas nuevas: exigimos verificar el mail antes de operar.
     requires_email_verification: true,

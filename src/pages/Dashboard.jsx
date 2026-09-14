@@ -10,7 +10,7 @@ import OnboardingWizard from "./Onboarding.jsx";
 import GuidePage from "./Guide.jsx";
 import { useOnboarding, OnboardingContext } from "../lib/onboarding.js";
 import { merchantProfile } from "../../shared/platform/profile.js";
-import { TrialBanner, PlanWall } from "./Billing.jsx";
+import { BillingBanner } from "./Billing.jsx";
 import { HomeTab } from "./Home.jsx";
 import { PlansTab } from "./Plans.jsx";
 import { SubscriptionsPage } from "./Subscriptions.jsx";
@@ -232,19 +232,6 @@ export default function Dashboard({ user, onLogout }) {
   const shellProps = { T, nav: navList, activeTab: tab, onTab: goTab, user, merchant, workspace: effectiveWorkspace, onSwitchStore: switchStore, onCreateStore: () => setNewStoreOpen(true), onManageStore: (id) => setManageStoreId(id), darkMode, setDarkMode, onLogout, alerts: { onboarding: onb.ready ? onb.pending : 0 }, pendientes: pendientesSidebar, onVerPlan: () => goTab("inicio") };
   const needs = (title) => <NeedsIntegrations title={title} missing={profile.missing} onGo={() => goConfig("integraciones")}/>;
 
-  // Prueba de 7 días vencida (plan trial): el panel queda detrás del wall de planes.
-  if (merchant?.billing?.locked) return (
-    <div style={{minHeight:"100vh",display:"flex",background:T.bg,color:T.text,fontFamily:"'Inter',system-ui,sans-serif"}}>
-      <Sidebar {...shellProps} collapsed={collapsed} setCollapsed={setCollapsed}/>
-      <div className="main-content" style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}>
-        <AppTopbar T={T} section="Facturación" icon="M1 6a2 2 0 012-2h18a2 2 0 012 2v12a2 2 0 01-2 2H3a2 2 0 01-2-2zM1 10h22M5 15h4"/>
-        <PlanWall T={T} DS={DS} merchant={merchant} reloadMerchant={reloadMerchant} onLogout={onLogout}/>
-      </div>
-      <MobileBottomNav {...shellProps}/>
-      <ToastContainer T={T}/>
-    </div>
-  );
-
   return (
     <OnboardingContext.Provider value={onbCtx}>
     <div style={{minHeight:"100vh",display:"flex",background:T.bg,color:T.text,fontFamily:"'Inter',system-ui,sans-serif"}}>
@@ -260,7 +247,7 @@ export default function Dashboard({ user, onLogout }) {
           )}
         </AppTopbar>
 
-        {!loading && merchant?.billing && <TrialBanner T={T} billing={merchant.billing} onGo={()=>goConfig("facturacion")}/>}
+        {!loading && merchant?.billing && <BillingBanner T={T} billing={merchant.billing} onGo={()=>goConfig("facturacion")}/>}
 
         <PageView pageKey={tab} T={T}>
           <ErrorBoundary T={T}>

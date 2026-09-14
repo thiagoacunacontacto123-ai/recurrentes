@@ -113,14 +113,33 @@ export const PAYMENT_PROVIDERS = {
     region: "Argentina",
     desc: "Cobros recurrentes en tu cuenta de Mercado Pago, en pesos.",
   },
+  // Próximas pasarelas (investigación 2026-09-14, ver CLAUDE.md → Integraciones evaluadas).
+  mobbex: {
+    id: "mobbex",
+    label: "Mobbex",
+    emoji: "💠",
+    status: "soon",
+    currency: "ARS",
+    region: "Argentina",
+    desc: "Suscripciones con tarjeta guardada; ya la usan tiendas Shopify y Tiendanube.",
+  },
+  pagos360: {
+    id: "pagos360",
+    label: "Pagos360",
+    emoji: "🏦",
+    status: "soon",
+    currency: "ARS",
+    region: "Argentina",
+    desc: "Débito automático por CBU o tarjeta, para clientes sin tarjeta de crédito.",
+  },
   stripe: {
     id: "stripe",
     label: "Stripe",
     emoji: "🌎",
     status: "soon",
     currency: "USD",
-    region: "Global",
-    desc: "Tarjetas de todo el mundo y varias monedas, para vender afuera.",
+    region: "Fuera de Argentina",
+    desc: "Para tiendas de otros países: Stripe no opera con comercios argentinos.",
   },
 };
 
