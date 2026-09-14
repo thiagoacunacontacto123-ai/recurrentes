@@ -132,6 +132,18 @@ export const PAYMENT_PROVIDERS = {
     region: "Fuera de Argentina",
     desc: "Para tiendas de otros países: Stripe no opera con comercios argentinos.",
   },
+  // Whop: API con planes recurrentes, webhooks y cuentas conectadas. Encaja con
+  // digitales vendidos al exterior en USD (Impultienda); no cobra en pesos a
+  // compradores locales y su soporte de físicos está verde (verificado 2026-09-14).
+  whop: {
+    id: "whop",
+    label: "Whop",
+    emoji: "🎟️",
+    status: "soon",
+    currency: "USD",
+    region: "Exterior",
+    desc: "Membresías y productos digitales cobrados en dólares a compradores de afuera.",
+  },
 };
 
 const DEFAULT_TYPE = "physical";

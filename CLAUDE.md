@@ -159,7 +159,10 @@ Precio por **suscriptores activos** (`status` active o payment_failed), fuente �
 ## Integraciones evaluadas (investigación 2026-09-14)
 - **Tiendanube**: API confirmada para leer productos, crear órdenes pagas (`POST /orders`, `payment_status: paid`) e inyectar scripts (app de Partner, scope `scripts`). **Tiene suscripciones nativas** (solo Pago Nube + crédito, plan Impulso+, sin variantes, 1 producto con suscripción por carrito): nuestro espacio es MP / débito, variantes y packs.
 - **Impultienda**: sin API pública ni app store encontrada → pedirles acceso.
-- **Pasarelas**: Mobbex (API de suscripciones + tokenización + plugins Shopify/TN) y Pagos360 (débito CBU/tarjeta) son las próximas. Payway tokeniza. Getnet/Nave: recurrencia no confirmada. Ualá Bis/MODO/Naranja X: sin recurrencia por API. **Stripe no opera con comercios argentinos.** PayPal: solo USD (ventas internacionales).
+- **Pasarelas elegidas (Thiago, 2026-09-14): Mercado Pago, Mobbex, Stripe y Whop** — el resto (Pagos360, Payway, Getnet, Nave, PayPal, Ualá Bis, MODO) queda afuera por ahora.
+  - Mobbex: API de suscripciones + tokenización + plugins Shopify/TN (multi-comercio por OAuth no confirmado).
+  - **Stripe no opera con comercios argentinos** → solo para tiendas de otros países.
+  - Whop: API con planes recurrentes, webhooks (cobro, fallo, alta, baja, reembolso) y cuentas conectadas tipo Connect. Sirve para **digitales al exterior en USD** (Impultienda); no cobra en pesos a compradores locales y lo físico está verde. Comisión 2,7% + USD 0,30 + 0,5% recurrente. Probar alta y retiro con una cuenta argentina real antes de invertir.
 - **Después del cobro**: factura ARCA (TusFacturas con webhook, Facturante en TN, Xubio, Contabilium), WhatsApp (Twilio / Botmaker), logística (Zipnova con OAuth multi-cliente, Andreani, Correo Argentino, Envia, Enviopack), email (Perfit, Doppler).
 - Prioridad sugerida: 1) app Tiendanube · 2) Mobbex · 3) factura ARCA por cobro · 4) débito Pagos360 · 5) avisos por WhatsApp.
 
