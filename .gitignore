@@ -28,3 +28,5 @@ serviceAccountKey*.json
 # Cred files que el user puede dejar tirados en el repo
 *.cred
 secrets/
+# Claude Code: settings personales (permisos locales)
+.claude/settings.local.json
