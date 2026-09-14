@@ -27,20 +27,15 @@ const FLOW_STORES = [
   { n:"Shopify", s:"live" },
   { n:"Tiendanube", s:"soon" },
   { n:"Impultienda", s:"soon", d:"ebooks" },
-  { n:"WooCommerce", s:"radar" },
   { n:"Empretienda", s:"radar" },
-  { n:"VTEX", s:"radar" },
   { n:"Link de suscripción", s:"live" },
 ];
 // `d` corto: el ítem tiene alto fijo de una línea (si no, el texto se corta).
 const FLOW_PAYMENTS = [
   { n:"Mercado Pago", s:"live" },
   { n:"Mobbex", s:"soon" },
-  { n:"Pagos360", s:"soon", d:"débito CBU" },
-  { n:"Payway", s:"radar" },
-  { n:"Getnet", s:"radar" },
-  { n:"Nave", s:"radar" },
-  { n:"PayPal", s:"radar", d:"exterior" },
+  { n:"Stripe", s:"radar", d:"exterior" },
+  { n:"Whop", s:"radar", d:"digitales" },
 ];
 const FLOW_ACTIONS = [
   { t:"Cobro aprobado · $ 40.500", s:"live" },
@@ -69,8 +64,11 @@ function FlowConnector({ T, left, right, mode }) {
   return (
     <svg className="rec-flow-conn" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" style={{width:"100%",height:"100%",display:"block",overflow:"visible"}}>
       {paths.map((p, k) => (
-        <path key={k} d={p.d} fill="none" stroke={col(p.s)} strokeOpacity={p.s === "live" ? 0.9 : 0.45} strokeWidth="1.6" vectorEffect="non-scaling-stroke"
-          className={p.s === "live" ? "rec-flow-live" : undefined} strokeDasharray={p.s === "live" ? undefined : "3 5"}/>
+        // Líneas de puntitos: guion 0 + extremo redondo = un punto cada 6px.
+        // Las disponibles avanzan (animación en .rec-flow-live), el resto queda quieto y tenue.
+        <path key={k} d={p.d} fill="none" stroke={col(p.s)} strokeOpacity={p.s === "live" ? 0.95 : 0.5} strokeWidth={p.s === "live" ? 2.6 : 2.2}
+          strokeLinecap="round" strokeDasharray="0 6" vectorEffect="non-scaling-stroke"
+          className={p.s === "live" ? "rec-flow-live" : undefined}/>
       ))}
       {mode === "hub" && <circle cx="50" cy="50" r="1.6" fill={T.accentSolid}/>}
     </svg>
@@ -299,8 +297,8 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
           .rec-flow-head{margin-bottom:14px;align-items:end;}
           .rec-flow-connwrap{position:relative;min-width:0;}
           .rec-flow-mobile-arrow,.rec-flow-mlabel{display:none;}
-          .rec-flow-live{stroke-dasharray:4 6;animation:recFlow 1.4s linear infinite;}
-          @keyframes recFlow{to{stroke-dashoffset:-20;}}
+          .rec-flow-live{animation:recFlow 1.1s linear infinite;}
+          @keyframes recFlow{to{stroke-dashoffset:-12;}}
           @media (prefers-reduced-motion: reduce){ .rec-flow-live{animation:none;} }
           @media(max-width:900px){
             .rec-flow-grid{grid-template-columns:1fr;row-gap:10px;}

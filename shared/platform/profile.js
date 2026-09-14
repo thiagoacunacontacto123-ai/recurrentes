@@ -123,15 +123,6 @@ export const PAYMENT_PROVIDERS = {
     region: "Argentina",
     desc: "Suscripciones con tarjeta guardada; ya la usan tiendas Shopify y Tiendanube.",
   },
-  pagos360: {
-    id: "pagos360",
-    label: "Pagos360",
-    emoji: "🏦",
-    status: "soon",
-    currency: "ARS",
-    region: "Argentina",
-    desc: "Débito automático por CBU o tarjeta, para clientes sin tarjeta de crédito.",
-  },
   stripe: {
     id: "stripe",
     label: "Stripe",
