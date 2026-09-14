@@ -14,17 +14,44 @@ const RESEND_API = "https://api.resend.com/emails";
 const DEFAULT_FROM = "Recurrentes <[email protected]>";
 
 // Nombre visible de un "Nombre <mail@dom>".
-function fromName(from) {
+export function fromName(from) {
   return String(from || "").split("<")[0].trim().replace(/^["']|["']$/g, "");
+}
+// Dirección de un "Nombre <mail@dom>" (o el string si ya es un mail pelado).
+export function fromAddress(from) {
+  const s = String(from || "").trim();
+  const m = s.match(/<([^>]+)>/);
+  return (m ? m[1] : s).trim().toLowerCase();
+}
+// Remitente por defecto de la plataforma (env EMAIL_FROM o el hardcodeado).
+export function platformFrom() { return process.env.EMAIL_FROM || DEFAULT_FROM; }
+
+// Marca efectiva del merchant (sin escribir nada): lo que cargó en Configuración,
+// si no el nombre de la tienda (propio o el de Shopify), si no el myshopify.
+export function effectiveBrand(merchant) {
+  const m = merchant || {};
+  return String(m.email_brand || m.store_name || m.shop_name || fromName(m.email_from) || m.shopify_shop || "").trim();
+}
+// Remitente efectivo: el propio si lo cargó; si no "<Marca> <dirección de la
+// plataforma>". El DOMINIO del remitente sigue siendo el nuestro (EMAIL_FROM)
+// hasta que exista Resend multi-merchant (dominios verificados por tienda);
+// lo único que personalizamos es el nombre visible.
+export function effectiveFrom(merchant) {
+  const m = merchant || {};
+  if (m.email_from) return m.email_from;
+  const brand = effectiveBrand(m);
+  const addr = fromAddress(platformFrom());
+  return brand && addr ? `${brand.replace(/[<>"]/g, "")} <${addr}>` : platformFrom();
 }
 
 // Resuelve remitente/marca: explícito > merchant > env > default.
+// El acento del mail es SIEMPRE widget_color (email_accent se retiró 2026-09-13).
 function resolveSender({ merchant, from, brand, accent, replyTo } = {}) {
-  const f = from || merchant?.email_from || process.env.EMAIL_FROM || DEFAULT_FROM;
+  const f = from || effectiveFrom(merchant);
   return {
     from: f,
-    brand: brand || merchant?.email_brand || fromName(f) || "Tu tienda",
-    accent: accent || merchant?.email_accent || merchant?.widget_color || "",
+    brand: brand || effectiveBrand(merchant) || fromName(f) || "Tu tienda",
+    accent: accent || merchant?.widget_color || "",
     replyTo: replyTo || merchant?.email_reply_to || undefined,
   };
 }

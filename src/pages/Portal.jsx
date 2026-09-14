@@ -15,6 +15,7 @@ export default function Portal() {
   const [err, setErr] = useState("");
   const [busyAction, setBusyAction] = useState(null);
   const [editingAddr, setEditingAddr] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.split("?")[1] || window.location.search.slice(1));
@@ -47,6 +48,7 @@ export default function Portal() {
   }
 
   async function doAction(action) {
+    if (action === "cancel" && data?.retention?.enabled !== false) { setCancelOpen(true); return; }
     const confirmText = {
       pause: "Pausamos tu suscripción. No se hacen más cobros hasta que la reactives. ¿Confirmás?",
       resume: "Reactivamos tu suscripción y volvés a recibir tus envíos. ¿Confirmás?",
@@ -78,6 +80,39 @@ export default function Portal() {
     }
   }
 
+  async function cancelWithReason({ reason_code, reason, comment }) {
+    setBusyAction("cancel");
+    try {
+      const r = await fetch(`/api/public?action=sub&token=${encodeURIComponent(token)}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel", reason_code, reason, comment }),
+      });
+      const d = await r.json();
+      if (d.error) { toast("Error: " + d.error, "error", 6000); return; }
+      setCancelOpen(false);
+      toast("Suscripción cancelada", "success");
+      await load(token, true);
+    } catch (e) { toast("Error: " + e.message, "error", 6000); }
+    finally { setBusyAction(null); }
+  }
+
+  async function pauseInstead(cycles) {
+    setBusyAction("pause");
+    try {
+      const r = await fetch(`/api/public?action=pause-offer&token=${encodeURIComponent(token)}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cycles, token }),
+      });
+      const d = await r.json();
+      if (d.error) { toast("Error: " + d.error, "error", 6000); return; }
+      setCancelOpen(false);
+      const when = d.resume_at ? new Date(d.resume_at).toLocaleDateString("es-AR", { day:"2-digit", month:"long" }) : null;
+      toast(when ? `Listo, pausamos tu suscripción. Se retoma sola el ${when}.` : "Listo, pausamos tu suscripción.", "success", 6000);
+      await load(token, true);
+    } catch (e) { toast("Error: " + e.message, "error", 6000); }
+    finally { setBusyAction(null); }
+  }
+
   if (loading) {
     return <FullScreenCenter><div style={{color:"var(--text-sm)",fontSize:14}}>Cargando tu suscripción…</div></FullScreenCenter>;
   }
@@ -106,6 +141,10 @@ export default function Portal() {
   }[status] || { label: status, color: "var(--text-sm)", bg: "rgba(126,138,147,0.15)" };
 
   const plan = sub.plan_snapshot || {};
+  const perms = data.portal || {};
+  const canPause = perms.allow_pause !== false;
+  const canCancel = perms.allow_cancel !== false;
+  const canAddress = perms.allow_address !== false;
   const formattedNext = sub.next_charge_at ? new Date(sub.next_charge_at).toLocaleDateString("es-AR", { day:"2-digit", month:"long", year:"numeric" }) : null;
 
   return (
@@ -119,6 +158,10 @@ export default function Portal() {
             {brand && <div style={{fontSize:10,color:"var(--text-sm)"}}>Suscripciones con Recurrentes</div>}
           </div>
         </div>
+
+        {data.portal_welcome && (
+          <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:12,padding:"14px 18px",marginBottom:14,fontSize:13,color:"var(--text-md)",lineHeight:1.55,whiteSpace:"pre-wrap"}}>{data.portal_welcome}</div>
+        )}
 
         {/* Card principal — estado + plan */}
         <div style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:16,padding:"24px 26px",marginBottom:14}}>
@@ -144,7 +187,7 @@ export default function Portal() {
           <div style={{padding:"12px 14px",background:"var(--surface)",borderRadius:10,fontSize:12,color:"var(--text-md)",lineHeight:1.55,marginBottom:18}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
               <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5}}>Dirección de envío</div>
-              {status !== "cancelled" && (
+              {status !== "cancelled" && canAddress && (
                 <button onClick={()=>setEditingAddr(v=>!v)} style={{...btnSecondary,padding:"4px 10px",fontSize:11}}>{editingAddr ? "Cerrar" : "✏️ Cambiar"}</button>
               )}
             </div>
@@ -161,7 +204,7 @@ export default function Portal() {
 
           {/* Acciones */}
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-            {status === "active" && (
+            {status === "active" && canPause && (
               <button onClick={()=>doAction("pause")} disabled={busyAction} style={btnSecondary}>
                 {busyAction==="pause"?"Pausando…":"⏸ Pausar"}
               </button>
@@ -171,7 +214,7 @@ export default function Portal() {
                 {busyAction==="resume"?"Reactivando…":"▶ Reactivar"}
               </button>
             )}
-            {(status === "active" || status === "paused") && (
+            {(status === "active" || status === "paused") && canCancel && (
               <button onClick={()=>doAction("cancel")} disabled={busyAction} style={btnDanger}>
                 {busyAction==="cancel"?"Cancelando…":"✕ Cancelar"}
               </button>
@@ -206,6 +249,17 @@ export default function Portal() {
           ¿Necesitás ayuda? Respondé al email que te mandamos cuando se activó tu suscripción.
         </div>
       </div>
+      {cancelOpen && (
+        <CancelModal
+          retention={data.retention}
+          frequencyDays={plan.frequency_days}
+          canPause={status === "active" && canPause}
+          busy={busyAction}
+          onClose={() => setCancelOpen(false)}
+          onPause={pauseInstead}
+          onCancel={cancelWithReason}
+        />
+      )}
       <ToastContainer T={DARK}/>
       <AppPromptHost T={DARK}/>
     </div>
@@ -261,6 +315,52 @@ function AddressForm({ sub, token, onSaved }) {
 }
 
 const PROVINCIAS = ["Buenos Aires","Ciudad Autónoma de Buenos Aires","Catamarca","Chaco","Chubut","Córdoba","Corrientes","Entre Ríos","Formosa","Jujuy","La Pampa","La Rioja","Mendoza","Misiones","Neuquén","Río Negro","Salta","San Juan","San Luis","Santa Cruz","Santa Fe","Santiago del Estero","Tierra del Fuego","Tucumán"];
+
+// Modal de baja: motivo (los que configuró la tienda) + oferta de pausa antes de cancelar.
+function CancelModal({ retention, frequencyDays, canPause, busy, onClose, onPause, onCancel }) {
+  const reasons = Array.isArray(retention?.reasons) ? retention.reasons : [];
+  const [code, setCode] = useState("");
+  const [comment, setComment] = useState("");
+  const cycles = Math.max(1, Math.min(3, Number(retention?.pause_cycles) || 1));
+  const showPause = canPause && retention?.offer_pause !== false;
+  const resumeDate = new Date(Date.now() + cycles * (Number(frequencyDays) || 30) * 86400000).toLocaleDateString("es-AR", { day:"2-digit", month:"long" });
+  const label = reasons.find(r => r.code === code)?.label || null;
+  const box = { background:"var(--surface)", border:"1px solid var(--border)", borderRadius:12, padding:"14px 16px" };
+  return (
+    <div role="dialog" aria-modal="true" onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"center",justifyContent:"center",padding:16,zIndex:1000}}>
+      <div onClick={e => e.stopPropagation()} style={{background:"var(--card)",border:"1px solid var(--border)",borderRadius:16,padding:"22px 22px 18px",width:"100%",maxWidth:460,maxHeight:"90vh",overflowY:"auto"}}>
+        <div style={{fontSize:18,fontWeight:800,marginBottom:4}}>¿Por qué querés cancelar?</div>
+        <div style={{fontSize:12,color:"var(--text-sm)",marginBottom:14}}>Nos ayuda a mejorar. Elegí una opción.</div>
+
+        <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:12}}>
+          {reasons.map(r => (
+            <label key={r.code} style={{...box,padding:"10px 12px",display:"flex",alignItems:"center",gap:10,cursor:"pointer",borderColor: code === r.code ? "var(--accent)" : "var(--border)"}}>
+              <input type="radio" name="cancel-reason" checked={code === r.code} onChange={() => setCode(r.code)}/>
+              <span style={{fontSize:13}}>{r.label}</span>
+            </label>
+          ))}
+        </div>
+        <textarea value={comment} onChange={e => setComment(e.target.value)} placeholder="¿Algo más que quieras contarnos? (opcional)" maxLength={500} rows={2}
+          style={{width:"100%",boxSizing:"border-box",background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,color:"var(--text)",padding:"10px 12px",fontSize:16,fontFamily:"inherit",resize:"vertical",marginBottom:14}}/>
+
+        {showPause && (
+          <div style={{...box,borderColor:"var(--accent)",marginBottom:14}}>
+            <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>¿Y si la pausás en vez de cancelar?</div>
+            <div style={{fontSize:12,color:"var(--text-md)",lineHeight:1.5,marginBottom:10}}>No te cobramos ni te enviamos nada por {cycles === 1 ? "un ciclo" : `${cycles} ciclos`}. Se retoma sola el {resumeDate}. Podés cancelar cuando quieras.</div>
+            <button onClick={() => onPause(cycles)} disabled={!!busy} style={{...btnPrimary,width:"100%"}}>{busy === "pause" ? "Pausando…" : `Pausar ${cycles === 1 ? "1 ciclo" : `${cycles} ciclos`}`}</button>
+          </div>
+        )}
+
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end",flexWrap:"wrap"}}>
+          <button onClick={onClose} disabled={!!busy} style={btnSecondary}>Volver</button>
+          <button onClick={() => onCancel({ reason_code: code || "otro", reason: label, comment: comment.trim() || null })} disabled={!!busy || (reasons.length > 0 && !code)} style={{...btnDanger,opacity:(reasons.length > 0 && !code) ? 0.5 : 1}}>
+            {busy === "cancel" ? "Cancelando…" : "Cancelar igual"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function Stat({ label, value }) {
   return (

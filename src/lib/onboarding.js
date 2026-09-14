@@ -36,11 +36,15 @@ export function goConfigSection(goTab, sec) {
   try { goTab?.("configuracion"); } catch (_) {}
   try { setTimeout(() => { window.location.hash = `#/config/${sec}`; }, 0); } catch (_) {}
 }
-// La Guía lee `#/dashboard/guia?s=<sección>`.
+// La Guía vive en Configuración → Ayuda y lee `?s=<sección>` del hash.
 export function goGuideSection(goTab, sec) {
-  try { goTab?.("guia"); } catch (_) {}
-  if (!sec) return;
-  try { setTimeout(() => { window.location.hash = `#/dashboard/guia?s=${sec}`; }, 0); } catch (_) {}
+  try { goTab?.("configuracion"); } catch (_) {}
+  try { setTimeout(() => { window.location.hash = `#/config/ayuda${sec ? `?s=${sec}` : ""}`; }, 0); } catch (_) {}
+}
+// Planes → sub-tab Widget (diseñador): `#/dashboard/planes?sub=widget`.
+export function goPlanesWidget(goTab) {
+  try { goTab?.("planes"); } catch (_) {}
+  try { setTimeout(() => { window.location.hash = "#/dashboard/planes?sub=widget"; }, 0); } catch (_) {}
 }
 
 // ─── Íconos (paths SVG 24x24, stroke) de cada paso ─────────────────────
@@ -87,12 +91,12 @@ export function computeSteps({ merchant, user, plansCount }) {
       short:"Para leer tus productos y crear una orden en tu tienda con cada cobro.",
       why:"Recurrentes lee tu catálogo para armar los planes y crea una orden en Shopify cada vez que Mercado Pago cobra una suscripción. Sin esto no hay envíos.",
       needs:["Ser dueño o staff con permisos de la tienda","Crear una app personalizada en Shopify (5 min, la guía te lleva paso a paso)","Tu dominio tu-tienda.myshopify.com"],
-      tab:"integraciones", guideSec:"shopify", cta:"Conectar Shopify" },
+      tab:"configuracion", configSec:"integraciones", guideSec:"shopify", cta:"Conectar Shopify" },
     { id:"mp", n:3, done:mpOk, title:"Conectar Mercado Pago",
       short:"Es la cuenta que cobra: la plata va directo a vos.",
       why:"Las suscripciones se crean y se cobran en TU cuenta de Mercado Pago. Recurrentes solo las da de alta y escucha los pagos.",
       needs:["Tu cuenta de Mercado Pago de comercio (la que cobra)","El Access Token de producción (APP_USR-…) desde el panel de developers"],
-      tab:"integraciones", guideSec:"mp", cta:"Conectar Mercado Pago" },
+      tab:"configuracion", configSec:"integraciones", guideSec:"mp", cta:"Conectar Mercado Pago" },
     { id:"plan", n:4, done:planOk, locked:!integ, lockedMsg:"Primero conectá Shopify y Mercado Pago.", title:"Crear tu primer plan con packs",
       short:"Elegí un producto, la frecuencia, el descuento y los packs (x1, x2, x3…).",
       why:"Un plan convierte un producto de tu Shopify en suscripción. Los packs son las cantidades que ofrecés en el mismo selector (1, 2 o 3 unidades) con su precio cada uno.",
@@ -102,7 +106,7 @@ export function computeSteps({ merchant, user, plansCount }) {
       short:"10 diseños del selector de packs, con tu color y tus textos.",
       why:"El widget es lo que ve tu cliente en la página de producto. Elegí uno de los 10 diseños con vista previa real, ajustá el color, las esquinas y los textos.",
       needs:["El color principal de tu marca (hex)","Un plan creado para ver la vista previa con tus packs (opcional)"],
-      tab:"configuracion", configSec:"widget", guideSec:"diseno", cta:"Abrir el diseñador" },
+      tab:"planes", planesSub:"widget", guideSec:"diseno", cta:"Abrir el diseñador" },
     { id:"snippet", n:6, done:snippetOk, manual:true, manualLabel:"Ya lo pegué en mi tienda", manualKey:widgetKey(mid), title:"Pegar el snippet en tu tienda",
       short:"Una línea de código en tu theme y el widget aparece solo en los productos con plan.",
       why:"El snippet carga el widget en tu página de producto. Detecta el producto que se está viendo y, si tiene plan, muestra el selector de suscripción.",
@@ -112,12 +116,12 @@ export function computeSteps({ merchant, user, plansCount }) {
       short:"Dominio público de tu tienda y las tarifas de envío del checkout.",
       why:"El dominio arma los links de los mails y del portal del cliente. Las tarifas de envío son las que el cliente elige en el checkout de suscripción y se repiten en cada orden.",
       needs:["El dominio público (ej: www.mitienda.com)","Nombre y precio de cada opción de envío (hasta 6)"],
-      tab:"configuracion", configSec:"operacion", guideSec:"tienda", cta:"Configurar tienda" },
+      tab:"configuracion", configSec:"tienda", guideSec:"tienda", cta:"Configurar tienda" },
     { id:"klaviyo", n:8, done:klaviyoOk || klaviyoLater, optional:true, later:klaviyoLater && !klaviyoOk, manual:true, manualLabel:"Más tarde", manualKey:klaviyoLaterKey(mid), title:"Conectar Klaviyo (opcional)",
-      short:"Para recuperar carritos abandonados y mandar los mails con tu marca.",
+      short:"Para recuperar checkouts sin pagar y mandar los mails con tu marca.",
       why:"Recurrentes manda a Klaviyo los eventos de suscripción (checkout iniciado, activada, cancelada, pago fallido). Con eso armás flows de recupero y de retención. Si no usás Klaviyo, los mails básicos los manda Recurrentes.",
       needs:["Una cuenta de Klaviyo (plan gratis alcanza)","Su API key privada (Settings → API keys)"],
-      tab:"integraciones", guideSec:"klaviyo", cta:"Conectar Klaviyo" },
+      tab:"configuracion", configSec:"integraciones", guideSec:"klaviyo", cta:"Conectar Klaviyo" },
   ];
 }
 
@@ -158,6 +162,7 @@ export function useOnboarding({ merchant, user, goTab }) {
   const goStep = React.useCallback((step) => {
     if (!step) return;
     if (step.configSec) return goConfigSection(goTab, step.configSec);
+    if (step.planesSub === "widget") return goPlanesWidget(goTab);
     if (step.id === "snippet") return goGuideSection(goTab, "snippet");
     try { goTab?.(step.tab); } catch (_) {}
   }, [goTab]);
@@ -175,6 +180,10 @@ export function useOnb() { return React.useContext(OnboardingContext); }
 
 // Qué pasos hacen falta para que aparezca algo en cada sección.
 export const SECTION_NEEDS = {
+  suscripciones:["shopify", "mp", "plan", "snippet"],
+  analiticas:   ["shopify", "mp", "plan", "snippet"],
+  retencion:    ["shopify", "mp", "plan", "snippet"],
+  portal:       ["shopify", "mp", "plan", "snippet", "settings"],
   suscriptores: ["shopify", "mp", "plan", "snippet"],
   carritos:     ["shopify", "mp", "plan", "snippet"],
   abandonados:  ["shopify", "mp", "plan", "snippet"],
@@ -188,6 +197,6 @@ export const TIPS = {
   widgetDesign: "El diseño del widget es global para tu tienda: elegís 1 de los 10 layouts, tu color, las esquinas y los textos. Los packs y precios NO se cargan acá, salen de cada plan. La vista previa usa tus planes reales.",
   mpToken: "El Access Token de PRODUCCIÓN empieza con APP_USR-. Lo sacás en mercadopago.com.ar/developers → Tus integraciones → tu aplicación → Credenciales de producción. Tiene que ser de la cuenta que cobra, con el producto Suscripciones habilitado. Nunca lo compartas: es la llave de tu caja.",
   shopifyApp: "Recurrentes entra a tu Shopify con una app personalizada que creás vos en dev.shopify.com/dashboard → Crear app. Le das los permisos read_products, write_orders, read_customers, write_customers y read_shipping, y copiás el Client ID y el Secret acá. La guía tiene el paso a paso con la Redirect URL exacta.",
-  subscribersEmpty: "Un suscriptor aparece acá recién cuando completó el pago en Mercado Pago. Mientras esté en el checkout figura en Carritos de suscripción.",
+  subscribersEmpty: "Un suscriptor aparece acá recién cuando completó el pago en Mercado Pago. Mientras no pague figura en Suscripciones → Sin pagar.",
   chargesEmpty: "Cada cobro que procesa Mercado Pago (el primero y las renovaciones) queda acá con su orden de Shopify. Si la orden falla, podés reintentarla desde la fila.",
 };

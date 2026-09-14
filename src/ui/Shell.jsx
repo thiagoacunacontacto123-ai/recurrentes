@@ -8,22 +8,39 @@ import { BtnPrimary, BtnSecondary, BtnDanger, ModalCloseBtn, SECTION_ICONS, toas
 
 const F = "'Inter',system-ui,sans-serif";
 
-// ─── NAV: los 8 tabs del dashboard + Configuración + Guía ──────────────
+// ─── NAV: 7 secciones + Configuración (consenso Recharge/Skio/Loop/Stay) ──
 // `alertKey:"onboarding"` en Inicio = pasos pendientes del plan de acción
-// (badge verde, igual que los quehaceres de Growith).
+// (badge verde). Integraciones, Plan (facturación) y Guía viven en
+// Configuración (#/config/integraciones · #/config/facturacion · #/config/ayuda).
+const ICON = {
+  suscripciones: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75",
+  retencion:     "M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z",
+  portal:        "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8zM2 3h4M2 7h3",
+  analiticas:    "M18 20V10M12 20V4M6 20v-6M2 20h20",
+};
 export const NAV = [
-  { id:"inicio",        label:"Inicio",                  short:"Inicio",   icon:SECTION_ICONS.inicio, alertKey:"onboarding", badge:"accent" },
-  { id:"integraciones", label:"Integraciones",           short:"Integrar", icon:SECTION_ICONS.integraciones },
-  { id:"planes",        label:"Planes",                  short:"Planes",   icon:SECTION_ICONS.planes },
-  { id:"suscriptores",  label:"Suscriptores activos",    short:"Suscript.",icon:SECTION_ICONS.suscriptores, alertKey:"suscriptores" },
-  { id:"carritos",      label:"Carritos de suscripción", short:"Carritos", icon:SECTION_ICONS.carritos },
-  { id:"abandonados",   label:"Abandonados",             short:"Abandon.", icon:SECTION_ICONS.abandonados, alertKey:"abandonados", badge:"orange" },
-  { id:"actividad",     label:"Actividad",               short:"Actividad",icon:SECTION_ICONS.actividad },
-  { id:"cobros",        label:"Cobros",                  short:"Cobros",   icon:SECTION_ICONS.cobros, alertKey:"cobros", badge:"red" },
-  { id:"plan",          label:"Plan",                    short:"Plan",     icon:"M1 6a2 2 0 012-2h18a2 2 0 012 2v12a2 2 0 01-2 2H3a2 2 0 01-2-2zM1 10h22M5 15h4" },
-  { id:"configuracion", label:"Configuración",           short:"Config",   icon:SECTION_ICONS.configuracion },
-  { id:"guia",          label:"Guía",                    short:"Guía",     icon:"M4 19.5A2.5 2.5 0 016.5 17H20M4 19.5A2.5 2.5 0 006.5 22H20V2H6.5A2.5 2.5 0 004 4.5v15zM9 7h7M9 11h5" },
+  { id:"inicio",        label:"Inicio",             short:"Inicio",   icon:SECTION_ICONS.inicio, alertKey:"onboarding", badge:"accent" },
+  { id:"suscripciones", label:"Suscripciones",      short:"Suscrip.", icon:ICON.suscripciones, alertKey:"suscripciones" },
+  { id:"cobros",        label:"Cobros",             short:"Cobros",   icon:SECTION_ICONS.cobros, alertKey:"cobros", badge:"red" },
+  { id:"planes",        label:"Planes",             short:"Planes",   icon:SECTION_ICONS.planes },
+  { id:"retencion",     label:"Retención",          short:"Retener",  icon:ICON.retencion, alertKey:"retencion", badge:"orange" },
+  { id:"portal",        label:"Portal del cliente", short:"Portal",   icon:ICON.portal },
+  { id:"analiticas",    label:"Analíticas",         short:"Datos",    icon:ICON.analiticas },
+  { id:"configuracion", label:"Configuración",      short:"Config",   icon:SECTION_ICONS.configuracion },
 ];
+
+// Tabs viejos → destino nuevo. Dashboard.jsx los usa para redirigir hashes y
+// llamadas a goTab("suscriptores") que sigan vivas en otros archivos.
+//   { tab } → tab del NAV · { config } → sección de Configuración
+export const TAB_ALIASES = {
+  suscriptores:  { tab:"suscripciones" },
+  carritos:      { tab:"suscripciones", query:"status=unpaid" },
+  abandonados:   { tab:"suscripciones", query:"status=unpaid" },
+  actividad:     { tab:"portal", query:"sec=registro" },
+  integraciones: { config:"integraciones" },
+  plan:          { config:"facturacion" },
+  guia:          { config:"ayuda" },
+};
 
 // ─── Logo: círculo verde con flecha circular ↻ + wordmark ──────────────
 export function RecLogo({size=28, withText=false, color="#10b981", textColor, style={}}) {
@@ -435,18 +452,22 @@ export function Sidebar({T, nav=NAV, activeTab, onTab, user, merchant, workspace
       {/* Bloque de cuenta */}
       <div className="gh-accordion" style={{padding:DS.sp.sm}}>
         {!collapsed&&(
-          <button onClick={()=>onTab("configuracion")} title="Mi cuenta" style={{display:"flex",alignItems:"center",gap:DS.sp.md,padding:DS.sp.sm,width:"100%",background:"transparent",border:"none",cursor:"pointer",borderRadius:DS.r.md,fontFamily:F,marginBottom:DS.sp.xs}}>
+          <div style={{display:"flex",alignItems:"center",gap:4,marginBottom:DS.sp.xs}}>
+          <button onClick={()=>onTab("configuracion")} title="Mi cuenta" style={{display:"flex",alignItems:"center",gap:DS.sp.md,padding:DS.sp.sm,flex:1,minWidth:0,background:"transparent",border:"none",cursor:"pointer",borderRadius:DS.r.md,fontFamily:F}}>
             {user?.photoURL
               ?<img src={user.photoURL} alt="" referrerPolicy="no-referrer" style={{width:28,height:28,borderRadius:DS.r.full,border:`1px solid ${T.border}`,flexShrink:0}}/>
               :<div style={{width:28,height:28,borderRadius:DS.r.full,background:T.accentSolid+"33",color:T.accent,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:DS.w.bold,fontSize:DS.font.md,flexShrink:0}}>{initial}</div>
             }
             <div style={{flex:1,minWidth:0,textAlign:"left"}}>
               <div style={{fontSize:DS.font.md,fontWeight:DS.w.semibold,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user?.displayName||user?.email?.split("@")[0]}</div>
-              <div style={{fontSize:DS.font.xs,color:T.textSm,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{role==="member"?"Miembro del equipo":"Beta gratis"}</div>
+              <div style={{fontSize:DS.font.xs,color:T.textSm,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{role==="member"?"Miembro del equipo":(merchant?.billing?.plan_label||"Beta")}</div>
             </div>
           </button>
+            <button onClick={()=>onTab("configuracion")} title="Configuración" aria-label="Configuración" style={{width:32,height:32,flexShrink:0,background:"transparent",border:`1px solid ${T.border}`,borderRadius:DS.r.md,color:T.textMd,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></button>
+          </div>
         )}
         <div style={{display:"flex",flexDirection:collapsed?"column":"row",gap:4}}>
+          {collapsed&&<button onClick={()=>onTab("configuracion")} title="Configuración" aria-label="Configuración" style={{width:32,height:32,flexShrink:0,background:"transparent",border:`1px solid ${T.border}`,borderRadius:DS.r.md,color:T.textMd,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></button>}
           <button onClick={()=>setDarkMode(!darkMode)} title={darkMode?"Modo claro":"Modo oscuro"} style={{flex:collapsed?undefined:1,background:"transparent",border:`1px solid ${T.border}`,borderRadius:DS.r.md,color:T.textMd,cursor:"pointer",padding:"6px 8px",display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:DS.font.sm,fontFamily:F}}>
             {darkMode
               ?<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
@@ -495,7 +516,7 @@ export function AppTopbar({T, section, sectionId, icon, onHelp, children, top=0}
 // 4 accesos directos + "Más" (hoja con el resto del menú, tiendas, tema y salir).
 export function MobileBottomNav({T, nav=NAV, activeTab, onTab, workspace, merchant, onSwitchStore, onCreateStore, darkMode, setDarkMode, onLogout, alerts={}}) {
   const [open, setOpen] = React.useState(false);
-  const primaryIds = ["inicio","planes","suscriptores","cobros"];
+  const primaryIds = ["inicio","suscripciones","cobros","planes"];
   const primary = primaryIds.map(id=>nav.find(n=>n.id===id)).filter(Boolean);
   const rest = nav.filter(n=>!primaryIds.includes(n.id));
   const stores = workspace?.stores || [];

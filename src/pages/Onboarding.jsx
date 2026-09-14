@@ -4,7 +4,7 @@ import { auth } from "../lib/firebase.js";
 import { DS as DS_, useT } from "../ui/theme.js";
 import { BtnPrimary, BtnSecondary, Btn, Card, SectionIcon, Callout, DSEmpty, Tip, toast } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
-import { STEP_ICONS, TIPS, SECTION_NEEDS, WHATSAPP_SOPORTE, useOnb, planHiddenKey, readFlag, writeFlag } from "../lib/onboarding.js";
+import { STEP_ICONS, TIPS, SECTION_NEEDS, WHATSAPP_SOPORTE, useOnb, planHiddenKey, readFlag, writeFlag, goGuideSection } from "../lib/onboarding.js";
 
 // ─────────────────────────────────────────────────────────────────
 // Experiencia de usuario nuevo de Recurrentes — portada de Growith:
@@ -59,7 +59,7 @@ export default function OnboardingWizard({ T: Tp, DS: DSp, merchant, onb, onClos
     { id:"plan",     nombre:"Planes con packs",         desc:"Elegís un producto de tu Shopify, cada cuántos días se cobra, el descuento y los packs (x1, x2, x3) con su precio." },
     { id:"snippet",  nombre:"Widget en tu tienda",      desc:"Una línea de código y el selector de suscripción aparece en la página de producto, con el diseño que elijas." },
     { id:"mp",       nombre:"Cobros automáticos",       desc:"El cliente paga en Mercado Pago. MP cobra solo cada período y Recurrentes crea la orden en Shopify para que despaches." },
-    { id:"klaviyo",  nombre:"Recupero y mails",         desc:"Carritos abandonados, activaciones y pagos fallidos avisados por mail. Con Klaviyo, con tu marca y tus flows." },
+    { id:"klaviyo",  nombre:"Recupero y mails",         desc:"Los checkouts sin pagar y los eventos de cada suscripción llegan a tu Klaviyo, para recuperarlos con tu marca y tus flows." },
   ];
 
   const Header = ({ small }) => (
@@ -115,7 +115,7 @@ export default function OnboardingWizard({ T: Tp, DS: DSp, merchant, onb, onClos
               "Cobros recurrentes en tu propia cuenta de MP, sin intermediarios",
               "Una orden en Shopify por cada cobro, con envío y dirección",
               "Widget con packs (x1, x2, x3) y 10 diseños para tu página de producto",
-              "Recupero de carritos abandonados y mails automáticos",
+              "Checkouts sin pagar enviados a tu Klaviyo para recuperarlos",
             ].map((b, i) => (
               <div key={i} style={{ display:"flex", gap:DS.sp.sm, alignItems:"center", marginBottom:DS.sp.sm }}>
                 <Check/><span style={{ fontSize:DS.font.lg, color:T.text }}>{b}</span>
@@ -408,7 +408,7 @@ export function ShopifyAppTip({ T: Tp, label = "¿Qué es la app personalizada?"
   return (
     <span style={{ display:"inline-flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
       <Tip T={T} label={label} text={TIPS.shopifyApp}/>
-      {goTab && <a href="#/dashboard/guia?s=shopify" onClick={e => { e.preventDefault(); goTab("guia"); setTimeout(() => { try { window.location.hash = "#/dashboard/guia?s=shopify"; } catch (_) {} }, 0); }} style={{ fontSize:DS_.font.sm, color:T.accent, fontWeight:DS_.w.semibold, textDecoration:"none" }}>Ver guía →</a>}
+      {goTab && <a href="#/config/ayuda?s=shopify" onClick={e => { e.preventDefault(); goGuideSection(goTab, "shopify"); }} style={{ fontSize:DS_.font.sm, color:T.accent, fontWeight:DS_.w.semibold, textDecoration:"none" }}>Ver guía →</a>}
     </span>
   );
 }

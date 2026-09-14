@@ -10,17 +10,20 @@
 //   5) planes MP huérfanos (> 14 días sin autorizar): solo 1 vez por hora (minuto < 2)
 //   (6, retirado 2026-09-13: los mails de carrito abandonado propios se
 //    reemplazaron por eventos a Klaviyo, ver _lib/klaviyo.js)
+//   7) pausas por oferta de retención con resume_at vencido → status authorized en
+//      MP + active local (best effort, máx 20 por merchant y corrida, 3 intentos)
 // Presupuesto: 240s; si se agota devolvemos parcial. Los merchants rotan por
 // corrida (offset = minuto % N) para que ninguno se quede sin turno.
 //
 // Auth: header `Authorization: Bearer <CRON_SECRET>` (Vercel Cron lo inyecta).
 // En producción CRON_SECRET es OBLIGATORIO (fail closed). `?token=` sigue
 // aceptado por compatibilidad con crons externos, pero está deprecado.
+import { FieldValue } from "firebase-admin/firestore";
 import { db } from "./_lib/firebase.js";
 import { syncSubscriber } from "./_lib/sync.js";
 import { isProd } from "./_lib/config.js";
 import { timingSafeEqualStr } from "./_lib/token.js";
-import { mpRefreshToken, mpCancelPreapprovalPlan, isMpAuthError } from "./_lib/mp.js";
+import { mpRefreshToken, mpCancelPreapprovalPlan, mpUpdatePreapproval, mpGetPreapproval, isMpAuthError } from "./_lib/mp.js";
 
 export const config = { maxDuration: 300 };
 
@@ -30,6 +33,8 @@ const D = 24 * H;
 const MAX_PENDINGS_PER_MERCHANT = 40;
 const MAX_CANCELLED_PER_MERCHANT = 60;
 const MAX_ORPHAN_PLANS_PER_MERCHANT = 30;
+const MAX_RESUMES_PER_MERCHANT = 20;
+const MAX_RESUME_ATTEMPTS = 3;
 const nowIso = () => new Date().toISOString();
 const ms = (s) => { const t = s ? Date.parse(s) : NaN; return Number.isFinite(t) ? t : 0; };
 
@@ -67,7 +72,7 @@ export default async function handler(req, res) {
   const minute = new Date(start).getMinutes();
   let merchantsSnap = null;
   let merchantsProcessed = 0, subsProcessed = 0, activated = 0, errors = 0;
-  let tokensRefreshed = 0, plansCancelled = 0;
+  let tokensRefreshed = 0, plansCancelled = 0, resumed = 0;
   let partial = false;
   const outOfTime = () => (Date.now() - start) > BUDGET_MS;
 
@@ -232,6 +237,67 @@ export default async function handler(req, res) {
           if (partial) break;
         }
 
+        // 7) REACTIVAR PAUSAS POR RETENCIÓN — subs pausadas desde el portal con
+        //    `resume_at` (oferta "pausá N ciclos") ya vencido: MP → authorized, local →
+        //    active. Best effort: un fallo no corta el cron; 3 intentos y se deja pausada.
+        //    Query por resume_at solo (índice simple): el campo se borra al reactivar.
+        if (md.mp_access_token) {
+          try {
+            const due = await merchantSubs.where("resume_at", "<=", nowIso()).limit(MAX_RESUMES_PER_MERCHANT).get();
+            for (const subDoc of due.docs) {
+              if (outOfTime()) { partial = true; break; }
+              const d = subDoc.data();
+              // Ya no está pausada (la reactivó/canceló alguien a mano): limpiar y seguir.
+              if (d.status !== "paused" || !d.mp_preapproval_id) {
+                await subDoc.ref.update({ resume_at: FieldValue.delete() }).catch(() => {});
+                continue;
+              }
+              try {
+                try {
+                  await mpUpdatePreapproval(md.mp_access_token, d.mp_preapproval_id, { status: "authorized" });
+                } catch (e) {
+                  if (isMpAuthError(e)) throw e;
+                  if (!/already|authorized preapproval|same status/i.test(String(e.message || ""))) throw e;
+                }
+                let pre = null;
+                try { pre = await mpGetPreapproval(md.mp_access_token, d.mp_preapproval_id); } catch (_) {}
+                if (pre && pre.status && pre.status !== "authorized") {
+                  // MP no la dejó activa (ej. cancelada por el cliente en MP): no forzamos.
+                  await subDoc.ref.update({ resume_at: FieldValue.delete(), resume_error: `mp_status=${pre.status}`, resume_error_at: nowIso(), mp_preapproval_status: pre.status }).catch(() => {});
+                  continue;
+                }
+                await subDoc.ref.update({
+                  status: "active",
+                  mp_preapproval_status: "authorized",
+                  next_charge_at: pre?.next_payment_date || d.next_charge_at || null,
+                  resume_at: FieldValue.delete(),
+                  resumed_at: nowIso(),
+                  resumed_by: "cron_retention",
+                  resume_error: FieldValue.delete(),
+                  resume_attempts: FieldValue.delete(),
+                  updated_at: nowIso(),
+                });
+                resumed += 1;
+                console.log(`[cron] sub ${m.id}/${subDoc.id} reactivada tras pausa por retención`);
+              } catch (e) {
+                const attempts = (d.resume_attempts || 0) + 1;
+                console.warn(`[cron] reactivar ${m.id}/${subDoc.id} falló (intento ${attempts}):`, e.message);
+                await subDoc.ref.update({
+                  resume_attempts: attempts,
+                  resume_error: String(e.message || e).slice(0, 300),
+                  resume_error_at: nowIso(),
+                  // Tras 3 intentos dejamos de insistir: queda pausada y visible en el panel.
+                  ...(attempts >= MAX_RESUME_ATTEMPTS ? { resume_at: FieldValue.delete(), resume_gave_up_at: nowIso() } : {}),
+                }).catch(() => {});
+                if (isMpAuthError(e)) break; // token roto: no insistir con el resto
+              }
+            }
+          } catch (e) {
+            console.warn(`[cron] query resume_at ${m.id}:`, e.message);
+          }
+          if (partial) break;
+        }
+
         await m.ref.set({ last_cron_at: nowIso() }, { merge: true }).catch(() => {});
       } catch (e) {
         // Un merchant que rompe (token roto, query que falla, etc.) NO tumba el cron
@@ -252,6 +318,7 @@ export default async function handler(req, res) {
       errors,
       tokens_refreshed: tokensRefreshed,
       plans_cancelled: plansCancelled,
+      resumed,
       elapsed_ms: elapsed,
     };
     console.log(`[cron] sync-all-pending: ${merchantsProcessed}/${merchantsSnap.size} merchants, ${subsProcessed} subs, ${activated} activadas, ${errors} errores${partial ? " (PARCIAL: presupuesto agotado)" : ""} (${elapsed}ms)`);

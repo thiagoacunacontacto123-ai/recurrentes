@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { DS, useT } from "../ui/theme.js";
 import { Card, Btn, Callout, PageHeader, SubTabs, toast } from "../ui/components.jsx";
-import { WHATSAPP_SOPORTE, useOnb, goConfigSection } from "../lib/onboarding.js";
+import { WHATSAPP_SOPORTE, useOnb, goConfigSection, goPlanesWidget } from "../lib/onboarding.js";
 
 // ─────────────────────────────────────────────────────────────────
-// Guía escrita dentro de la app. Se monta como tab `guia`
-// (#/dashboard/guia?s=<sección>) y como Configuración → Ayuda (embedded).
+// Guía escrita dentro de la app. Vive en Configuración → Ayuda (embedded);
+// también acepta #/dashboard/guia?s=<sección> (ruta vieja).
 // Sin imágenes: cada paso tiene "capturas de texto" (ruta de menús y
 // pantallas dibujadas con cajas) para que se pueda seguir sin salir.
 // Contenido base: MERCHANT_GUIDE.md del repo + flujo real de la app.
@@ -19,11 +19,11 @@ export const GUIDE_SECTIONS = [
   { id:"shopify", label:"Shopify" },
   { id:"mp",      label:"Mercado Pago" },
   { id:"planes",  label:"Planes y packs" },
-  { id:"diseno",  label:"Diseño del widget" },
+  { id:"diseno",  label:"Widget" },
   { id:"snippet", label:"Pegar el snippet" },
   { id:"probar",  label:"Probar" },
   { id:"tienda",  label:"Tienda y envíos" },
-  { id:"klaviyo", label:"Klaviyo y recupero" },
+  { id:"klaviyo", label:"Klaviyo" },
   { id:"faq",     label:"Preguntas" },
 ];
 const SHOPIFY_SCOPES = ["read_products", "write_orders", "read_customers", "write_customers", "read_shipping"];
@@ -170,8 +170,7 @@ function StepStatus({ T, onb, id }) {
 }
 
 // ─── Secciones ──────────────────────────────────────────────────────
-function SecInicio({ T, go, onb, goTab }) {
-  const steps = onb?.steps || [];
+function SecInicio({ T, go, goTab }) {
   return (
     <>
       <Sec T={T} title="Cómo funciona Recurrentes" sub="Leé esto primero: son 2 minutos y después cada paso tiene sentido.">
@@ -187,25 +186,10 @@ function SecInicio({ T, go, onb, goTab }) {
           ))}
         </div>
       </Sec>
-      <Sec T={T} title="Tu plan de acción (8 pasos)" sub="El mismo checklist que ves en Inicio. Tocá uno para ir a su guía.">
-        <div style={{ border:`1px solid ${T.border}`, borderRadius:DS.r.xl, overflow:"hidden" }}>
-          {steps.map((s, i) => (
-            <button key={s.id} onClick={() => s.guideSec ? go(s.guideSec) : onb?.goStep(s)} style={{ width:"100%", display:"flex", alignItems:"center", gap:12, padding:"10px 14px", background:"transparent", border:"none", borderTop: i === 0 ? "none" : `1px solid ${T.borderL}`, cursor:"pointer", textAlign:"left", fontFamily:F }}>
-              <span style={{ width:24, height:24, borderRadius:"50%", background: s.done ? T.green : T.surface, border: s.done ? "none" : `1px solid ${T.border}`, color: s.done ? "#fff" : T.textSm, fontSize:11, fontWeight:DS.w.bold, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{s.done ? "✓" : s.n}</span>
-              <span style={{ flex:1, minWidth:0 }}>
-                <span style={{ display:"block", fontSize:DS.font.base, fontWeight:DS.w.semibold, color: s.done ? T.textSm : T.text }}>{s.title}</span>
-                <span style={{ display:"block", fontSize:DS.font.sm, color:T.textSm, marginTop:1 }}>{s.short}</span>
-              </span>
-              <span style={{ color:T.accent }}>→</span>
-            </button>
-          ))}
-          {steps.length === 0 && <div style={{ padding:14, fontSize:DS.font.md, color:T.textSm }}>Cargando tu plan…</div>}
-        </div>
-        <div style={{ marginTop:12, display:"flex", gap:8, flexWrap:"wrap" }}>
-          <Btn T={T} variant="solid" size="sm" onClick={() => go("shopify")}>Empezar por Shopify →</Btn>
-          <Btn T={T} variant="secondary" size="sm" onClick={() => goTab?.("inicio")}>Ver el plan en Inicio</Btn>
-        </div>
-      </Sec>
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:DS.sp.lg }}>
+        <Btn T={T} variant="solid" size="sm" onClick={() => go("shopify")}>Empezar por Shopify →</Btn>
+        <Btn T={T} variant="secondary" size="sm" onClick={() => goTab?.("inicio")}>Ver mi plan de acción en Inicio</Btn>
+      </div>
     </>
   );
 }
@@ -215,8 +199,8 @@ function SecShopify({ T, onb, goTab, origin }) {
   return (
     <>
       <Sec T={T} title="Conectar Shopify con una app personalizada" sub="Recurrentes entra a tu tienda con una app que creás vos en tu cuenta de Shopify. Es tuya, la controlás vos y la podés borrar cuando quieras. Lleva 5 minutos."
-        right={<><StepStatus T={T} onb={onb} id="shopify"/><Btn T={T} variant="primary" size="sm" onClick={() => goTab?.("integraciones")}>Ir a Integraciones →</Btn></>}>
-        <Callout T={T} tone="info" style={{ marginBottom:12 }}>Si en Integraciones la card de Shopify <B T={T}>no</B> te pide Client ID ni Secret, Recurrentes ya tiene una app propia configurada: solo pegá tu dominio <Code T={T}>tu-tienda.myshopify.com</Code>, tocá <B T={T}>Conectar tienda</B> e instalá. Podés saltear el resto de esta sección.</Callout>
+        right={<><StepStatus T={T} onb={onb} id="shopify"/><Btn T={T} variant="primary" size="sm" onClick={() => goConfigSection(goTab, "integraciones")}>Ir a Integraciones →</Btn></>}>
+        <Callout T={T} tone="info" style={{ marginBottom:12 }}>Si en Configuración → Integraciones la card de Shopify <B T={T}>no</B> te pide Client ID ni Secret, Recurrentes ya tiene una app propia configurada: solo pegá tu dominio <Code T={T}>tu-tienda.myshopify.com</Code>, tocá <B T={T}>Conectar tienda</B> e instalá. Podés saltear el resto de esta sección.</Callout>
         <Steps T={T} items={[
           <>Entrá a <A T={T} href="https://dev.shopify.com/dashboard">dev.shopify.com/dashboard</A> con la cuenta dueña de la tienda y tocá <B T={T}>Crear app</B>. Nombre: <Code T={T}>Recurrentes</Code>.<Crumb T={T} path="Shopify Dev Dashboard › Apps › Crear app"/></>,
           <>Dentro de la app, andá a <B T={T}>Configuración</B>. En la sección <B T={T}>URLs</B> agregá esta Redirect URL <B T={T}>exactamente</B> así:<CodeBlock T={T} code={redirect}/></>,
@@ -227,15 +211,15 @@ function SecShopify({ T, onb, goTab, origin }) {
           <>Volvé a <B T={T}>Configuración → Credenciales</B>. Copiá el <B T={T}>ID de cliente</B> y el <B T={T}>Secreto</B> (tocá el ojito para verlo).
             <Screen T={T} title="Shopify › Configuración › Credenciales" rows={[{ label:"ID de cliente", value:"a1b2c3d4e5f6…", mono:true }, { label:"Secreto", value:"shpss_••••••••••••", mono:true, btn:"👁 Ver" }]}/>
           </>,
-          <>En Recurrentes → <B T={T}>Integraciones → Shopify</B> pegá dominio, Client ID y Secret, y tocá <B T={T}>Conectar tienda →</B>.
-            <Screen T={T} title="Recurrentes › Integraciones › Shopify" rows={[{ label:"Dominio", value:"tu-tienda.myshopify.com", mono:true }, { label:"Client ID", value:"a1b2c3d4e5f6…", mono:true }, { label:"Client Secret", value:"shpss_••••••••••••", mono:true, btn:"Conectar tienda →" }]}/>
+          <>En Recurrentes → <B T={T}>Configuración → Integraciones → Shopify</B> pegá dominio, Client ID y Secret, y tocá <B T={T}>Conectar tienda →</B>.
+            <Screen T={T} title="Recurrentes › Configuración › Integraciones › Shopify" rows={[{ label:"Dominio", value:"tu-tienda.myshopify.com", mono:true }, { label:"Client ID", value:"a1b2c3d4e5f6…", mono:true }, { label:"Client Secret", value:"shpss_••••••••••••", mono:true, btn:"Conectar tienda →" }]}/>
           </>,
           <>Shopify te muestra la pantalla de permisos. Tocá <B T={T}>Instalar app</B>. Volvés a Recurrentes con Shopify en verde ✓.</>,
         ]}/>
         <Callout T={T} tone="warning" title="Si falla el OAuth">Casi siempre es la Redirect URL: tiene que coincidir letra por letra con la de arriba (https incluido). Revisala, guardá en Shopify y volvé a tocar Conectar tienda.</Callout>
       </Sec>
       <Sec T={T} title="Qué hace Recurrentes en tu Shopify">
-        <P T={T}><B T={T}>Lee</B> productos y variantes (para armar planes), <B T={T}>crea</B> órdenes pagas con etiqueta <Code T={T}>RECURRENTE</Code> cada cobro, <B T={T}>crea o actualiza</B> el cliente con su dirección y <B T={T}>lee</B> tus tarifas de envío. No toca stock, precios ni temas.</P>
+        <P T={T}><B T={T}>Lee</B> productos y variantes (para armar planes), <B T={T}>crea</B> órdenes pagas con etiqueta <Code T={T}>RECURRENTE</Code> cada cobro, <B T={T}>crea o actualiza</B> el cliente con su dirección y <B T={T}>lee</B> tus tarifas de envío y los datos de la tienda (nombre, dominio, moneda, mail). No toca stock, precios ni temas.</P>
       </Sec>
     </>
   );
@@ -245,7 +229,7 @@ function SecMp({ T, onb, goTab }) {
   return (
     <>
       <Sec T={T} title="Conectar Mercado Pago" sub="Necesitamos el Access Token de tu cuenta de MP (la que cobra) con el producto Suscripciones habilitado. Se obtiene creando una aplicación en el panel de developers de MP: es tuya y queda en tu cuenta."
-        right={<><StepStatus T={T} onb={onb} id="mp"/><Btn T={T} variant="primary" size="sm" onClick={() => goTab?.("integraciones")}>Ir a Integraciones →</Btn></>}>
+        right={<><StepStatus T={T} onb={onb} id="mp"/><Btn T={T} variant="primary" size="sm" onClick={() => goConfigSection(goTab, "integraciones")}>Ir a Integraciones →</Btn></>}>
         <Callout T={T} tone="warning" title="Tu Access Token es SECRETO" style={{ marginBottom:12 }}>Es como la llave de tu caja registradora. No lo compartas por redes, capturas ni con nadie que no sea Recurrentes. Si sospechás que se filtró, regeneralo desde MP y volvé a pegarlo.</Callout>
         <Steps T={T} items={[
           <>Con tu cuenta MP <B T={T}>de comercio</B> entrá a <A T={T} href="https://www.mercadopago.com.ar/developers/panel/app">mercadopago.com.ar/developers/panel/app</A>.<Crumb T={T} path="Mercado Pago › Developers › Tus integraciones"/></>,
@@ -256,7 +240,7 @@ function SecMp({ T, onb, goTab }) {
           <>Copiá el <B T={T}>Access Token</B> (empieza con <Code T={T}>APP_USR-</Code>). La Public Key no hace falta.
             <Screen T={T} title="MP Developers › Credenciales de producción" rows={[{ label:"Public Key", value:"APP_USR-abcd…  (no la necesitamos)", mono:true }, { label:"Access Token", value:"APP_USR-1234567890-••••••", mono:true, hl:true, btn:"Copiar" }]}/>
           </>,
-          <>En Recurrentes → <B T={T}>Integraciones → Mercado Pago → Pegar Access Token</B>, pegalo y guardá. Validamos el token contra MP y queda conectado.</>,
+          <>En Recurrentes → <B T={T}>Configuración → Integraciones → Mercado Pago → Pegar Access Token</B>, pegalo y guardá. Validamos el token contra MP y queda conectado; vas a ver el mail de la cuenta de MP en la card.</>,
         ]}/>
         <P T={T}><B T={T}>¿Querés probar antes sin plata real?</B> En la misma app de MP, <B T={T}>Credenciales de prueba</B> te da un token <Code T={T}>TEST-</Code>. Sirve para ver el circuito, pero con ese token ningún cliente real va a poder pagar. Cuando estés listo, pegá el de producción con <B T={T}>Cambiar Access Token</B>.</P>
         <P T={T}>Si aparece el botón <B T={T}>Conectar Mercado Pago (OAuth)</B>, es la alternativa sin copiar nada: te lleva a MP a autorizar a Recurrentes.</P>
@@ -274,8 +258,9 @@ function SecPlanes({ T, onb, goTab }) {
           <>Andá a <B T={T}>Planes → + Nuevo plan</B> y elegí el producto (y la variante si tiene). Se lista tu catálogo de Shopify.<Crumb T={T} path="Recurrentes › Planes › + Nuevo plan"/></>,
           <>Elegí la <B T={T}>frecuencia</B> en días (30 = mensual, 15 = quincenal, 60 = bimestral). Es cada cuánto MP cobra y cada cuánto se genera una orden.</>,
           <>Poné el <B T={T}>descuento por suscribirse</B> (%) respecto del precio de compra única. Es el incentivo: 10-15% suele funcionar.</>,
-          <>Armá los <B T={T}>packs</B> (ver abajo) y, si querés, el <B T={T}>envío</B> del plan (precio, "gratis desde $X" y nombre del método).</>,
-          <>Guardá. Recurrentes crea el plan de suscripción en tu MP y lo deja <B T={T}>activo</B>. Ya podés copiar el snippet desde <B T={T}>&lt;/&gt; Código</B>.</>,
+          <>Armá los <B T={T}>packs</B> (ver abajo). Mientras cargás, a la derecha ves la <B T={T}>vista previa en vivo</B> del widget con tus precios.</>,
+          <>Envío: si cargaste <B T={T}>envíos del checkout</B> en Configuración → Tienda, el cliente elige entre esos. Si no, el plan tiene un envío por defecto (precio, "gratis desde $X" y nombre).</>,
+          <>Guardá. Recurrentes crea el plan de suscripción en tu MP y lo deja <B T={T}>activo</B>. Ya podés copiar el snippet desde <B T={T}>📋 Snippet</B>.</>,
         ]}/>
       </Sec>
       <Sec T={T} title="Packs: la clave del ticket promedio">
@@ -293,16 +278,16 @@ function SecPlanes({ T, onb, goTab }) {
 
 function SecDiseno({ T, onb, goTab }) {
   return (
-    <Sec T={T} title="Diseño del widget" sub="El widget es el selector de packs que ve tu cliente en la página de producto. Hay 10 diseños con vista previa real usando tus planes."
-      right={<><StepStatus T={T} onb={onb} id="design"/><Btn T={T} variant="primary" size="sm" onClick={() => goConfigSection(goTab, "widget")}>Abrir el diseñador →</Btn></>}>
+    <Sec T={T} title="Widget: cómo se ve el selector" sub="El widget es el selector de packs que ve tu cliente en la página de producto. Hay 10 diseños con vista previa real usando tus planes. Vive en Planes → Widget."
+      right={<><StepStatus T={T} onb={onb} id="design"/><Btn T={T} variant="primary" size="sm" onClick={() => goPlanesWidget(goTab)}>Abrir Planes → Widget →</Btn></>}>
       <Steps T={T} items={[
-        <>Entrá a <B T={T}>Configuración → Diseño del widget</B>.<Crumb T={T} path="Recurrentes › Configuración › Diseño del widget"/></>,
+        <>Entrá a <B T={T}>Planes → pestaña Widget</B>.<Crumb T={T} path="Recurrentes › Planes › Widget"/></>,
         <>En la <B T={T}>galería</B> mirá los 10 diseños (v01 a v10) renderizados con tus packs. Tocá <B T={T}>Usar este</B> en el que más pegue con tu tienda.</>,
-        <>Ajustá el <B T={T}>color principal</B> (el hex de tu marca), el <B T={T}>radio de esquinas</B>, si se muestran los <B T={T}>precios tachados</B> y el <B T={T}>precio por unidad</B>, y qué modo arranca seleccionado (suscripción o compra única).</>,
-        <>Editá los <B T={T}>textos</B>: título de la opción de suscripción, de la compra única, el disclaimer y el botón. Todo con vista previa al instante.</>,
-        <>Tocá <B T={T}>Guardar diseño</B>. Se aplica a todos los productos con plan, sin volver a tocar el snippet.</>,
+        <>Ajustá el <B T={T}>color de acento</B> (el hex de tu marca), el <B T={T}>radio de esquinas</B>, si se muestran los <B T={T}>precios tachados</B> y el <B T={T}>precio por unidad</B>, cuál opción aparece primero y cuál arranca seleccionada (suscripción o compra única).</>,
+        <>Editá los <B T={T}>textos</B>: título, etiquetas del toggle, botones y líneas de confianza. Todo con vista previa al instante.</>,
+        <>Tocá <B T={T}>Guardar diseño</B>. Se aplica a todos los productos con plan, sin volver a tocar el snippet. Abajo tenés el snippet para copiar y la casilla "Ya lo pegué".</>,
       ]}/>
-      <Callout T={T} tone="info">El diseño es global para la tienda; los packs y precios salen de cada plan. Si un producto no tiene plan activo, el widget directamente no se muestra ahí.</Callout>
+      <Callout T={T} tone="info">El diseño es global para la tienda; los packs y precios salen de cada plan (Planes → Editar). Si un producto no tiene plan activo, el widget directamente no se muestra ahí.</Callout>
     </Sec>
   );
 }
@@ -313,7 +298,7 @@ function SecSnippet({ T, onb, goTab, origin, mid }) {
     <>
       <Sec T={T} title="Pegar el snippet en tu tienda" sub="Una línea de código, una sola vez. Elegí la forma que te resulte más cómoda: como bloque Custom Liquid (sin tocar código) o en templates/product.json (editor de código)."
         right={<><StepStatus T={T} onb={onb} id="snippet"/>{onb && !onb.steps?.find(s => s.id === "snippet")?.done && <Btn T={T} variant="success" size="sm" onClick={() => onb.setManual(onb.steps.find(s => s.id === "snippet"), true)}>Ya lo pegué ✓</Btn>}</>}>
-        <P T={T}>Tu snippet (también lo copiás desde <B T={T}>Planes → &lt;/&gt; Código</B>):</P>
+        <P T={T}>Tu snippet (también lo copiás desde <B T={T}>Planes → 📋 Snippet</B> o desde <B T={T}>Planes → Widget → Instalación</B>):</P>
         <CodeBlock T={T} code={snippet} label="Copiar snippet"/>
         <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, margin:"14px 0 6px" }}>Opción A · Bloque Custom Liquid (recomendada, sin código)</div>
         <Steps T={T} items={[
@@ -351,14 +336,14 @@ function SecProbar({ T, goTab }) {
         <>Creá un plan con un producto barato (o un pack x1 de bajo precio) y verificá que el widget se vea en su página.</>,
         <>Desde <B T={T}>otra cuenta de Mercado Pago</B> (no la que cobra: MP no deja pagarte a vos mismo) elegí un pack, tocá <B T={T}>Suscribirme</B>, completá tus datos y el envío, y pagá en MP con tarjeta de crédito o débito.</>,
         <>Al terminar, tocá <B T={T}>Volver al sitio</B>. La pantalla de gracias espera a que MP confirme y te redirige.</>,
-        <>En Recurrentes → <B T={T}>Suscriptores activos</B> aparece la suscripción (si tarda, tocá ↻: la pestaña sincroniza con MP al abrirse).<Crumb T={T} path="Recurrentes › Suscriptores activos › (tu prueba)"/></>,
+        <>En Recurrentes → <B T={T}>Suscripciones</B> aparece la suscripción (si tarda, tocá ↻: la pestaña sincroniza con MP al abrirse).<Crumb T={T} path="Recurrentes › Suscripciones › (tu prueba)"/></>,
         <>En <B T={T}>Cobros</B> ves el primer pago y el número de <B T={T}>orden de Shopify</B> creada. Abrila en Shopify: tiene el producto, la cantidad del pack, la dirección y la etiqueta <Code T={T}>RECURRENTE</Code>.</>,
         <>Revisá el <B T={T}>mail de activación</B> que recibió el cliente (llega al mail que cargó en el checkout) y entrá al <B T={T}>portal</B> desde el link: ahí puede pausar o cancelar.</>,
-        <>Para cerrar la prueba: abrí la suscripción en Suscriptores y tocá <B T={T}>Cancelar</B>. En MP podés reembolsar el pago si querés.</>,
+        <>Para cerrar la prueba: abrí la suscripción en Suscripciones y tocá <B T={T}>Cancelar</B>. En MP podés reembolsar el pago si querés.</>,
       ]}/>
       <Callout T={T} tone="info" title="Modo prueba sin plata">Con un token <Code T={T}>TEST-</Code> de MP y un usuario de prueba de MP podés simular todo sin dinero real. Es más engorroso de armar; si tu producto es barato, la prueba real es más rápida y más fiel.</Callout>
       <div style={{ marginTop:12, display:"flex", gap:8, flexWrap:"wrap" }}>
-        <Btn T={T} variant="secondary" size="sm" onClick={() => goTab?.("suscriptores")}>Ver Suscriptores</Btn>
+        <Btn T={T} variant="secondary" size="sm" onClick={() => goTab?.("suscripciones")}>Ver Suscripciones</Btn>
         <Btn T={T} variant="secondary" size="sm" onClick={() => goTab?.("cobros")}>Ver Cobros</Btn>
       </div>
     </Sec>
@@ -367,17 +352,16 @@ function SecProbar({ T, goTab }) {
 
 function SecTienda({ T, onb, goTab }) {
   return (
-    <Sec T={T} title="Tienda y envíos" sub="Dos datos que hacen que los mails, el portal y el checkout queden bien: el dominio público de tu tienda y las tarifas de envío."
-      right={<><StepStatus T={T} onb={onb} id="settings"/><Btn T={T} variant="primary" size="sm" onClick={() => goConfigSection(goTab, "operacion")}>Ir a Operación →</Btn></>}>
+    <Sec T={T} title="Tienda y envíos" sub="Los datos de tu tienda salen solos de Shopify y de Mercado Pago. Lo único que conviene revisar son los envíos que el cliente elige al suscribirse."
+      right={<><StepStatus T={T} onb={onb} id="settings"/><Btn T={T} variant="primary" size="sm" onClick={() => goConfigSection(goTab, "tienda")}>Ir a Tienda →</Btn></>}>
       <Steps T={T} items={[
-        <>Entrá a <B T={T}>Configuración → Operación</B>.<Crumb T={T} path="Recurrentes › Configuración › Operación"/></>,
-        <>En <B T={T}>Dominio de la tienda</B> poné el dominio público, sin https (ej: <Code T={T}>www.mitienda.com</Code>). Se usa para los links "Ver en la tienda", los mails y el portal del cliente.</>,
-        <>En <B T={T}>Envíos del checkout</B> cargá hasta 6 opciones con nombre y precio (ej: "Andreani a domicilio · $4.500", "Retiro en local · $0"). Son las que el cliente elige al suscribirse y se repiten en cada orden recurrente.
-          <Screen T={T} title="Recurrentes › Configuración › Operación" rows={[{ label:"Dominio", value:"www.mitienda.com", mono:true, hl:true }, { label:"Envío 1", value:"Andreani a domicilio · $4.500" }, { label:"Envío 2", value:"Retiro en local · $0" }]}/>
+        <>Entrá a <B T={T}>Configuración → Tienda</B>.<Crumb T={T} path="Recurrentes › Configuración › Tienda"/></>,
+        <>En <B T={T}>Datos de tu tienda</B> vas a ver nombre, dominio público, moneda y mail (de Shopify) y la cuenta de Mercado Pago que cobra. No se cargan a mano: si cambiaste algo en Shopify, tocá <B T={T}>Actualizar desde Shopify</B>. "Editar dominio" es solo para el caso raro de que tu cliente vea otro dominio.</>,
+        <>En <B T={T}>Envíos del checkout</B> tocá <B T={T}>Importar de Shopify</B>: te mostramos tus tarifas fijas, elegís cuáles (hasta 6) y tocás <B T={T}>Usar estas</B>. También podés cargarlas a mano (nombre + precio). Son las que el cliente elige al suscribirse y se repiten en cada orden recurrente.
+          <Screen T={T} title="Recurrentes › Configuración › Tienda" rows={[{ label:"Dominio público", value:"www.mitienda.com · de Shopify", mono:true, hl:true }, { label:"Cuenta de MP", value:"ventas@mitienda.com" }, { label:"Envío 1", value:"Andreani a domicilio · $4.500" }, { label:"Envío 2", value:"Retiro en local · $0" }]}/>
         </>,
-        <>De paso: cargá el <B T={T}>remitente de los mails</B> (nombre de marca y reply-to) y activá el <B T={T}>recupero de abandonados</B> si querés que Recurrentes mande los mails básicos.</>,
       ]}/>
-      <Callout T={T} tone="info">Si tu plan tiene envío propio configurado (precio o "gratis desde"), ese manda para ese plan. Las tarifas de Operación son el default para el resto.</Callout>
+      <Callout T={T} tone="info">Si hay envíos del checkout, el cliente elige entre esos en todos los planes. Si no cargaste ninguno, cada plan usa su <B T={T}>envío por defecto</B> (se edita en Planes → Editar → Envío). Si tu Shopify usa tarifas dinámicas de un correo, no hay nada para importar: cargalas a mano.</Callout>
     </Sec>
   );
 }
@@ -385,23 +369,21 @@ function SecTienda({ T, onb, goTab }) {
 function SecKlaviyo({ T, onb, goTab }) {
   return (
     <>
-      <Sec T={T} title="Klaviyo: recupero de carritos y mails con tu marca" sub="Opcional. Sin Klaviyo, Recurrentes manda mails básicos (activación, pago fallido, cancelación y 3 pasos de abandono con cupón). Con Klaviyo, todo eso lo diseñás vos en tus flows."
-        right={<><StepStatus T={T} onb={onb} id="klaviyo"/><Btn T={T} variant="primary" size="sm" onClick={() => goTab?.("integraciones")}>Ir a Integraciones →</Btn></>}>
+      <Sec T={T} title="Klaviyo: recupero de carritos y mails con tu marca" sub="Opcional. Recurrentes no manda mails de carrito abandonado por su cuenta: cada checkout de suscripción llega a tu Klaviyo como un evento y la secuencia la armás allá, con tu diseño."
+        right={<><StepStatus T={T} onb={onb} id="klaviyo"/><Btn T={T} variant="primary" size="sm" onClick={() => goConfigSection(goTab, "integraciones")}>Ir a Integraciones →</Btn></>}>
         <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, margin:"4px 0 6px" }}>Cómo se recupera un carrito</div>
         <Steps T={T} items={[
-          <>El cliente toca <B T={T}>Suscribirme</B>, carga su mail y sus datos, pero no termina el pago en MP.</>,
-          <>A los <B T={T}>45 minutos</B> Recurrentes lo marca como <B T={T}>abandonado</B> (lo ves en la pestaña Abandonados con su link de recupero).</>,
-          <>Con el recupero activado, se mandan hasta <B T={T}>3 mails</B> (paso 1, 2 y 3) con un link que vuelve al checkout con todo cargado y, si configuraste cupones, con un descuento escalonado.</>,
-          <>Si el cliente paga, deja de recibir mails y pasa a <B T={T}>Suscriptores activos</B>.</>,
+          <>El cliente toca <B T={T}>Suscribirme</B>, deja su mail o toca Pagar, pero no termina el pago en MP.</>,
+          <>En ese momento Klaviyo recibe <Code T={T}>Checkout Started</Code> (igual que un carrito de Shopify) con el <B T={T}>CheckoutURL</B> para retomar con todo cargado. Lo ves también en <B T={T}>Suscripciones</B> como pendiente de pago.</>,
+          <>Tu flow de carrito abandonado de Klaviyo manda los mails que vos diseñes. Si el cliente paga, la orden entra a Shopify como <Code T={T}>Placed Order</Code> y el flow se corta solo.</>,
         ]}/>
         <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, margin:"14px 0 6px" }}>Conectar Klaviyo</div>
         <Steps T={T} items={[
-          <>En Klaviyo: <B T={T}>Settings → API keys → Create Private API Key</B>, con permisos de <B T={T}>Events</B> y <B T={T}>Profiles</B> (lectura y escritura).<Crumb T={T} path="Klaviyo › Settings › API keys › Create Private API Key"/></>,
-          <>Copiá la clave (empieza con <Code T={T}>pk_</Code>) y pegala en Recurrentes → <B T={T}>Integraciones → Klaviyo</B>.</>,
-          <>Recurrentes empieza a mandar eventos por cliente: <Code T={T}>Suscripción iniciada</Code> (checkout), <Code T={T}>Suscripción activada</Code>, <Code T={T}>Cobro recurrente</Code>, <Code T={T}>Pago fallido</Code>, <Code T={T}>Suscripción cancelada</Code>, con producto, pack, monto y link de recupero.</>,
-          <>En Klaviyo creá un <B T={T}>Flow</B> disparado por <Code T={T}>Suscripción iniciada</Code> con un filtro "no hizo Suscripción activada en 1 hora", y armá tus mails de recupero con tu diseño. Ídem para pago fallido (aviso para actualizar la tarjeta).</>,
+          <>En Klaviyo: <B T={T}>Settings → API keys → Create Private API Key</B>, con permisos <B T={T}>Accounts: Read</B>, <B T={T}>Events: Write</B> y <B T={T}>Profiles: Write</B>.<Crumb T={T} path="Klaviyo › Settings › API keys › Create Private API Key"/></>,
+          <>Copiá la clave (empieza con <Code T={T}>pk_</Code>) y pegala en Recurrentes → <B T={T}>Configuración → Integraciones → Klaviyo</B>.</>,
+          <>Recurrentes empieza a mandar eventos por cliente: <Code T={T}>Checkout Started</Code>, <Code T={T}>Subscription Activated</Code>, <Code T={T}>Subscription Renewed</Code>, <Code T={T}>Subscription Payment Failed</Code>, <Code T={T}>Subscription Paused</Code>, <Code T={T}>Subscription Resumed</Code> y <Code T={T}>Subscription Cancelled</Code>, con producto, pack, monto y link al portal.</>,
+          <>En Klaviyo, cloná tu flow de abandono y ponéle como disparador <Code T={T}>Checkout Started</Code> <B T={T}>(API)</B>: Klaviyo separa esa métrica de la de Shopify. Ídem para <Code T={T}>Subscription Payment Failed</Code> (aviso para actualizar la tarjeta).</>,
         ]}/>
-        <Callout T={T} tone="info">Si conectás Klaviyo, desactivá el recupero básico de Recurrentes en Configuración → Operación para no mandar los mails dos veces.</Callout>
         {onb && !onb.steps?.find(s => s.id === "klaviyo")?.done && (
           <div style={{ marginTop:12 }}><Btn T={T} variant="secondary" size="sm" onClick={() => onb.setManual(onb.steps.find(s => s.id === "klaviyo"), true)}>No uso Klaviyo · marcar "más tarde"</Btn></div>
         )}
@@ -412,13 +394,13 @@ function SecKlaviyo({ T, onb, goTab }) {
 
 function SecFaq({ T }) {
   const QA = [
-    ["¿Recurrentes puede ver mi Access Token de MP?", "Sí: se guarda en nuestra base con acceso restringido y solo lo usan los procesos del servidor para llamar a MP en tu nombre. Es como darle la llave del banco al contador. Podés desconectar cuando quieras desde Integraciones (borra el token) y, si querés, regenerarlo en MP."],
+    ["¿Recurrentes puede ver mi Access Token de MP?", "Sí: se guarda en nuestra base con acceso restringido y solo lo usan los procesos del servidor para llamar a MP en tu nombre. Es como darle la llave del banco al contador. Podés desconectar cuando quieras desde Configuración → Integraciones (borra el token) y, si querés, regenerarlo en MP."],
     ["Si cancelo mi cuenta, ¿qué pasa con las suscripciones activas?", "Siguen funcionando en MP (los cobros los procesa MP, no nosotros), pero ya no se generan órdenes en Shopify. Te recomendamos pausar o cancelar las suscripciones antes de irte."],
     ["¿Y si Mercado Pago se cae?", "Tus datos (suscriptores, planes, historial) viven en Recurrentes y no se pierden. MP reintenta los cobros automáticamente durante 96 horas. Solo se demoraría el alta de una suscripción nueva durante la caída."],
     ["¿Puedo usar la misma app de MP para otras cosas?", "Sí. La aplicación de Developers no interfiere con tu cuenta normal ni con tu posnet o tu tienda física."],
     ["¿Otros usuarios de Recurrentes ven mis datos?", "No. Cada tienda está aislada en su propio espacio (multi-tenant). Tu token, tus planes y tus clientes solo se usan para tus suscripciones."],
     ["¿Qué medios de pago acepta el cliente?", "Tarjeta de crédito y débito y, cuando MP lo permite, dinero en cuenta. El cliente puede pagar con una cuenta de MP distinta al mail que cargó en el checkout."],
-    ["¿Cómo cambia un cliente su dirección o pausa la suscripción?", "Desde el portal del cliente (link en cada mail). Vos también podés editar la dirección, pausar, reanudar o cancelar desde Suscriptores → tocar la fila."],
+    ["¿Cómo cambia un cliente su dirección o pausa la suscripción?", "Desde el portal del cliente (link en cada mail). Vos también podés editar la dirección, pausar, reanudar o cancelar desde Suscripciones → tocar la fila."],
     ["Un cobro salió OK pero la orden de Shopify falló, ¿qué hago?", "En Cobros la fila queda en rojo con el motivo. Corregilo (casi siempre es Shopify desconectado o una variante borrada) y tocá Reintentar orden: se crea con el mismo pago, sin cobrar de nuevo."],
     ["¿Puedo tener más de una tienda?", "Sí: Configuración → Tiendas. Cada tienda tiene su Shopify, su MP, sus planes y su widget. Cambiás de tienda desde el selector del menú."],
   ];

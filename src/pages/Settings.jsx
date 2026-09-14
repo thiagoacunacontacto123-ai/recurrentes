@@ -2,42 +2,48 @@ import React, { useState, useEffect } from "react";
 import { sendPasswordResetEmail, signOut } from "firebase/auth";
 import { auth } from "../lib/firebase.js";
 import * as api from "../lib/api.js";
-import * as Dash from "./Dashboard.jsx";
-import WidgetDesigner from "./WidgetDesigner.jsx";
+import { NewStoreModal, ManageStoreModal, StoreAvatar } from "../ui/Shell.jsx";
+import { IntegrationsTab } from "./Integrations.jsx";
+import StoreSettings from "./StoreSettings.jsx";
+import { PlanPage } from "./Billing.jsx";
+import { AdvancedSettingsCard } from "./OperationalSettings.jsx";
 import GuidePage from "./Guide.jsx";
 import {
   BtnPrimary, BtnSecondary, BtnDanger, InputStyle,
   AsyncButton, appConfirm, appAlert, toast as uiToast,
   Card, SectionTitle, DSBadge, Loading, Btn,
 } from "../ui/components.jsx";
-import { useT } from "../ui/theme.js";
 
 const { apiGet, apiPost } = api;
 
 // ─────────────────────────────────────────────────────────────────
-// Configuración — pantalla estilo "settings": nav a la izquierda,
-// una sección por vez. Portado del ConfigScreen de Growith.
-//   cuenta    → email, contraseña, eliminar cuenta
-//   tiendas   → tiendas del perfil (crear / renombrar / activar / eliminar)
-//   equipo    → miembros con acceso por secciones (solo owner)
-//   operacion → OperationalSettingsCard del Dashboard (si está exportado)
-//   ayuda     → Guía escrita (Guide.jsx) embebida
+// Configuración — nav a la izquierda, una sección por vez (#/config/<sec>).
+//   cuenta        → email, contraseña, eliminar cuenta
+//   tiendas       → tiendas del perfil (crear / gestionar / activar / eliminar)
+//   equipo        → miembros con acceso por secciones (solo owner)
+//   integraciones → Shopify, Mercado Pago, Meta, Klaviyo (Integrations.jsx)
+//   tienda        → datos de la tienda (de Shopify) + envíos del checkout (StoreSettings.jsx)
+//   facturacion   → tu plan de Recurrentes (Billing.jsx)
+//   avanzado      → checkout del widget, códigos de descuento, modo dev (OperationalSettings.jsx)
+//   ayuda         → Guía escrita (Guide.jsx) embebida
 // ─────────────────────────────────────────────────────────────────
 
-export const CFG_SECS = ["cuenta", "tiendas", "equipo", "widget", "operacion", "ayuda"];
+export const CFG_SECS = ["cuenta", "tiendas", "equipo", "integraciones", "tienda", "facturacion", "avanzado", "ayuda"];
+// Secciones viejas → nuevas (links guardados / plan de acción viejo).
+const CFG_ALIASES = { operacion: "avanzado", widget: "__planes_widget__" };
 
 export const TEAM_SECTIONS = [
   { id: "inicio",        label: "Inicio" },
-  { id: "planes",        label: "Planes" },
-  { id: "suscriptores",  label: "Suscriptores" },
+  { id: "suscripciones", label: "Suscripciones" },
   { id: "cobros",        label: "Cobros" },
-  { id: "abandonados",   label: "Abandonados" },
-  { id: "actividad",     label: "Actividad" },
-  { id: "integraciones", label: "Integraciones" },
+  { id: "planes",        label: "Planes" },
+  { id: "retencion",     label: "Retención" },
+  { id: "portal",        label: "Portal del cliente" },
+  { id: "analiticas",    label: "Analíticas" },
   { id: "configuracion", label: "Configuración" },
 ];
-
-export const STORE_COLORS = ["#10b981", "#6366f1", "#0ea5e9", "#f97316", "#a855f7", "#ef4444", "#eab308", "#14b8a6"];
+// Permisos guardados con ids viejos → nuevos (mismo mapa que el backend).
+const LEGACY_SEC = { suscriptores: "suscripciones", carritos: "suscripciones", abandonados: "suscripciones", actividad: "portal", integraciones: "configuracion", plan: "configuracion", guia: "configuracion" };
 
 // Tema de respaldo si el shell todavía no pasa T (usa las CSS vars de index.css).
 const FALLBACK_T = {
@@ -68,15 +74,16 @@ async function merchantAction(action, body = {}) {
 // El backend puede devolver secciones como array ["inicio",…] o como objeto {inicio:true}.
 // Normalizamos a array de ids para la UI; al guardar mandamos array.
 function normSecs(s) {
-  if (Array.isArray(s)) return s.filter(id => TEAM_SECTIONS.some(t => t.id === id));
-  if (s && typeof s === "object") return TEAM_SECTIONS.map(t => t.id).filter(id => s[id] === true);
-  return [];
+  const ids = Array.isArray(s) ? s : (s && typeof s === "object" ? Object.keys(s).filter(k => s[k] === true) : []);
+  return [...new Set(ids.map(id => LEGACY_SEC[id] || id))].filter(id => TEAM_SECTIONS.some(t => t.id === id));
 }
 
 function readHashSec() {
   try {
     const h = (window.location.hash || "").replace(/^#\/?/, "").split("?")[0].split("/");
-    if (h[0] === "config" && CFG_SECS.includes(h[1])) return h[1];
+    if (h[0] !== "config") return null;
+    if (CFG_SECS.includes(h[1])) return h[1];
+    if (CFG_ALIASES[h[1]]) return CFG_ALIASES[h[1]];
   } catch (_) {}
   return null;
 }
@@ -87,7 +94,14 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
   const toast = toastProp || uiToast;
   const isOwner = (merchant?.role || "owner") === "owner";
 
-  const [sec, setSec] = useState(() => readHashSec() || "cuenta");
+  const [sec, setSec] = useState(() => { const s = readHashSec(); return s && s !== "__planes_widget__" ? s : "cuenta"; });
+
+  // #/config/widget (viejo) → el diseño ahora vive en Planes → Widget.
+  const goPlanesWidget = React.useCallback(() => {
+    try { goTab?.("planes"); } catch (_) {}
+    try { setTimeout(() => { window.location.hash = "#/dashboard/planes?sub=widget"; }, 0); } catch (_) {}
+  }, [goTab]);
+  useEffect(() => { if (readHashSec() === "__planes_widget__") goPlanesWidget(); /* eslint-disable-line */ }, []);
 
   // Si la URL ya está en #/config/…, la mantenemos sincronizada (sin pisar otras rutas del shell).
   useEffect(() => {
@@ -98,26 +112,34 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
     } catch (_) {}
   }, [sec]);
   useEffect(() => {
-    const onHash = () => { const s = readHashSec(); if (s && s !== sec) setSec(s); };
+    const onHash = () => {
+      const s = readHashSec();
+      if (s === "__planes_widget__") return goPlanesWidget();
+      if (s && s !== sec) setSec(s);
+    };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
-  }, [sec]);
+  }, [sec, goPlanesWidget]);
 
   const NAVS = [
-    { id: "cuenta",    l: "Cuenta",    d: "Email, contraseña y baja",   icon: "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" },
-    { id: "tiendas",   l: "Tiendas",   d: "Tus tiendas y cuál está activa", icon: "M3 9l1-5h16l1 5M3 9h18v11H3zM9 20v-6h6v6" },
+    { id: "cuenta",        l: "Cuenta",        d: "Email, contraseña y baja",   icon: "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" },
+    { id: "tiendas",       l: "Tiendas",       d: "Tus tiendas y cuál está activa", icon: "M3 9l1-5h16l1 5M3 9h18v11H3zM9 20v-6h6v6" },
     ...(isOwner ? [{ id: "equipo", l: "Equipo", d: "Quién entra y qué ve", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" }] : []),
-    { id: "widget",    l: "Diseño del widget", d: "10 diseños del selector de packs, colores y textos", icon: "M4 4h16v16H4zM4 9h16M9 9v11" },
-    { id: "operacion", l: "Operación", d: "Tienda, envíos, mails y abandono", icon: "M12 20a8 8 0 100-16 8 8 0 000 16zM12 14a2 2 0 100-4 2 2 0 000 4zM12 2v2M12 20v2M2 12h2M20 12h2" },
-    { id: "ayuda",     l: "Ayuda",     d: "Guía paso a paso y soporte", icon: "M12 22a10 10 0 100-20 10 10 0 000 20zM9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" },
+    { id: "integraciones", l: "Integraciones", d: "Shopify, Mercado Pago, Meta, Klaviyo", icon: "M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" },
+    { id: "tienda",        l: "Tienda",        d: "Datos de Shopify y envíos del checkout", icon: "M3 9l1-5h16l1 5M3 9h18v11H3zM3 9a3 3 0 006 0 3 3 0 006 0 3 3 0 006 0" },
+    { id: "facturacion",   l: "Facturación",   d: "Tu plan de Recurrentes", icon: "M1 6a2 2 0 012-2h18a2 2 0 012 2v12a2 2 0 01-2 2H3a2 2 0 01-2-2zM1 10h22M5 15h4" },
+    { id: "avanzado",      l: "Avanzado",      d: "Checkout, cupones y modo dev", icon: "M12 20a8 8 0 100-16 8 8 0 000 16zM12 14a2 2 0 100-4 2 2 0 000 4zM12 2v2M12 20v2M2 12h2M20 12h2" },
+    { id: "ayuda",         l: "Ayuda",         d: "Guía paso a paso y soporte", icon: "M12 22a10 10 0 100-20 10 10 0 000 20zM9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" },
   ];
   const HEAD = {
-    cuenta:    ["Cuenta", "Tu acceso a Recurrentes: email de inicio de sesión, contraseña y eliminación de la cuenta."],
-    tiendas:   ["Tiendas", "Un mismo login puede manejar varias tiendas. Cada tienda tiene su propia conexión a Shopify y Mercado Pago, sus planes y sus suscriptores."],
-    equipo:    ["Equipo", "Invitá a gente de tu equipo con su propio login. Ven solo las secciones que les habilites."],
-    widget:    ["Diseño del widget", "Elegí cómo se ve el selector de packs en tu página de producto: 10 diseños con vista previa real, color, esquinas y textos. Los packs y precios se cargan en cada plan."],
-    operacion: ["Operación", "Dominio de la tienda, envíos del checkout, códigos de descuento, remitente de mails, recupero de abandonados y modo desarrollador."],
-    ayuda:     ["Ayuda", "La guía completa de Recurrentes: cómo conectar Shopify y Mercado Pago, crear planes con packs, pegar el snippet, probar y recuperar carritos. Y el WhatsApp de soporte."],
+    cuenta:        ["Cuenta", "Tu acceso a Recurrentes: email de inicio de sesión, contraseña y eliminación de la cuenta."],
+    tiendas:       ["Tiendas", "Un mismo login puede manejar varias tiendas. Cada tienda tiene su propia conexión a Shopify y Mercado Pago, sus planes y sus suscriptores."],
+    equipo:        ["Equipo", "Invitá a gente de tu equipo con su propio login. Ven solo las secciones que les habilites."],
+    integraciones: ["Integraciones", "Conectá tu Shopify y tu Mercado Pago (necesarios) y, si querés, Meta Ads y Klaviyo."],
+    tienda:        ["Tienda", "Nombre, dominio, moneda y mail salen de tu Shopify; la cuenta de cobro, de Mercado Pago. Y los envíos que el cliente elige al suscribirse."],
+    facturacion:   ["Facturación", "Tu plan de Recurrentes: qué incluye, cuántos pedidos llevás este mes y cómo cambiarlo."],
+    avanzado:      ["Avanzado", "Flujo del checkout del widget, selector CSS a ocultar, códigos de descuento y modo desarrollador."],
+    ayuda:         ["Ayuda", "La guía completa de Recurrentes: conectar Shopify y Mercado Pago, crear planes con packs, pegar el snippet y probar. Y el WhatsApp de soporte."],
   };
   const H = HEAD[sec] || ["", ""];
   const cur = NAVS.some(n => n.id === sec) ? sec : "cuenta";
@@ -151,12 +173,14 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
             <div style={{ fontSize: 12.5, color: T.textSm, marginTop: 4, lineHeight: 1.5 }}>{H[1]}</div>
           </div>
 
-          {cur === "cuenta"    && <CuentaSection T={T} DS={DS} user={user} merchant={merchant} toast={toast} />}
-          {cur === "tiendas"   && <TiendasSection T={T} DS={DS} user={user} merchant={merchant} workspace={workspace} reloadMerchant={reloadMerchant} toast={toast} />}
-          {cur === "equipo"    && isOwner && <MiembrosCuentaCard T={T} DS={DS} user={user} merchant={merchant} toast={toast} />}
-          {cur === "widget"    && <WidgetSection merchant={merchant} reloadMerchant={reloadMerchant} />}
-          {cur === "operacion" && <OperacionSection T={T} DS={DS} merchant={merchant} reloadMerchant={reloadMerchant} goTab={goTab} />}
-          {cur === "ayuda"     && <GuidePage merchant={merchant} goTab={goTab} embedded />}
+          {cur === "cuenta"        && <CuentaSection T={T} DS={DS} user={user} merchant={merchant} toast={toast} />}
+          {cur === "tiendas"       && <TiendasSection T={T} DS={DS} user={user} merchant={merchant} workspace={workspace} reloadMerchant={reloadMerchant} toast={toast} />}
+          {cur === "equipo"        && isOwner && <MiembrosCuentaCard T={T} DS={DS} user={user} merchant={merchant} toast={toast} />}
+          {cur === "integraciones" && <IntegrationsTab merchant={merchant} onChange={reloadMerchant} embedded />}
+          {cur === "tienda"        && <StoreSettings merchant={merchant} onChange={reloadMerchant} />}
+          {cur === "facturacion"   && <PlanPage T={T} DS={DS} merchant={merchant} reloadMerchant={reloadMerchant} />}
+          {cur === "avanzado"      && <AdvancedSettingsCard merchant={merchant} onChange={reloadMerchant} />}
+          {cur === "ayuda"         && <GuidePage merchant={merchant} goTab={goTab} embedded />}
         </div>
       </div>
     </div>
@@ -247,16 +271,14 @@ function CuentaSection({ T, DS, user, merchant, toast }) {
 }
 
 // ─── Tiendas ─────────────────────────────────────────────────────
+// Un solo formulario de nombre/color/foto: el ManageStoreModal del shell
+// (misma paleta que el switcher). Crear → NewStoreModal del shell.
 function TiendasSection({ T, DS, user, merchant, workspace, reloadMerchant, toast }) {
   const iS = InputStyle(T);
   const stores = Array.isArray(workspace?.stores) ? workspace.stores : [];
   const activeId = workspace?.active_merchant_id || merchant?.id || null;
-  const [editing, setEditing] = useState(null);       // id de tienda en edición
-  const [editName, setEditName] = useState("");
-  const [editColor, setEditColor] = useState(STORE_COLORS[0]);
+  const [manageId, setManageId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newColor, setNewColor] = useState(STORE_COLORS[1]);
   const [busyId, setBusyId] = useState("");
 
   async function activar(store) {
@@ -271,57 +293,50 @@ function TiendasSection({ T, DS, user, merchant, workspace, reloadMerchant, toas
     setBusyId("");
   }
 
-  function startEdit(store) {
-    setEditing(store.id); setEditName(store.name || ""); setEditColor(store.color || STORE_COLORS[0]);
-  }
-  async function guardarEdit(store) {
-    const name = editName.trim();
-    if (!name) { toast("Poné un nombre", "warning"); return; }
-    await merchantAction("store-rename", { merchant_id: store.id, name, color: editColor, photo: store.photo || null });
-    setEditing(null);
-    await reloadMerchant?.();
-    toast("Tienda guardada ✓", "success");
-  }
-
-  async function crear() {
-    const name = newName.trim();
-    if (!name) { toast("Poné un nombre para la tienda", "warning"); return; }
-    const d = await merchantAction("store-create", { name, color: newColor });
-    const id = d?.store?.id || d?.merchant_id || d?.id || null;
-    if (id) {
-      try { await merchantAction("store-activate", { merchant_id: id }); } catch (_) {}
-      try { api.setActiveMerchantId?.(user?.uid, id); } catch (_) {}
-    }
-    setShowCreate(false); setNewName("");
-    await reloadMerchant?.();
-    toast(`Tienda "${name}" creada. Conectá su Shopify y Mercado Pago desde Integraciones.`, "success", 6000);
-  }
-
-  async function eliminar(store) {
-    if (store.is_primary) return;
-    const ok = await appConfirm(
-      `¿Eliminar la tienda "${store.name}"?\n\nSe borran sus planes, suscriptores, cobros y conexiones. Las suscripciones activas siguen en tu cuenta de Mercado Pago: pausalas antes si no querés que se sigan cobrando.`,
-      { danger: true, okLabel: "Sí, eliminar tienda" },
-    );
-    if (!ok) return;
-    setBusyId(store.id);
+  // onSave del ManageStoreModal: { ...store, name, color, photo? } → true si guardó.
+  async function guardar(store) {
     try {
-      await merchantAction("store-delete", { merchant_id: store.id });
+      await merchantAction("store-rename", { merchant_id: store.id, name: store.name, color: store.color, ...(store.photo !== undefined ? { photo: store.photo } : {}) });
       await reloadMerchant?.();
+      toast("Tienda guardada ✓", "success");
+      return true;
+    } catch (e) { toast("No se pudo guardar: " + e.message, "error"); return false; }
+  }
+  // onDelete del ManageStoreModal (ya confirmó adentro).
+  async function eliminar(id) {
+    try {
+      await merchantAction("store-delete", { merchant_id: id });
       toast("Tienda eliminada", "success");
-    } catch (e) { toast("No se pudo eliminar: " + e.message, "error"); }
-    setBusyId("");
+      if (id === activeId) { try { api.setActiveMerchantId?.(user?.uid, null); } catch (_) {} setTimeout(() => window.location.reload(), 300); }
+      else await reloadMerchant?.();
+      return true;
+    } catch (e) { toast("No se pudo eliminar: " + e.message, "error"); return false; }
+  }
+  // onCreate del NewStoreModal: { name, color } → true si creó (entra a la nueva).
+  async function crear({ name, color }) {
+    try {
+      const d = await merchantAction("store-create", { name, color });
+      const id = d?.store?.id || d?.merchant_id || d?.id || null;
+      if (id) {
+        try { await merchantAction("store-activate", { merchant_id: id }); } catch (_) {}
+        try { api.setActiveMerchantId?.(user?.uid, id); } catch (_) {}
+      }
+      await reloadMerchant?.();
+      toast(`Tienda "${name}" creada. Conectá su Shopify y Mercado Pago desde Configuración → Integraciones.`, "success", 6000);
+      return true;
+    } catch (e) { toast("No se pudo crear: " + e.message, "error"); return false; }
   }
 
   const activa = stores.find(s => s.id === activeId);
+  const manageStore = manageId ? stores.find(s => s.id === manageId) : null;
 
   return (
     <>
       <Panel T={T} DS={DS} title="Tienda activa">
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <StoreDot T={T} store={activa || { name: merchant?.name || merchant?.store_domain || "Mi tienda", color: STORE_COLORS[0] }} size={40} />
+          <StoreAvatar T={T} store={activa || { name: merchant?.store_name || merchant?.store_domain || "Mi tienda", color: merchant?.store_color }} size={40} />
           <div style={{ flex: 1, minWidth: 180 }}>
-            <div style={{ fontSize: 15, fontWeight: DS.w.bold, color: T.text }}>{activa?.name || merchant?.name || merchant?.store_domain || "Mi tienda"}</div>
+            <div style={{ fontSize: 15, fontWeight: DS.w.bold, color: T.text }}>{activa?.name || merchant?.store_name || merchant?.store_domain || "Mi tienda"}</div>
             <div style={{ fontSize: DS.font.sm, color: T.textSm, marginTop: 2 }}>
               {activa?.shopify_shop || merchant?.shopify_shop || "Shopify sin conectar"} · {(activa?.mp_connected ?? !!merchant?.mp_access_token) ? "Mercado Pago conectado" : "Mercado Pago sin conectar"}
             </div>
@@ -336,21 +351,7 @@ function TiendasSection({ T, DS, user, merchant, workspace, reloadMerchant, toas
       </Panel>
 
       <Panel T={T} DS={DS} title={`Tus tiendas · ${stores.length || 1}`}
-        right={!showCreate && <Btn T={T} variant="secondary" size="sm" onClick={() => setShowCreate(true)}>+ Nueva tienda</Btn>}>
-        {showCreate && (
-          <div style={{ background: T.surface, border: `1px solid ${T.borderL}`, borderRadius: DS.r.lg, padding: "12px 14px", marginBottom: 12 }}>
-            <div style={{ fontSize: DS.font.md, fontWeight: DS.w.bold, color: T.text, marginBottom: 8 }}>Nueva tienda</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
-              <input value={newName} onChange={e => setNewName(e.target.value)} maxLength={60} placeholder='Ej. "Café del Sur"' style={{ ...iS, marginBottom: 0, flex: "1 1 220px" }} onKeyDown={e => { if (e.key === "Enter") crear(); }} />
-              <ColorPicker T={T} value={newColor} onChange={setNewColor} />
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <AsyncButton onClick={crear} style={{ ...BtnPrimary(T), fontSize: DS.font.md, padding: "8px 16px" }}>Crear tienda</AsyncButton>
-              <button onClick={() => setShowCreate(false)} style={{ ...BtnSecondary(T), fontSize: DS.font.md }}>Cancelar</button>
-            </div>
-          </div>
-        )}
-
+        right={<Btn T={T} variant="secondary" size="sm" onClick={() => setShowCreate(true)}>+ Nueva tienda</Btn>}>
         {stores.length === 0 && (
           <div style={{ fontSize: DS.font.md, color: T.textSm }}>Todavía no cargamos la lista de tiendas de este perfil.</div>
         )}
@@ -359,11 +360,10 @@ function TiendasSection({ T, DS, user, merchant, workspace, reloadMerchant, toas
           {stores.map((s, i) => {
             const isActive = s.id === activeId;
             const isOwner = (s.role || "owner") === "owner";
-            const enEdicion = editing === s.id;
             return (
               <div key={s.id} style={{ borderTop: i === 0 ? "none" : `1px solid ${T.borderL}`, padding: "12px 0" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                  <StoreDot T={T} store={s} size={34} />
+                  <StoreAvatar T={T} store={s} size={34} />
                   <div style={{ flex: 1, minWidth: 160 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <span style={{ fontSize: DS.font.base, fontWeight: DS.w.bold, color: T.text }}>{s.name || "Sin nombre"}</span>
@@ -377,34 +377,20 @@ function TiendasSection({ T, DS, user, merchant, workspace, reloadMerchant, toas
                   </div>
                   <div style={{ display: "flex", gap: 6, flexShrink: 0, flexWrap: "wrap" }}>
                     {!isActive && <button onClick={() => activar(s)} disabled={!!busyId} style={{ ...BtnSecondary(T), fontSize: DS.font.sm, padding: "5px 10px" }}>{busyId === s.id ? "…" : "Activar"}</button>}
-                    {isOwner && !enEdicion && <button onClick={() => startEdit(s)} style={{ ...BtnSecondary(T), fontSize: DS.font.sm, padding: "5px 10px" }}>Editar</button>}
-                    {isOwner && !s.is_primary && (
-                      <button onClick={() => eliminar(s)} disabled={!!busyId} title="Eliminar tienda"
-                        style={{ background: "transparent", border: "none", color: T.textSm, fontSize: 15, padding: "4px 6px", cursor: "pointer", lineHeight: 1, fontFamily: "inherit" }}
-                        onMouseEnter={e => e.currentTarget.style.color = T.red} onMouseLeave={e => e.currentTarget.style.color = T.textSm}>✕</button>
-                    )}
+                    {isOwner && <button onClick={() => setManageId(s.id)} style={{ ...BtnSecondary(T), fontSize: DS.font.sm, padding: "5px 10px" }}>Gestionar</button>}
                   </div>
                 </div>
-                {enEdicion && (
-                  <div style={{ marginTop: 10, background: T.surface, border: `1px solid ${T.borderL}`, borderRadius: DS.r.lg, padding: "10px 12px" }}>
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 8 }}>
-                      <input value={editName} onChange={e => setEditName(e.target.value)} maxLength={60} placeholder="Nombre de la tienda" style={{ ...iS, marginBottom: 0, flex: "1 1 220px" }} onKeyDown={e => { if (e.key === "Enter") guardarEdit(s); }} />
-                      <ColorPicker T={T} value={editColor} onChange={setEditColor} />
-                    </div>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <AsyncButton onClick={() => guardarEdit(s)} style={{ ...BtnPrimary(T), fontSize: DS.font.md, padding: "7px 14px" }}>Guardar</AsyncButton>
-                      <button onClick={() => setEditing(null)} style={{ ...BtnSecondary(T), fontSize: DS.font.md }}>Cancelar</button>
-                    </div>
-                  </div>
-                )}
               </div>
             );
           })}
         </div>
         <div style={{ fontSize: DS.font.sm, color: T.textSm, marginTop: 10, lineHeight: 1.5 }}>
-          La tienda principal no se puede eliminar (para eso está "Eliminar mi cuenta" en Cuenta). Cada tienda nueva arranca vacía: conectá su Shopify y Mercado Pago desde Integraciones.
+          Nombre, color y foto se editan desde "Gestionar" (lo mismo que ves en el selector del menú). Cada tienda nueva arranca vacía: conectá su Shopify y Mercado Pago desde Configuración → Integraciones.
         </div>
       </Panel>
+
+      {showCreate && <NewStoreModal T={T} onClose={() => setShowCreate(false)} onCreate={crear} />}
+      {manageStore && <ManageStoreModal T={T} store={manageStore} totalStores={stores.length || 1} onClose={() => setManageId(null)} onSave={guardar} onDelete={manageStore.is_primary && stores.length <= 1 ? null : eliminar} />}
     </>
   );
 }
@@ -536,26 +522,6 @@ export function MiembrosCuentaCard({ T: Tp, DS: DSp, user, merchant, toast: toas
   );
 }
 
-// ─── Operación ───────────────────────────────────────────────────
-function OperacionSection({ T, DS, merchant, reloadMerchant, goTab }) {
-  // Si Dashboard.jsx exporta OperationalSettingsCard, lo rendereamos acá mismo.
-  // Si no (hoy no está exportado), mandamos a Integraciones donde vive.
-  const OpCard = Dash?.OperationalSettingsCard;
-  if (typeof OpCard === "function") {
-    return <OpCard merchant={merchant} onChange={reloadMerchant} />;
-  }
-  return (
-    <Panel T={T} DS={DS} title="Configuración operativa">
-      <div style={{ fontSize: DS.font.base, color: T.textMd, lineHeight: 1.6, marginBottom: 14 }}>
-        El dominio de tu tienda, los envíos del checkout, los códigos de descuento, el remitente de los mails, el recupero de carritos abandonados y el modo desarrollador se editan desde <strong style={{ color: T.text }}>Integraciones → Configuración operativa</strong>.
-      </div>
-      <button onClick={() => goTab?.("integraciones")} disabled={!goTab} style={{ ...BtnPrimary(T), fontSize: DS.font.md, opacity: goTab ? 1 : 0.6 }}>
-        Ir a Integraciones → Configuración operativa
-      </button>
-    </Panel>
-  );
-}
-
 // ─── Piezas chicas ───────────────────────────────────────────────
 function Panel({ T, DS, title, sub, right, children, style = {} }) {
   return (
@@ -568,38 +534,4 @@ function Panel({ T, DS, title, sub, right, children, style = {} }) {
 
 function Pill({ T, color, children }) {
   return <DSBadge T={T} color={color} size="sm">{children}</DSBadge>;
-}
-
-function StoreDot({ T, store, size = 34 }) {
-  const color = store?.color || STORE_COLORS[0];
-  const inicial = (store?.name || "?").trim().charAt(0).toUpperCase();
-  if (store?.photo) return <img src={store.photo} alt="" style={{ width: size, height: size, borderRadius: Math.round(size * 0.3), objectFit: "cover", flexShrink: 0, border: `1px solid ${T.border}` }} />;
-  return (
-    <div style={{ width: size, height: size, borderRadius: Math.round(size * 0.3), background: color + "22", color, border: `1px solid ${color}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: Math.round(size * 0.42), fontWeight: 800, flexShrink: 0 }}>{inicial}</div>
-  );
-}
-
-function ColorPicker({ T, value, onChange }) {
-  return (
-    <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-      {STORE_COLORS.map(c => (
-        <button key={c} type="button" onClick={() => onChange(c)} title={c} aria-label={`Color ${c}`}
-          style={{ width: 22, height: 22, borderRadius: "50%", background: c, border: value === c ? `3px solid ${T.text}` : `2px solid ${T.card}`, boxShadow: value === c ? `0 0 0 1px ${c}` : "none", cursor: "pointer", padding: 0 }} />
-      ))}
-    </div>
-  );
-}
-
-
-// ─── Diseño del widget (galería de 10 variantes + personalización) ───
-function WidgetSection({ merchant, reloadMerchant }) {
-  const T = useT();
-  const [plans, setPlans] = useState(null);
-  useEffect(() => {
-    let alive = true;
-    api.apiGet("plans").then(d => { if (alive) setPlans(Array.isArray(d?.plans) ? d.plans : (Array.isArray(d) ? d : [])); }).catch(() => { if (alive) setPlans([]); });
-    return () => { alive = false; };
-  }, [merchant?.id]);
-  if (plans === null) return <Loading T={T}/>;
-  return <WidgetDesigner merchant={merchant} plans={plans} onSaved={reloadMerchant} />;
 }

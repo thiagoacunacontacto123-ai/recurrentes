@@ -5,18 +5,76 @@
 // asociada. Sirve para auditoría y resolución de problemas.
 // Paginado: orderBy created_at desc, limit (≤200) + cursor (= created_at del
 // último). Devuelve `error` del charge para mostrarlo en el dashboard.
+//
+// Vistas:
+//   ?view=upcoming → { upcoming:[{subscriber_id,email,name,plan_title,amount_ars,next_charge_at}],
+//                      count, amount_ars }  — subs activas con next_charge_at en los próximos
+//                      30 días (?days=1..90), ordenadas por fecha.
+//   ?view=errors   → { charges:[…], count } — charges con `error` (orden Shopify que falló)
+//                      de los últimos 60 días (?days=1..180), más recientes primero.
 import { db, requireMerchant } from "./_lib/firebase.js";
+
+const subAmount = (s) => {
+  const qty = s.quantity || s.plan_snapshot?.units_per_shipment || 1;
+  return Math.round(s.plan_snapshot?.total_per_charge_ars || ((s.plan_snapshot?.subscription_price_ars || 0) * qty));
+};
+
+async function viewUpcoming(merchantRef, req, res) {
+  const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 90);
+  const nowIso = new Date().toISOString();
+  const untilIso = new Date(Date.now() + days * 86400000).toISOString();
+  let docs;
+  try {
+    // Índice compuesto status + next_charge_at (firestore.indexes.json).
+    docs = (await merchantRef.collection("subscribers").where("status", "==", "active").where("next_charge_at", "<=", untilIso).get()).docs;
+  } catch (e) {
+    if (!/FAILED_PRECONDITION|index/i.test(e.message || "")) throw e;
+    docs = (await merchantRef.collection("subscribers").where("status", "==", "active").get()).docs;
+  }
+  const upcoming = docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    // Vencidas de hace más de 1 día no son "próximas" (el cron las está persiguiendo).
+    .filter(s => s.next_charge_at && s.next_charge_at <= untilIso && s.next_charge_at >= new Date(Date.now() - 86400000).toISOString())
+    .map(s => ({
+      subscriber_id: s.id,
+      email: s.customer_email || null,
+      name: s.customer_name || null,
+      plan_title: s.plan_snapshot?.product_title || null,
+      amount_ars: subAmount(s),
+      next_charge_at: s.next_charge_at,
+      overdue: s.next_charge_at < nowIso,
+    }))
+    .sort((a, b) => a.next_charge_at.localeCompare(b.next_charge_at));
+  return res.json({ upcoming, count: upcoming.length, amount_ars: upcoming.reduce((t, u) => t + u.amount_ars, 0), days });
+}
+
+async function viewErrors(merchantRef, req, res) {
+  const days = Math.min(Math.max(parseInt(req.query.days) || 60, 1), 180);
+  const sinceIso = new Date(Date.now() - days * 86400000).toISOString();
+  const snap = await merchantRef.collection("charges").where("created_at", ">=", sinceIso).orderBy("created_at", "desc").limit(2000).get();
+  const charges = snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(c => c.error)
+    .map(c => ({ ...c, kind: "shopify_error" }));
+  return res.json({ charges, count: charges.length, days, since: sinceIso });
+}
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   // Multi-tienda: merchantId = tienda activa (header X-Merchant-Id) o el uid del login.
-  const ctx = await requireMerchant(req, res);
+  const ctx = await requireMerchant(req, res, "cobros");
   if (!ctx) return;
   const { merchantId } = ctx;
 
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
   const merchantRef = db().collection("merchants").doc(merchantId);
+  const view = String(req.query.view || "");
+  if (view === "upcoming" || view === "errors") {
+    try { return await (view === "upcoming" ? viewUpcoming : viewErrors)(merchantRef, req, res); }
+    catch (e) { return res.status(500).json({ error: e.message }); }
+  }
+  if (view) return res.status(400).json({ error: "view debe ser upcoming | errors" });
   const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), 200);
   let q = merchantRef.collection("charges");
   if (req.query.subscriber_id) {

@@ -17,7 +17,7 @@ import { normalizePacks, resolvePack, defaultPackIndex, withPackDefaults, planPr
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   // Multi-tienda: merchantId = tienda activa (header X-Merchant-Id) o el uid del login.
-  const ctx = await requireMerchant(req, res);
+  const ctx = await requireMerchant(req, res, "planes");
   if (!ctx) return;
   const { merchantId } = ctx;
 

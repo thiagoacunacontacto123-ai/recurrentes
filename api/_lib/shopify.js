@@ -65,19 +65,79 @@ export async function shGetVariantPrice(shop, token, variantId) {
   } catch (_) { return null; }
 }
 
+// Host limpio (lowercase, sin esquema ni path) o "".
+const cleanHost = (h) => String(h || "").toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").trim();
+
+// Datos de la tienda (UN solo GET a shop.json con `fields=`). Se usan para no
+// pedirle al merchant lo que Shopify ya sabe: nombre, mail, moneda, país,
+// dominio propio, zona horaria. LANZA si Shopify falla (el caller decide si es
+// best-effort). `domains` = hosts únicos (myshopify + dominio primario).
+export const SHOP_INFO_FIELDS = "name,email,customer_email,currency,country_code,money_format,iana_timezone,domain,myshopify_domain,primary_domain,phone";
+export async function shGetShopInfo(shop, token) {
+  const data = await call(shop, token, "GET", `/shop.json?fields=${SHOP_INFO_FIELDS}`);
+  const s = data?.shop || {};
+  const primaryHost = cleanHost(s.primary_domain?.host);
+  const domains = new Set([cleanHost(shop)]);
+  for (const h of [s.domain, s.myshopify_domain, primaryHost]) { const host = cleanHost(h); if (host) domains.add(host); }
+  return {
+    name: String(s.name || "").trim(),
+    email: String(s.email || "").trim().toLowerCase(),
+    customer_email: String(s.customer_email || "").trim().toLowerCase(),
+    currency: String(s.currency || "").trim().toUpperCase(),
+    country_code: String(s.country_code || "").trim().toUpperCase(),
+    money_format: String(s.money_format || ""),
+    iana_timezone: String(s.iana_timezone || ""),
+    domain: cleanHost(s.domain),
+    myshopify_domain: cleanHost(s.myshopify_domain) || cleanHost(shop),
+    primary_domain: primaryHost ? { host: primaryHost, ssl_enabled: s.primary_domain?.ssl_enabled !== false } : null,
+    phone: String(s.phone || "").trim(),
+    domains: [...domains].filter(Boolean),
+  };
+}
+
 // Hosts (lowercase) que pertenecen a la tienda: el myshopify + el dominio
 // principal (shop.json). Sirve para validar URLs de recupero. Fallo → [shop].
 export async function shGetShopDomains(shop, token) {
-  const out = new Set([String(shop || "").toLowerCase()]);
   try {
-    const data = await call(shop, token, "GET", "/shop.json?fields=domain,myshopify_domain,primary_domain");
-    const s = data?.shop || {};
-    for (const h of [s.domain, s.myshopify_domain, s.primary_domain?.host]) {
-      const host = String(h || "").toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-      if (host) out.add(host);
-    }
-  } catch (_) {}
-  return [...out].filter(Boolean);
+    const info = await shGetShopInfo(shop, token);
+    return info.domains.length ? info.domains : [cleanHost(shop)].filter(Boolean);
+  } catch (_) {
+    return [cleanHost(shop)].filter(Boolean);
+  }
+}
+
+// Patch de Firestore (merge) con los datos de la tienda, respetando lo que el
+// merchant cargó a mano. Pura: recibe el doc actual + el info de shGetShopInfo.
+//   · store_domain: solo si no estaba o si ya venía de Shopify (store_domain_source
+//     "shopify"). Un store_domain preexistente sin source se considera "shopify"
+//     si coincide con el dominio de la tienda, "manual" si no (nunca se pisa).
+//   · store_name: solo si estaba vacío (el merchant lo puede renombrar).
+//   · shop_*: siempre se actualizan (son el espejo crudo de Shopify).
+export function buildShopInfoPatch(merchant, info, nowIso = new Date().toISOString()) {
+  const m = merchant || {};
+  const shopHost = info.primary_domain?.host || info.domain || "";
+  const patch = {
+    shopify_domains: info.domains,
+    shopify_domains_at: nowIso,
+    shop_name: info.name || null,
+    shop_email: info.email || info.customer_email || null,
+    shop_currency: info.currency || null,
+    shop_country: info.country_code || null,
+    shop_timezone: info.iana_timezone || null,
+    shop_info_at: nowIso,
+  };
+  const current = cleanHost(m.store_domain);
+  const source = m.store_domain_source === "manual" || m.store_domain_source === "shopify" ? m.store_domain_source : null;
+  if (!current) {
+    if (shopHost) { patch.store_domain = shopHost; patch.store_domain_source = "shopify"; }
+  } else if (source === "shopify") {
+    if (shopHost) patch.store_domain = shopHost;
+  } else if (!source) {
+    // Legacy sin source: inferimos. Coincide con Shopify → "shopify"; si no, manual.
+    patch.store_domain_source = (shopHost && current === shopHost) || (info.domains || []).includes(current) ? "shopify" : "manual";
+  }
+  if (!String(m.store_name || "").trim() && info.name) patch.store_name = info.name.slice(0, 60);
+  return patch;
 }
 
 // ¿El cliente (por email) tiene una orden PAGA reciente en Shopify? Se usa para
@@ -103,7 +163,9 @@ export async function shHasRecentPaidOrder(shop, token, email, days = 14) {
 // los puntos HOP dinámicos de Andreani) NO vienen acá — para esas el checkout
 // cae al envío del plan. `subtotal` filtra las tarifas por monto (envío gratis
 // desde $X) para no ofrecer una tarifa que no aplica a ese carrito.
-export async function shGetShippingRates(shop, token, { province = "", subtotal = 0 } = {}) {
+// `allZones: true` ignora el filtro de país (importación al panel cuando la
+// tienda no tiene zona Argentina). Cada tarifa incluye `id` (id de Shopify).
+export async function shGetShippingRates(shop, token, { province = "", subtotal = 0, allZones = false } = {}) {
   let data;
   try { data = await call(shop, token, "GET", "/shipping_zones.json"); }
   catch (_) { return []; }
@@ -124,7 +186,7 @@ export async function shGetShippingRates(shop, token, { province = "", subtotal 
       }
       return true;
     });
-    if (!cubreAR) continue;
+    if (!cubreAR && !allZones) continue;
     const push = (r, kind) => {
       const price = Number(r.price || 0);
       const min = r.min_order_subtotal != null ? Number(r.min_order_subtotal) : null;
@@ -137,7 +199,7 @@ export async function shGetShippingRates(shop, token, { province = "", subtotal 
       const key = name + "|" + price;
       if (seen.has(key)) return;
       seen.add(key);
-      out.push({ name, price, free: price === 0 });
+      out.push({ name, price, free: price === 0, id: r.id != null ? String(r.id) : undefined });
     };
     for (const r of (z.price_based_shipping_rates || [])) push(r, "price");
     for (const r of (z.weight_based_shipping_rates || [])) push(r, "weight");
@@ -145,6 +207,26 @@ export async function shGetShippingRates(shop, token, { province = "", subtotal 
   // Gratis primero, después por precio ascendente.
   out.sort((a, b) => a.price - b.price);
   return out;
+}
+
+// Tarifas de envío de Shopify listas para el panel (sin escribir). Zona
+// Argentina; si la tienda no tiene zona AR, todas las zonas. Dedup por nombre.
+// [] = la tienda usa tarifas dinámicas (carrier service) → cargar a mano.
+export const SHOPIFY_RATES_EMPTY_NOTE = "Tu tienda usa tarifas dinámicas (carrier). Cargalas a mano.";
+export async function shopifyRatesForPanel(merchant) {
+  if (!merchant?.shopify_token || !merchant?.shopify_shop) return { rates: [], error: "Conectá Shopify primero" };
+  let raw = await shGetShippingRates(merchant.shopify_shop, merchant.shopify_token, {});
+  if (!raw.length) raw = await shGetShippingRates(merchant.shopify_shop, merchant.shopify_token, { allZones: true });
+  const seen = new Set();
+  const rates = [];
+  for (const r of raw) {
+    const name = String(r.name || "").trim().slice(0, 250);
+    const key = name.toLowerCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    rates.push({ name, price: Math.max(0, Math.round(Number(r.price) || 0)), code: name.slice(0, 50), source: "shopify" });
+  }
+  return rates.length ? { rates } : { rates: [], note: SHOPIFY_RATES_EMPTY_NOTE };
 }
 
 // Customer find-or-create — antes de crear la orden necesitamos un customer.

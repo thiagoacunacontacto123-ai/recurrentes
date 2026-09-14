@@ -8,9 +8,14 @@
 //   GET  ?action=oauth-start   (auth) → { url } del consent de Shopify
 //   GET  ?action=products      (auth) → lista productos del merchant
 //   POST ?action=save-creds    (auth) → guarda client_id + secret + shop
+//        body { shop, client_id?, client_secret?, access_token? }. Si viene
+//        `access_token` (custom app), se valida contra shop.json y se guarda
+//        junto con los datos de la tienda (shop_*, store_domain, …).
 //   GET  ?action=shipping-rates (público, rate-limited) → tarifas de envío
+//   GET  ?action=shipping-rates-admin (auth, dueño) → tarifas de Shopify para
+//        importarlas al panel: { rates:[{name,price,code,source:"shopify"}], note? }
 import { db, requireMerchant } from "./_lib/firebase.js";
-import { shListProducts, shGetShippingRates } from "./_lib/shopify.js";
+import { shListProducts, shGetShippingRates, shGetShopInfo, buildShopInfoPatch, shopifyRatesForPanel } from "./_lib/shopify.js";
 import { signToken } from "./_lib/token.js";
 import { appBaseUrl } from "./_lib/config.js";
 import { rateLimit, clientIp } from "./_lib/ratelimit.js";
@@ -26,7 +31,25 @@ export default async function handler(req, res) {
   if (action === "products")    return handleProducts(req, res);
   if (action === "save-creds")  return handleSaveCreds(req, res);
   if (action === "shipping-rates") return handleShippingRates(req, res);
-  return res.status(400).json({ error: "action debe ser oauth-start | products | save-creds | shipping-rates" });
+  if (action === "shipping-rates-admin") return handleShippingRatesAdmin(req, res);
+  return res.status(400).json({ error: "action debe ser oauth-start | products | save-creds | shipping-rates | shipping-rates-admin" });
+}
+
+// ─── action=shipping-rates-admin ───────────────────────────────
+async function handleShippingRatesAdmin(req, res) {
+  const ctx = await requireMerchant(req, res);
+  if (!ctx) return;
+  if (ctx.role !== "owner") return res.status(403).json({ error: "Solo el dueño de la tienda puede importar envíos." });
+  try {
+    const snap = await db().collection("merchants").doc(ctx.merchantId).get();
+    const m = snap.exists ? snap.data() : {};
+    if (!m.shopify_token || !m.shopify_shop) return res.status(400).json({ error: "Conectá Shopify primero", rates: [] });
+    const out = await shopifyRatesForPanel(m);
+    res.setHeader("Cache-Control", "no-store");
+    return res.json(out);
+  } catch (e) {
+    return res.status(502).json({ error: e.message, rates: [] });
+  }
 }
 
 // ─── action=shipping-rates ─────────────────────────────────────
@@ -140,15 +163,34 @@ async function handleSaveCreds(req, res) {
   const { uid, merchantId } = ctx;
   if (merchantId !== uid && !(ctx.role === "owner" || ctx.viaOwner)) return res.status(403).json({ error: "Solo el dueño de la tienda puede configurar Shopify." });
 
-  let { shop, client_id, client_secret } = req.body || {};
+  let { shop, client_id, client_secret, access_token } = req.body || {};
   const hasEnvApp = !!(process.env.SHOPIFY_API_KEY && process.env.SHOPIFY_API_SECRET);
+  const token = typeof access_token === "string" ? access_token.trim() : "";
   if (!shop?.trim()) return res.status(400).json({ error: "Falta shop (mitienda.myshopify.com)" });
-  if (!hasEnvApp && !client_id?.trim()) return res.status(400).json({ error: "Falta Client ID" });
-  if (!hasEnvApp && !client_secret?.trim()) return res.status(400).json({ error: "Falta Client Secret" });
+  // Con token de custom app no hacen falta client_id/secret (no hay OAuth).
+  if (!token && !hasEnvApp && !client_id?.trim()) return res.status(400).json({ error: "Falta Client ID" });
+  if (!token && !hasEnvApp && !client_secret?.trim()) return res.status(400).json({ error: "Falta Client Secret" });
 
   shop = shop.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
   if (!SHOP_RE.test(shop)) {
     return res.status(400).json({ error: "Shop inválido — formato: mitienda.myshopify.com" });
+  }
+
+  const merchantSnap = await db().collection("merchants").doc(merchantId).get();
+  const merchant = merchantSnap.exists ? merchantSnap.data() : {};
+
+  // Token pegado (custom app / Admin API access token): lo validamos contra
+  // shop.json antes de guardar nada. Si es válido, guardamos token + datos de la
+  // tienda (shopify_domains, store_domain, store_name, shop_*).
+  let shopInfoPatch = {};
+  if (token) {
+    if (!/^shp(at|ca|pa|ss)_[A-Za-z0-9]+$/.test(token) && token.length < 20) return res.status(400).json({ error: "access_token inválido" });
+    try {
+      const info = await shGetShopInfo(shop, token);
+      shopInfoPatch = buildShopInfoPatch(merchant, info);
+    } catch (e) {
+      return res.status(400).json({ error: `Shopify no aceptó el token: ${e.message}` });
+    }
   }
 
   try {
@@ -157,9 +199,16 @@ async function handleSaveCreds(req, res) {
       shopify_client_id: (client_id || "").trim() || null,
       shopify_client_secret: (client_secret || "").trim() || null,
       shopify_creds_saved_at: new Date().toISOString(),
-      shopify_token: null,
+      ...(token ? {
+        shopify_token: token,
+        shopify_connected_at: new Date().toISOString(),
+        shopify_method: "custom_app_token",
+        shopify_uninstalled_at: null,
+        shopify_disconnected_at: null,
+        ...shopInfoPatch,
+      } : { shopify_token: null }),
     }, { merge: true });
-    return res.json({ ok: true, shop });
+    return res.json({ ok: true, shop, connected: !!token, ...(token ? { shop_name: shopInfoPatch.shop_name || null, store_domain: shopInfoPatch.store_domain || merchant.store_domain || null } : {}) });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }

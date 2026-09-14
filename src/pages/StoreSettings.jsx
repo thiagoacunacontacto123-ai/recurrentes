@@ -1,0 +1,208 @@
+import React, { useState, useEffect } from "react";
+import { apiGet, apiPost, apiPatch } from "../lib/api.js";
+import { DS, useT } from "../ui/theme.js";
+import { Card, Btn, DSBadge, InputStyle, Spinner, CardHeader, Callout, Hint, toast } from "../ui/components.jsx";
+import { MONO, SurfaceBox } from "./_shared.jsx";
+
+// ─── Configuración → Tienda ──────────────────────────────────────
+// 1) "Datos de tu tienda": SOLO LECTURA, salen de Shopify (shop.json) y de MP.
+//    · Actualizar desde Shopify → GET merchant?action=refresh-shop
+//    · Editar dominio (caso raro) → PATCH save-settings { store_domain } (el
+//      backend marca store_domain_source:"manual"; vacío → vuelve a Shopify)
+// 2) "Envíos del checkout": importar de Shopify (GET shopify?action=
+//    shipping-rates-admin → elegir → POST merchant?action=import-shipping-rates
+//    { rates }) o editar a mano (máx 6) → PATCH save-settings { checkout_shipping_rates }.
+
+const MAX_RATES = 6;
+const fmtARS = (n) => "$" + Math.round(Number(n) || 0).toLocaleString("es-AR");
+
+export default function StoreSettings({ merchant, onChange }) {
+  const T = useT();
+  const m = merchant || {};
+  const isOwner = (m.role || "owner") === "owner";
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
+      <StoreDataCard T={T} m={m} isOwner={isOwner} onChange={onChange}/>
+      <ShippingRatesCard T={T} m={m} isOwner={isOwner} onChange={onChange}/>
+    </div>
+  );
+}
+
+// ── Datos de la tienda (solo lectura) ─────────────────────────────
+function StoreDataCard({ T, m, isOwner, onChange }) {
+  const iS = InputStyle(T);
+  const shopifyOk = Boolean(m.shopify_token);
+  const domain = m.store_domain_effective || m.store_domain || (m.shopify_shop ? m.shopify_shop : "");
+  const source = m.store_domain_source || (m.store_domain ? "manual" : (domain ? "shopify" : null));
+  const [refreshing, setRefreshing] = useState(false);
+  const [editingDomain, setEditingDomain] = useState(false);
+  const [domainDraft, setDomainDraft] = useState(m.store_domain || domain || "");
+  const [savingDomain, setSavingDomain] = useState(false);
+  useEffect(() => { setDomainDraft(m.store_domain || domain || ""); }, [m.store_domain, domain]);
+
+  async function refresh() {
+    setRefreshing(true);
+    const d = await apiGet("merchant", { action: "refresh-shop" });
+    setRefreshing(false);
+    if (d?.error) return toast("Error: " + d.error, "error", 6000);
+    toast("Datos actualizados desde Shopify", "success");
+    onChange?.();
+  }
+  async function saveDomain(value) {
+    const v = String(value ?? "").trim().replace(/^https?:\/\//i, "").replace(/\/.*$/, "").toLowerCase();
+    setSavingDomain(true);
+    const d = await apiPatch("merchant", { store_domain: v }, { action: "save-settings" });
+    setSavingDomain(false);
+    if (d?.error) return toast("Error: " + d.error, "error", 6000);
+    toast(v ? "Dominio guardado (manual)" : "Dominio: vuelve a tomarse de Shopify", "success");
+    setEditingDomain(false);
+    onChange?.();
+  }
+
+  const rows = [
+    ["Nombre", m.store_name || m.shop_name || "—"],
+    ["Dominio público", domain ? <span style={{ fontFamily:MONO }}>{domain}</span> : "—", source === "manual" ? <DSBadge T={T} color={T.yellow} size="sm">manual</DSBadge> : source === "shopify" ? <DSBadge T={T} color={T.green} size="sm">de Shopify</DSBadge> : null],
+    ["Moneda", m.shop_currency || "—"],
+    ["Mail de la tienda", m.shop_email || "—"],
+    ["Cuenta de Mercado Pago", m.mp_email || (m.mp_access_token ? (m.mp_user_id ? `ID ${m.mp_user_id}` : "Conectada") : "Sin conectar")],
+  ];
+
+  return (
+    <Card T={T}>
+      <CardHeader T={T} title="Datos de tu tienda" sub="Los tomamos de tu Shopify y de tu cuenta de Mercado Pago. No hace falta cargar nada a mano."
+        right={isOwner && <Btn T={T} variant="secondary" size="sm" onClick={refresh} disabled={!shopifyOk || refreshing} title={shopifyOk ? "" : "Conectá Shopify primero"}>{refreshing ? <><Spinner size={12} color={T.textMd}/> Actualizando…</> : "↻ Actualizar desde Shopify"}</Btn>}/>
+      {!shopifyOk && (
+        <Callout T={T} tone="warning" style={{ marginBottom:12 }} right={<a href="#/config/integraciones" style={{ color:T.accent, fontWeight:DS.w.bold, fontSize:DS.font.sm, textDecoration:"none" }}>Conectar →</a>}>
+          Conectá Shopify en Configuración → Integraciones para traer nombre, dominio, moneda y mail.
+        </Callout>
+      )}
+      <div style={{ border:`1px solid ${T.borderL}`, borderRadius:DS.r.lg, overflow:"hidden" }}>
+        {rows.map(([label, value, badge], i) => (
+          <div key={label} style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", padding:"10px 14px", borderTop: i === 0 ? "none" : `1px solid ${T.borderL}`, background: i % 2 ? T.surface : "transparent" }}>
+            <span style={{ fontSize:DS.font.sm, color:T.textSm, minWidth:170, fontWeight:DS.w.semibold, textTransform:"uppercase", letterSpacing:0.4 }}>{label}</span>
+            <span style={{ flex:1, minWidth:160, fontSize:DS.font.base, color:T.text, wordBreak:"break-all" }}>{value}</span>
+            {badge}
+            {label === "Dominio público" && isOwner && !editingDomain && (
+              <button type="button" onClick={()=>setEditingDomain(true)} style={{ background:"transparent", border:"none", color:T.textSm, fontSize:DS.font.sm, cursor:"pointer", fontFamily:"inherit", textDecoration:"underline" }}>Editar dominio</button>
+            )}
+          </div>
+        ))}
+      </div>
+      {editingDomain && (
+        <div className="gh-accordion" style={{ marginTop:12, background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:DS.r.lg, padding:"12px 14px" }}>
+          <div style={{ fontSize:DS.font.md, fontWeight:DS.w.bold, color:T.text, marginBottom:6 }}>Dominio público (caso raro)</div>
+          <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, marginBottom:8 }}>Solo si el dominio que ve tu cliente no es el que figura en Shopify. Sin https://. Se usa en los links de los mails y el portal.</div>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+            <input value={domainDraft} onChange={e=>setDomainDraft(e.target.value)} style={{ ...iS, marginBottom:0, flex:"1 1 220px", fontFamily:MONO, fontSize:DS.font.md }} placeholder="www.mitienda.com" onKeyDown={e=>{ if (e.key === "Enter") saveDomain(domainDraft); }}/>
+            <Btn T={T} variant="primary" size="sm" onClick={()=>saveDomain(domainDraft)} disabled={savingDomain}>{savingDomain ? "Guardando…" : "Guardar"}</Btn>
+            {source === "manual" && <Btn T={T} variant="secondary" size="sm" onClick={()=>saveDomain("")} disabled={savingDomain}>Volver al de Shopify</Btn>}
+            <Btn T={T} variant="ghost" size="sm" onClick={()=>setEditingDomain(false)} style={{ color:T.textSm }}>Cancelar</Btn>
+          </div>
+        </div>
+      )}
+      {m.shop_info_at && <Hint T={T} style={{ marginTop:10, marginBottom:0 }}>Última lectura de Shopify: {new Date(m.shop_info_at).toLocaleString("es-AR")}.</Hint>}
+    </Card>
+  );
+}
+
+// ── Envíos del checkout ───────────────────────────────────────────
+function ShippingRatesCard({ T, m, isOwner, onChange }) {
+  const iS = InputStyle(T);
+  const shopifyOk = Boolean(m.shopify_token);
+  const [rates, setRates] = useState(Array.isArray(m.checkout_shipping_rates) ? m.checkout_shipping_rates : []);
+  const [busy, setBusy] = useState("");
+  // Importación: lista traída de Shopify pendiente de confirmar
+  const [imported, setImported] = useState(null); // { rates:[{name,price,code,source,_on}], note }
+  useEffect(() => { setRates(Array.isArray(m.checkout_shipping_rates) ? m.checkout_shipping_rates : []); }, [m.checkout_shipping_rates]);
+
+  async function fetchFromShopify() {
+    setBusy("fetch");
+    const d = await apiGet("shopify", { action: "shipping-rates-admin" });
+    setBusy("");
+    if (d?.error) return toast("Error: " + d.error, "error", 6000);
+    const list = (Array.isArray(d?.rates) ? d.rates : []).map((r, i) => ({ ...r, _on: i < MAX_RATES }));
+    setImported({ rates: list, note: d?.note || null });
+    if (!list.length) toast(d?.note || "Shopify no devolvió tarifas fijas. Cargalas a mano.", "warning", 6000);
+  }
+  async function useImported() {
+    const sel = (imported?.rates || []).filter(r => r._on).slice(0, MAX_RATES).map(r => ({ name: r.name, price: r.price, code: r.code || "" }));
+    if (!sel.length) return toast("Elegí al menos un envío", "warning");
+    setBusy("import");
+    const d = await apiPost("merchant", { rates: sel }, { action: "import-shipping-rates" });
+    setBusy("");
+    if (d?.error) return toast("Error: " + d.error, "error", 6000);
+    if (d?.note) toast(d.note, "warning", 6000);
+    toast(`Importados ${d?.imported ?? sel.length} envíos de Shopify`, "success");
+    setImported(null);
+    if (Array.isArray(d?.rates)) setRates(d.rates);
+    onChange?.();
+  }
+  async function saveRates() {
+    const clean = rates.map(r => ({ name: String(r.name || "").trim(), price: parseInt(r.price, 10) || 0, code: r.code || "" })).filter(r => r.name);
+    setBusy("save");
+    const d = await apiPatch("merchant", { checkout_shipping_rates: clean.map(r => ({ name: r.name, price: r.price, ...(r.code ? { code: r.code } : {}) })) }, { action: "save-settings" });
+    setBusy("");
+    if (d?.error) return toast("Error: " + d.error, "error", 6000);
+    toast("Envíos guardados", "success");
+    onChange?.();
+  }
+  const updRate = (i, k, v) => setRates(rs => rs.map((r, j) => j === i ? { ...r, [k]: v } : r));
+  const inl = { ...iS, padding:"7px 10px", fontSize:DS.font.md, marginBottom:0 };
+  const xBtn = (onClick) => (
+    <button type="button" onClick={onClick} title="Quitar" style={{ background:"transparent", border:"none", color:T.textSm, cursor:"pointer", fontSize:14, padding:"4px 6px", fontFamily:"inherit", lineHeight:1 }}
+      onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.textSm}>✕</button>
+  );
+  const selCount = (imported?.rates || []).filter(r => r._on).length;
+
+  return (
+    <Card T={T}>
+      <CardHeader T={T} title="Envíos del checkout" sub="Lo que el cliente elige al suscribirse y queda en cada orden recurrente. Si no cargás ninguno, se usa el envío por defecto de cada plan."
+        right={<div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+          {isOwner && <Btn T={T} variant="secondary" size="sm" onClick={fetchFromShopify} disabled={!shopifyOk || !!busy} title={shopifyOk ? "" : "Conectá Shopify primero"}>{busy === "fetch" ? <><Spinner size={12} color={T.textMd}/> Leyendo…</> : "⬇ Importar de Shopify"}</Btn>}
+          {rates.length < MAX_RATES && <Btn T={T} variant="secondary" size="sm" onClick={()=>setRates(rs=>[...rs,{name:"",price:0,code:""}])} type="button">+ Agregar</Btn>}
+        </div>}/>
+
+      {imported && (
+        <div className="gh-accordion" style={{ marginBottom:14, background:T.surface, border:`1px solid ${T.accentSolid}55`, borderRadius:DS.r.lg, padding:"12px 14px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, flexWrap:"wrap", marginBottom:8 }}>
+            <div>
+              <div style={{ fontSize:DS.font.md, fontWeight:DS.w.bold, color:T.text }}>Envíos en tu Shopify</div>
+              <div style={{ fontSize:DS.font.sm, color:T.textSm }}>Destildá los que no quieras. Máximo {MAX_RATES}. Reemplazan a la lista de abajo.</div>
+            </div>
+            <div style={{ display:"flex", gap:6 }}>
+              <Btn T={T} variant="solid" size="sm" onClick={useImported} disabled={!!busy || !selCount || selCount > MAX_RATES}>{busy === "import" ? "Importando…" : `Usar estas (${selCount})`}</Btn>
+              <Btn T={T} variant="ghost" size="sm" onClick={()=>setImported(null)} style={{ color:T.textSm }}>Cancelar</Btn>
+            </div>
+          </div>
+          {imported.note && <Callout T={T} tone="info" style={{ marginBottom:8 }}>{imported.note}</Callout>}
+          {imported.rates.length === 0 ? (
+            <div style={{ fontSize:DS.font.sm, color:T.textSm }}>No encontramos tarifas fijas (¿usás tarifas dinámicas de un correo?). Cargalas a mano abajo.</div>
+          ) : imported.rates.map((r, i) => (
+            <label key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"6px 0", borderTop: i === 0 ? "none" : `1px solid ${T.borderL}`, cursor:"pointer", fontSize:DS.font.md, color:T.text }}>
+              <input type="checkbox" checked={r._on} onChange={e=>setImported(s => ({ ...s, rates: s.rates.map((x, j) => j === i ? { ...x, _on: e.target.checked } : x) }))} style={{ accentColor:T.accentSolid }}/>
+              <span style={{ flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis" }}>{r.name}</span>
+              <span style={{ fontWeight:DS.w.bold, fontVariantNumeric:"tabular-nums" }}>{fmtARS(r.price)}</span>
+              {r.source && <DSBadge T={T} color={T.textSm} size="sm">{r.source}</DSBadge>}
+            </label>
+          ))}
+        </div>
+      )}
+
+      {rates.length === 0 && !imported && (
+        <SurfaceBox T={T} style={{ marginBottom:12 }}><div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5 }}>Sin envíos del checkout: cada plan usa su envío por defecto. Importalos de Shopify (recomendado) o agregalos a mano.</div></SurfaceBox>
+      )}
+      {rates.map((r, i) => (
+        <div key={i} style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr auto", gap:6, alignItems:"center", marginBottom:6 }}>
+          <input value={r.name} onChange={e=>updRate(i,"name",e.target.value)} style={inl} placeholder="Nombre (ej. Andreani a domicilio)"/>
+          <input type="number" min="0" value={r.price} onChange={e=>updRate(i,"price",e.target.value)} style={inl} placeholder="Precio $"/>
+          <input value={r.code || ""} onChange={e=>updRate(i,"code",e.target.value)} style={inl} placeholder="Código (opcional)"/>
+          {xBtn(()=>setRates(rs=>rs.filter((_,j)=>j!==i)))}
+        </div>
+      ))}
+      <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap", marginTop:8 }}>
+        <Btn T={T} variant="primary" onClick={saveRates} disabled={!!busy}>{busy === "save" ? <><Spinner size={12} color={T.accent}/> Guardando…</> : "Guardar envíos"}</Btn>
+        <span style={{ fontSize:DS.font.sm, color:T.textSm }}>{rates.length}/{MAX_RATES}{m.checkout_shipping_rates_source === "shopify" ? " · importados de Shopify" : ""}</span>
+      </div>
+    </Card>
+  );
+}

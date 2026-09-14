@@ -129,7 +129,11 @@ export async function resolveMerchantAccess(uid, merchantId, seccion) {
   const member = meta.members ? meta.members[uid] : null;
   if (member) {
     if (member.role === "owner") return { ok: true, role: "owner", viaOwner: true, member };
-    if (seccion && !(member.secciones && member.secciones[seccion] === true)) {
+    // Permisos guardados con ids viejos (suscriptores/actividad/…) siguen valiendo.
+    const LEGACY_OF = { suscripciones: ["suscriptores", "carritos", "abandonados"], portal: ["actividad"], configuracion: ["integraciones", "plan", "guia"] };
+    const secs = member.secciones || null;
+    const hasSec = !secs || Object.keys(secs).length === 0 || secs[seccion] === true || (LEGACY_OF[seccion] || []).some(k => secs[k] === true);
+    if (seccion && !hasSec) {
       return { ok: false, code: 403, error: "Tu cuenta no tiene acceso a esta sección. Pedile al dueño que te la habilite desde Equipo." };
     }
     return { ok: true, role: "member", viaTeam: true, member };

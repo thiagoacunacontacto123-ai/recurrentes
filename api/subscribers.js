@@ -1,13 +1,17 @@
 // /api/subscribers — CRUD de suscriptores del merchant logueado.
 //
-//   GET                                  → lista de subs (con filtros opcionales)
+//   GET                                  → lista de subs. Filtros:
+//        status=active|paused|payment_failed|pending|cancelled|unpaid
+//          (unpaid = pending sin last_charge_at, últimos 30 días, dedup por email)
+//        plan_id=<id> · q=<texto> (email / nombre / teléfono, en memoria) · email=<texto>
 //   GET /api/subscribers?id=<subId>      → detalle de un sub
-//   GET ?action=abandoned                → checkouts abandonados
+//   GET ?action=abandoned                → alias de status=unpaid (respuesta legacy { abandoned, count })
 //   GET ?action=export                   → CSV de suscriptores
 //   PATCH /api/subscribers?id=<subId>    → actualizar estado (pause | resume | cancel | resync)
 //   POST ?action=sync|simulate-charge|link-payment|retry-order|reprice
 //
 // Las acciones pause/cancel se reflejan en MP via mpUpdatePreapproval.
+import { FieldValue } from "firebase-admin/firestore";
 import { db, requireMerchant } from "./_lib/firebase.js";
 import { mpUpdatePreapproval, mpGetPreapproval } from "./_lib/mp.js";
 import { syncSubscriber } from "./_lib/sync.js";
@@ -55,7 +59,7 @@ const csvCell = (v) => { const s = v == null ? "" : String(v); return /[",;\n]/.
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   // Multi-tienda: merchantId = tienda activa (header X-Merchant-Id) o el uid del login.
-  const ctx = await requireMerchant(req, res);
+  const ctx = await requireMerchant(req, res, "suscripciones");
   if (!ctx) return;
   const { merchantId } = ctx;
 
@@ -235,13 +239,12 @@ export default async function handler(req, res) {
     return res.json({ ok: true, updated, failed, total: docs.length, new_amount: newAmount });
   }
 
-  // ── GET ?action=abandoned — lista de checkouts ABANDONADOS ────────────────
-  // Suscriptores en "pending" (iniciaron el checkout de suscripción y NO pagaron)
-  // de hace +45 min (les dimos tiempo a completar) y hasta 30 días atrás, sin
-  // orden. Deduplicados por email (queda el intento MÁS RECIENTE). Devuelve los
-  // datos para el follow-up + paso de mail enviado. El link de recupero solo se
-  // devuelve si apunta a un dominio de la tienda (nunca una URL cruda del lead).
-  if (req.method === "GET" && req.query.action === "abandoned") {
+  // ── Checkouts SIN PAGAR (status=unpaid; ?action=abandoned es el alias legacy) ──
+  // Suscriptores en "pending" (iniciaron el checkout y NO pagaron) de hace +45 min
+  // (les dimos tiempo a completar) y hasta 30 días atrás, sin orden ni cobro.
+  // Deduplicados por email (queda el intento MÁS RECIENTE). El link de recupero
+  // solo se devuelve si apunta a un dominio de la tienda.
+  const listUnpaid = async () => {
     const now = Date.now();
     const minAgeMs = 45 * 60 * 1000;
     const maxAgeMs = 30 * 24 * 60 * 60 * 1000;
@@ -262,40 +265,51 @@ export default async function handler(req, res) {
       if (!created) continue;
       const age = now - created;
       if (age < minAgeMs || age > maxAgeMs) continue;
+      if (s.last_charge_at) continue;
       if ((s.shopify_orders || []).length > 0) continue;
       if (s.abandoned_step === 99) continue; // ya compró por otro lado
       if (s.mp_preapproval_status === "authorized") continue; // tarjeta autorizada: no es abandono
-      rows.push({
-        id: doc.id,
-        email: s.customer_email || null,
-        name: s.customer_name || null,
-        phone: s.customer_phone || null,
-        product_title: s.plan_snapshot?.product_title || null,
-        quantity: s.quantity || 1,
-        value_ars: s.plan_snapshot?.total_per_charge_ars || s.plan_snapshot?.subscription_price_ars || 0,
-        frequency_days: s.plan_snapshot?.frequency_days || null,
-        created_at: s.created_at,
-        abandoned_step: s.abandoned_step || 0,
-        abandoned_step_at: s.abandoned_step_at || null,
-        capture: s.capture === true,
-        recover_url: safeUrl(s.fb_data?.event_source_url),
-      });
+      rows.push({ doc, s, recover_url: safeUrl(s.fb_data?.event_source_url) });
     }
     const byEmail = {};
     for (const r of rows) {
-      const k = (r.email || "").toLowerCase();
-      if (!byEmail[k] || r.created_at > byEmail[k].created_at) byEmail[k] = r;
+      const k = (r.s.customer_email || "").toLowerCase();
+      if (!byEmail[k] || (r.s.created_at || "") > (byEmail[k].s.created_at || "")) byEmail[k] = r;
     }
-    const list = Object.values(byEmail).sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+    return Object.values(byEmail).sort((a, b) => (b.s.created_at || "").localeCompare(a.s.created_at || ""));
+  };
+
+  if (req.method === "GET" && req.query.action === "abandoned") {
+    const list = (await listUnpaid()).map(({ doc, s, recover_url }) => ({
+      id: doc.id,
+      email: s.customer_email || null,
+      name: s.customer_name || null,
+      phone: s.customer_phone || null,
+      product_title: s.plan_snapshot?.product_title || null,
+      quantity: s.quantity || 1,
+      value_ars: s.plan_snapshot?.total_per_charge_ars || s.plan_snapshot?.subscription_price_ars || 0,
+      frequency_days: s.plan_snapshot?.frequency_days || null,
+      created_at: s.created_at,
+      abandoned_step: s.abandoned_step || 0,
+      abandoned_step_at: s.abandoned_step_at || null,
+      capture: s.capture === true,
+      recover_url,
+    }));
     return res.json({ abandoned: list, count: list.length });
   }
 
   // ── GET ?action=export — CSV de suscriptores (opcional ?status=) ──────────
   if (req.method === "GET" && req.query.action === "export") {
-    let q = subsCol;
-    if (req.query.status) q = q.where("status", "==", String(req.query.status));
-    const snap = await q.get();
-    const subs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+    let subs;
+    if (String(req.query.status || "") === "unpaid") {
+      subs = (await listUnpaid()).map(({ doc, s }) => ({ id: doc.id, ...s }));
+    } else {
+      let q = subsCol;
+      if (req.query.status) q = q.where("status", "==", String(req.query.status));
+      const snap = await q.get();
+      subs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+    subs.sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
     const header = ["id", "email", "nombre", "telefono", "estado", "plan", "cantidad", "monto_por_cobro", "frecuencia_dias", "proximo_cobro", "ultimo_cobro", "ordenes", "alta"];
     const lines = [header.join(";")];
     for (const s of subs) {
@@ -328,18 +342,35 @@ export default async function handler(req, res) {
         .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
       return res.json({ subscriber: { id: snap.id, ...snap.data() }, charges });
     }
-    // Listar con filtros: status, plan_id, email
-    let q = subsCol;
-    if (req.query.status) q = q.where("status", "==", String(req.query.status));
-    if (req.query.plan_id) q = q.where("plan_id", "==", String(req.query.plan_id));
-    const snap = await q.get();
-    let subs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // Listar con filtros: status, plan_id, email, q
+    const STATUSES = ["active", "paused", "payment_failed", "pending", "cancelled", "unpaid"];
+    const status = String(req.query.status || "").trim();
+    if (status && !STATUSES.includes(status)) return res.status(400).json({ error: `status debe ser ${STATUSES.join(" | ")}` });
+    let subs;
+    if (status === "unpaid") {
+      // Sin pagar = pending sin cobro, últimos 30 días, dedup por email (ver listUnpaid).
+      subs = (await listUnpaid()).map(({ doc, s, recover_url }) => ({ id: doc.id, ...s, recover_url, unpaid: true }));
+      if (req.query.plan_id) subs = subs.filter(s => String(s.plan_id || "") === String(req.query.plan_id));
+    } else {
+      let q = subsCol;
+      if (status) q = q.where("status", "==", status);
+      if (req.query.plan_id) q = q.where("plan_id", "==", String(req.query.plan_id));
+      const snap = await q.get();
+      subs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
     if (req.query.email) {
       const emailQ = String(req.query.email).toLowerCase();
       subs = subs.filter(s => (s.customer_email || "").toLowerCase().includes(emailQ));
     }
+    // q = búsqueda libre por email / nombre / teléfono (en memoria, sin acentos).
+    const qText = String(req.query.q || "").trim().toLowerCase();
+    if (qText) {
+      const fold = (v) => String(v || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const needle = fold(qText);
+      subs = subs.filter(s => fold(s.customer_email).includes(needle) || fold(s.customer_name).includes(needle) || fold(s.customer_phone).replace(/\D/g, "").includes(needle.replace(/\D/g, "") || "\u0000"));
+    }
     subs.sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
-    return res.json({ subscribers: subs });
+    return res.json({ subscribers: subs, count: subs.length, ...(status ? { status } : {}), ...(qText ? { q: qText } : {}) });
   }
 
   if (req.method === "PATCH") {
@@ -467,8 +498,10 @@ export default async function handler(req, res) {
       updated_at: nowIso(),
       ...(preData?.status ? { mp_preapproval_status: preData.status } : {}),
       ...(action !== "cancel" && nextChargeAt ? { next_charge_at: nextChargeAt } : {}),
-      ...(action === "cancel" ? { cancelled_at: nowIso() } : {}),
+      ...(action === "cancel" ? { cancelled_at: nowIso(), cancelled_by: "merchant" } : {}),
       ...(action === "resume" ? { cancelled_at: null } : {}),
+      // Cancelar o reactivar a mano anula la reactivación automática de una pausa por retención.
+      ...(action === "cancel" || action === "resume" ? { resume_at: FieldValue.delete() } : {}),
     };
     await subRef.update(localUpdate);
 

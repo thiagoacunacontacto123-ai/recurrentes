@@ -12,6 +12,10 @@
 //
 // Sin cache — recalcula en cada request. Charges acotados a los últimos 400
 // (o al rango ?from&to): revenue.all_time es "de esa ventana", no histórico.
+//
+// GET /api/stats?action=analytics&months=6[&fresh=1] → analíticas de retención
+// (MRR, churn, LTV, próximos cobros, serie mensual, motivos de baja, recupero).
+// Cache 10 min en merchants/{mid}.analytics_cache { at, months, data }.
 import { db, requireMerchant } from "./_lib/firebase.js";
 
 export default async function handler(req, res) {
@@ -24,6 +28,7 @@ export default async function handler(req, res) {
   const { merchantId } = ctx;
 
   if (req.query.action === "activity") return activity(merchantId, req, res);
+  if (req.query.action === "analytics") return analytics(merchantId, req, res);
 
   try {
     const merchantRef = db().collection("merchants").doc(merchantId);
@@ -258,4 +263,184 @@ function chargesRange(col, query = {}) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(from)) q = q.where("created_at", ">=", from);
   if (/^\d{4}-\d{2}-\d{2}$/.test(to)) q = q.where("created_at", "<=", to + "T23:59:59.999Z");
   return q.limit(from || to ? 2000 : 400);
+}
+
+
+// ─── GET ?action=analytics&months=N ─────────────────────────────────────────
+// Lecturas acotadas: subs completos (ya se leen en el Home) + charges de los
+// últimos N meses por rango de created_at (índice simple) + cancellations (≤ 500).
+// Respuesta (todos los montos en ARS enteros):
+//   { mrr, mrr_prev_month, active, paused, payment_failed, new_30d, cancelled_30d,
+//     churn_30d_pct, ltv_avg, avg_charges_per_sub,
+//     next_30d: { count, amount_ars, by_week:[{week, from, to, count, amount_ars}×4] },
+//     monthly: [{ month:"YYYY-MM", revenue_ars, charges, new, cancelled, active_end }] (N, viejo→nuevo),
+//     cancel_reasons: [{ code, count, saved }], recovery: { failed_30d, recovered_30d, recovery_pct },
+//     months, generated_at, cached }
+const ANALYTICS_CACHE_MS = 10 * 60 * 1000;
+const isSimCharge = (id, c) => c.simulated === true || String(c.mp_payment_id || "").startsWith("SIM-") || /-SIM$/.test(String(id));
+const monthKey = (iso) => String(iso || "").slice(0, 7);
+
+async function analytics(merchantId, req, res) {
+  const months = Math.min(Math.max(parseInt(req.query.months) || 6, 1), 24);
+  const fresh = req.query.fresh === "1";
+  const mRef = db().collection("merchants").doc(merchantId);
+  try {
+    const mSnap = await mRef.get();
+    const merchant = mSnap.data() || {};
+    const c = merchant.analytics_cache;
+    if (!fresh && c && c.months === months && c.data && c.at && Date.now() - Date.parse(c.at) < ANALYTICS_CACHE_MS) {
+      return res.json({ ...c.data, cached: true });
+    }
+
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const windowStart = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+    const windowStartIso = windowStart.toISOString();
+    const cutoff30 = new Date(Date.now() - 30 * 86400000).toISOString();
+    const cutoff90 = new Date(Date.now() - 90 * 86400000).toISOString();
+
+    const [subsSnap, chargesSnap, cancelSnap] = await Promise.all([
+      mRef.collection("subscribers").get(),
+      mRef.collection("charges").where("created_at", ">=", windowStartIso).orderBy("created_at", "desc").limit(5000).get(),
+      mRef.collection("cancellations").orderBy("created_at", "desc").limit(500).get().catch(e => { console.warn("[analytics] cancellations:", e.message); return { docs: [] }; }),
+    ]);
+    const subs = subsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const charges = chargesSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(ch => !isSimCharge(ch.id, ch));
+    const approved = charges.filter(ch => !ch.status || ch.status === "approved");
+
+    // Monto por ciclo y MRR (mismo criterio que el Home: total_per_charge normalizado a 30 días).
+    const perCharge = (s) => {
+      const qty = s.quantity || s.plan_snapshot?.units_per_shipment || 1;
+      return s.plan_snapshot?.total_per_charge_ars || ((s.plan_snapshot?.subscription_price_ars || 0) * qty);
+    };
+    const mrrOf = (s) => perCharge(s) * (30 / (s.plan_snapshot?.frequency_days || 30));
+    // ¿Estaba "viva" (cobrando) en el instante T? Aproximación por fechas del sub:
+    // alta (created_at) ≤ T y no cancelada antes de T. Los pending (leads) no cuentan.
+    const startedBy = (s, tIso) => (s.first_charge_at || s.activated_at || s.created_at || "") <= tIso;
+    const cancelledBy = (s, tIso) => s.status === "cancelled" && (s.cancelled_at || s.updated_at || "") <= tIso;
+    // "Alguna vez cobró": last_charge_at, órdenes, o un status operativo (subs viejas
+    // activadas por webhooks que no guardaban last_charge_at).
+    const everCharged = (s) => !!s.last_charge_at || (Array.isArray(s.shopify_orders) && s.shopify_orders.length > 0) || ["active", "paused", "payment_failed"].includes(s.status);
+    const aliveAt = (s, tIso) => s.status !== "pending" && everCharged(s) && startedBy(s, tIso) && !cancelledBy(s, tIso);
+
+    let mrr = 0, mrrPrev = 0;
+    const counts = { active: 0, paused: 0, payment_failed: 0, cancelled: 0, pending: 0 };
+    const prevMonthEndIso = new Date(startOfThisMonth.getTime() - 1).toISOString();
+    for (const s of subs) {
+      if (counts[s.status] !== undefined) counts[s.status]++;
+      if (s.status === "active") mrr += mrrOf(s);
+      if (aliveAt(s, prevMonthEndIso) && s.status !== "paused") mrrPrev += mrrOf(s);
+    }
+
+    // Altas / bajas 30 días + churn.
+    const new30 = subs.filter(s => s.status !== "pending" && (s.created_at || "") >= cutoff30).length;
+    const cancelled30 = subs.filter(s => s.status === "cancelled" && (s.cancelled_at || s.updated_at || "") >= cutoff30).length;
+    const churnDenom = counts.active + counts.paused + counts.payment_failed + cancelled30;
+    const churn30 = churnDenom > 0 ? (cancelled30 / churnDenom) * 100 : 0;
+
+    // Cobros por sub (ventana) + LTV. Total cobrado por sub = charges aprobados en la
+    // ventana; si la sub tiene más órdenes que charges en ventana (historia previa),
+    // se estima orders × monto por ciclo. Universo LTV: canceladas o activas > 90 días.
+    const chargedBySub = {};
+    const chargeCountBySub = {};
+    for (const ch of approved) {
+      const sid = ch.subscriber_id || "";
+      chargedBySub[sid] = (chargedBySub[sid] || 0) + (Number(ch.amount_ars) || 0);
+      chargeCountBySub[sid] = (chargeCountBySub[sid] || 0) + 1;
+    }
+    const totalChargedOf = (s) => {
+      const orders = Array.isArray(s.shopify_orders) ? s.shopify_orders.length : 0;
+      const inWindow = chargeCountBySub[s.id] || 0;
+      if (orders > inWindow) return Math.max(chargedBySub[s.id] || 0, orders * perCharge(s));
+      return chargedBySub[s.id] || 0;
+    };
+    const ltvUniverse = subs.filter(s => (s.status === "cancelled" && s.last_charge_at) || (s.status === "active" && (s.created_at || "") <= cutoff90));
+    const ltvAvg = ltvUniverse.length ? ltvUniverse.reduce((t, s) => t + totalChargedOf(s), 0) / ltvUniverse.length : 0;
+    const withCharges = subs.filter(s => s.status !== "pending" && (s.last_charge_at || (s.shopify_orders || []).length));
+    const chargesPerSub = withCharges.map(s => Math.max((s.shopify_orders || []).length, chargeCountBySub[s.id] || 0));
+    const avgCharges = chargesPerSub.length ? chargesPerSub.reduce((t, n) => t + n, 0) / chargesPerSub.length : 0;
+
+    // Próximos 30 días por semana (0-7, 7-14, 14-21, 21-30).
+    const in30 = new Date(Date.now() + 30 * 86400000).toISOString();
+    const byWeek = [0, 7, 14, 21].map((from, i) => ({
+      week: i + 1,
+      from: new Date(Date.now() + from * 86400000).toISOString(),
+      to: new Date(Date.now() + (i === 3 ? 30 : from + 7) * 86400000).toISOString(),
+      count: 0, amount_ars: 0,
+    }));
+    let nextCount = 0, nextAmount = 0;
+    for (const s of subs) {
+      if (s.status !== "active" || !s.next_charge_at || s.next_charge_at > in30) continue;
+      const amt = perCharge(s);
+      nextCount++; nextAmount += amt;
+      const w = byWeek.find(b => s.next_charge_at < b.to) || byWeek[0]; // vencidas → semana 1
+      w.count++; w.amount_ars += amt;
+    }
+    byWeek.forEach(b => { b.amount_ars = Math.round(b.amount_ars); });
+
+    // Serie mensual (viejo → nuevo).
+    const monthly = [];
+    for (let i = months - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const endIso = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999).toISOString();
+      const mCharges = approved.filter(ch => monthKey(ch.created_at) === key);
+      monthly.push({
+        month: key,
+        revenue_ars: Math.round(mCharges.reduce((t, ch) => t + (Number(ch.amount_ars) || 0), 0)),
+        charges: mCharges.length,
+        new: subs.filter(s => s.status !== "pending" && monthKey(s.created_at) === key).length,
+        cancelled: subs.filter(s => s.status === "cancelled" && monthKey(s.cancelled_at || s.updated_at) === key).length,
+        active_end: subs.filter(s => aliveAt(s, endIso < nowIso ? endIso : nowIso)).length,
+      });
+    }
+
+    // Motivos de baja (cancellations) + cuántas se salvaron con la oferta de pausa.
+    const reasons = {};
+    for (const d of cancelSnap.docs) {
+      const x = d.data() || {};
+      const code = String(x.reason_code || "sin_motivo");
+      reasons[code] = reasons[code] || { code, count: 0, saved: 0 };
+      reasons[code].count++;
+      if (x.saved === true) reasons[code].saved++;
+    }
+    const cancelReasons = Object.values(reasons).sort((a, b) => b.count - a.count);
+    const saved30 = cancelSnap.docs.filter(d => { const x = d.data() || {}; return x.saved === true && String(x.saved_at || x.created_at || "") >= cutoff30; }).length;
+
+    // Recupero de pagos rechazados: fallaron en 30d vs. de esas, hoy activas con cobro posterior.
+    const failed30 = subs.filter(s => (s.last_payment_failed_at || "") >= cutoff30);
+    const recovered30 = failed30.filter(s => s.status === "active" && (s.last_charge_at || "") > (s.last_payment_failed_at || ""));
+
+    const data = {
+      mrr: Math.round(mrr),
+      mrr_prev_month: Math.round(mrrPrev),
+      active: counts.active,
+      paused: counts.paused,
+      payment_failed: counts.payment_failed,
+      cancelled: counts.cancelled,
+      new_30d: new30,
+      cancelled_30d: cancelled30,
+      churn_30d_pct: Math.round(churn30 * 10) / 10,
+      ltv_avg: Math.round(ltvAvg),
+      ltv_subs: ltvUniverse.length,
+      avg_charges_per_sub: Math.round(avgCharges * 10) / 10,
+      next_30d: { count: nextCount, amount_ars: Math.round(nextAmount), by_week: byWeek },
+      monthly,
+      cancel_reasons: cancelReasons,
+      saved_30d: saved30,
+      recovery: {
+        failed_30d: failed30.length,
+        recovered_30d: recovered30.length,
+        recovery_pct: failed30.length ? Math.round((recovered30.length / failed30.length) * 1000) / 10 : 0,
+      },
+      months,
+      charges_in_window: charges.length,
+      generated_at: nowIso,
+    };
+    mRef.set({ analytics_cache: { at: nowIso, months, data } }, { merge: true }).catch(e => console.warn("[analytics] cache:", e.message));
+    return res.json({ ...data, cached: false });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
 }

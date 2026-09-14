@@ -4,12 +4,20 @@
 //   GET    ?action=me          → idem GET
 //   GET    ?action=workspace   → tiendas del PERFIL (propias + equipo) y la activa
 //   GET    ?action=members     → miembros + invitaciones de la tienda activa (solo dueño)
+//   GET    ?action=refresh-shop → (dueño) relee shop.json de Shopify y actualiza
+//          shopify_domains / store_domain (respeta manual) / store_name (si vacío) /
+//          shop_name / shop_email / shop_currency / shop_country / shop_timezone.
+//          Devuelve { ok, shop:{…}, patch:{…} }.
 //   PATCH  ?action=save-mp-token  body { access_token }
 //          → guarda el access_token de MP del merchant (modo paste, manual).
 //            Valida contra /users/me antes de persistir; si el token no es
 //            legítimo tira 400 sin escribir nada.
-//   PATCH  ?action=save-widget-settings → apariencia del widget (todos los campos)
+//   PATCH  ?action=save-widget-settings → apariencia del widget (PARCIAL: merge de lo que viene)
 //   PATCH  ?action=save-settings        → settings operativos (parcial: solo lo que viene)
+//          (acepta `retention`, `widget_texts`, los legacy widget_*_title/subtitle/
+//          disclaimer → se mapean a widget_texts; `email_accent` se ignora: el mail usa widget_color)
+//   POST   ?action=import-shipping-rates { rates? } → importa los envíos de Shopify a
+//          checkout_shipping_rates (máx 6, dedup por nombre) → { rates, note? }
 //   PATCH  ?action=save-discount-codes  → códigos de descuento
 //   POST   ?action=test-email           → mail de prueba (activación; solo al dueño, 10/día)
 //   POST   ?action=mp-oauth-start       → { url } para conectar MP por OAuth
@@ -39,7 +47,9 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { db, requireMerchant, resolveMerchantAccess, clearMerchantCache, getOrCreateMerchant } from "./_lib/firebase.js";
 import { mpMe } from "./_lib/mp.js";
-import { emailSubscriptionActivated, emailTeamInvite, emailPlanRequest } from "./_lib/email.js";
+import { emailSubscriptionActivated, emailTeamInvite, emailPlanRequest, effectiveBrand, effectiveFrom } from "./_lib/email.js";
+import { shGetShopInfo, buildShopInfoPatch, shopifyRatesForPanel } from "./_lib/shopify.js";
+import { REASON_CODE_RE, retentionFor } from "./_lib/retention.js";
 import { PLAN_BY_ID, buildBilling, monthRange, trialEndFrom } from "./_lib/plans_saas.js";
 import { logEmail } from "./_lib/emaillog.js";
 import { signToken } from "./_lib/token.js";
@@ -58,6 +68,7 @@ export default async function handler(req, res) {
     const gAction = String(req.query.action || "");
     if (gAction === "workspace") return workspace(ctx, req, res);
     if (gAction === "members")   return membersList(ctx, req, res);
+    if (gAction === "refresh-shop") return refreshShop(ctx, res);
     if (gAction && gAction !== "me") return res.status(400).json({ error: "action no reconocida" });
     try {
       // El doc del perfil se crea acá (primer login). Tiendas ajenas/extra ya existen
@@ -80,13 +91,23 @@ export default async function handler(req, res) {
         store_color: merchant.store_color || merchant.widget_color || "#10b981",
         store_photo: merchant.store_photo || null,
         owner_uid: merchant.ownerUid || merchant.id,
-        member_secciones: ctx.role === "member" ? (ctx.member?.secciones || null) : null, // null = acceso total (legacy)
+        member_secciones: ctx.role === "member" ? (ctx.member?.secciones ? cleanSecciones(ctx.member.secciones) : null) : null, // null = acceso total (legacy)
         shopify_shop: merchant.shopify_shop || null,
         shopify_token: merchant.shopify_token ? "•••••" : null,
         shopify_connected_at: merchant.shopify_connected_at || null,
         shopify_has_own_app: !!(merchant.shopify_client_id && merchant.shopify_client_secret),
         shopify_env_app: !!(process.env.SHOPIFY_API_KEY && process.env.SHOPIFY_API_SECRET),
+        // Datos de la tienda leídos de shop.json (OAuth / save-creds / refresh-shop).
+        shop_name: merchant.shop_name || null,
+        shop_email: merchant.shop_email || null,
+        shop_currency: merchant.shop_currency || null,
+        shop_country: merchant.shop_country || null,
+        shop_timezone: merchant.shop_timezone || null,
+        shop_info_at: merchant.shop_info_at || null,
+        shopify_domains: Array.isArray(merchant.shopify_domains) ? merchant.shopify_domains : [],
         mp_user_id: merchant.mp_user_id || null,
+        mp_email: merchant.mp_email || null,
+        mp_country: merchant.mp_country || null,
         mp_access_token: merchant.mp_access_token ? "•••••" : null,
         mp_connected_at: merchant.mp_connected_at || null,
         mp_method: merchant.mp_method || (merchant.mp_access_token ? "manual" : null),
@@ -105,11 +126,15 @@ export default async function handler(req, res) {
         widget_once_subtitle: merchant.widget_once_subtitle || "Comprá una vez al precio normal.",
         widget_disclaimer_text: merchant.widget_disclaimer_text || "",   // vacío = usar default explicativo
         widget_hide_selector: merchant.widget_hide_selector || "",
-        widget_checkout_flow: merchant.widget_checkout_flow || "redirect",
+        // "redirect" (botón → página de checkout on-store) | "inline". "page" legacy = redirect.
+        widget_checkout_flow: normCheckoutFlow(merchant.widget_checkout_flow),
         widget_checkout_page_path: merchant.widget_checkout_page_path || "",
         // Widget de packs (bundle) — ver shared/bundle/SPEC.md
         widget_variant: WIDGET_VARIANT_RE.test(String(merchant.widget_variant || "")) ? merchant.widget_variant : "v01",
-        widget_texts: sanitizeWidgetTexts(merchant.widget_texts).texts,
+        // widget_texts guardados; si están vacíos, derivados de los textos legacy
+        // (widget_sub_title → sub_label, etc.) para que el diseñador único arranque
+        // con lo que el comerciante ya tenía.
+        widget_texts: mergedWidgetTexts(merchant),
         widget_show_compare: merchant.widget_show_compare !== false,
         widget_show_per_unit: merchant.widget_show_per_unit !== false,
         widget_radius: Number.isInteger(merchant.widget_radius) ? Math.max(0, Math.min(32, merchant.widget_radius)) : 14,
@@ -127,9 +152,23 @@ export default async function handler(req, res) {
         email_from: merchant.email_from || "",
         email_brand: merchant.email_brand || "",
         email_reply_to: merchant.email_reply_to || "",
-        email_accent: merchant.email_accent || "",
+        // Defaults derivados (calculados, NO se escriben). El dominio del remitente
+        // sigue siendo el nuestro (EMAIL_FROM) hasta Resend multi-merchant; solo
+        // personalizamos el nombre visible (ver _lib/email.js effectiveFrom).
+        email_brand_effective: effectiveBrand(merchant),
+        email_from_effective: effectiveFrom(merchant),
+        store_domain_effective: effectiveStoreDomain(merchant),
         checkout_shipping_rates: Array.isArray(merchant.checkout_shipping_rates) ? merchant.checkout_shipping_rates : [],
         store_domain: merchant.store_domain || "",
+        store_domain_source: merchant.store_domain_source === "manual" || merchant.store_domain_source === "shopify" ? merchant.store_domain_source : (merchant.store_domain ? "manual" : null),
+        // Retención al cancelar (portal): motivos + oferta de pausa. Defaults si no configuró.
+        retention: retentionFor(merchant),
+        portal: {
+          allow_pause: merchant.portal?.allow_pause !== false,
+          allow_cancel: merchant.portal?.allow_cancel !== false,
+          allow_address: merchant.portal?.allow_address !== false,
+        },
+        portal_welcome: merchant.portal_welcome || "",
         dev_mode: merchant.dev_mode === true,
         requires_email_verification: merchant.requires_email_verification === true,
       };
@@ -143,7 +182,7 @@ export default async function handler(req, res) {
     const action = String(req.query.action || "");
     // Integraciones: solo el dueño (propio o viaOwner). Un miembro del equipo no
     // conecta/desconecta MP ni Shopify de una tienda ajena.
-    const ownerOnly = ["save-mp-token", "mp-oauth-start", "disconnect-mp", "disconnect-shopify", "save-meta", "save-klaviyo", "disconnect-klaviyo", "klaviyo-test"];
+    const ownerOnly = ["save-mp-token", "mp-oauth-start", "disconnect-mp", "disconnect-shopify", "save-meta", "save-klaviyo", "disconnect-klaviyo", "klaviyo-test", "import-shipping-rates"];
     if (ownerOnly.includes(action) && ctx.role !== "owner") return res.status(403).json({ error: "Solo el dueño de la tienda puede administrar las integraciones." });
 
     if (action === "save-mp-token")        return saveMpToken(merchantId, req, res);
@@ -152,6 +191,7 @@ export default async function handler(req, res) {
     if (action === "klaviyo-test")         return klaviyoTest(merchantId, req, res);
     if (action === "save-widget-settings") return saveWidgetSettings(merchantId, req, res);
     if (action === "save-settings")        return saveSettings(merchantId, req, res);
+    if (action === "import-shipping-rates") return importShippingRates(merchantId, req, res);
     if (action === "save-meta")            return saveMeta(merchantId, req, res);
     if (action === "save-discount-codes")  return saveDiscountCodes(merchantId, req, res);
     if (action === "test-email")           return testEmail(merchantId, req, res);
@@ -383,37 +423,56 @@ async function saveMeta(merchantId, req, res) {
 }
 
 async function saveWidgetSettings(merchantId, req, res) {
-  // Setea preferencias UX del widget storefront a nivel merchant. Aplica a
-  // TODOS los planes del merchant — si necesitan plan-por-plan en F2, se
-  // mueve a doc del plan.
-  const { widget_mode_order, widget_mode_default, widget_color, widget_sub_title, widget_sub_subtitle, widget_once_title, widget_once_subtitle, widget_disclaimer_text } = req.body || {};
-  const validOrder = ["sub_first", "once_first"];
-  const validDefault = ["sub", "once"];
-  const order = validOrder.includes(widget_mode_order) ? widget_mode_order : "sub_first";
-  const def = validDefault.includes(widget_mode_default) ? widget_mode_default : "sub";
-  // Color: hex válido (#RRGGBB), si no fallback al verde
-  const colorOk = typeof widget_color === "string" && /^#[0-9a-fA-F]{6}$/.test(widget_color.trim());
-  const color = colorOk ? widget_color.trim() : "#10b981";
-  // Textos: trim + cap a 60 / 120 chars
-  const subTitle = (typeof widget_sub_title === "string" ? widget_sub_title : "").trim().slice(0, 60) || "Suscripción";
-  const subSubtitle = (typeof widget_sub_subtitle === "string" ? widget_sub_subtitle : "").trim().slice(0, 120);
-  const onceTitle = (typeof widget_once_title === "string" ? widget_once_title : "").trim().slice(0, 60) || "Compra única";
-  const onceSubtitle = (typeof widget_once_subtitle === "string" ? widget_once_subtitle : "").trim().slice(0, 120) || "Comprá una vez al precio normal.";
+  // Preferencias UX del widget storefront a nivel merchant. PARCIAL desde
+  // 2026-09-13: solo se escriben las claves que vienen en el body (antes pisaba
+  // todo con defaults). Los textos legacy también se espejan en widget_texts
+  // (sub_label / once_label / trust_lines) para el diseñador único.
+  const b = req.body || {};
+  const out = {};
+  if ("widget_mode_order" in b) out.widget_mode_order = ["sub_first", "once_first"].includes(b.widget_mode_order) ? b.widget_mode_order : "sub_first";
+  if ("widget_mode_default" in b) out.widget_mode_default = ["sub", "once"].includes(b.widget_mode_default) ? b.widget_mode_default : "sub";
+  if ("widget_color" in b) {
+    const colorOk = typeof b.widget_color === "string" && /^#[0-9a-fA-F]{6}$/.test(b.widget_color.trim());
+    out.widget_color = colorOk ? b.widget_color.trim() : "#10b981";
+  }
+  // Textos: trim + cap a 60 / 120 chars. Vacío en título = default.
+  if ("widget_sub_title" in b) out.widget_sub_title = (typeof b.widget_sub_title === "string" ? b.widget_sub_title : "").trim().slice(0, 60) || "Suscripción";
+  if ("widget_sub_subtitle" in b) out.widget_sub_subtitle = (typeof b.widget_sub_subtitle === "string" ? b.widget_sub_subtitle : "").trim().slice(0, 120);
+  if ("widget_once_title" in b) out.widget_once_title = (typeof b.widget_once_title === "string" ? b.widget_once_title : "").trim().slice(0, 60) || "Compra única";
+  if ("widget_once_subtitle" in b) out.widget_once_subtitle = (typeof b.widget_once_subtitle === "string" ? b.widget_once_subtitle : "").trim().slice(0, 120) || "Comprá una vez al precio normal.";
   // Disclaimer banner — texto libre, cap a 800 chars. "" = usar default armado.
-  const disclaimerText = (typeof widget_disclaimer_text === "string" ? widget_disclaimer_text : "").trim().slice(0, 800);
+  if ("widget_disclaimer_text" in b) out.widget_disclaimer_text = (typeof b.widget_disclaimer_text === "string" ? b.widget_disclaimer_text : "").trim().slice(0, 800);
+  if (!Object.keys(out).length) return res.status(400).json({ error: "Nada para guardar" });
   try {
-    await db().collection("merchants").doc(merchantId).set({
-      widget_mode_order: order,
-      widget_mode_default: def,
-      widget_color: color,
-      widget_sub_title: subTitle,
-      widget_sub_subtitle: subSubtitle,
-      widget_once_title: onceTitle,
-      widget_once_subtitle: onceSubtitle,
-      widget_disclaimer_text: disclaimerText,
+    const ref = db().collection("merchants").doc(merchantId);
+    const current = (await ref.get()).data() || {};
+    // Espejo en widget_texts (merge con lo guardado) si vino algún texto legacy.
+    const legacy = legacyWidgetTexts({ ...current, ...out }) || {};
+    const hasLegacyKey = LEGACY_WIDGET_TEXT_KEYS.some(k => k in out);
+    let mergedTexts = hasLegacyKey ? mergeWidgetTexts(sanitizeWidgetTexts(current.widget_texts).texts, legacy, { legacyOverrides: true }) : undefined;
+    if (mergedTexts) {
+      if ("widget_sub_title" in out && !legacy.sub_label) delete mergedTexts.sub_label;
+      if ("widget_once_title" in out && !legacy.once_label) delete mergedTexts.once_label;
+      if (!Object.keys(mergedTexts).length) mergedTexts = null;
+    }
+    await ref.set({
+      ...out,
+      ...(mergedTexts !== undefined ? { widget_texts: mergedTexts } : {}),
       updated_at: new Date().toISOString(),
     }, { merge: true });
-    return res.json({ ok: true, widget_mode_order: order, widget_mode_default: def, widget_color: color, widget_sub_title: subTitle, widget_sub_subtitle: subSubtitle, widget_once_title: onceTitle, widget_once_subtitle: onceSubtitle, widget_disclaimer_text: disclaimerText });
+    const merged = { ...current, ...out };
+    return res.json({
+      ok: true,
+      widget_mode_order: merged.widget_mode_order || "sub_first",
+      widget_mode_default: merged.widget_mode_default || "sub",
+      widget_color: merged.widget_color || "#10b981",
+      widget_sub_title: merged.widget_sub_title || "Suscripción",
+      widget_sub_subtitle: merged.widget_sub_subtitle || "",
+      widget_once_title: merged.widget_once_title || "Compra única",
+      widget_once_subtitle: merged.widget_once_subtitle || "Comprá una vez al precio normal.",
+      widget_disclaimer_text: merged.widget_disclaimer_text || "",
+      ...(mergedTexts !== undefined ? { widget_texts: mergedTexts } : {}),
+    });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
@@ -452,16 +511,102 @@ function sanitizeWidgetTexts(input) {
   return { texts: Object.keys(texts).length ? texts : null };
 }
 
+// ─── Textos legacy del widget → widget_texts ───────────────────────────────
+// widget_sub_title → sub_label · widget_once_title → once_label ·
+// widget_sub_subtitle / widget_once_subtitle / widget_disclaimer_text → trust_lines.
+// Solo se toman los valores que el comerciante cambió (≠ defaults históricos).
+const LEGACY_WIDGET_TEXT_KEYS = ["widget_sub_title", "widget_once_title", "widget_sub_subtitle", "widget_once_subtitle", "widget_disclaimer_text"];
+const LEGACY_WIDGET_DEFAULTS = { widget_sub_title: "Suscripción", widget_once_title: "Compra única", widget_once_subtitle: "Comprá una vez al precio normal." };
+function legacyWidgetTexts(m) {
+  const pick = (k) => { const v = typeof m?.[k] === "string" ? m[k].trim() : ""; return v && v !== LEGACY_WIDGET_DEFAULTS[k] ? v : ""; };
+  const out = {};
+  const sub = pick("widget_sub_title"); if (sub) out.sub_label = sub.slice(0, WIDGET_TEXT_MAX);
+  const once = pick("widget_once_title"); if (once) out.once_label = once.slice(0, WIDGET_TEXT_MAX);
+  const lines = [pick("widget_sub_subtitle"), pick("widget_once_subtitle"), pick("widget_disclaimer_text")]
+    .filter(Boolean).map(l => l.slice(0, WIDGET_TRUST_MAX)).slice(0, WIDGET_TRUST_LINES_MAX);
+  if (lines.length) out.trust_lines = lines;
+  return Object.keys(out).length ? out : null;
+}
+// Merge de textos: `over` pisa `base` clave por clave (trust_lines completo).
+function mergeWidgetTexts(base, over, { legacyOverrides = false } = {}) {
+  if (!base && !over) return null;
+  const out = { ...(base || {}) };
+  for (const [k, v] of Object.entries(over || {})) {
+    if (!legacyOverrides && k in out) continue; // sin override: solo completa lo que falta
+    out[k] = v;
+  }
+  return Object.keys(out).length ? out : null;
+}
+// GET: widget_texts guardados o, si están vacíos, los derivados de los legacy.
+function mergedWidgetTexts(m) {
+  const saved = sanitizeWidgetTexts(m?.widget_texts).texts;
+  return saved || legacyWidgetTexts(m);
+}
+
+// "page" (nombre viejo) = "redirect". Cualquier otra cosa que no sea "inline" → redirect.
+function normCheckoutFlow(v) { return v === "inline" ? "inline" : "redirect"; }
+
+// Dominio efectivo de la tienda (sin escribir): el manual/importado, si no el
+// dominio propio cacheado de Shopify (no myshopify), si no el myshopify.
+function effectiveStoreDomain(m) {
+  const own = normHost(m?.store_domain);
+  if (own) return own;
+  const list = (Array.isArray(m?.shopify_domains) ? m.shopify_domains : []).map(normHost).filter(Boolean);
+  return list.find(h => !/\.myshopify\.com$/.test(h)) || list[0] || normHost(m?.shopify_shop) || "";
+}
+
+// ─── Retención al cancelar (portal del cliente) ────────────────────────────
+// Defaults + lectura en _lib/retention.js (los comparte api/public.js).
+// Valida el `retention` del body (parcial: se mergea con lo guardado). { value } | { error }.
+function sanitizeRetention(input, current) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return { error: "retention debe ser un objeto" };
+  const out = { ...retentionFor(current) };
+  if ("enabled" in input) out.enabled = input.enabled !== false;
+  if ("offer_pause" in input) out.offer_pause = input.offer_pause !== false;
+  if ("pause_cycles" in input) {
+    const c = Number(input.pause_cycles);
+    if (!Number.isInteger(c) || c < 1 || c > 3) return { error: "retention.pause_cycles debe ser 1, 2 o 3" };
+    out.pause_cycles = c;
+  }
+  if ("offer_discount_pct" in input) {
+    const n = Number(input.offer_discount_pct);
+    if (!Number.isInteger(n) || n < 0 || n > 90) return { error: "retention.offer_discount_pct debe ser un entero entre 0 y 90 (0 = sin oferta)" };
+    out.offer_discount_pct = n;
+  }
+  if ("reasons" in input) {
+    if (!Array.isArray(input.reasons)) return { error: "retention.reasons debe ser un array" };
+    if (input.reasons.length > 8) return { error: "Máximo 8 motivos" };
+    const seen = new Set();
+    const reasons = [];
+    for (const r of input.reasons) {
+      const code = String(r?.code || "").trim();
+      if (!REASON_CODE_RE.test(code)) return { error: `retention.reasons: código inválido "${code}" (usá minúsculas, números y _)` };
+      if (seen.has(code)) continue;
+      seen.add(code);
+      const label = String(r?.label || "").trim().slice(0, 80);
+      if (!label) return { error: `retention.reasons: falta label para "${code}"` };
+      reasons.push({ code, label });
+    }
+    if (!reasons.length) return { error: "retention.reasons no puede quedar vacío" };
+    out.reasons = reasons;
+  }
+  return { value: out };
+}
+
 // ─── Settings operativos. PARCIAL: solo escribe las claves que vienen en el
 // body, así el front puede guardar una sección sin pisar las demás.
 async function saveSettings(merchantId, req, res) {
   const b = req.body || {};
   const out = {};
   const bad = (msg) => res.status(400).json({ error: msg });
+  // Doc actual (lazy, una sola lectura): lo usan store_domain, widget_texts legacy y retention.
+  let _cur = null;
+  const getCur = async () => { if (!_cur) _cur = (await db().collection("merchants").doc(merchantId).get()).data() || {}; return _cur; };
 
   // Retirados 2026-09-13 (recupero de carritos → Klaviyo): se aceptan y se ignoran
   // para no romper fronts viejos que todavía los manden.
-  const ignored = ["abandoned_enabled", "abandoned_coupons"].filter(k => k in b);
+  // email_accent también se retiró (2026-09-13): el mail usa widget_color.
+  const ignored = ["abandoned_enabled", "abandoned_coupons", "email_accent"].filter(k => k in b);
   if ("dev_mode" in b) out.dev_mode = b.dev_mode === true;
   // Klaviyo: mandar también "Placed Order" (solo si su Klaviyo NO está conectado a Shopify).
   if ("klaviyo_send_orders" in b) out.klaviyo_send_orders = b.klaviyo_send_orders === true;
@@ -476,11 +621,6 @@ async function saveSettings(merchantId, req, res) {
     const v = String(b.email_reply_to || "").trim().toLowerCase();
     if (v && !EMAIL_RE.test(v)) return bad("email_reply_to inválido");
     out.email_reply_to = v.slice(0, 120);
-  }
-  if ("email_accent" in b) {
-    const v = String(b.email_accent || "").trim();
-    if (v && !/^#[0-9a-fA-F]{6}$/.test(v)) return bad("email_accent debe ser #RRGGBB");
-    out.email_accent = v;
   }
   if ("checkout_shipping_rates" in b) {
     if (!Array.isArray(b.checkout_shipping_rates)) return bad("checkout_shipping_rates debe ser un array");
@@ -500,9 +640,16 @@ async function saveSettings(merchantId, req, res) {
     const v = normHost(b.store_domain);
     if (v && !/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(v)) return bad("store_domain debe ser un host (ej: www.mitienda.com)");
     out.store_domain = v;
+    // Cargado a mano → refresh-shop no lo pisa. Vacío → vuelve a tomarse de Shopify.
+    // Si el front reenvía el mismo valor que ya vino de Shopify, sigue siendo "shopify".
+    const cur = await getCur();
+    const unchanged = v && normHost(cur.store_domain) === v && cur.store_domain_source === "shopify";
+    out.store_domain_source = v ? (unchanged ? "shopify" : "manual") : null;
   }
+  if ("store_name" in b) out.store_name = String(b.store_name || "").trim().slice(0, 60);
   if ("widget_hide_selector" in b) out.widget_hide_selector = String(b.widget_hide_selector || "").trim().slice(0, 300);
-  if ("widget_checkout_flow" in b) out.widget_checkout_flow = b.widget_checkout_flow === "inline" ? "inline" : "redirect";
+  // "page" (nombre viejo del front) se acepta y se guarda como "redirect".
+  if ("widget_checkout_flow" in b) out.widget_checkout_flow = normCheckoutFlow(b.widget_checkout_flow);
   if ("widget_checkout_page_path" in b) {
     const v = String(b.widget_checkout_page_path || "").trim().slice(0, 120);
     if (v && !v.startsWith("/")) return bad("widget_checkout_page_path debe empezar con /");
@@ -514,11 +661,59 @@ async function saveSettings(merchantId, req, res) {
     if (!WIDGET_VARIANT_RE.test(v)) return bad("widget_variant debe ser v01..v10");
     out.widget_variant = v;
   }
-  if ("widget_texts" in b) {
-    const t = sanitizeWidgetTexts(b.widget_texts);
-    if (t.error) return bad(t.error);
-    out.widget_texts = t.texts;
+  // Textos legacy del widget viejo: se guardan tal cual (el widget clásico los
+  // sigue leyendo) Y se mapean a widget_texts (sub_label / once_label / trust_lines).
+  const legacyIn = {};
+  if ("widget_sub_title" in b) legacyIn.widget_sub_title = String(b.widget_sub_title ?? "").trim().slice(0, 60) || "Suscripción";
+  if ("widget_once_title" in b) legacyIn.widget_once_title = String(b.widget_once_title ?? "").trim().slice(0, 60) || "Compra única";
+  if ("widget_sub_subtitle" in b) legacyIn.widget_sub_subtitle = String(b.widget_sub_subtitle ?? "").trim().slice(0, 120);
+  if ("widget_once_subtitle" in b) legacyIn.widget_once_subtitle = String(b.widget_once_subtitle ?? "").trim().slice(0, 120);
+  if ("widget_disclaimer_text" in b) legacyIn.widget_disclaimer_text = String(b.widget_disclaimer_text ?? "").trim().slice(0, 800);
+  Object.assign(out, legacyIn);
+  if ("widget_texts" in b || Object.keys(legacyIn).length) {
+    let texts = null;
+    if ("widget_texts" in b) {
+      const t = sanitizeWidgetTexts(b.widget_texts);
+      if (t.error) return bad(t.error);
+      texts = t.texts;
+    } else {
+      // Solo legacy: partimos de lo guardado para no perder claves del diseñador.
+      texts = sanitizeWidgetTexts((await getCur()).widget_texts).texts;
+    }
+    if (Object.keys(legacyIn).length) {
+      // El legacy pisa lo guardado (es lo que el comerciante acaba de escribir),
+      // pero NO lo que vino explícito en widget_texts en este mismo body.
+      const legacy = legacyWidgetTexts(legacyIn) || {};
+      texts = "widget_texts" in b ? mergeWidgetTexts(texts, legacy) : mergeWidgetTexts(texts, legacy, { legacyOverrides: true });
+      // Título vuelto al default → se quita el espejo (no queda un label viejo colgado).
+      if (!("widget_texts" in b) && texts) {
+        if ("widget_sub_title" in legacyIn && !legacy.sub_label) delete texts.sub_label;
+        if ("widget_once_title" in legacyIn && !legacy.once_label) delete texts.once_label;
+        if (!Object.keys(texts).length) texts = null;
+      }
+    }
+    out.widget_texts = texts;
   }
+  if ("retention" in b) {
+    const r = sanitizeRetention(b.retention, await getCur());
+    if (r.error) return bad(r.error);
+    out.retention = r.value;
+  }
+  // Portal del cliente: qué puede hacer el cliente + mensaje de bienvenida.
+  if ("portal" in b) {
+    const pIn = (b.portal && typeof b.portal === "object" && !Array.isArray(b.portal)) ? b.portal : {};
+    const curP = (await getCur()).portal || {};
+    out.portal = {
+      allow_pause: "allow_pause" in pIn ? pIn.allow_pause !== false : curP.allow_pause !== false,
+      allow_cancel: "allow_cancel" in pIn ? pIn.allow_cancel !== false : curP.allow_cancel !== false,
+      allow_address: "allow_address" in pIn ? pIn.allow_address !== false : curP.allow_address !== false,
+    };
+  }
+  if ("portal_welcome" in b) out.portal_welcome = String(b.portal_welcome || "").slice(0, 300);
+  // Color y modos del widget también por save-settings (un solo Guardar en el diseñador).
+  if ("widget_mode_order" in b) out.widget_mode_order = ["sub_first", "once_first"].includes(b.widget_mode_order) ? b.widget_mode_order : "sub_first";
+  if ("widget_mode_default" in b) out.widget_mode_default = ["sub", "once"].includes(b.widget_mode_default) ? b.widget_mode_default : "sub";
+  if ("widget_color" in b && typeof b.widget_color === "string" && /^#[0-9a-fA-F]{6}$/.test(b.widget_color.trim())) out.widget_color = b.widget_color.trim();
   if ("widget_show_compare" in b) out.widget_show_compare = b.widget_show_compare !== false;
   if ("widget_show_per_unit" in b) out.widget_show_per_unit = b.widget_show_per_unit !== false;
   if ("widget_radius" in b) {
@@ -531,6 +726,72 @@ async function saveSettings(merchantId, req, res) {
   try {
     await db().collection("merchants").doc(merchantId).set({ ...out, updated_at: new Date().toISOString() }, { merge: true });
     return res.json({ ok: true, ...out, ...(ignored.length ? { ignored } : {}) });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+// POST ?action=import-shipping-rates  body { rates?: [{name, price, code?}] }
+// Importa los métodos de envío de Shopify a checkout_shipping_rates (los que usa
+// el checkout on-store). Si el body trae `rates` (selección del merchant en el
+// panel) se guardan esas; si no, se leen de Shopify. Máx 6, dedup por nombre.
+// Sin tarifas en Shopify (carrier dinámico) → { rates: [], note } sin escribir.
+async function importShippingRates(merchantId, req, res) {
+  try {
+    const ref = db().collection("merchants").doc(merchantId);
+    const merchant = (await ref.get()).data() || {};
+    let source;
+    if (Array.isArray(req.body?.rates)) {
+      source = { rates: req.body.rates.map(r => ({ name: r?.name, price: r?.price, code: r?.code })) };
+    } else {
+      if (!merchant.shopify_token || !merchant.shopify_shop) return res.status(400).json({ error: "Conectá Shopify primero", rates: [] });
+      source = await shopifyRatesForPanel(merchant);
+    }
+    const seen = new Set();
+    const rates = [];
+    for (const r of source.rates || []) {
+      const name = String(r?.name || "").trim().slice(0, 250);
+      const price = Math.round(Number(r?.price));
+      if (!name || !Number.isInteger(price) || price < 0) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const code = String(r?.code || "").trim().slice(0, 50);
+      rates.push({ name, price, ...(code ? { code } : {}) });
+      if (rates.length >= 6) break;
+    }
+    if (!rates.length) return res.json({ ok: true, rates: [], note: source.note || "Tu tienda usa tarifas dinámicas (carrier). Cargalas a mano.", imported: 0 });
+    await ref.set({ checkout_shipping_rates: rates, checkout_shipping_rates_source: "shopify", checkout_shipping_rates_imported_at: new Date().toISOString(), updated_at: new Date().toISOString() }, { merge: true });
+    return res.json({ ok: true, rates, imported: rates.length });
+  } catch (e) {
+    return res.status(500).json({ error: e.message, rates: [] });
+  }
+}
+
+// GET ?action=refresh-shop → relee shop.json y actualiza los datos de la tienda
+// (respeta store_domain manual y store_name ya cargado). Solo dueño.
+async function refreshShop(ctx, res) {
+  if (ctx.role !== "owner") return res.status(403).json({ error: "Solo el dueño de la tienda puede actualizar los datos de Shopify." });
+  try {
+    const ref = db().collection("merchants").doc(ctx.merchantId);
+    const merchant = (await ref.get()).data() || {};
+    if (!merchant.shopify_token || !merchant.shopify_shop) return res.status(400).json({ error: "Conectá Shopify primero" });
+    let info;
+    try { info = await shGetShopInfo(merchant.shopify_shop, merchant.shopify_token); }
+    catch (e) { return res.status(502).json({ error: `Shopify no respondió: ${e.message}` }); }
+    const patch = buildShopInfoPatch(merchant, info);
+    await ref.set({ ...patch, updated_at: new Date().toISOString() }, { merge: true });
+    const merged = { ...merchant, ...patch };
+    return res.json({
+      ok: true,
+      shop: info,
+      patch,
+      shop_name: merged.shop_name || null, shop_email: merged.shop_email || null, shop_currency: merged.shop_currency || null,
+      shop_country: merged.shop_country || null, shop_timezone: merged.shop_timezone || null,
+      store_name: merged.store_name || "", store_domain: merged.store_domain || "", store_domain_source: merged.store_domain_source || null,
+      store_domain_effective: effectiveStoreDomain(merged),
+      shopify_domains: merged.shopify_domains || [],
+    });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
@@ -636,7 +897,7 @@ async function testEmail(merchantId, req, res) {
   const rl = await rateLimit(`testmail:${merchantId}`, { limit: 10, windowSec: 86400 });
   if (!rl.ok) return res.status(429).json({ error: "Tope de 10 mails de prueba por día alcanzado" });
 
-  const brand = merchant.email_brand || (process.env.EMAIL_FROM || "").split("<")[0].trim().replace(/^["']|["']$/g, "") || "";
+  const brand = effectiveBrand(merchant) || (process.env.EMAIL_FROM || "").split("<")[0].trim().replace(/^["']|["']$/g, "") || "";
 
   // Datos reales del merchant: primer plan activo.
   let productTitle = "Tu producto", amount = 0, frequencyDays = 30;
@@ -660,13 +921,13 @@ async function testEmail(merchantId, req, res) {
     portalUrl: `${appBaseUrl()}/#/portal`,
     merchant,
     brand,
-    accent: merchant.email_accent || merchant.widget_color || "",
-    from: merchant.email_from || undefined,
+    accent: merchant.widget_color || "",
+    from: effectiveFrom(merchant),
   });
   await logEmail(merchantId, { type: "activation", to, customer_name: customerName, product_title: productTitle, status: r?.error ? "error" : (r?.skipped ? "skipped" : "sent"), error: r?.error || null, test: true });
   if (r?.skipped) return res.status(400).json({ error: "RESEND_API_KEY no configurada (o no tomó el redeploy todavía)" });
   if (r?.error) return res.status(502).json({ error: r.error });
-  return res.json({ ok: true, id: r.id, type: "activation", from: merchant.email_from || process.env.EMAIL_FROM || null, brand, remaining: rl.remaining });
+  return res.json({ ok: true, id: r.id, type: "activation", from: effectiveFrom(merchant) || null, brand, remaining: rl.remaining });
 }
 
 async function saveDiscountCodes(merchantId, req, res) {
@@ -737,7 +998,10 @@ async function saveMpToken(merchantId, req, res) {
 //   (subcolecciones) NO está implementada acá (TODO cron).
 // ═══════════════════════════════════════════════════════════════════════════
 
-const SECCIONES = ["inicio", "planes", "suscriptores", "cobros", "abandonados", "actividad", "integraciones", "configuracion"];
+const SECCIONES = ["inicio", "suscripciones", "cobros", "planes", "retencion", "portal", "analiticas", "configuracion"];
+// Secciones viejas (antes de la reestructura 2026-09-14) → nuevas. Los permisos
+// ya guardados con ids viejos se traducen al leer y al escribir.
+export const LEGACY_SECCION = { suscriptores: "suscripciones", carritos: "suscripciones", abandonados: "suscripciones", actividad: "portal", integraciones: "configuracion", plan: "configuracion", guia: "configuracion" };
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 const MAX_STORES_BETA = 5;
 const PURGE_DAYS = 30;
@@ -753,7 +1017,11 @@ function cleanSecciones(obj) {
     ? Object.fromEntries(obj.map(k => [String(k), true]))
     : ((obj && typeof obj === "object") ? obj : {});
   const out = {};
-  for (const k of SECCIONES) if (src[k] === true) out[k] = true;
+  for (const [k, v] of Object.entries(src)) {
+    if (v !== true) continue;
+    const nk = LEGACY_SECCION[k] || k;
+    if (SECCIONES.includes(nk)) out[nk] = true;
+  }
   return out;
 }
 

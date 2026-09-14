@@ -19,7 +19,7 @@ export const PLANS = [
       "Cobros automáticos con Mercado Pago",
       "Una orden Shopify por cada cobro",
       "Portal del suscriptor",
-      "Recupero de carritos por mail",
+      "Recupero de carritos vía Klaviyo",
     ],
   },
   {
@@ -147,7 +147,7 @@ function StatusCard({ T, billing }) {
     <Card T={T} padding="lg" style={{ marginBottom: 16, borderLeft: `3px solid ${edge}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <span style={{ fontSize: 17, fontWeight: 800, color: T.text, letterSpacing: -0.3 }}>
-          {trial ? "Prueba gratis con todo incluido" : beta ? "Cuenta beta" : `Plan ${b.plan_label || planLabel(b.plan)}`}
+          {trial ? "Tu plan de Recurrentes: prueba gratis con todo incluido" : beta ? "Tu plan de Recurrentes: cuenta beta" : `Tu plan de Recurrentes: ${b.plan_label || planLabel(b.plan)}`}
         </span>
         {trial && !b.trial_expired && <Badge T={T} colors={{ bg: edge + "1a", dot: edge }}>{n} día{n === 1 ? "" : "s"} restante{n === 1 ? "" : "s"}</Badge>}
         {trial && b.trial_expired && <Badge T={T} colors={{ bg: T.red + "1a", dot: T.red }}>Prueba terminada</Badge>}
@@ -184,7 +184,7 @@ const FAQS = [
   { q: "¿Cómo se paga?", a: "Por ahora te contactamos al elegir un plan y lo activamos a mano. El pago con tarjeta llega pronto." },
 ];
 
-// Tab "Plan" del dashboard.
+// Configuración → Facturación ("Tu plan de Recurrentes"). También la usa el PlanWall.
 export function PlanPage({ T, DS = DS_, merchant, reloadMerchant }) {
   const billing = merchant?.billing || {};
   const { loadingId, choose } = usePlanRequest(reloadMerchant);
@@ -193,7 +193,7 @@ export function PlanPage({ T, DS = DS_, merchant, reloadMerchant }) {
     <div style={{ fontFamily: F, maxWidth: 980 }}>
       <StatusCard T={T} billing={billing}/>
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", margin: "8px 0 14px" }}>
-        <span style={{ fontSize: 15, fontWeight: 800, color: T.text, letterSpacing: -0.3 }}>{tienePago ? "Cambiar de plan" : "Elegí tu plan"}</span>
+        <span style={{ fontSize: 15, fontWeight: 800, color: T.text, letterSpacing: -0.3 }}>{tienePago ? "Cambiar tu plan de Recurrentes" : "Elegí tu plan de Recurrentes"}</span>
         <span style={{ fontSize: 12, color: T.textSm }}>En dólares · sin contrato · cancelás cuando quieras</span>
       </div>
       <PricingCards T={T} current={tienePago ? billing.plan : null} requested={billing.plan_requested} loadingId={loadingId} onChoose={choose}/>
@@ -216,7 +216,7 @@ export function PlanPage({ T, DS = DS_, merchant, reloadMerchant }) {
 // límite de pedidos alcanzado en Starter/Growth.
 export function TrialBanner({ T, billing, onGo }) {
   const b = billing || {};
-  let text = null, cta = "Ver planes", warn = false, extra = "";
+  let text = null, cta = "Ver tu plan de Recurrentes", warn = false, extra = "";
   if (b.limit_reached && PLAN_BY_ID[b.plan]) {
     text = `Llegaste al límite de ${b.orders_limit} pedidos este mes`; cta = "Mejorar plan"; warn = true;
   } else if (b.plan === "trial" && !b.trial_expired) {

@@ -1,6 +1,6 @@
 import React from "react";
 import { DS, useT } from "../ui/theme.js";
-import { Btn, Field, InputStyle, CheckLine, Callout, DSBadge } from "../ui/components.jsx";
+import { Btn, InputStyle, CheckLine, Callout, DSBadge } from "../ui/components.jsx";
 import { PackTip } from "./Onboarding.jsx";
 
 // Editor de "Precios y packs" del plan (alta y edición). Vive fuera de

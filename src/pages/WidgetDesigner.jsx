@@ -1,15 +1,19 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { apiGet, apiPatch } from "../lib/api.js";
+import { apiPatch } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
-import { Card, Field, InputStyle, Btn, DSToggle, Callout, toast } from "../ui/components.jsx";
+import { Card, Field, InputStyle, Btn, DSToggle, Callout, CheckLine, toast } from "../ui/components.jsx";
 import { BUNDLE_VARIANTS, renderBundle } from "../../shared/bundle/templates.js";
 import { buildBundleVM } from "../../shared/bundle/viewmodel.js";
-import PacksEditor, { pricingModeOf, packsFromPlan, autoPacks, validatePacks, serializePacks } from "./PacksEditor.jsx";
+import { pricingModeOf } from "./PacksEditor.jsx";
 import { WidgetDesignTip } from "./Onboarding.jsx";
+import { useOnb, widgetKey, readFlag, writeFlag } from "../lib/onboarding.js";
+import { MONO } from "./_shared.jsx";
 
-// Diseñador del selector de packs (widget bundle). Renderiza las variantes
-// REALES de shared/bundle/templates.js en iframes aislados del tema del
-// dashboard y guarda la config visual en el merchant (save-settings).
+// Diseñador del selector de packs (widget bundle) — SOLO diseño global del
+// merchant: variante, color, esquinas, textos, orden/modo del toggle e
+// instalación del snippet. Los packs se editan en cada plan (PlanEditor).
+// Renderiza las variantes REALES de shared/bundle/templates.js en iframes
+// aislados del tema del dashboard y guarda todo con merchant?action=save-settings.
 
 export const DEFAULT_WIDGET_TEXTS = {
   headline: "Elegí tu pack",
@@ -60,8 +64,7 @@ export function WhatsAppBtn({ merchant, children = "Escribir por WhatsApp", size
   );
 }
 
-// Card de ayuda reutilizable (diseñador del widget y tab Planes).
-// context: "widget" | "plans" — solo informativo (data-attr).
+// Card de ayuda (se muestra UNA sola vez: al pie de Planes → Widget).
 export function DevHelpCard({ merchant, context = "widget", style = {} }) {
   const T = useT();
   return (
@@ -188,10 +191,53 @@ function safeVM(plan, merchant) {
   catch (e) { return { variant: merchant?.widget_variant || "v01", packs: [], texts: normTexts(merchant?.widget_texts), _error: e?.message || String(e) }; }
 }
 
-export default function WidgetDesigner({ merchant, plans = [], onSaved, onPlansChanged }) {
+// Vista previa interactiva (toggle sub/única + click en packs) de UN plan con el
+// diseño de UN merchant. La usan el diseñador (diseño global) y el PlanEditor
+// (borrador del plan). `plan` puede ser un borrador sin guardar.
+export function BundlePreview({ plan, merchant, minHeight = 200, maxWidth = 440, footer = true, style = {} }) {
+  const T = useT();
+  const vm = useMemo(() => safeVM(plan, merchant), [plan, merchant]);
+  const modeDefault = merchant?.widget_mode_default === "once" ? "once" : "sub";
+  const [pv, setPv] = useState({ mode: modeDefault, selectedIdx: defaultIdx(vm) });
+  useEffect(() => { setPv(s => ({ ...s, mode: modeDefault })); }, [modeDefault]);
+  const packsKey = (vm?.packs || []).map(p => `${p.qty}:${p.isDefault ? 1 : 0}`).join("|");
+  useEffect(() => { setPv(s => ({ ...s, selectedIdx: defaultIdx(vm) })); }, [plan?.id, packsKey]); // eslint-disable-line
+  const onAction = useCallback((action, value) => {
+    if (action === "mode" && (value === "sub" || value === "once")) setPv(s => ({ ...s, mode: value }));
+    else if (action === "pack") setPv(s => ({ ...s, selectedIdx: Math.max(0, parseInt(value, 10) || 0) }));
+    else if (action === "cta") toast(pv.mode === "sub" ? "En la tienda: va al checkout de suscripción" : "En la tienda: agrega al carrito", "success");
+  }, [pv.mode]);
+  const safe = useMemo(() => ({ ...pv, selectedIdx: Math.min(pv.selectedIdx, Math.max(0, (vm?.packs?.length || 1) - 1)) }), [pv, vm]);
+  const out = useMemo(() => safeRender(vm, safe), [vm, safe]);
+  const texts = vm?.texts || DEFAULT_WIDGET_TEXTS;
+  return (
+    <div style={style}>
+      {vm?._error && <Callout T={T} tone="danger" style={{marginBottom:10}}>No se pudo armar la vista previa: {vm._error}</Callout>}
+      <div style={{background:"#fff",borderRadius:12,border:`1px solid ${T.border}`,padding:10,maxWidth,margin:"0 auto"}}>
+        <BundleFrame html={out.html} css={out.css} interactive onAction={onAction} minHeight={minHeight}/>
+      </div>
+      {footer && (
+        <div style={{fontSize:DS.font.sm,color:T.textSm,marginTop:8,textAlign:"center"}}>
+          Modo: <strong>{safe.mode === "sub" ? texts.sub_label : texts.once_label}</strong> · pack #{safe.selectedIdx + 1} · tocá los packs y el toggle
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Snippet del widget para la tienda del merchant.
+export function widgetSnippet(merchant) {
+  const base = typeof window !== "undefined" ? window.location.origin : "https://recurrentess.vercel.app";
+  return `<script src="${base}/widget.js?merchant=${merchant?.id || "<tu-id>"}" defer></script>`;
+}
+
+// ── Diseñador (diseño global) ─────────────────────────────────────────
+// onEditPlan(plan): abre el PlanEditor de ese plan (para tocar sus packs).
+export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPlan }) {
   const T = useT();
   const inputS = InputStyle(T);
   const m = merchant || {};
+  const onb = useOnb();
 
   // ── borrador ──────────────────────────────────────────────────────────
   const [variant, setVariant] = useState(m.widget_variant || "v01");
@@ -201,6 +247,7 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onPlansC
   const [showCompare, setShowCompare] = useState(m.widget_show_compare !== false);
   const [showPerUnit, setShowPerUnit] = useState(m.widget_show_per_unit !== false);
   const [modeDefault, setModeDefault] = useState(m.widget_mode_default || "sub");
+  const [modeOrder, setModeOrder] = useState(m.widget_mode_order || "sub_first");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -211,16 +258,13 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onPlansC
     setShowCompare(m.widget_show_compare !== false);
     setShowPerUnit(m.widget_show_per_unit !== false);
     setModeDefault(m.widget_mode_default || "sub");
+    setModeOrder(m.widget_mode_order || "sub_first");
     // eslint-disable-next-line
   }, [m.id]);
 
-  // ── planes (copia local: al guardar packs los recargamos acá mismo) ────
-  const [plansState, setPlansState] = useState(() => Array.isArray(plans) ? plans : []);
-  useEffect(() => { setPlansState(Array.isArray(plans) ? plans : []); }, [plans]);
-  const activePlans = useMemo(() => plansState.filter(p => p && p.active !== false), [plansState]);
+  // ── plan de la vista previa (solo lectura: los packs se editan en el plan) ──
+  const activePlans = useMemo(() => (Array.isArray(plans) ? plans : []).filter(p => p && p.active !== false), [plans]);
   const packPlans = useMemo(() => activePlans.filter(p => pricingModeOf(p) === "packs" && Array.isArray(p.packs) && p.packs.length > 0), [activePlans]);
-
-  // Plan seleccionado: id real o "sample". Default: primero en packs → primero activo → ejemplo.
   const [planId, setPlanId] = useState(null);
   useEffect(() => {
     if (planId === "sample" || activePlans.some(p => p.id === planId)) return;
@@ -229,69 +273,11 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onPlansC
   const selectedPlan = planId && planId !== "sample" ? (activePlans.find(p => p.id === planId) || null) : null;
   const selMode = selectedPlan ? pricingModeOf(selectedPlan) : null;
 
-  // ── borrador de packs del plan seleccionado ───────────────────────────
-  const [rows, setRows] = useState([]);
-  const [discount, setDiscount] = useState("");
-  const [freqScales, setFreqScales] = useState(true);
-  const [packsOn, setPacksOn] = useState(false);   // plan en modo tema → tocó "Pasar a packs"
-  const [dirty, setDirty] = useState(false);
-  const [savingPacks, setSavingPacks] = useState(false);
-  const draftKey = selectedPlan ? `${selectedPlan.id}|${selectedPlan.updated_at || ""}` : "none";
-  useEffect(() => {
-    if (!selectedPlan) { setRows([]); setDiscount(""); setFreqScales(true); setPacksOn(false); setDirty(false); return; }
-    setRows(packsFromPlan(selectedPlan));
-    setDiscount(String(selectedPlan.discount_pct ?? 0));
-    setFreqScales(selectedPlan.frequency_scales_with_qty !== false);
-    setPacksOn(pricingModeOf(selectedPlan) === "packs");
-    setDirty(false);
-    // eslint-disable-next-line
-  }, [draftKey]);
-
-  const unitPackPrice = (p) => { const u = (p?.packs || []).find(k => Number(k.qty) === 1); return u ? Number(u.price_ars) || 0 : 0; };
-  const basePrice = selectedPlan ? (Number(selectedPlan.base_price_ars) > 0 ? Number(selectedPlan.base_price_ars) : unitPackPrice(selectedPlan)) : 0;
-  const draftPacks = useMemo(() => serializePacks(rows), [rows]);
-  const discountNum = Math.max(0, Math.min(80, parseInt(discount, 10) || 0));
-
-  const changeRows = (r) => { setRows(r); setDirty(true); };
-  const changeDiscount = (v) => { setDiscount(v); setDirty(true); };
-  const changeFreqScales = (v) => { setFreqScales(v); setDirty(true); };
-  function switchToPacks() {
-    setPacksOn(true);
-    if (!rows.length && basePrice > 0) setRows(autoPacks(basePrice));
-    setDirty(true);
-  }
-
-  async function savePacks() {
-    if (!selectedPlan) return;
-    const err = validatePacks(rows);
-    if (err) { toast(err, "warning", 5000); return; }
-    setSavingPacks(true);
-    const payload = {
-      pricing_mode: "packs",
-      packs: serializePacks(rows),
-      frequency_scales_with_qty: freqScales !== false,
-      discount_pct: discountNum,
-    };
-    const d = await apiPatch("plans", payload, { id: selectedPlan.id });
-    if (d?.error) { setSavingPacks(false); toast("Error: " + d.error, "error", 6000); return; }
-    // Recargar planes y refrescar la vista previa con los packs reales.
-    const fresh = await apiGet("plans").catch(() => null);
-    const list = Array.isArray(fresh?.plans) ? fresh.plans : null;
-    if (list) { setPlansState(list); onPlansChanged?.(list); }
-    else if (d?.plan) setPlansState(ps => ps.map(p => p.id === selectedPlan.id ? { ...p, ...d.plan } : p));
-    setSavingPacks(false);
-    setDirty(false);
-    toast("Packs guardados · en tu tienda en ~5 min", "success");
-    if (d?.note) toast(d.note, "warning", 5000);
-  }
-
-  // ── plan de la vista previa: refleja el borrador ANTES de guardar ─────
   const previewPlan = useMemo(() => {
     if (!selectedPlan) return SAMPLE_PLAN;
-    const base = { ...selectedPlan, pricing_mode: "packs", discount_pct: discountNum, frequency_scales_with_qty: freqScales !== false };
-    if (draftPacks.length) return { ...base, packs: draftPacks };
-    return { ...base, packs: SAMPLE_PLAN.packs, _samplePacks: true };
-  }, [selectedPlan, draftPacks, discountNum, freqScales]);
+    if (selMode === "packs" && Array.isArray(selectedPlan.packs) && selectedPlan.packs.length) return selectedPlan;
+    return { ...selectedPlan, pricing_mode: "packs", packs: SAMPLE_PLAN.packs, _samplePacks: true };
+  }, [selectedPlan, selMode]);
   const usingSample = previewPlan === SAMPLE_PLAN;
   const samplePacks = usingSample || previewPlan._samplePacks === true;
 
@@ -304,72 +290,77 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onPlansC
     widget_show_compare: showCompare,
     widget_show_per_unit: showPerUnit,
     widget_mode_default: modeDefault,
-  }), [m, variant, color, radius, texts, showCompare, showPerUnit, modeDefault]);
-
-  const vm = useMemo(() => safeVM(previewPlan, draftMerchant), [previewPlan, draftMerchant]);
-
-  // ── estado interactivo de la vista previa grande ──────────────────────
-  const [pvState, setPvState] = useState({ mode: modeDefault, selectedIdx: 0 });
-  useEffect(() => { setPvState(s => ({ ...s, mode: modeDefault })); }, [modeDefault]);
-  useEffect(() => { setPvState(s => ({ ...s, selectedIdx: defaultIdx(vm) })); }, [previewPlan?.id]); // eslint-disable-line
-  const onAction = useCallback((action, value) => {
-    if (action === "mode" && (value === "sub" || value === "once")) setPvState(s => ({ ...s, mode: value }));
-    else if (action === "pack") setPvState(s => ({ ...s, selectedIdx: Math.max(0, parseInt(value, 10) || 0) }));
-    else if (action === "cta") toast(pvState.mode === "sub" ? "En la tienda: va al checkout de suscripción" : "En la tienda: agrega al carrito", "success");
-  }, [pvState.mode]);
-  const pvSafe = useMemo(() => ({ ...pvState, selectedIdx: Math.min(pvState.selectedIdx, Math.max(0, (vm?.packs?.length || 1) - 1)) }), [pvState, vm]);
-  const big = useMemo(() => safeRender(vm, pvSafe), [vm, pvSafe]);
+    widget_mode_order: modeOrder,
+  }), [m, variant, color, radius, texts, showCompare, showPerUnit, modeDefault, modeOrder]);
 
   // Galería: cada variante con el mismo vm pero su propio id.
-  const galleryIdx = defaultIdx(vm);
-  const gallery = useMemo(() => (BUNDLE_VARIANTS || []).map(v => ({ ...v, ...safeRender({ ...vm, variant: v.id }, { mode: "sub", selectedIdx: galleryIdx }) })), [vm, galleryIdx]);
+  const galleryVM = useMemo(() => safeVM(previewPlan, draftMerchant), [previewPlan, draftMerchant]);
+  const galleryIdx = defaultIdx(galleryVM);
+  const gallery = useMemo(() => (BUNDLE_VARIANTS || []).map(v => ({ ...v, ...safeRender({ ...galleryVM, variant: v.id }, { mode: "sub", selectedIdx: galleryIdx }) })), [galleryVM, galleryIdx]);
 
-  // ── guardar ───────────────────────────────────────────────────────────
+  // ── guardar: TODO por save-settings ───────────────────────────────────
   async function save() {
-    const colorOk = /^#[0-9a-f]{6}$/i.test(color.trim());
-    if (!colorOk) { toast("El color tiene que ser #RRGGBB", "error"); return; }
+    const colorHex = color.trim();
+    if (!/^#[0-9a-f]{6}$/i.test(colorHex)) { toast("El color tiene que ser #RRGGBB", "error"); return; }
     setSaving(true);
-    // 1) Config del selector de packs → save-settings (parcial: solo estas claves).
     const payload = {
       widget_variant: variant,
+      widget_color: colorHex,
       widget_radius: Math.max(0, Math.min(32, Math.round(radius))),
       widget_texts: { ...texts, trust_lines: texts.trust_lines.map(s => s.trim()).filter(Boolean).slice(0, 4) },
       widget_show_compare: !!showCompare,
       widget_show_per_unit: !!showPerUnit,
+      widget_mode_default: modeDefault,
+      widget_mode_order: modeOrder,
     };
     const d = await apiPatch("merchant", payload, { action: "save-settings" });
     if (d?.error) { setSaving(false); toast("Error: " + d.error, "error", 6000); return; }
-    // 2) Color y modo por defecto viven en save-widget-settings, que pisa TODO
-    //    lo que no se manda → reenviamos los demás valores actuales del merchant.
-    if (color.trim() !== (m.widget_color || "#10b981") || modeDefault !== (m.widget_mode_default || "sub")) {
+    // Tolerancia a backend viejo: si save-settings no procesó color/modo (no los
+    // devuelve en el eco), los mandamos por save-widget-settings (parcial).
+    const echoed = d && "widget_color" in d && "widget_mode_default" in d && "widget_mode_order" in d;
+    if (!echoed) {
       const w = await apiPatch("merchant", {
-        widget_mode_order: m.widget_mode_order || "sub_first",
+        widget_color: colorHex,
         widget_mode_default: modeDefault,
-        widget_color: color.trim(),
-        widget_sub_title: m.widget_sub_title || "Suscripción",
+        widget_mode_order: modeOrder,
+        widget_sub_title: m.widget_sub_title || texts.sub_label || "Suscripción",
+        widget_once_title: m.widget_once_title || texts.once_label || "Compra única",
         widget_sub_subtitle: m.widget_sub_subtitle || "",
-        widget_once_title: m.widget_once_title || "Compra única",
         widget_once_subtitle: m.widget_once_subtitle || "Comprá una vez al precio normal.",
         widget_disclaimer_text: m.widget_disclaimer_text || "",
       }, { action: "save-widget-settings" });
       if (w?.error) { setSaving(false); toast("Diseño guardado, pero falló color/modo: " + w.error, "error", 6000); onSaved?.(); return; }
     }
     setSaving(false);
-    toast("Diseño del selector guardado", "success");
+    toast("Diseño del widget guardado · en tu tienda en ~5 min", "success");
     onSaved?.();
   }
   function resetTexts() { setTexts(normTexts(null)); toast("Textos restablecidos (guardá para aplicar)", "success"); }
   const setText = (k, v) => setTexts(t => ({ ...t, [k]: v }));
   const setTrust = (i, v) => setTexts(t => { const arr = [...t.trust_lines]; arr[i] = v; return { ...t, trust_lines: arr }; });
 
+  // ── instalación: snippet + "ya lo pegué" (misma flag que el plan de acción) ──
+  const snippet = widgetSnippet(m);
+  const [copied, setCopied] = useState(false);
+  const [pasted, setPasted] = useState(() => readFlag(widgetKey(m.id)));
+  useEffect(() => { setPasted(readFlag(widgetKey(m.id))); }, [m.id]);
+  async function copySnippet() {
+    try { await navigator.clipboard.writeText(snippet); setCopied(true); toast("Snippet copiado", "success"); setTimeout(() => setCopied(false), 2000); }
+    catch (_) { toast("No se pudo copiar — seleccioná el texto y copialo a mano", "warning"); }
+  }
+  function togglePasted(v) {
+    setPasted(v);
+    const step = onb?.steps?.find(s => s.id === "snippet");
+    if (onb?.setManual && step) onb.setManual(step, v); else writeFlag(widgetKey(m.id), v);
+  }
+
   const selectedVariant = (BUNDLE_VARIANTS || []).find(v => v.id === variant);
   // Cuenta vinculada a mano por los devs (beta legada o integración a medida) con el plan en modo tema.
   const externallyLinked = !!selectedPlan && selMode === "theme" && (m.billing?.plan === "beta" || m.custom_integration === true);
-  // La galería recién aplica cuando haya algún plan en modo packs.
   const galleryPending = !!selectedPlan && selMode === "theme" && packPlans.length === 0;
   const sectionH = { fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, marginBottom:8, letterSpacing:-0.2 };
   const small = { fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5 };
-  const goPlans = () => { try { window.location.hash = "#/dashboard/planes"; } catch (_) {} };
+  const linkBtn = { background:"transparent", border:"none", color:T.accent, fontWeight:DS.w.semibold, cursor:"pointer", fontFamily:"inherit", fontSize:DS.font.sm, padding:0 };
 
   return (
     <div>
@@ -378,86 +369,30 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onPlansC
           Tu tienda está vinculada de manera externa por los desarrolladores. El selector que ves en tu producto es un desarrollo a medida; cualquier cambio pedilo por WhatsApp.
         </Callout>
       )}
-      {vm?._error && (
-        <Callout T={T} tone="danger" style={{marginBottom:14}}>No se pudo armar la vista previa: {vm._error}</Callout>
-      )}
 
-      {/* ── Tus packs (editor inline del plan seleccionado) ───────────── */}
-      <Card T={T} style={{marginBottom:16}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap",marginBottom:activePlans.length ? 12 : 6}}>
-          <div style={{flex:1,minWidth:200}}>
-            <div style={sectionH}>Tus packs</div>
-            <div style={small}>Lo que cargás acá se ve al instante en la vista previa. Guardá para publicarlo en tu tienda.</div>
-          </div>
-          {activePlans.length > 0 && (
-            <select value={selectedPlan ? selectedPlan.id : "sample"} onChange={e=>setPlanId(e.target.value)} style={{...inputS,width:"auto",maxWidth:260,padding:"7px 10px",fontSize:12}}>
-              {activePlans.map(p => <option key={p.id} value={p.id}>{p.product_title}{pricingModeOf(p) === "theme" ? " · precio del tema" : ""}</option>)}
-              <option value="sample">Datos de ejemplo</option>
-            </select>
-          )}
-        </div>
-
-        {activePlans.length === 0 ? (
-          <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",padding:"12px 14px",background:T.surface,border:`1px dashed ${T.border}`,borderRadius:DS.r.lg}}>
-            <div style={{flex:1,minWidth:200}}>
-              <div style={{fontSize:DS.font.base,fontWeight:DS.w.bold,color:T.text}}>Todavía no tenés planes</div>
-              <div style={small}>Un plan convierte un producto de tu tienda en suscripción. Los packs se cargan sobre un plan.</div>
-            </div>
-            <Btn T={T} variant="solid" type="button" onClick={goPlans}>Creá tu primer plan</Btn>
-          </div>
-        ) : !selectedPlan ? (
-          <div style={small}>Estás viendo datos de ejemplo. Elegí un plan arriba para cargar sus packs.</div>
-        ) : (selMode === "theme" && !packsOn) ? (
-          <Callout T={T} tone="warning" right={<Btn T={T} variant="solid" size="sm" type="button" onClick={switchToPacks}>Pasar a packs</Btn>}>
-            Este plan hoy toma el precio desde el tema de tu tienda. Al guardar packs acá, el widget pasa a mostrar este selector.
-          </Callout>
-        ) : (
-          <div>
-            {selMode === "theme" && (
-              <Callout T={T} tone="info" style={{marginBottom:12}}>El plan sigue en modo tema hasta que toques "Guardar packs".</Callout>
-            )}
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(180px, 1fr))",gap:"0 12px",alignItems:"end"}}>
-              <Field T={T} label="% de descuento por suscripción">
-                <input type="number" min="0" max="80" value={discount} onChange={e=>changeDiscount(e.target.value)} style={inputS}/>
-              </Field>
-              <div style={{...small,marginBottom:14}}>
-                Precio base <strong style={{color:T.text}}>{basePrice > 0 ? "$" + Math.round(basePrice).toLocaleString("es-AR") : "—"}</strong> · frecuencia cada <strong style={{color:T.text}}>{selectedPlan.frequency_days || 30} días</strong>
-                <span> · se cambian desde Planes → Editar.</span>
-              </div>
-            </div>
-            <PacksEditor
-              compact mode="packs" radioName="rc-wd-pack-default"
-              packs={rows} onPacksChange={changeRows}
-              basePrice={basePrice} discountPct={discount} frequencyDays={selectedPlan.frequency_days || 30}
-              freqScales={freqScales} onFreqScalesChange={changeFreqScales}
-            />
-            <div style={{display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",marginTop:12}}>
-              <Btn T={T} variant="solid" type="button" onClick={savePacks} disabled={savingPacks || (!dirty && selMode === "packs")}>{savingPacks ? "Guardando…" : "Guardar packs"}</Btn>
-              {dirty
-                ? <span style={{...small,color:T.yellow,fontWeight:DS.w.semibold}}>Cambios sin guardar · la vista previa ya los muestra</span>
-                : <span style={small}>Se envía a <code style={{fontSize:11}}>PATCH /api/plans?id={selectedPlan.id}</code> en modo packs.</span>}
-            </div>
-          </div>
-        )}
-      </Card>
-
-      {/* ── Vista previa grande + panel ─────────────────────────────── */}
+      {/* ── Vista previa + personalización ─────────────────────────── */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))",gap:16,alignItems:"start"}}>
         <Card T={T} style={{position:"sticky",top:12}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,flexWrap:"wrap",marginBottom:10}}>
             <div>
               <div style={sectionH}>Vista previa</div>
-              <div style={small}>{selectedVariant ? `${selectedVariant.name} · ${selectedVariant.id}` : variant} · tocá los packs y el toggle</div>
+              <div style={small}>{selectedVariant ? `${selectedVariant.name} · ${selectedVariant.id}` : variant}</div>
             </div>
-            <div style={{fontSize:12,color:T.textMd,fontWeight:DS.w.semibold,maxWidth:220,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={selectedPlan ? selectedPlan.product_title : "Datos de ejemplo"}>{selectedPlan ? selectedPlan.product_title : "Datos de ejemplo"}</div>
+            {activePlans.length > 0 && (
+              <select value={selectedPlan ? selectedPlan.id : "sample"} onChange={e=>setPlanId(e.target.value)} style={{...inputS,width:"auto",maxWidth:240,padding:"7px 10px",fontSize:12,marginBottom:0}}>
+                {activePlans.map(p => <option key={p.id} value={p.id}>{p.product_title}{pricingModeOf(p) === "theme" ? " · precio del tema" : ""}</option>)}
+                <option value="sample">Datos de ejemplo</option>
+              </select>
+            )}
           </div>
-          {usingSample && <div style={{...small,marginBottom:8}}>Datos de ejemplo: 3 packs (44.990 / 59.990 / 74.990, 10% off, cada 60 días).</div>}
-          {!usingSample && samplePacks && <div style={{...small,marginBottom:8}}>Este plan todavía no tiene packs: mostramos 3 de ejemplo hasta que cargues los tuyos arriba.</div>}
-          {!usingSample && !samplePacks && dirty && <div style={{...small,marginBottom:8,color:T.yellow}}>Mostrando tus packs sin guardar.</div>}
-          <div style={{background:"#fff",borderRadius:12,border:`1px solid ${T.border}`,padding:10,maxWidth:440,margin:"0 auto"}}>
-            <BundleFrame html={big.html} css={big.css} interactive onAction={onAction} minHeight={200}/>
-          </div>
-          <div style={{...small,marginTop:8,textAlign:"center"}}>Modo: <strong>{pvState.mode === "sub" ? texts.sub_label : texts.once_label}</strong> · pack #{pvState.selectedIdx + 1}</div>
+          {usingSample && <div style={{...small,marginBottom:8}}>Datos de ejemplo: 3 packs (44.990 / 59.990 / 74.990, 10% off, cada 60 días).{activePlans.length === 0 && " Creá un plan para verlo con tus precios."}</div>}
+          {!usingSample && samplePacks && <div style={{...small,marginBottom:8}}>Este plan {selMode === "theme" ? "usa el precio del tema" : "todavía no tiene packs"}: mostramos 3 de ejemplo.</div>}
+          <BundlePreview plan={previewPlan} merchant={draftMerchant} minHeight={200}/>
+          {selectedPlan && onEditPlan && (
+            <div style={{marginTop:10,textAlign:"center"}}>
+              <button type="button" onClick={()=>onEditPlan(selectedPlan)} style={linkBtn}>Editar packs de este plan →</button>
+            </div>
+          )}
         </Card>
 
         <Card T={T}>
@@ -466,7 +401,7 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onPlansC
           <Field T={T} label="Color de acento">
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <input type="color" value={/^#[0-9a-f]{6}$/i.test(color) ? color : "#10b981"} onChange={e=>setColor(e.target.value)} style={{width:44,height:36,border:`1px solid ${T.border}`,borderRadius:8,padding:2,background:"transparent",cursor:"pointer"}}/>
-              <input type="text" value={color} onChange={e=>setColor(e.target.value)} style={{...inputS,maxWidth:130,fontFamily:"monospace",fontSize:12}} placeholder="#10b981"/>
+              <input type="text" value={color} onChange={e=>setColor(e.target.value)} style={{...inputS,maxWidth:130,fontFamily:MONO,fontSize:12,marginBottom:0}} placeholder="#10b981"/>
               <div style={{flex:1,height:36,borderRadius:8,background:color}}/>
             </div>
           </Field>
@@ -475,17 +410,23 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onPlansC
             <input type="range" min="0" max="32" step="1" value={radius} onChange={e=>setRadius(parseInt(e.target.value,10)||0)} style={{width:"100%",accentColor:T.accentSolid}}/>
           </Field>
 
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <Field T={T} label="Modo por defecto">
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
+            <Field T={T} label="Cuál aparece primero">
+              <select value={modeOrder} onChange={e=>setModeOrder(e.target.value)} style={inputS}>
+                <option value="sub_first">Suscripción primero</option>
+                <option value="once_first">Compra única primero</option>
+              </select>
+            </Field>
+            <Field T={T} label="Cuál arranca seleccionada">
               <select value={modeDefault} onChange={e=>setModeDefault(e.target.value)} style={inputS}>
                 <option value="sub">Suscripción</option>
                 <option value="once">Compra única</option>
               </select>
             </Field>
-            <div style={{display:"flex",flexDirection:"column",gap:10,paddingTop:2}}>
-              <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:12,color:T.textMd}}>Precio tachado <DSToggle T={T} active={showCompare} onToggle={()=>setShowCompare(v=>!v)}/></label>
-              <label style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,fontSize:12,color:T.textMd}}>Precio por unidad <DSToggle T={T} active={showPerUnit} onToggle={()=>setShowPerUnit(v=>!v)}/></label>
-            </div>
+          </div>
+          <div style={{display:"flex",gap:18,flexWrap:"wrap",marginBottom:14}}>
+            <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:T.textMd}}>Precio tachado <DSToggle T={T} active={showCompare} onToggle={()=>setShowCompare(v=>!v)}/></label>
+            <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:T.textMd}}>Precio por unidad <DSToggle T={T} active={showPerUnit} onToggle={()=>setShowPerUnit(v=>!v)}/></label>
           </div>
 
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",margin:"6px 0 8px"}}>
@@ -502,7 +443,7 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onPlansC
           <Field T={T} label="Líneas de confianza (hasta 4)">
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
               {[0,1,2,3].map(i => (
-                <input key={i} type="text" value={texts.trust_lines[i] ?? ""} onChange={e=>setTrust(i, e.target.value)} style={inputS} placeholder={DEFAULT_WIDGET_TEXTS.trust_lines[i] || (i === 2 ? "Pausá o cambiá la fecha desde tu portal" : "")} maxLength={80}/>
+                <input key={i} type="text" value={texts.trust_lines[i] ?? ""} onChange={e=>setTrust(i, e.target.value)} style={{...inputS,marginBottom:0}} placeholder={DEFAULT_WIDGET_TEXTS.trust_lines[i] || (i === 2 ? "Pausá o cambiá la fecha desde tu portal" : "")} maxLength={80}/>
               ))}
             </div>
           </Field>
@@ -520,7 +461,7 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onPlansC
         <div style={sectionH}>Elegí un diseño</div>
         <div style={{...small,marginBottom:12}}>Vista previa real de cada variante con tus packs y colores. Tocá "Usar este" y después guardá.</div>
         {galleryPending && (
-          <Callout T={T} tone="info" style={{marginBottom:12}}>El diseño que elijas se va a aplicar cuando pases el plan a packs (arriba, en "Tus packs").</Callout>
+          <Callout T={T} tone="info" style={{marginBottom:12}}>El diseño que elijas se aplica cuando algún plan esté en modo packs (Planes → Editar → Precios y packs).</Callout>
         )}
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))",gap:14}}>
           {gallery.map(v => {
@@ -543,6 +484,22 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onPlansC
           })}
         </div>
       </div>
+
+      {/* ── Instalación en la tienda ────────────────────────────────── */}
+      <Card T={T} style={{marginTop:20}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:8}}>
+          <div>
+            <div style={sectionH}>Instalación en tu tienda</div>
+            <div style={small}>Una sola vez, en la plantilla de producto (Online Store → Themes → Personalizar → bloque "Liquid personalizado"). El widget aparece solo en los productos con plan activo.</div>
+          </div>
+          <span style={{fontSize:DS.font.xs,fontWeight:DS.w.bold,padding:"3px 9px",borderRadius:99,background:(pasted ? T.green : T.yellow) + "1a",color:pasted ? T.green : T.yellow,border:`1px solid ${(pasted ? T.green : T.yellow)}44`}}>{pasted ? "✓ Snippet pegado" : "Snippet pendiente"}</span>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"stretch",flexWrap:"wrap"}}>
+          <pre style={{flex:"1 1 320px",background:T.bg,border:`1px solid ${T.border}`,borderRadius:DS.r.lg,padding:"10px 12px",fontSize:DS.font.md,fontFamily:MONO,overflowX:"auto",margin:0,color:T.accent,lineHeight:1.5,whiteSpace:"pre-wrap",wordBreak:"break-all"}}>{snippet}</pre>
+          <Btn T={T} variant="secondary" type="button" onClick={copySnippet}>{copied ? "✓ Copiado" : "📋 Copiar snippet"}</Btn>
+        </div>
+        <CheckLine T={T} checked={pasted} onChange={togglePasted} style={{marginTop:12,color:T.text}}>Ya lo pegué en mi tienda</CheckLine>
+      </Card>
 
       <DevHelpCard merchant={m} context="widget"/>
     </div>

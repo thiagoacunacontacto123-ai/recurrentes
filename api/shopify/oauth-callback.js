@@ -13,6 +13,7 @@ import { db } from "../_lib/firebase.js";
 import { verifyToken, timingSafeEqualStr } from "../_lib/token.js";
 import { appBaseUrl } from "../_lib/config.js";
 import { fetchWithTimeout } from "../_lib/http.js";
+import { shGetShopInfo, buildShopInfoPatch } from "../_lib/shopify.js";
 
 const SHOP_RE = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i;
 
@@ -95,6 +96,16 @@ export default async function handler(req, res) {
     }, { merge: true });
   } catch (e) {
     return res.status(500).send(`Error guardando token: ${e.message}`);
+  }
+
+  // Datos de la tienda (shop.json): nombre, mail, moneda, país, dominio propio.
+  // Best effort: si falla, el merchant los puede traer después con
+  // GET /api/merchant?action=refresh-shop. Respeta store_domain/store_name manuales.
+  try {
+    const info = await shGetShopInfo(shopNorm, tokenData.access_token);
+    await db().collection("merchants").doc(uid).set(buildShopInfoPatch(merchant, info), { merge: true });
+  } catch (e) {
+    console.warn(`[shopify/oauth-callback] shop.json falló para ${uid}:`, e.message);
   }
 
   // Limpiar cookie + redirect al dashboard con flag de éxito

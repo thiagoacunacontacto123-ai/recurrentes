@@ -13,8 +13,15 @@
 //   GET  ?action=sub&token=<JWT>
 //        → detalle de la sub + historial de cargos (customer portal).
 //
-//   POST ?action=sub&token=<JWT>  body { action: "pause"|"resume"|"cancel" }
-//        → pause / resume / cancel desde el portal del cliente.
+//   POST ?action=sub&token=<JWT>  body { action: "pause"|"resume"|"cancel",
+//                                        reason_code?, reason?, comment? }
+//        → pause / resume / cancel desde el portal del cliente. En cancel, el motivo
+//          se guarda en el sub (cancel_reason_code/cancel_reason/cancel_comment) y en
+//          merchants/{mid}/cancellations/{subId}.
+//
+//   POST ?action=pause-offer&token=<JWT>  body { cycles: 1..3 }
+//        → oferta de retención: pausa la sub N ciclos (MP status paused) y guarda
+//          resume_at; el cron la reactiva sola al vencer. Marca retention_saved.
 //
 //   POST ?action=update-address&token=<JWT>  body { shipping_address, customer_phone }
 //        → el cliente actualiza su dirección/teléfono desde el portal.
@@ -29,7 +36,9 @@
 // de config.signingSecret(), sin fallback hardcodeado). Se mantiene la verificación
 // de tokens legacy firmados con MP_WEBHOOK_SECRET (compare timing-safe).
 import crypto from "node:crypto";
+import { FieldValue } from "firebase-admin/firestore";
 import { db } from "./_lib/firebase.js";
+import { retentionFor, RETENTION_REASON_CODES, RETENTION_MAX_PAUSE_CYCLES } from "./_lib/retention.js";
 import { mpUpdatePreapproval, mpGetPreapproval } from "./_lib/mp.js";
 import { signToken, verifyToken, timingSafeEqualStr } from "./_lib/token.js";
 import { signingSecret } from "./_lib/config.js";
@@ -89,7 +98,8 @@ export default async function handler(req, res) {
   if (action === "discount") return handleDiscount(req, res);
   if (action === "unsub") return handleUnsub(req, res);
   if (action === "update-address") return handleUpdateAddress(req, res);
-  return res.status(400).json({ error: "action debe ser plan | sub | discount | unsub | update-address" });
+  if (action === "pause-offer") return handlePauseOffer(req, res);
+  return res.status(400).json({ error: "action debe ser plan | sub | discount | unsub | update-address | pause-offer" });
 }
 
 // ─── action=unsub ───────────────────────────────────────────────
@@ -218,6 +228,10 @@ async function handleUpdateAddress(req, res) {
   const subSnap = await subRef.get();
   if (!subSnap.exists) return res.status(404).json({ error: "Suscripción no encontrada" });
   const sub = subSnap.data();
+  try {
+    const m = (await db().collection("merchants").doc(merchantId).get()).data() || {};
+    if (m.portal?.allow_address === false) return res.status(403).json({ error: "Esta tienda no permite cambiar la dirección desde el portal. Escribile a la tienda." });
+  } catch (_) {}
 
   const addr = (req.body && typeof req.body.shipping_address === "object" && req.body.shipping_address) || {};
   const phone = String(req.body?.customer_phone ?? sub.customer_phone ?? "").trim().slice(0, 40);
@@ -283,10 +297,22 @@ async function handleSub(req, res) {
         // URL pública de Thank You de Shopify — CheckoutSuccess.jsx hace
         // polling acá y redirige al cliente cuando la orden ya fue creada.
         shopify_order_status_url: sub.last_shopify_order_status_url || null,
+        // Pausa por oferta de retención: fecha en que el cron la reactiva sola.
+        resume_at: sub.resume_at || null,
+        cancel_reason_code: sub.cancel_reason_code || null,
       },
       charges,
       merchant_store_url: storeUrl,
-      merchant_brand: (merchant && (merchant.email_brand || merchant.displayName || merchant.shop_name)) || null,
+      merchant_brand: (merchant && (merchant.email_brand || merchant.store_name || merchant.shop_name || merchant.displayName)) || null,
+      // Config de retención (motivos + si se ofrece pausa) para el modal de cancelar.
+      retention: retentionFor(merchant),
+      // Qué puede hacer el cliente desde el portal + mensaje de bienvenida.
+      portal: {
+        allow_pause: merchant?.portal?.allow_pause !== false,
+        allow_cancel: merchant?.portal?.allow_cancel !== false,
+        allow_address: merchant?.portal?.allow_address !== false,
+      },
+      portal_welcome: merchant?.portal_welcome || "",
     });
   }
 
@@ -295,12 +321,24 @@ async function handleSub(req, res) {
     if (!["pause", "resume", "cancel"].includes(subAction)) {
       return res.status(400).json({ error: "action debe ser pause | resume | cancel" });
     }
+    // Motivo de cancelación (opcional): reason_code ∈ RETENTION_REASON_CODES,
+    // reason ≤ 120, comment ≤ 500. Un código inválido se descarta (no rompe la baja).
+    const rcRaw = String(req.body?.reason_code || "").trim();
+    const cancelReason = String(req.body?.reason || "").trim().slice(0, 120) || null;
+    const cancelComment = String(req.body?.comment || "").trim().slice(0, 500) || null;
     const subSnap = await subRef.get();
     if (!subSnap.exists) return res.status(404).json({ error: "Suscripción no encontrada" });
     const sub = subSnap.data();
 
     const merchantSnap = await db().collection("merchants").doc(merchantId).get();
     const merchant = merchantSnap.data() || {};
+    // Acciones que el comerciante deshabilitó en Portal del cliente.
+    const perms = merchant.portal || {};
+    if (subAction === "pause" && perms.allow_pause === false) return res.status(403).json({ error: "Esta tienda no permite pausar desde el portal. Escribile a la tienda." });
+    if (subAction === "cancel" && perms.allow_cancel === false) return res.status(403).json({ error: "Esta tienda no permite cancelar desde el portal. Escribile a la tienda." });
+    // Motivo válido = uno de los configurados por la tienda (o "otro"); si no, se descarta.
+    const validCodes = new Set([...retentionFor(merchant).reasons.map(r => r.code), "otro"]);
+    const cancelReasonCode = validCodes.has(rcRaw) ? rcRaw : null;
     if (!merchant.mp_access_token || !sub.mp_preapproval_id) {
       return res.status(400).json({ error: "Faltan credenciales para gestionar la suscripción" });
     }
@@ -318,7 +356,15 @@ async function handleSub(req, res) {
     const update = {
       status: localStatus,
       updated_at: now,
-      ...(subAction === "cancel" ? { cancelled_at: now, cancelled_by: "customer" } : {}),
+      ...(subAction === "cancel" ? {
+        cancelled_at: now, cancelled_by: "customer",
+        ...(cancelReasonCode ? { cancel_reason_code: cancelReasonCode } : {}),
+        ...(cancelReason ? { cancel_reason: cancelReason } : {}),
+        ...(cancelComment ? { cancel_comment: cancelComment } : {}),
+        resume_at: FieldValue.delete(),
+      } : {}),
+      // Reactivación manual: se cancela la reactivación automática pendiente.
+      ...(subAction === "resume" ? { resume_at: FieldValue.delete() } : {}),
     };
     // Tras pausar/reactivar, releemos el preapproval para no dejar next_charge_at viejo.
     if (subAction !== "cancel") {
@@ -334,12 +380,33 @@ async function handleSub(req, res) {
     }
     await subRef.update(update);
 
+    // Registro de cancelación para analíticas (merchants/{mid}/cancellations/{subId}).
+    // saved:false; pasa a true si después acepta la oferta de pausa (pause-offer).
+    if (subAction === "cancel") {
+      try {
+        await db().collection("merchants").doc(merchantId).collection("cancellations").doc(subscriberId).set({
+          subscriber_id: subscriberId,
+          reason_code: cancelReasonCode || "sin_motivo",
+          reason: cancelReason,
+          comment: cancelComment,
+          amount_ars: sub.plan_snapshot?.total_per_charge_ars || sub.plan_snapshot?.subscription_price_ars || 0,
+          plan_title: sub.plan_snapshot?.product_title || null,
+          plan_id: sub.plan_id || null,
+          customer_email: sub.customer_email || null,
+          cancelled_by: "customer",
+          created_at: now,
+          saved: false,
+        }, { merge: true });
+      } catch (e) { console.warn("[public/sub] cancellations:", e.message); }
+    }
+
     // Klaviyo: Subscription Cancelled / Paused / Resumed (best-effort, nunca bloquea).
     if (klaviyoEnabled(merchant)) {
       try {
         const metric = subAction === "cancel" ? KLAVIYO_METRICS.CANCELLED : subAction === "pause" ? KLAVIYO_METRICS.PAUSED : KLAVIYO_METRICS.RESUMED;
+        const cancelProps = subAction === "cancel" ? { cancel_reason_code: cancelReasonCode || null, cancel_reason: cancelReason || null } : {};
         await klaviyoLifecycle(merchant, merchantId, metric, subscriberId, { ...sub, ...update }, {
-          uniqueSuffix: now, nextChargeAt: update.next_charge_at, properties: { source: "portal" },
+          uniqueSuffix: now, nextChargeAt: update.next_charge_at, properties: { source: "portal", ...cancelProps },
         });
       } catch (e) { console.warn("[public/sub] klaviyo falló:", e.message); }
     }
@@ -359,8 +426,79 @@ async function handleSub(req, res) {
         await logEmail(merchantId, { type: "cancellation", subscriber_id: subscriberId, to: sub.customer_email, customer_name: sub.customer_name, product_title: productTitle, status: "error", error: e.message });
       }
     }
-    return res.json({ ok: true, status: localStatus });
+    return res.json({ ok: true, status: localStatus, ...(subAction === "cancel" ? { cancel_reason_code: cancelReasonCode } : {}) });
   }
 
   return res.status(405).json({ error: "Method not allowed" });
+}
+
+// ─── action=pause-offer ────────────────────────────────────────
+// Oferta de retención desde el portal: en vez de cancelar, pausar N ciclos.
+//   body { cycles: 1..3 } → MP status paused + resume_at = now + cycles × frequency_days.
+//   El cron (api/cron.js) la vuelve a authorized cuando resume_at vence.
+//   Marca retention_saved:true en el sub y saved:true en cancellations/{subId} si existía.
+async function handlePauseOffer(req, res) {
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  const token = req.query.token || req.body?.token;
+  const payload = verifyPortalToken(String(token || ""));
+  if (!payload) return res.status(403).json({ error: "Token inválido o expirado" });
+  const { mid: merchantId, sid: subscriberId } = payload;
+  const cycles = parseInt(req.body?.cycles, 10);
+  if (!Number.isInteger(cycles) || cycles < 1 || cycles > RETENTION_MAX_PAUSE_CYCLES) {
+    return res.status(400).json({ error: `cycles debe ser un entero entre 1 y ${RETENTION_MAX_PAUSE_CYCLES}` });
+  }
+  const mRef = db().collection("merchants").doc(merchantId);
+  const subRef = mRef.collection("subscribers").doc(subscriberId);
+  const [subSnap, mSnap] = await Promise.all([subRef.get(), mRef.get()]);
+  if (!subSnap.exists) return res.status(404).json({ error: "Suscripción no encontrada" });
+  const sub = subSnap.data();
+  const merchant = mSnap.data() || {};
+  const retention = retentionFor(merchant);
+  if (!retention.enabled || !retention.offer_pause) return res.status(400).json({ error: "Esta tienda no ofrece pausar la suscripción." });
+  if (!["active", "payment_failed", "paused"].includes(sub.status)) return res.status(400).json({ error: "La suscripción no se puede pausar en su estado actual." });
+  if (!merchant.mp_access_token || !sub.mp_preapproval_id) return res.status(400).json({ error: "Faltan credenciales para gestionar la suscripción" });
+
+  if (sub.status !== "paused") {
+    try {
+      await mpUpdatePreapproval(merchant.mp_access_token, sub.mp_preapproval_id, { status: "paused" });
+    } catch (e) {
+      if (!/already|paused preapproval|same status/i.test(String(e.message || ""))) {
+        console.error("[public/pause-offer] MP update falló:", e.message);
+        return res.status(502).json({ error: "No pudimos pausar la suscripción en Mercado Pago. Intentá de nuevo en unos minutos." });
+      }
+    }
+  }
+  const freqDays = Math.max(1, parseInt(sub.plan_snapshot?.frequency_days, 10) || 30);
+  const now = new Date();
+  const resumeAt = new Date(now.getTime() + cycles * freqDays * 86400000).toISOString();
+  const nowIso = now.toISOString();
+  const update = {
+    status: "paused",
+    mp_preapproval_status: "paused",
+    resume_at: resumeAt,
+    pause_cycles: cycles,
+    paused_at: nowIso,
+    paused_by: "customer",
+    pause_source: "retention_offer",
+    retention_saved: true,
+    retention_saved_at: nowIso,
+    updated_at: nowIso,
+  };
+  await subRef.update(update);
+  // Si ya había registrado una cancelación (abrió el modal, eligió motivo y después
+  // aceptó la pausa), la marcamos como salvada.
+  try {
+    const cRef = mRef.collection("cancellations").doc(subscriberId);
+    const c = await cRef.get();
+    if (c.exists) await cRef.set({ saved: true, saved_at: nowIso, saved_via: "pause", pause_cycles: cycles }, { merge: true });
+  } catch (e) { console.warn("[public/pause-offer] cancellations:", e.message); }
+
+  if (klaviyoEnabled(merchant)) {
+    try {
+      await klaviyoLifecycle(merchant, merchantId, KLAVIYO_METRICS.PAUSED, subscriberId, { ...sub, ...update }, {
+        uniqueSuffix: nowIso, nextChargeAt: resumeAt, properties: { source: "portal", retention_offer: true, pause_cycles: cycles, resume_at: resumeAt },
+      });
+    } catch (e) { console.warn("[public/pause-offer] klaviyo falló:", e.message); }
+  }
+  return res.json({ ok: true, status: "paused", resume_at: resumeAt, cycles, frequency_days: freqDays });
 }

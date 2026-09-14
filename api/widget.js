@@ -108,9 +108,11 @@ export default async function handler(req, res) {
   let widgetOnceTitle = "Compra única";
   let widgetOnceSubtitle = "Comprá una vez al precio normal.";
   let widgetDisclaimerText = ""; // "" → usa default
-  // "page" = el botón lleva a un checkout propio (contacto/dirección/envíos de
-  // Shopify) antes de MP. "inline" = form dentro del widget (comportamiento viejo).
-  let checkoutFlow = "page";
+  // "redirect" (antes "page") = el botón lleva a un checkout propio (contacto/
+  // dirección/envíos de Shopify) antes de MP. "inline" = form dentro del widget
+  // (comportamiento viejo). Un `widget_checkout_flow: "page"` guardado se trata
+  // como "redirect" (solo "inline" cambia el flujo).
+  let checkoutFlow = "redirect";
   // Path de la PÁGINA de checkout on-store que el merchant creó en Shopify (con el
   // embed pegado). El botón del producto redirige ahí, en el dominio de la tienda.
   let checkoutPagePath = "/pages/suscripcion-form";
@@ -429,7 +431,7 @@ export default async function handler(req, res) {
           <button id="rec-qty-plus" type="button" style="width:30px;height:30px;border:1px solid ${COL};background:#fff;color:${COL};border-radius:6px;font-size:18px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;line-height:1;">+</button>\
         </div>\
       </div>\
-      <div id="rec-inline-fields"' + (CHECKOUT_FLOW === "page" ? ' style="display:none;"' : '') + '>\
+      <div id="rec-inline-fields"' + (CHECKOUT_FLOW === "redirect" ? ' style="display:none;"' : '') + '>\
       <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;margin-bottom:8px;">\
         <input id="rec-name" type="text" placeholder="Nombre completo" style="' + inputStyle + '"/>\
         <input id="rec-email" type="email" placeholder="Email" style="' + inputStyle + '"/>\
@@ -1046,7 +1048,7 @@ export default async function handler(req, res) {
       });
 
       subPanel.querySelector("#recurrentes-subscribe-btn").addEventListener("click", function(){
-        if (CHECKOUT_FLOW === "page") {
+        if (CHECKOUT_FLOW === "redirect") {
           // Modo checkout ON-STORE: el botón lleva a la PÁGINA de Shopify del
           // merchant (misma tienda), con producto/variante/cantidad. Esa página
           // tiene el embed (?view=checkout) que junta datos + envíos reales por
