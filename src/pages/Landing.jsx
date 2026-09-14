@@ -4,6 +4,7 @@ import { BtnSolid, BtnSecondary } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
 import { PricingTable } from "./Billing.jsx";
 import { FREE_SUBSCRIBERS } from "../../shared/platform/pricing.js";
+import { SectionsStyle, ProblemSection, UseCasesSection, DeepDivesSection, MonthStorySection, CalculatorSection, ExtrasSection, TrustSection, FaqSection, BigFooter } from "./LandingSections.jsx";
 
 const F = "'Inter',system-ui,sans-serif";
 
@@ -183,14 +184,6 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
   const irLogin = () => { if (onLogin) onLogin(); else window.location.hash = "#/login"; };
   const ir = (id) => () => { try { document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }); } catch (_) {} };
 
-  const FEATURES = [
-    { icon:"M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15", t:"Cobros recurrentes automáticos", d:"Mercado Pago cobra cada N días con la tarjeta del cliente. La plata entra en tu cuenta, sin intermediarios." },
-    { icon:"M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16zM3.27 6.96L12 12.01l8.73-5.05M12 22.08V12", t:"Una orden por cada cobro", d:"Cada cobro aprobado crea la orden en tu negocio, con dirección, envío y stock descontado. Vos empaquetás." },
-    { icon:"M9 22a1 1 0 100-2 1 1 0 000 2zM20 22a1 1 0 100-2 1 1 0 000 2zM1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6", t:"Widget con packs", d:"Compra única o Suscripción en la misma página de producto, con packs x1, x2, x3 y 10 diseños para elegir." },
-    { icon:"M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z", t:"Portal del suscriptor", d:"Tus clientes pausan, cambian la dirección o cancelan solos desde un link. Menos mensajes de soporte." },
-    { icon:"M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z", t:"Pagos fallidos y retención", d:"Avisos cuando una tarjeta rebota y ofertas de pausa antes de que alguien cancele." },
-    { icon:"M18 20V10M12 20V4M6 20v-6M2 20h20", t:"Métricas, Klaviyo y Meta", d:"MRR, churn y próximos cobros en el panel. Eventos a Klaviyo y ventas reportadas a Meta para tus campañas." },
-  ];
   const PASOS = [
     { n:"1", t:"Conectá tu negocio y Mercado Pago", d:"Autorizás Recurrentes en tu negocio y vinculás la cuenta de Mercado Pago que cobra. Diez minutos, sin código." },
     { n:"2", t:"Creá tus planes", d:"Elegís el producto, cada cuántos días se cobra, el descuento y los packs. Pegás el widget en la página de producto." },
@@ -220,7 +213,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
             <span style={{fontWeight:800,fontSize:18,letterSpacing:-0.3}}>Recurrentes</span>
           </a>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            {[["Cómo funciona","rec-como-funciona"],["Integraciones","rec-tiendas"],["Precios","rec-precios"]].map(([l,id])=>(
+            {[["Funciones","rec-funciones"],["Integraciones","rec-tiendas"],["Precios","rec-precios"],["Preguntas","rec-faq"]].map(([l,id])=>(
               <button key={id} onClick={ir(id)} className="hide-mobile" style={{background:"transparent",border:"none",color:T.textMd,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:F,padding:"6px 10px"}}>{l}</button>
             ))}
             <button onClick={onToggleDark} title={darkMode?"Modo claro":"Modo oscuro"} aria-label={darkMode?"Modo claro":"Modo oscuro"} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:8,color:T.textMd,cursor:"pointer",padding:"6px 8px",display:"flex",alignItems:"center"}}>
@@ -348,28 +341,20 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         </div>
       </section>
 
-      {/* Features */}
-      <section className="rec-land-wrap" style={{padding:"64px 24px"}}>
-        <h2 style={{fontSize:28,fontWeight:800,letterSpacing:-0.7,textAlign:"center",margin:"0 0 10px",textWrap:"balance"}}>Todo lo que necesitás para vender por suscripción</h2>
-        <p style={{fontSize:14,color:T.textSm,textAlign:"center",maxWidth:560,margin:"0 auto 32px",lineHeight:1.6}}>Pensado para negocios argentinos que venden algo que se compra una y otra vez: suplementos, café, cosmética, alimento para mascotas, ebooks y cursos.</p>
-        <div className="rec-land-grid">
-          {FEATURES.map(f=>(
-            <div key={f.t} className="rec-land-card" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:DS.r.xl,padding:"18px 18px 20px"}}>
-              <div style={{width:36,height:36,borderRadius:10,background:T.accentSolid+"18",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:12}}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={f.icon}/></svg>
-              </div>
-              <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>{f.t}</div>
-              <div style={{fontSize:12.5,color:T.textSm,lineHeight:1.6}}>{f.d}</div>
-            </div>
-          ))}
-        </div>
-      </section>
+      {/* Secciones largas (LandingSections.jsx): problema → rubros → funciones →
+          un mes de ejemplo → calculadora → 3 pasos → extras → confianza. */}
+      <SectionsStyle T={T}/>
+      <ProblemSection T={T}/>
+      <UseCasesSection T={T}/>
+      <DeepDivesSection T={T}/>
+      <MonthStorySection T={T}/>
+      <CalculatorSection T={T}/>
 
-      {/* Cómo funciona */}
-      <section id="rec-como-funciona" style={{background:T.surface,borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,padding:"56px 0"}}>
+      {/* Empezá en tres pasos */}
+      <section id="rec-como-funciona" style={{background:T.surface,borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,padding:"72px 0"}}>
         <div className="rec-land-wrap">
-          <h2 style={{fontSize:28,fontWeight:800,letterSpacing:-0.7,textAlign:"center",margin:"0 0 10px"}}>Cómo funciona</h2>
-          <p style={{fontSize:14,color:T.textSm,textAlign:"center",maxWidth:520,margin:"0 auto 32px",lineHeight:1.6}}>Tres pasos y tu negocio acepta suscripciones.</p>
+          <h2 style={{fontSize:32,fontWeight:800,letterSpacing:-0.9,textAlign:"center",margin:"0 0 12px",textWrap:"balance"}}>Empezá en tres pasos</h2>
+          <p style={{fontSize:15,color:T.textSm,textAlign:"center",maxWidth:520,margin:"0 auto 32px",lineHeight:1.6}}>En unos 10 minutos tu negocio acepta suscripciones. Sin código.</p>
           <div className="rec-land-pasos">
             {PASOS.map(p=>(
               <div key={p.n} className="rec-land-card" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:DS.r.xl,padding:"20px 20px 22px"}}>
@@ -381,6 +366,9 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
           </div>
         </div>
       </section>
+
+      <ExtrasSection T={T}/>
+      <TrustSection T={T}/>
 
       {/* Precios */}
       <section id="rec-precios" className="rec-land-wrap" style={{padding:"64px 24px"}}>
@@ -396,20 +384,20 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         <p style={{fontSize:12,color:T.textSm,textAlign:"center",margin:"22px auto 0",maxWidth:600,lineHeight:1.6}}>Precios en dólares · sin contrato, cancelás cuando quieras · suscriptor activo = cliente con su suscripción cobrando (los pausados y cancelados no cuentan).</p>
       </section>
 
+      <FaqSection T={T}/>
+
       {/* CTA final */}
-      <section className="rec-land-wrap" style={{paddingBottom:72}}>
-        <div style={{background:`linear-gradient(135deg, ${T.accentSolid}22, ${T.card})`,border:`1px solid ${T.accentSolid}44`,borderRadius:20,padding:"40px 28px",textAlign:"center"}}>
+      <section className="rec-land-wrap" style={{paddingTop:72,paddingBottom:72}}>
+        <div style={{background:`linear-gradient(135deg, ${T.accentSolid}22, ${T.card})`,border:`1px solid ${T.accentSolid}44`,borderRadius:20,padding:"44px 28px",textAlign:"center"}}>
           <RecLogo size={40} style={{marginBottom:14}}/>
-          <h2 style={{fontSize:26,fontWeight:800,letterSpacing:-0.6,margin:"0 0 8px",textWrap:"balance"}}>Empezá a vender por suscripción hoy</h2>
+          <h2 style={{fontSize:30,fontWeight:800,letterSpacing:-0.8,margin:"0 0 10px",textWrap:"balance"}}>Que te compren todos los meses sin tener que pedírselo</h2>
           <p style={{fontSize:14,color:T.textMd,margin:"0 auto 22px",maxWidth:480,lineHeight:1.6}}>Los primeros {FREE_SUBSCRIBERS} suscriptores son gratis. Conectás tu negocio, creás un plan y ves el primer cobro recurrente entrar solo.</p>
           <button onClick={irRegistro} style={{...BtnSolid(T),padding:"13px 24px",fontSize:15}}>Empezar gratis</button>
           <div style={{fontSize:12,color:T.textSm,marginTop:12}}>¿Ya tenés cuenta? <button onClick={irLogin} style={{background:"none",border:"none",color:T.accent,fontWeight:600,cursor:"pointer",fontFamily:F,fontSize:12,padding:0}}>Iniciá sesión</button></div>
         </div>
       </section>
 
-      <footer style={{borderTop:`1px solid ${T.border}`,padding:"20px 24px",fontSize:11,color:T.textSm,textAlign:"center"}}>
-        Recurrentes — suscripciones para negocios online · <a href="#/terminos" style={{color:T.textSm}}>Términos</a> · <a href="#/privacidad" style={{color:T.textSm}}>Privacidad</a>
-      </footer>
+      <BigFooter T={T} onGo={(id) => ir(id)()} onRegister={irRegistro}/>
     </div>
   );
 }
