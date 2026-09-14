@@ -227,7 +227,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
               Tiendas online · Cursos · Argentina
             </div>
             <h1 className="rec-land-h1" style={{fontSize:50,fontWeight:800,lineHeight:1.06,margin:"0 0 18px",letterSpacing:-1.6,color:T.text,textWrap:"balance"}}>
-              Vendé por <span style={{background:`linear-gradient(135deg, ${T.accentSolid}, #34d399)`,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent"}}>suscripción</span> en tu negocio desde hoy mismo
+              Vendé por <span style={{background:`linear-gradient(135deg, ${T.accentSolid}, #34d399)`,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent"}}>suscripción</span> en tu negocio online desde hoy mismo
             </h1>
             <p style={{fontSize:17,color:T.textMd,lineHeight:1.6,margin:"0 0 22px",maxWidth:520}}>
               Tu tienda online o tu curso: el cliente se suscribe una vez, <strong style={{color:T.text}}>Mercado Pago cobra solo</strong> cada período y Recurrentes crea la orden en tu tienda o te muestra quién está al día. Vos te ocupás de vender.
@@ -247,7 +247,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
               <button onClick={ir("rec-como-funciona")} style={{...BtnSecondary(T),padding:"12px 18px",fontSize:14}}>Ver cómo funciona</button>
             </div>
             <div style={{display:"flex",gap:18,flexWrap:"wrap",marginTop:22,fontSize:12,color:T.textSm}}>
-              {[`Gratis hasta ${FREE_SUBSCRIBERS} suscriptores`,"Sin tarjeta","Cancelás cuando quieras"].map(t=>(
+              {[`Gratis hasta ${FREE_SUBSCRIBERS} suscriptores`,"Listo en 10 minutos","Cancelás cuando quieras"].map(t=>(
                 <span key={t} style={{display:"inline-flex",alignItems:"center",gap:6}}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>{t}
                 </span>
@@ -360,7 +360,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         <div style={{display:"flex",justifyContent:"center",marginBottom:28}}>
           <span style={{display:"inline-flex",alignItems:"center",gap:8,padding:"5px 12px",borderRadius:20,background:T.accentSolid+"16",border:`1px solid ${T.accentSolid}44`,color:T.accent,fontSize:11,fontWeight:700,letterSpacing:0.4,textTransform:"uppercase"}}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            Gratis hasta {FREE_SUBSCRIBERS} suscriptores, sin tarjeta
+            Gratis hasta {FREE_SUBSCRIBERS} suscriptores
           </span>
         </div>
         <PricingTable T={T}/>
@@ -379,7 +379,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
       </section>
 
       <footer style={{borderTop:`1px solid ${T.border}`,padding:"20px 24px",fontSize:11,color:T.textSm,textAlign:"center"}}>
-        Recurrentes — suscripciones para tiendas online · <a href="#/terminos" style={{color:T.textSm}}>Términos</a> · <a href="#/privacidad" style={{color:T.textSm}}>Privacidad</a>
+        Recurrentes — suscripciones para negocios online · <a href="#/terminos" style={{color:T.textSm}}>Términos</a> · <a href="#/privacidad" style={{color:T.textSm}}>Privacidad</a>
       </footer>
     </div>
   );

@@ -164,7 +164,8 @@ Precio por **suscriptores activos** (`status` active o payment_failed), fuente �
   - Stripe: para **digitales y ventas al exterior en USD** (Impultienda, cursos, infoproductos). No abre cuentas a comercios argentinos: se usa con una cuenta Stripe afuera (ej. empresa en EE.UU.). El foco es Argentina, pero muchos venden afuera.
   - Whop: API con planes recurrentes, webhooks (cobro, fallo, alta, baja, reembolso) y cuentas conectadas tipo Connect. Sirve para **digitales al exterior en USD** (Impultienda); no cobra en pesos a compradores locales y lo físico está verde. Comisión 2,7% + USD 0,30 + 0,5% recurrente. Probar alta y retiro con una cuenta argentina real antes de invertir.
 - **Después del cobro**: factura ARCA (TusFacturas con webhook, Facturante en TN, Xubio, Contabilium), WhatsApp (Twilio / Botmaker), logística (Zipnova con OAuth multi-cliente, Andreani, Correo Argentino, Envia, Enviopack), email (Perfit, Doppler).
-- Prioridad sugerida: 1) app Tiendanube · 2) Mobbex · 3) factura ARCA por cobro · 4) débito Pagos360 · 5) avisos por WhatsApp.
+- **Gimnasios** (investigación 2026-09-14, datos de mercado mayormente de blogs de proveedores): GymGestión, GymSmartAccess y LumiaFIT ya cobran con suscripciones MP y cortan el acceso por mora → competencia, sin API pública. Fitco está en AR pero con MP solo cobra pagos únicos (hueco). Wodify tiene API (suspender/reactivar socios) pero no se confirmó uso en AR. Acceso: domina ZKTeco (huella/facial); también QR sin hardware. Integración sugerida: webhook de salida + `GET estado-socio` (al día / moroso, sale de `active`/`payment_failed`) + pase QR en el portal.
+- Prioridad sugerida: 1) app Tiendanube · 2) Mobbex · 3) factura ARCA por cobro · 4) Stripe y Whop para digitales al exterior · 5) avisos por WhatsApp.
 
 ## Decisiones de diseño
 
