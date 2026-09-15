@@ -627,7 +627,7 @@ export default async function handler(req, res) {
     } : null,
     // Sin tienda (link de suscripción): a dónde vuelve el cliente para retomar el
     // checkout (abandoned.js recoverTarget → evento "Checkout Started" de Klaviyo).
-    hosted_checkout_url: caps.link && process.env.APP_BASE_URL ? hostedCheckoutUrl(process.env.APP_BASE_URL, merchantId, plan.id) : null,
+    hosted_checkout_url: caps.link && process.env.APP_BASE_URL ? hostedCheckoutUrl(process.env.APP_BASE_URL.replace(/\/+$/, ""), merchantId, plan.id) : null,
     plan_id: plan.id,
     quantity: finalQty,
     plan_snapshot: {
@@ -683,7 +683,7 @@ export default async function handler(req, res) {
   // back_url para que CheckoutSuccess pueda linkear al portal directamente.
   const portalToken = generatePortalToken(merchantId, subscriberId, 180);
 
-  const baseUrl = process.env.APP_BASE_URL || "";
+  const baseUrl = (process.env.APP_BASE_URL || "").replace(/\/+$/, "");
   const isLocalhost = baseUrl.startsWith("http://localhost") || baseUrl.startsWith("http://127.");
   const backUrl = isLocalhost
     ? `https://recurrentes.app/checkout-success?sub=${subscriberId}`

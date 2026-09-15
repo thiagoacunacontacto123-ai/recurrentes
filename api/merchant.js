@@ -1399,7 +1399,8 @@ async function accountDelete(ctx, req, res) {
       const d = doc.data() || {};
       if (doc.id === uid || d.ownerUid === uid) continue;
       const members = { ...(d.teamMembers || {}) }; delete members[uid];
-      await doc.ref.set({ teamMembers: members, teamUids: FieldValue.arrayRemove(uid) }, { merge: true }).catch(() => {});
+      // update (no set+merge): con merge el mapa teamMembers se fusiona y el miembro quitado quedaba.
+      await doc.ref.update({ teamMembers: members, teamUids: FieldValue.arrayRemove(uid) }).catch(() => {});
       clearMerchantCache(doc.id);
     }
     // 4) Borrar el login. La purga total de datos queda TODO (cron) a los 30 días.
@@ -1531,7 +1532,8 @@ async function memberRemove(ctx, req, res) {
         upd.teamInviteEmails = FieldValue.arrayRemove(email);
       }
       if (removeUids.length) { upd.teamMembers = members; upd.teamUids = FieldValue.arrayRemove(...removeUids); }
-      tx.set(ref, upd, { merge: true });
+      // update (no set+merge): con merge el mapa teamMembers se fusiona y el miembro quitado conservaba acceso.
+      tx.update(ref, upd);
     });
     clearMerchantCache(ctx.merchantId);
     return res.json({ ok: true });

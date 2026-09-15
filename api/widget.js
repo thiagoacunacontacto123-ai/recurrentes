@@ -87,7 +87,7 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
 
   const merchantId = String(req.query.merchant || "");
-  const apiBase = process.env.APP_BASE_URL || "";
+  const apiBase = (process.env.APP_BASE_URL || "").replace(/\/+$/, "");
   // Selector(es) CSS extra a ocultar en modo suscripción — para tiendas con un
   // buy box CUSTOM (bundles/quantity-breaks propios) que el widget no reconoce
   // solo. El merchant lo pasa en el <script src> con &hide=<selector> (varios
