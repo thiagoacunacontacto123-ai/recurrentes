@@ -296,11 +296,11 @@ function MessagesSection({ T, merchant, reloadMerchant, goTab }) {
       </Panel>
 
       <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) minmax(0,1fr)", gap:DS.sp.lg, alignItems:"start" }}>
-        <Panel T={T} title="Remitente" sub="Quién figura en los mails y a dónde llegan las respuestas." right={<SaveBtn T={T} dirty={dirty} saving={saving} onClick={save}/>}>
+        <Panel T={T} title="Remitente" sub="Quién figura en los mails y a qué mail te escriben tus clientes." right={<SaveBtn T={T} dirty={dirty} saving={saving} onClick={save}/>}>
           <Field T={T} label="Remitente"><div style={{ ...iS, display:"flex", alignItems:"center", color:T.textMd }}>{merchant?.email_from_effective || merchant?.email_brand_effective || "Recurrentes"}</div></Field>
-          <Hint T={T}>El nombre es la marca que cargás en Apariencia. Los mails salen desde el dominio de Recurrentes.</Hint>
-          <Field T={T} label="Responder a (reply-to)"><input type="email" value={replyTo} onChange={e => { setReplyTo(e.target.value); setDirty(true); }} placeholder={merchant?.email || "hola@mitienda.com"} style={iS}/></Field>
-          <Hint T={T}>Cuando el cliente responde el mail, le llega a esta casilla.</Hint>
+          <Hint T={T}>El nombre es la marca que cargás en Apariencia. Los mails salen de una dirección automática de Recurrentes que no recibe respuestas.</Hint>
+          <Field T={T} label="Mail de atención al cliente"><input type="email" value={replyTo} onChange={e => { setReplyTo(e.target.value); setDirty(true); }} placeholder={merchant?.email || "atencion@mitienda.com"} style={iS}/></Field>
+          <Hint T={T}>Aparece al pie de cada mail ("Si necesitás ayuda, escribí a …"). Hace falta para activar los flujos de email.</Hint>
         </Panel>
         <Panel T={T} title="Probar" sub={<>Te mandamos el mail de activación de ejemplo a <strong style={{ color:T.text }}>{merchant?.email || "tu cuenta"}</strong>, con tu marca y remitente actuales.</>}>
           <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>

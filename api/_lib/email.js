@@ -52,7 +52,10 @@ function resolveSender({ merchant, from, brand, accent, replyTo } = {}) {
     from: f,
     brand: brand || effectiveBrand(merchant) || fromName(f) || "Tu tienda",
     accent: accent || merchant?.widget_color || "",
-    replyTo: replyTo || merchant?.email_reply_to || undefined,
+    replyTo: replyTo || merchant?.email_reply_to || merchant?.shop_email || undefined,
+    // Mail de atención al cliente de la tienda: va al pie de cada mail automático
+    // (los mails salen de una dirección de Recurrentes que no recibe respuestas).
+    support: replyTo || merchant?.email_reply_to || merchant?.shop_email || "",
   };
 }
 
@@ -113,8 +116,14 @@ async function sendEmail({ from, to, subject, html, text, replyTo, headers, tags
 
 // Template base. Mantener simple — inline styles, dark mode friendly,
 // markup mínimo (Gmail/Outlook). Todo lo que viene del merchant/cliente se escapa.
-function baseTemplate({ title, body, ctaLabel, ctaUrl, footerNote, brand, accent, unsubUrl }) {
+function baseTemplate({ title, body, ctaLabel, ctaUrl, footerNote, brand, accent, unsubUrl, support, automatic = true }) {
   const brandName = brand || "Tu tienda";
+  // Pie de todos los mails: aviso de mail automático + a dónde escribir (mail de la tienda).
+  const sup = /^[^@\s<>"]+@[^@\s<>"]+\.[^@\s<>"]+$/.test(String(support || "").trim()) ? String(support).trim() : "";
+  const autoLine = sup
+    ? `Este es un mail automático, por favor no lo respondas. Si necesitás ayuda, escribí a <a href="mailto:${escapeAttr(sup)}" style="color:#374151;">${escapeHtml(sup)}</a>.`
+    : "Este es un mail automático, por favor no lo respondas.";
+  const footer = [footerNote, automatic ? autoLine : ""].filter(Boolean).join("<br/><br/>");
   const col = /^#[0-9a-fA-F]{3,8}$/.test(String(accent || "")) ? accent : "#10b981";
   return `<!doctype html>
 <html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head>
@@ -132,7 +141,7 @@ function baseTemplate({ title, body, ctaLabel, ctaUrl, footerNote, brand, accent
         </p>
       ` : ""}
     </td></tr>
-    ${footerNote ? `<tr><td style="padding:14px 28px;background:#f9fafb;border-top:1px solid #e5e7eb;font-size:12px;color:#6b7280;">${footerNote}</td></tr>` : ""}
+    ${footer ? `<tr><td style="padding:14px 28px;background:#f9fafb;border-top:1px solid #e5e7eb;font-size:12px;color:#6b7280;">${footer}</td></tr>` : ""}
   </table>
   <div style="text-align:center;margin-top:14px;font-size:11px;color:#9ca3af;">
     ${escapeHtml(brandName)}
@@ -162,7 +171,7 @@ export async function emailSubscriptionActivated({ to, customerName, productTitl
   const prodTxt = plain(productTitle) || "tu suscripción";
   const freq = parseInt(frequencyDays, 10) || 30;
   const html = baseTemplate({
-    brand: snd.brand, accent: snd.accent,
+    brand: snd.brand, accent: snd.accent, support: snd.support,
     title: `¡Tu suscripción a ${prodTxt} está activa!`,
     body: `
       <p>${greet(customerName)}</p>
@@ -176,7 +185,6 @@ export async function emailSubscriptionActivated({ to, customerName, productTitl
     `,
     ctaLabel: "Gestionar mi suscripción",
     ctaUrl: portalUrl,
-    footerNote: "Si no reconocés esta compra, respondé a este email.",
   });
   return sendEmail({ from: snd.from, replyTo: snd.replyTo, to, subject: `¡Suscripción activa — ${prodTxt}!`, html, tags: { type: "activation" } });
 }
@@ -186,14 +194,13 @@ export async function emailSubscriptionCancelled({ to, customerName, productTitl
   const snd = resolveSender({ merchant, from, brand, accent, replyTo });
   const prodTxt = plain(productTitle) || "tu suscripción";
   const html = baseTemplate({
-    brand: snd.brand, accent: snd.accent,
+    brand: snd.brand, accent: snd.accent, support: snd.support,
     title: `Cancelamos tu suscripción`,
     body: `
       <p>${greet(customerName)}</p>
       <p>Confirmamos que tu suscripción a <strong>${escapeHtml(prodTxt)}</strong> fue cancelada. No vamos a hacer más cobros.</p>
       <p>Si fue un error o cambiás de idea, podés volver al producto en la tienda y suscribirte de nuevo.</p>
     `,
-    footerNote: "¿Querés contarnos por qué cancelaste? Respondé a este email — nos ayuda a mejorar.",
   });
   return sendEmail({ from: snd.from, replyTo: snd.replyTo, to, subject: `Tu suscripción a ${prodTxt} fue cancelada`, html, tags: { type: "cancellation" } });
 }
@@ -258,7 +265,7 @@ export async function emailAbandonedCheckout({ to, customerName, productTitle, a
   }
 
   const html = baseTemplate({
-    brand: snd.brand, accent: snd.accent, title, unsubUrl,
+    brand: snd.brand, accent: snd.accent, support: snd.support, title, unsubUrl,
     body: `
       <p>${greet(customerName)}</p>
       <p>Vimos que empezaste tu suscripción a <strong>${prod}</strong> pero no llegaste a terminar el pago.</p>
@@ -279,7 +286,7 @@ export async function emailPaymentFailed({ to, customerName, productTitle, porta
   const snd = resolveSender({ merchant, from, brand, accent, replyTo });
   const prodTxt = plain(productTitle) || "tu suscripción";
   const html = baseTemplate({
-    brand: snd.brand, accent: snd.accent,
+    brand: snd.brand, accent: snd.accent, support: snd.support,
     title: `Tu pago no se pudo procesar`,
     body: `
       <p>${greet(customerName)}</p>
@@ -310,7 +317,7 @@ export async function emailDigitalDelivery({ to, customerName, productTitle, url
   const renewal = event === "renewal";
   const msg = String(message || "").trim().slice(0, 500);
   const html = baseTemplate({
-    brand: snd.brand, accent: snd.accent,
+    brand: snd.brand, accent: snd.accent, support: snd.support,
     title: renewal ? `Tu acceso a ${prodTxt} de este período` : `Ya podés entrar a ${prodTxt}`,
     body: `
       <p>${greet(customerName)}</p>
@@ -323,7 +330,7 @@ export async function emailDigitalDelivery({ to, customerName, productTitle, url
     `,
     ctaLabel: "Acceder a tu contenido",
     ctaUrl: link,
-    footerNote: "Guardá este mail: es tu acceso. Si no podés entrar, respondé a este email.",
+    footerNote: "Guardá este mail: es tu acceso.",
   });
   return sendEmail({ from: snd.from, replyTo: snd.replyTo, to, subject: renewal ? `Tu acceso a ${prodTxt} de este período` : `Tu acceso a ${prodTxt}`, html, tags: { type: "delivery", event: renewal ? "renewal" : "activation" } });
 }
@@ -380,6 +387,7 @@ export async function emailPlanRequest({ to, merchantEmail, merchantId, storeNam
     brand: "Recurrentes",
     accent: "#10b981",
     footerNote: "Aviso interno de Recurrentes (plan-request).",
+    automatic: false, // este sí se contesta: el reply-to es el mail del comerciante
   });
   return sendEmail({ from: process.env.EMAIL_FROM || DEFAULT_FROM, replyTo: merchantEmail || undefined, to, subject: title, html, tags: { type: "plan_request", plan } });
 }
@@ -406,7 +414,7 @@ export async function emailFlowStep({ to, subject, bodyText, ctaLabel, ctaUrl, m
       return { ok: false, error: `unsub token: ${e.message}` };
     }
   }
-  const html = baseTemplate({ brand: snd.brand, accent: snd.accent, title: plain(subject, 150), body, ctaLabel: ctaUrl ? ctaLabel : "", ctaUrl, unsubUrl });
+  const html = baseTemplate({ brand: snd.brand, accent: snd.accent, support: snd.support, title: plain(subject, 150), body, ctaLabel: ctaUrl ? ctaLabel : "", ctaUrl, unsubUrl });
   return sendEmail({ from: snd.from, replyTo: snd.replyTo, to, subject: plain(subject, 180), html, headers,
     tags: { type: "flow", ...(tags || {}), ...(merchantId ? { merchant: merchantId } : {}) } });
 }

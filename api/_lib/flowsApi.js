@@ -39,6 +39,14 @@ export async function flowsApi(ctx, action, req, res) {
       const input = req.body?.flow || {};
       const { flow, error } = sanitizeFlow(input);
       if (error) return res.status(400).json({ error });
+      // Los mails salen de una dirección que no recibe respuestas: al pie va el mail de
+      // atención al cliente de la tienda (email_reply_to). Sin él no se activa un flujo.
+      if (flow.active) {
+        const m = (await db().collection("merchants").doc(mid).get()).data() || {};
+        if (!EMAIL_RE.test(String(m.email_reply_to || "").trim())) {
+          return res.status(400).json({ error: "Antes de activar un flujo, cargá el mail de atención al cliente de tu tienda (arriba, en Flujos de email).", code: "support_email_required" });
+        }
+      }
       const now = new Date().toISOString();
       const id = String(input.id || "").trim();
       let ref;

@@ -136,7 +136,7 @@ const runsPast = async () => { for (const d of (await M.collection("flow_runs").
 }
 
 // ── 5) Conexión del comerciante ──
-await M.set({ email: "dueno@tienda.com", store_name: "LuminaLabs", widget_color: "#10b981" });
+await M.set({ email: "dueno@tienda.com", store_name: "LuminaLabs", widget_color: "#10b981", email_reply_to: "atencion@tienda.com" });
 {
   const noOpt = await api("whatsapp-save", { phone_number_id: "111222333444", waba_id: "999888777", access_token: TOKEN });
   ok(noOpt.status === 400 && /aceptaron/.test(noOpt.error), "sin confirmar el consentimiento de los clientes no conecta");

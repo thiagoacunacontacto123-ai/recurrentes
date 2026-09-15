@@ -34,8 +34,12 @@ const pastAll = async () => { for (const r of await runs()) if (r.next_at) await
 // 1) Sin flujos activos: el enganche no lee nada (camino del cobro intacto).
 { const m = await mdoc(); const r0 = __reads(); await flows.emitFlowEvent("m1", m, "activated", "sX", { customer_email: "a@x.com" }, { key: "p1" }); ok(__reads() === r0, "sin flujos activos: emitFlowEvent no hace ninguna lectura"); }
 
+// 1b) Sin mail de atención al cliente (va al pie de cada mail) no se activa un flujo.
+{ const r = await call("flow-save", { flow: { ...defaultFlow("activated"), active: true } }); ok(r.status === 400 && r.code === "support_email_required", "sin mail de atención al cliente no deja activar un flujo"); }
+await M.update({ email_reply_to: "atencion@tienda.com" });
+
 // 2) Crear flujos + índice
-const c1 = await call("flow-save", { flow: { ...defaultFlow("checkout_started"), active: true } });
+const c1 =await call("flow-save", { flow: { ...defaultFlow("checkout_started"), active: true } });
 const c2 = await call("flow-save", { flow: { ...defaultFlow("payment_failed"), active: true } });
 const c3 = await call("flow-save", { flow: { ...defaultFlow("upcoming_charge"), active: true, days_before: 3 } });
 ok(c1.ok && c2.ok && c3.ok, "crea 3 flujos");

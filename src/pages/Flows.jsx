@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
-import { apiGet, apiPost } from "../lib/api.js";
+import { apiGet, apiPost, apiPatch } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
 import { Btn, DSBadge, DSToggle, Spinner, PageHeader, Callout, Field, InputStyle, Hint, Loading, appConfirm, toast } from "../ui/components.jsx";
 import { KpiCard, Panel } from "../ui/charts.jsx";
@@ -20,6 +20,31 @@ const fmtN = (n) => Math.round(Number(n) || 0).toLocaleString("es-AR");
 const total = (flows, k) => flows.reduce((a, f) => a + (Number(f.stats?.[k]) || 0), 0);
 const RECOMMENDED = ["checkout_started", "payment_failed", "upcoming_charge", "cancelled"];
 
+// Pide el mail de atención al cliente de la tienda (se guarda como email_reply_to).
+function SupportEmailCallout({ T, merchant, onSaved }) {
+  const [v, setV] = useState(merchant?.shop_email || merchant?.email || "");
+  const [saving, setSaving] = useState(false);
+  async function save() {
+    const email = v.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return toast("Poné un mail válido", "error");
+    setSaving(true);
+    const r = await apiPatch("merchant", { email_reply_to: email }, { action: "save-settings" }).catch(e => ({ error: e.message }));
+    setSaving(false);
+    if (r?.error) return toast("No se pudo guardar: " + r.error, "error", 6000);
+    toast("Listo: aparece al pie de cada mail", "success");
+    onSaved(email);
+  }
+  return (
+    <Callout T={T} tone="warning" title="¿A qué mail te escriben tus clientes?" style={{ marginBottom:16 }}>
+      <div style={{ fontSize:DS.font.sm, lineHeight:1.5, marginBottom:10 }}>Los mails salen de una dirección automática que no recibe respuestas. Al pie de cada mail mostramos el mail de atención al cliente de tu tienda para que te escriban ahí. Lo necesitás para activar un flujo.</div>
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+        <input type="email" value={v} onChange={e => setV(e.target.value)} placeholder="atencion@mitienda.com" aria-label="Mail de atención al cliente" style={{ ...InputStyle(T), flex:"1 1 240px", maxWidth:360 }} onKeyDown={e => { if (e.key === "Enter") save(); }}/>
+        <Btn T={T} variant="solid" size="sm" onClick={save} disabled={saving}>{saving ? "Guardando…" : "Guardar"}</Btn>
+      </div>
+    </Callout>
+  );
+}
+
 export function FlowsPage({ merchant }) {
   const T = useT();
   const [flows, setFlows] = useState([]);
@@ -28,6 +53,9 @@ export function FlowsPage({ merchant }) {
   const [editing, setEditing] = useState(null);   // flujo (nuevo o existente) abierto en el editor
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(null);
+  // Mail de atención al cliente (email_reply_to): va al pie de cada mail. Sin él no se activan flujos.
+  const [support, setSupport] = useState(merchant?.email_reply_to || "");
+  const needSupport = !String(support || "").trim();
 
   async function load() {
     setLoading(true);
@@ -38,6 +66,7 @@ export function FlowsPage({ merchant }) {
   useEffect(() => { load(); }, []);
 
   async function toggle(f) {
+    if (!f.active && needSupport) return toast("Antes de activar, cargá el mail de atención al cliente (el recuadro de arriba).", "warning", 6000);
     setBusy(f.id);
     const d = await apiPost("merchant", { flow: { ...f, active: !f.active } }, { action: "flow-save" });
     setBusy(null);
@@ -70,6 +99,8 @@ export function FlowsPage({ merchant }) {
           <Btn T={T} variant="secondary" size="sm" onClick={load} disabled={loading} style={{ height:34 }}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>
           <Btn T={T} variant="solid" onClick={() => setPicking(true)}>+ Nuevo flujo</Btn>
         </>}/>
+
+      {needSupport && <SupportEmailCallout T={T} merchant={merchant} onSaved={setSupport}/>}
 
       {err && !loading && <Callout T={T} tone="danger" title="No pudimos cargar los flujos" style={{ marginBottom:16 }} right={<Btn T={T} variant="secondary" size="sm" onClick={load}>Reintentar</Btn>}>{err}</Callout>}
 
