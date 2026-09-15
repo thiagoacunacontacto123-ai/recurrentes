@@ -60,9 +60,12 @@ import { rateLimit } from "./_lib/ratelimit.js";
 import { klaviyoEnabled, klaviyoValidateKey, klaviyoCheckoutStarted } from "./_lib/klaviyo.js";
 import { merchantProfile, validateProfilePatch } from "../shared/platform/profile.js";
 import { flowsApi } from "./_lib/flowsApi.js";
+import { providerFlags, providerConnectAction, PROVIDER_CONNECT_ACTIONS, STRIPE_CALLBACK_ACTION, stripeConnectCallback } from "./_lib/providers/stripeWhopApi.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
+  // Stripe Connect vuelve acá sin Bearer (redirect del navegador): el merchant sale del state firmado.
+  if (req.method === "GET" && String(req.query?.action || "") === STRIPE_CALLBACK_ACTION) return stripeConnectCallback(req, res);
   const ctx = await requireMerchant(req, res);
   if (!ctx) return;
   // uid = login (perfil). merchantId = tienda activa (== uid si no hay header).
@@ -180,6 +183,8 @@ export default async function handler(req, res) {
         business_type: merchant.business_type || null,
         channel: merchant.channel || null,
         payment_provider: merchant.payment_provider || null,
+        // Stripe / Whop (USD): flags de env + estado de conexión. Nunca claves.
+        ...(await providerFlags(merchant)),
       };
       return res.json({ merchant: safe });
     } catch (e) {
@@ -214,6 +219,7 @@ export default async function handler(req, res) {
     if (action === "disconnect-shopify")   return disconnect(merchantId, "shopify", res);
     if (action === "plan-request")         return planRequest(ctx, merchantId, req, res);
     if (action.startsWith("flow-"))        return flowsApi(ctx, action, req, res);
+    if (PROVIDER_CONNECT_ACTIONS.has(action)) return providerConnectAction(ctx, action, req, res); // Stripe / Whop (solo dueño)
 
     // Multi-tienda / equipo
     if (action === "store-create")   return storeCreate(ctx, req, res);
