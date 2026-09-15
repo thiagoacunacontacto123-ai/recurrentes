@@ -3,6 +3,7 @@ import { apiGet, apiPost, apiPatch, apiDelete, apiSend } from "../lib/api.js";
 import { auth } from "../lib/firebase.js";
 import { DS, useT } from "../ui/theme.js";
 import { Btn, BtnSecondary, DSBadge, Modal, Field, InputStyle, Spinner, DSTable, CellStack, PageHeader, SubTabs, Hint, Loading, appConfirm, appAlert, appPrompt, toast } from "../ui/components.jsx";
+import { KpiCard, Segmented } from "../ui/charts.jsx";
 import { OnbEmpty } from "./Onboarding.jsx";
 import { TIPS } from "../lib/onboarding.js";
 import { MONO, fmtARS, fmtDateShort, fmtDateOnly, fmtDateTime, fmtDayMonth, fmtAgo, fmtFreq, SurfaceBox, KV, ExtLink, RowMenu, portalUrl, mpPaymentUrl, mpPreapprovalUrl, shopifyOrderUrl, orderLabel, copyText, hashQuery } from "./_shared.jsx";
@@ -198,7 +199,9 @@ export async function performSubAction(sub, action, ctx = {}) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Página: Suscripciones (una sola, con SubTabs de estado)
+// Página: Suscripciones — estilo Growith (Envíos): KPIs con sparkline arriba,
+// barra de estados con contadores + búsqueda + filtro por plan, tabla densa
+// paginada (25 por página). Mismas acciones y ficha que antes.
 // ═══════════════════════════════════════════════════════════════════
 const STATUS_TABS = [
   { id:"active",         label:"Activas",       statKey:"active" },
@@ -214,6 +217,25 @@ const EMPTY_COPY = {
   unpaid:         ["🛒", "No hay checkouts sin pagar", "Clientes que iniciaron la suscripción y todavía no pagaron (últimos 30 días)."],
   cancelled:      ["🚫", "No hay canceladas", "Las suscripciones canceladas por vos o por el cliente quedan acá con su historial."],
 };
+const PAGE_SIZE = 25;
+const fmtN = (n) => Math.round(Number(n) || 0).toLocaleString("es-AR");
+// "hoy" · "mañana" · "en 5 días" · "atrasado" (próximo cobro).
+function fmtIn(iso) {
+  const t = Date.parse(iso || ""); if (!Number.isFinite(t)) return "";
+  const d = Math.ceil((t - Date.now()) / 86400000);
+  if (d < 0) return "atrasado";
+  if (d === 0) return "hoy";
+  if (d === 1) return "mañana";
+  return `en ${d} días`;
+}
+// Iniciales en un círculo del color del estado.
+function Avatar({ T, name, color }) {
+  const ini = String(name || "").trim().split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase() || "?";
+  return <span aria-hidden="true" style={{ width:30, height:30, borderRadius:99, background:color + "22", color, fontSize:11, fontWeight:800, display:"inline-flex", alignItems:"center", justifyContent:"center", flexShrink:0, letterSpacing:0.3 }}>{ini}</span>;
+}
+const SearchIcon = ({ color }) => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="5" stroke={color} strokeWidth="1.6"/><path d="M11 11l3.5 3.5" stroke={color} strokeWidth="1.6" strokeLinecap="round"/></svg>
+);
 
 export function SubscriptionsPage({ devMode = false, shop = null }) {
   const T = useT();
@@ -222,13 +244,16 @@ export function SubscriptionsPage({ devMode = false, shop = null }) {
   const [subs, setSubs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [plan, setPlan] = useState("");
+  const [page, setPage] = useState(0);
   const [detail, setDetail] = useState(null);
   const [counts, setCounts] = useState({});
+  const [period, setPeriod] = useState(null);
   const [busyRow, setBusyRow] = useState(null);
 
   async function loadCounts() {
     const d = await apiGet("stats");
-    if (d && !d.error) setCounts(c => ({ ...c, ...(d.totals || {}) }));
+    if (d && !d.error) { setCounts(c => ({ ...c, ...(d.totals || {}) })); setPeriod(d.period || null); }
   }
   async function load(st = status) {
     setLoading(true);
@@ -242,13 +267,23 @@ export function SubscriptionsPage({ devMode = false, shop = null }) {
   }
   useEffect(() => { loadCounts(); }, []);
   useEffect(() => { load(status); /* eslint-disable-next-line */ }, [status]);
+  useEffect(() => { setPage(0); }, [status, search, plan]);
 
-  // Filtro client-side por nombre/email (por si el backend solo filtra por email).
+  const planTitle = (s) => subAmounts(s).plan.product_title || s.product_title || "";
+  const planOptions = useMemo(() => [...new Set(subs.map(planTitle).filter(Boolean))].sort((a, b) => a.localeCompare(b)), [subs]);
+
+  // Filtro client-side por nombre/email/teléfono + plan.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return subs;
-    return subs.filter(s => (s.customer_email || s.email || "").toLowerCase().includes(q) || (s.customer_name || s.name || "").toLowerCase().includes(q));
-  }, [subs, search]);
+    return subs.filter(s => {
+      if (plan && planTitle(s) !== plan) return false;
+      if (!q) return true;
+      return [s.customer_email, s.email, s.customer_name, s.name, s.customer_phone].some(v => String(v || "").toLowerCase().includes(q));
+    });
+  }, [subs, search, plan]);
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pg = Math.min(page, pages - 1);
+  const rows = filtered.slice(pg * PAGE_SIZE, (pg + 1) * PAGE_SIZE);
 
   // CSV: fetch con Bearer (apiGet parsea JSON) → blob → descarga.
   async function exportCsv() {
@@ -270,13 +305,28 @@ export function SubscriptionsPage({ devMode = false, shop = null }) {
   function rowAction(s, action) {
     return performSubAction(s, action, { setBusy: (id) => setBusyRow(id ? s.id : null), refresh: async () => { await load(); loadCounts(); } });
   }
+  function changeStatus(id) {
+    setStatus(id);
+    try { window.history.replaceState(null, "", `${window.location.pathname}#/dashboard/suscripciones?status=${id}`); } catch (_) {}
+  }
 
   const tabs = STATUS_TABS.map(t => ({ id:t.id, label:t.label, count: t.statKey ? counts[t.statKey] : counts.unpaid }));
   const isUnpaid = status === "unpaid";
+  const k = period?.kpis || {};
+  const ser = period?.series || {};
 
-  const clienteCol = { key:"cliente", label:"Cliente", render: s => <CellStack T={T} main={s.customer_name || s.name || s.customer_email || s.email} sub={(s.customer_name || s.name) ? (s.customer_email || s.email) : (s.customer_phone || "")}/> };
+  const clienteCol = { key:"cliente", label:"Cliente", render: s => {
+    const name = s.customer_name || s.name;
+    const email = s.customer_email || s.email;
+    return (
+      <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
+        <Avatar T={T} name={name || email} color={subStatusMeta(T, s.status).color}/>
+        <CellStack T={T} main={name || email} sub={name ? email : (s.customer_phone || "")}/>
+      </div>
+    );
+  } };
   const planCol = { key:"plan", label:"Plan / pack", render: s => { const { plan, qty } = subAmounts(s); return <CellStack T={T} main={<>{plan.product_title || s.product_title || "—"}{qty > 1 && <span style={{ color:T.accent }}> × {qty}</span>}</>} sub={plan.pack_label || (qty > 1 ? `pack de ${qty}` : null)}/>; } };
-  const montoCol = { key:"monto", label:"Monto por cobro", align:"right", nowrap:true, render: s => <span style={{ fontWeight:DS.w.bold, fontVariantNumeric:"tabular-nums" }}>{fmtARS(subAmounts(s).total || s.value_ars)}</span> };
+  const montoCol = { key:"monto", label:"Por cobro", align:"right", nowrap:true, render: s => <span style={{ fontWeight:DS.w.bold, fontVariantNumeric:"tabular-nums" }}>{fmtARS(subAmounts(s).total || s.value_ars)}</span> };
 
   const columns = isUnpaid ? [
     clienteCol, planCol, montoCol,
@@ -284,7 +334,7 @@ export function SubscriptionsPage({ devMode = false, shop = null }) {
     { key:"alta", label:"Inició", nowrap:true, hideMobile:true, render: s => <span style={{ color:T.textSm, fontSize:DS.font.sm }}>{s.created_at ? fmtDateShort(s.created_at) : "—"}</span> },
     { key:"acciones", label:"", align:"right", nowrap:true, render: s => (
       <div style={{ display:"inline-flex", gap:6, alignItems:"center" }} onClick={e => e.stopPropagation()}>
-        {s.recover_url && <a href={s.recover_url} target="_blank" rel="noreferrer" title={s.recover_url} style={{ ...BtnSecondary(T), textDecoration:"none", padding:"5px 10px", fontSize:DS.font.sm }}>Ver en la tienda →</a>}
+        {s.recover_url && <a href={s.recover_url} target="_blank" rel="noreferrer" title={s.recover_url} style={{ ...BtnSecondary(T), textDecoration:"none", padding:"5px 10px", fontSize:DS.font.sm }}>Ver checkout →</a>}
         {busyRow === s.id ? <Spinner size={12} color={T.textMd}/> : <RowMenu T={T} items={[
           { label:"Ver", icon:"👁", onClick: () => setDetail(s) },
           { label:"Sincronizar con MP", icon:"⟳", onClick: () => rowAction(s, "sync") },
@@ -292,12 +342,15 @@ export function SubscriptionsPage({ devMode = false, shop = null }) {
         ]}/>}
       </div>) },
   ] : [
-    clienteCol, planCol, montoCol,
+    clienteCol, planCol,
     { key:"freq", label:"Frecuencia", nowrap:true, hideMobile:true, render: s => <span style={{ color:T.textMd }}>{fmtFreq(s.plan_snapshot?.frequency_days)}</span> },
-    { key:"next", label:"Próximo cobro", nowrap:true, render: s => (s.status === "active" && s.next_charge_at) ? <span style={{ color:T.text }}>{fmtDayMonth(s.next_charge_at)}</span> : <span style={{ color:T.textSm }}>—</span> },
-    { key:"cobros", label:"Cobros", align:"right", nowrap:true, hideMobile:true, render: s => <span style={{ color:T.textMd }}>{s.charges_count ?? (s.shopify_orders || []).length}</span> },
+    { key:"next", label:"Próximo cobro", nowrap:true, render: s => (s.status === "active" && s.next_charge_at)
+      ? <CellStack T={T} main={fmtDayMonth(s.next_charge_at)} sub={fmtIn(s.next_charge_at)}/>
+      : <span style={{ color:T.textSm }}>—</span> },
+    { key:"cobros", label:"Cobros", align:"right", nowrap:true, hideMobile:true, render: s => <span style={{ color:T.textMd, fontVariantNumeric:"tabular-nums" }}>{s.charges_count ?? (s.shopify_orders || []).length}</span> },
     { key:"estado", label:"Estado", nowrap:true, render: s => <StatusBadge status={s.status} orderCount={(s.shopify_orders || []).length}/> },
-    { key:"acciones", label:"", align:"right", nowrap:true, render: s => (
+    montoCol,
+    { key:"acciones", label:"", align:"right", nowrap:true, width:40, render: s => (
       <div onClick={e => e.stopPropagation()} style={{ display:"inline-flex" }}>
         {busyRow === s.id ? <Spinner size={12} color={T.textMd}/> : <RowMenu T={T} items={[
           { label:"Ver", icon:"👁", onClick: () => setDetail(s) },
@@ -312,27 +365,71 @@ export function SubscriptionsPage({ devMode = false, shop = null }) {
   ];
 
   const [emptyIcon, emptyTitle, emptyDesc] = EMPTY_COPY[status] || EMPTY_COPY.active;
+  const pill = { ...iS, width:"auto", height:34, borderRadius:99, fontSize:DS.font.md, boxSizing:"border-box" };
+  const from = filtered.length ? pg * PAGE_SIZE + 1 : 0;
+  const to = Math.min(filtered.length, (pg + 1) * PAGE_SIZE);
 
   return (
     <div>
-      <PageHeader T={T} title="Suscripciones" subtitle="Todas las suscripciones de tu tienda por estado. Tocá una fila para abrir la ficha."
+      <PageHeader T={T} title="Suscripciones" subtitle="Todas las suscripciones de tu negocio. Tocá una fila para abrir la ficha."
         right={<>
-          <input type="text" placeholder="Buscar por email o nombre…" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => { if (e.key === "Enter") load(); }} style={{ ...iS, width:"auto", minWidth:210, padding:"7px 10px", fontSize:DS.font.md }}/>
-          <Btn T={T} variant="secondary" size="sm" onClick={exportCsv}>⬇ Exportar CSV</Btn>
-          <Btn T={T} variant="secondary" size="sm" onClick={() => { load(); loadCounts(); }} title="Refrescar" disabled={loading}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"}</Btn>
+          <Btn T={T} variant="secondary" size="sm" onClick={exportCsv} style={{ height:34 }}>⬇ Exportar CSV</Btn>
+          <Btn T={T} variant="secondary" size="sm" onClick={() => { load(); loadCounts(); }} disabled={loading} style={{ height:34 }}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>
         </>}/>
 
-      <div style={{ marginBottom:DS.sp.lg }}>
-        <SubTabs T={T} tabs={tabs} active={status} onChange={(id) => { setStatus(id); try { window.history.replaceState(null, "", `${window.location.pathname}#/dashboard/suscripciones?status=${id}`); } catch (_) {} }}/>
+      {/* KPIs (últimos 30 días vs los 30 anteriores) — tocás una y filtra la tabla */}
+      <div className="kpi-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 200px), 1fr))", gap:10, marginBottom:18 }}>
+        <KpiCard T={T} loading={!period} label="Activas" value={fmtN(counts.active)} curr={k.activas?.value} prev={k.activas?.prev}
+          hint="vs. hace 30 días" spark={ser.activas} color={T.green} onClick={() => changeStatus("active")}/>
+        <KpiCard T={T} loading={!period} label="Ingreso recurrente" value={fmtARS(k.mrr?.value)} curr={k.mrr?.value} prev={k.mrr?.prev}
+          hint="MRR · lo que cobrás por mes" spark={ser.mrr} color={T.accentSolid} valueColor={T.accent}/>
+        <KpiCard T={T} loading={!period} label="Pago fallido" value={fmtN(counts.payment_failed)}
+          hint="MP reintenta solo" spark={ser.fallidos} color={T.red} valueColor={(counts.payment_failed || 0) > 0 ? T.red : T.text} onClick={() => changeStatus("payment_failed")}/>
+        <KpiCard T={T} loading={!period} label="Bajas · 30 días" value={fmtN(k.bajas?.value)} curr={k.bajas?.value} prev={k.bajas?.prev} invert
+          hint={`Churn ${(k.churn_pct ?? 0).toLocaleString("es-AR")}%`} spark={ser.bajas} color={T.textSm} onClick={() => changeStatus("cancelled")}/>
+      </div>
+
+      {/* Barra: estados con contadores · búsqueda · plan · conteo */}
+      <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:10 }}>
+        <div style={{ maxWidth:"100%", overflowX:"auto" }}>
+          <Segmented T={T} options={tabs} value={status} onChange={changeStatus} ariaLabel="Estado de la suscripción"/>
+        </div>
+        <div style={{ position:"relative", flex:"0 1 240px", minWidth:170 }}>
+          <span style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)", display:"flex", pointerEvents:"none" }}><SearchIcon color={T.textSm}/></span>
+          <input type="search" aria-label="Buscar suscripciones" placeholder="Buscar nombre, email o teléfono…" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => { if (e.key === "Enter") load(); }}
+            style={{ ...pill, width:"100%", padding:"0 12px 0 30px" }}/>
+        </div>
+        {planOptions.length > 1 && (
+          <select aria-label="Filtrar por plan" value={plan} onChange={e => setPlan(e.target.value)} style={{ ...pill, padding:"0 12px", maxWidth:220, cursor:"pointer" }}>
+            <option value="">Todos los planes</option>
+            {planOptions.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+        )}
+        <span style={{ marginLeft:"auto", fontSize:DS.font.sm, color:T.textSm, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap" }}>
+          {loading ? "cargando…" : `${fmtN(filtered.length)} suscripci${filtered.length === 1 ? "ón" : "ones"}${pages > 1 ? ` · pág. ${pg + 1}/${pages}` : ""}`}
+        </span>
       </div>
 
       {loading ? (
         <Loading T={T}/>
       ) : filtered.length === 0 ? (
-        <OnbEmpty section="suscripciones" icon={emptyIcon} title={emptyTitle} desc={emptyDesc} tip={status === "active" ? TIPS.subscribersEmpty : undefined}/>
+        (search.trim() || plan)
+          ? <div style={{ padding:"36px 12px", textAlign:"center", color:T.textSm, fontSize:DS.font.base, border:`1px dashed ${T.border}`, borderRadius:12 }}>
+              Ninguna suscripción coincide con el filtro. <button onClick={() => { setSearch(""); setPlan(""); }} style={{ background:"none", border:"none", color:T.accent, cursor:"pointer", fontWeight:700, fontFamily:"inherit", fontSize:"inherit" }}>Limpiar filtros</button>
+            </div>
+          : <OnbEmpty section="suscripciones" icon={emptyIcon} title={emptyTitle} desc={emptyDesc} tip={status === "active" ? TIPS.subscribersEmpty : undefined}/>
       ) : (
-        <DSTable T={T} columns={columns} rows={filtered} rowKey={s => s.id} onRowClick={s => setDetail(s)} minWidth={isUnpaid ? 760 : 860}
-          footer={<span>{filtered.length} suscripci{filtered.length === 1 ? "ón" : "ones"}{search.trim() ? ` · filtro "${search.trim()}"` : ""}</span>}/>
+        <DSTable T={T} dense columns={columns} rows={rows} rowKey={s => s.id} onRowClick={s => setDetail(s)} minWidth={isUnpaid ? 760 : 880}
+          footer={<>
+            <span style={{ fontVariantNumeric:"tabular-nums" }}>{from}–{to} de {fmtN(filtered.length)}{search.trim() ? ` · filtro "${search.trim()}"` : ""}{plan ? ` · ${plan}` : ""}</span>
+            {pages > 1 && (
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <Btn T={T} variant="secondary" size="sm" disabled={pg === 0} onClick={() => setPage(pg - 1)}>‹ Anterior</Btn>
+                <span style={{ fontVariantNumeric:"tabular-nums" }}>{pg + 1} / {pages}</span>
+                <Btn T={T} variant="secondary" size="sm" disabled={pg >= pages - 1} onClick={() => setPage(pg + 1)}>Siguiente ›</Btn>
+              </div>
+            )}
+          </>}/>
       )}
 
       {detail && <SubscriberDetailModal sub={detail} devMode={devMode} shop={shop} onClose={() => { setDetail(null); load(); loadCounts(); }}/>}

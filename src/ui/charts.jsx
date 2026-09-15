@@ -77,17 +77,20 @@ export function KpiCard({ T, label, value, curr, prev, invert, hint, spark, colo
   );
 }
 
-// Píldoras segmentadas (7 días · 30 días · 90 días).
+// Píldoras segmentadas (7 días · 30 días · 90 días). `count` opcional por opción
+// → contador al lado de la etiqueta (estados de Suscripciones).
 export function Segmented({ T, options, value, onChange, ariaLabel }) {
   return (
-    <div role="radiogroup" aria-label={ariaLabel} style={{ display:"inline-flex", alignItems:"center", background:T.bg, border:`1px solid ${T.border}`, borderRadius:99, padding:2, gap:2, height:34, boxSizing:"border-box" }}>
+    <div role="radiogroup" aria-label={ariaLabel} style={{ display:"inline-flex", alignItems:"center", background:T.bg, border:`1px solid ${T.border}`, borderRadius:99, padding:2, gap:2, height:34, boxSizing:"border-box", flexShrink:0 }}>
       {options.map(o => {
         const act = o.id === value;
         return (
           <button key={o.id} role="radio" aria-checked={act} onClick={() => onChange(o.id)}
             style={{ padding:"0 12px", height:"100%", fontSize:12, fontWeight: act ? 700 : 500, border:"none", borderRadius:99, background: act ? T.card : "transparent",
-              color: act ? T.text : T.textSm, cursor:"pointer", fontFamily:F, boxShadow: act ? "0 1px 3px rgba(0,0,0,0.25)" : "none", transition:`all .15s ${DS.ease}` }}>
+              color: act ? T.text : T.textSm, cursor:"pointer", fontFamily:F, boxShadow: act ? "0 1px 3px rgba(0,0,0,0.25)" : "none", transition:`all .15s ${DS.ease}`,
+              display:"inline-flex", alignItems:"center", gap:6, whiteSpace:"nowrap" }}>
             {o.label}
+            {o.count != null && <span style={{ fontSize:10.5, fontWeight:700, padding:"1px 6px", borderRadius:99, background: act ? T.accentSolid + "26" : T.border, color: act ? T.accent : T.textSm, fontVariantNumeric:"tabular-nums" }}>{o.count}</span>}
           </button>
         );
       })}
