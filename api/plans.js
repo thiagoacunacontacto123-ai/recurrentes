@@ -13,6 +13,7 @@ import { db, requireMerchant } from "./_lib/firebase.js";
 import { mpCreatePreapprovalPlan } from "./_lib/mp.js";
 import { appBaseUrl } from "./_lib/config.js";
 import { normalizePacks, resolvePack, defaultPackIndex, withPackDefaults, planPricingMode } from "./_lib/packs.js";
+import { merchantProfile } from "../shared/platform/profile.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
