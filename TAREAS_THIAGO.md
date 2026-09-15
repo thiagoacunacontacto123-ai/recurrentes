@@ -98,9 +98,19 @@ Hoy los mails salen con la dirección genérica de Resend. Con esto salen de `@r
 
 ---
 
+## 🔔 Hoy — Avisos para vos (2 min)
+Recurrentes te avisa cuando un cliente se suscribe, pausa, cancela o le rechazan una renovación. Por WhatsApp cuando Meta apruebe las plantillas (Parte 7); mientras tanto, por mail.
+1. Entrá a Recurrentes con la cuenta de Lumina → **Configuración → Avisos para vos**.
+2. Prendelo, revisá tu WhatsApp y dejá tildado **"También por mail"**.
+3. Tocá **"Enviarme una prueba"** y fijate que te llegue.
+
+📸 Captura del aviso de prueba.
+
+---
+
 ## Parte 4 — Shopify
-- [ ] **Video:** grabá el paso a paso de crear la app en Shopify y subilo a YouTube como **No listado** (o a Loom). Pasame el link y lo pongo en el modal. Hasta entonces se ve "Video paso a paso — próximamente".
-- [ ] Mientras grabás, fijate que los botones de https://dev.shopify.com/dashboard digan lo mismo que los pasos del modal: **Create app**, **Versions**, **Scopes**, **Redirect URLs**, **Release**, **Settings → Credentials**. Si alguno cambió, avisame y lo corrijo.
+- [x] **Explicación:** quedó igual a la de Growith (15-sept).
+- [ ] **Video (mañana):** grabá el paso a paso y subilo a YouTube como **No listado** (o a Loom). Pasame el link y lo pongo. Hasta entonces el recuadro del video no aparece.
 - [ ] Vercel: si existe la variable `SHOPIFY_SCOPES`, borrala. Ya no hace falta.
 - [ ] Opcional, para Lumina: en su app de Shopify creá una **versión nueva** sumando el permiso `read_shipping` → **Release**. Después, en Recurrentes → Integraciones → Shopify → **Reconectar**. Sirve para importar sus tarifas de envío de Shopify; sin esto todo sigue andando como hoy.
 
@@ -145,7 +155,7 @@ Un solo número tuyo manda los avisos de todas las tiendas. Los comerciantes sol
 3. Número: el más barato es un **chip prepago nuevo** (o un número fijo que reciba llamada de voz) que **no** esté en la app de WhatsApp. Lo agregás en WhatsApp Manager → Números y lo verificás por SMS o llamada.
 4. Token que no vence: https://business.facebook.com/settings/system-users → usuario **Administrador** → asignarle la app y la WABA → **Generar token** con vencimiento "Nunca" y los permisos `whatsapp_business_messaging`, `whatsapp_business_management` y `business_management`.
 5. Medio de pago en https://business.facebook.com/wa/manage/home/ (Meta cobra cada aviso entregado; se lo trasladamos a cada tienda con 10% arriba).
-6. Mandá a aprobar las 4 plantillas en https://business.facebook.com/wa/manage/message-templates/ → Crear → **Utilidad** → **Español (ARG)**, con el texto exacto de `WHATSAPP.md`.
+6. Mandá a aprobar las **8 plantillas** en https://business.facebook.com/wa/manage/message-templates/ → Crear → **Utilidad** → **Español (ARG)**, con el texto exacto de `WHATSAPP.md`: las 4 para los clientes de las tiendas (`aviso_proximo_cobro`, `pago_rechazado`, `suscripcion_activa`, `renovacion_cobrada`) y las 4 de avisos para los comerciantes (`aviso_comercio_alta`, `aviso_comercio_pausa`, `aviso_comercio_baja`, `aviso_comercio_pago_rechazado`). No cargues las variables del paso 8 hasta que estén aprobadas.
 7. Webhook: en tu app de Meta → WhatsApp → Configuración → Webhook → URL `https://www.recurrentesapp.com/api/public?action=wa-webhook` + el mismo texto que pongas en `WHATSAPP_VERIFY_TOKEN`; suscribí el campo **messages**.
 8. Vercel: `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_WABA_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` (y opcional `WHATSAPP_PRICE_USD_UTILITY` con el precio real del CSV de Meta).
 
