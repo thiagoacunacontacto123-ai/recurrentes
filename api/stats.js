@@ -163,7 +163,8 @@ async function activity(merchantId, req, res) {
     // Lecturas acotadas: charges por rango o últimos 400, mails últimos 200.
     const [mSnap, subsSnap, chargesSnap, mailsSnap, klaviyoSnap] = await Promise.all([
       mRef.get(),
-      mRef.collection("subscribers").get(),
+      // Solo los 3 campos que usa subMap (field mask: menos transferencia y memoria).
+      mRef.collection("subscribers").select("customer_name", "customer_email", "plan_snapshot.product_title").get(),
       chargesRange(mRef.collection("charges"), req.query).get(),
       mRef.collection("email_log").orderBy("created_at", "desc").limit(200).get(),
       // Eventos mandados a Klaviyo (best-effort: si falla la query, tabla vacía).

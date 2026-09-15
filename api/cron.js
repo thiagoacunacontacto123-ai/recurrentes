@@ -12,6 +12,9 @@
 //    reemplazaron por eventos a Klaviyo, ver _lib/klaviyo.js)
 // ?action=run-flows — flujos de email propios (cada 5 min): corridas vencidas de las
 //   tiendas con flujos activos (_lib/flows.js). Aparte del sync: si falla, no lo toca.
+// ?action=retry-fulfillment — cobros aprobados sin orden (cada 10 min): aviso al
+//   comerciante + reintento con backoff si FULFILL_RETRY_ENABLED=1 (_lib/fulfillretry.js).
+// ?action=health — chequeo de configuración (solo booleanos), ver _lib/health.js.
 //
 //   7) pausas por oferta de retención con resume_at vencido → status authorized en
 //      MP + active local (best effort, máx 20 por merchant y corrida, 3 intentos)
@@ -28,6 +31,10 @@ import { isProd } from "./_lib/config.js";
 import { timingSafeEqualStr } from "./_lib/token.js";
 import { runFlowsForMerchant } from "./_lib/flows.js";
 import { mpRefreshToken, mpCancelPreapprovalPlan, mpUpdatePreapproval, mpGetPreapproval, isMpAuthError } from "./_lib/mp.js";
+// ?action=health (auth propia: CRON_SECRET o admin de ADMIN_EMAILS) + heartbeat de cada cron.
+import { healthHandler, cronHeartbeat } from "./_lib/health.js";
+// ?action=retry-fulfillment (cada 10 min): aviso + reintento de cobros sin orden.
+import { fulfillmentCron } from "./_lib/fulfillretry.js";
 
 export const config = { maxDuration: 300 };
 
@@ -43,6 +50,9 @@ const nowIso = () => new Date().toISOString();
 const ms = (s) => { const t = s ? Date.parse(s) : NaN; return Number.isFinite(t) ? t : 0; };
 
 export default async function handler(req, res) {
+  // Chequeo de configuración: auth propia (Bearer CRON_SECRET o Firebase ID token de
+  // un mail de ADMIN_EMAILS). Va ANTES de la auth del cron para que entre el admin.
+  if (String(req.query.action || "") === "health") return healthHandler(req, res);
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
     if (isProd()) {
@@ -68,6 +78,7 @@ export default async function handler(req, res) {
 
   const action = String(req.query.action || "sync-all-pending");
   if (action === "run-flows") return runFlowsCron(res);
+  if (action === "retry-fulfillment") return fulfillmentCron(res);
   if (action !== "sync-all-pending") {
     return res.status(400).json({ error: "action no reconocida" });
   }
@@ -173,7 +184,7 @@ export default async function handler(req, res) {
         // 3) PENDINGS del flujo de plan — la primera activación. Excluimos leads
         //    de captura (capture===true) y subs sin plan MP; solo < 72h; máx 40 por
         //    corrida, los menos recién sincronizados primero.
-        const pendings = await merchantSubs.where("status", "==", "pending").get();
+        const pendings = await pendingsForRun(merchantSubs, minute < 2, now);
         const pendCandidates = pendings.docs.filter(subDoc => {
           const d = subDoc.data();
           if (d.capture === true || !d.mp_preapproval_plan_id) return false;
@@ -196,7 +207,7 @@ export default async function handler(req, res) {
         //    dejaron clientas que PAGAN marcadas "cancelled"; syncSubscriber re-chequea
         //    la verdad en MP (si MP la tiene cancelada, sigue cancelada).
         if (minute % 30 === 0) {
-          const cancelled = await merchantSubs.where("status", "==", "cancelled").get();
+          const cancelled = await recentCancelled(merchantSubs, now);
           let n = 0;
           for (const subDoc of cancelled.docs) {
             if (outOfTime()) { partial = true; break; }
@@ -328,6 +339,7 @@ export default async function handler(req, res) {
     };
     console.log(`[cron] sync-all-pending: ${merchantsProcessed}/${merchantsSnap.size} merchants, ${subsProcessed} subs, ${activated} activadas, ${errors} errores${partial ? " (PARCIAL: presupuesto agotado)" : ""} (${elapsed}ms)`);
     await db().collection("system").doc("cron_last").set({ ...summary, at: nowIso() }, { merge: true }).catch(() => {});
+    await cronHeartbeat("sync-all-pending", summary);
     return res.json(summary);
   } catch (e) {
     // NUNCA devolver 500: cron-job.org desactiva el job tras varios fallos. Si algo
@@ -340,6 +352,7 @@ export default async function handler(req, res) {
       subs_processed: subsProcessed, activated, errors: errors + 1, elapsed_ms: Date.now() - start,
     };
     await db().collection("system").doc("cron_last").set({ ...out, at: nowIso() }, { merge: true }).catch(() => {});
+    await cronHeartbeat("sync-all-pending", out);
     return res.status(200).json(out);
   }
 }
@@ -363,10 +376,41 @@ async function runFlowsCron(res) {
     }
     const out = { ok: true, ...tot, elapsed_ms: Date.now() - start };
     if (tot.processed || tot.entered || tot.errors) console.log("[cron] run-flows:", JSON.stringify(out));
+    await cronHeartbeat("run-flows", out);
     return res.json(out);
   } catch (e) {
     // Igual que sync-all-pending: nunca 500 (el cron sigue vivo y reintenta).
     console.error("[cron] run-flows error global:", e.message);
-    return res.status(200).json({ ok: false, error: e.message, ...tot, elapsed_ms: Date.now() - start });
+    const out = { ok: false, error: e.message, ...tot, elapsed_ms: Date.now() - start };
+    await cronHeartbeat("run-flows", out);
+    return res.status(200).json(out);
+  }
+}
+
+// ─── Lecturas acotadas (costo Firestore) ───────────────────────────
+// Paso 3: solo los pending tocados en las últimas 72h. Es SUPERCONJUNTO exacto del
+// filtro del paso 3 (checkout_started_at || created_at de < 72h): el alta del lead y
+// el inicio del checkout escriben updated_at en el mismo write y updated_at solo
+// avanza. El paso 5 (planes huérfanos de > 14 días) necesita TODOS → `full` en su
+// tick horario. Sin índice (status, updated_at) → lectura completa como antes.
+export async function pendingsForRun(subsCol, full, now = Date.now()) {
+  if (!full) {
+    try {
+      return await subsCol.where("status", "==", "pending").where("updated_at", ">=", new Date(now - 72 * H).toISOString()).get();
+    } catch (e) {
+      console.warn("[cron] pendings acotados sin índice (status+updated_at), lectura completa:", e.message);
+    }
+  }
+  return subsCol.where("status", "==", "pending").get();
+}
+
+// Paso 4: canceladas creadas en los últimos 90 días (el mismo corte que aplica el
+// loop). Índice (status, created_at). Sin índice → lectura completa como antes.
+export async function recentCancelled(subsCol, now = Date.now()) {
+  try {
+    return await subsCol.where("status", "==", "cancelled").where("created_at", ">=", new Date(now - 90 * D).toISOString()).get();
+  } catch (e) {
+    console.warn("[cron] canceladas acotadas sin índice (status+created_at), lectura completa:", e.message);
+    return subsCol.where("status", "==", "cancelled").get();
   }
 }

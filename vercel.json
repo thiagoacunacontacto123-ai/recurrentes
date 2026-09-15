@@ -69,6 +69,10 @@
     {
       "path": "/api/cron?action=run-flows",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron?action=retry-fulfillment",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

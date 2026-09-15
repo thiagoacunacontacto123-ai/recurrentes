@@ -51,7 +51,16 @@ async function viewUpcoming(merchantRef, req, res) {
 async function viewErrors(merchantRef, req, res) {
   const days = Math.min(Math.max(parseInt(req.query.days) || 60, 1), 180);
   const sinceIso = new Date(Date.now() - days * 86400000).toISOString();
-  const snap = await merchantRef.collection("charges").where("created_at", ">=", sinceIso).orderBy("created_at", "desc").limit(2000).get();
+  const col = merchantRef.collection("charges");
+  let snap;
+  try {
+    // Solo los charges SIN orden (todo charge con error tiene shopify_order_id:null
+    // explícito). Índice shopify_order_id + created_at desc; sin él, como antes.
+    snap = await col.where("shopify_order_id", "==", null).where("created_at", ">=", sinceIso).orderBy("created_at", "desc").limit(2000).get();
+  } catch (e) {
+    if (!/FAILED_PRECONDITION|index/i.test(e.message || "")) throw e;
+    snap = await col.where("created_at", ">=", sinceIso).orderBy("created_at", "desc").limit(2000).get();
+  }
   const charges = snap.docs
     .map(d => ({ id: d.id, ...d.data() }))
     .filter(c => c.error)

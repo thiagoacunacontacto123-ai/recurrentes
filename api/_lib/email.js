@@ -379,3 +379,37 @@ export async function emailFlowStep({ to, subject, bodyText, ctaLabel, ctaUrl, m
   return sendEmail({ from: snd.from, replyTo: snd.replyTo, to, subject: plain(subject, 180), html, headers,
     tags: { type: "flow", ...(tags || {}), ...(merchantId ? { merchant: merchantId } : {}) } });
 }
+
+// ─── Aviso al COMERCIANTE: se cobró pero la orden no se creó (_lib/fulfillretry.js).
+// Uno solo por cobro (el dedup lo hace el que llama). `platform:true` → versión
+// interna para PLATFORM_ALERT_EMAIL, sin datos del cliente.
+export async function emailOrderFailedAlert({ to, merchant, merchantId, customerName, productTitle, amount, paymentId, error, panelUrl, retrying = false, needsReview = false, platform = false }) {
+  const store = plain(effectiveBrand(merchant) || merchant?.shopify_shop || "", 60) || "tu tienda";
+  const prod = plain(productTitle, 80);
+  const reason = plain(error, 400) || "sin detalle";
+  const title = platform ? `Orden sin crear · ${store}` : "Se cobró una suscripción pero la orden no se creó";
+  const row = (k, v) => `<tr><td style="padding:4px 10px 4px 0;color:#6b7280;white-space:nowrap;">${escapeHtml(k)}</td><td style="padding:4px 0;color:#111827;font-weight:600;">${escapeHtml(v || "—")}</td></tr>`;
+  const next = needsReview
+    ? "Un reintento automático se cortó a mitad. Antes de reintentar, fijate en Shopify si la orden ya existe (buscá el pago en las notas del pedido)."
+    : retrying
+      ? "Vamos a reintentar solos durante las próximas horas. Si el motivo es de configuración (Shopify desconectado, producto o variante borrados), arreglalo y tocá «Reintentar orden» en Cobros."
+      : "Arreglá el motivo (por ejemplo, reconectá Shopify o revisá que el producto exista) y tocá «Reintentar orden» en Cobros.";
+  const body = platform ? `
+    <p>La tienda <b>${escapeHtml(store)}</b> tiene un cobro aprobado sin orden.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0" style="font-size:13px;margin:8px 0 14px;">
+      ${row("Merchant", merchantId)}${row("Pago MP", paymentId)}${row("Monto", fmtArs(amount))}${row("Reintento automático", retrying ? "sí" : "no")}
+    </table>
+    <p style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px;">Motivo: ${escapeHtml(reason)}</p>` : `
+    <p>Mercado Pago cobró <b>${fmtArs(amount)}</b>${customerName ? ` a <b>${escapeHtml(plain(customerName, 80))}</b>` : ""}${prod ? ` (${escapeHtml(prod)})` : ""}, pero no pudimos crear la orden en tu tienda.</p>
+    <p style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:12px;">Motivo: ${escapeHtml(reason)}</p>
+    <p>${escapeHtml(next)}</p>
+    <p style="color:#6b7280;font-size:13px;">Pago de Mercado Pago: ${escapeHtml(String(paymentId || ""))}</p>`;
+  const html = baseTemplate({
+    title, body,
+    ctaLabel: panelUrl ? "Ver cobros con error" : undefined,
+    ctaUrl: panelUrl || undefined,
+    brand: "Recurrentes", accent: "#10b981",
+    footerNote: platform ? "Aviso interno de Recurrentes." : "Te avisamos una sola vez por cobro.",
+  });
+  return sendEmail({ from: platformFrom(), to, subject: title, html, tags: { type: platform ? "platform_order_alert" : "order_alert" } });
+}
