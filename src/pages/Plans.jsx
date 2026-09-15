@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { apiGet, apiPost, apiDelete } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
-import { Card, Btn, DSEmpty, DSBadge, Modal, PageHeader, Callout, Loading, SubTabs, appConfirm, appAlert, appPrompt, toast } from "../ui/components.jsx";
+import { Card, Btn, InputStyle, DSEmpty, DSBadge, Modal, PageHeader, Callout, Loading, SubTabs, appConfirm, appAlert, appPrompt, toast } from "../ui/components.jsx";
 import { pricingModeOf } from "./PacksEditor.jsx";
 import WidgetDesigner, { widgetSnippet } from "./WidgetDesigner.jsx";
 import PlanEditor, { FormSection, SubscriptionLinkBox } from "./PlanEditor.jsx";
-import { MONO, fmtARS, fmtFreq } from "./_shared.jsx";
+import { MONO, fmtARS, fmtFreq, RowMenu } from "./_shared.jsx";
+import { KpiCard, Segmented } from "../ui/charts.jsx";
 import { merchantProfile } from "../../shared/platform/profile.js";
 import { TIPS } from "../lib/onboarding.js";
 
@@ -30,15 +31,40 @@ function readSub(widgetOn) {
   return "planes";
 }
 
+const fmtN = (n) => Math.round(Number(n) || 0).toLocaleString("es-AR");
+// Ingreso mensual de una suscripción: total por cobro normalizado a 30 días (mismo criterio que /api/stats).
+const mrrOfSub = (s) => {
+  const qty = s.quantity || s.plan_snapshot?.units_per_shipment || 1;
+  const per = s.plan_snapshot?.total_per_charge_ars || ((s.plan_snapshot?.subscription_price_ars || 0) * qty);
+  return per * (30 / (s.plan_snapshot?.frequency_days || 30));
+};
+const SORT_KEY = "rec_plans_sort";
+const SORTS = [
+  { id:"subs", label:"Más suscripciones" },
+  { id:"mrr",  label:"Mayor ingreso" },
+  { id:"name", label:"Nombre (A-Z)" },
+  { id:"new",  label:"Más nuevos" },
+];
+const readSort = () => { try { const s = localStorage.getItem(SORT_KEY); return SORTS.some(x => x.id === s) ? s : "subs"; } catch (_) { return "subs"; } };
+const clip = (s, n = 22) => { s = String(s || ""); return s.length > n ? s.slice(0, n - 1) + "…" : s; };
+const SearchIcon = ({ color }) => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="5" stroke={color} strokeWidth="1.6"/><path d="M11 11l3.5 3.5" stroke={color} strokeWidth="1.6" strokeLinecap="round"/></svg>
+);
+
 export function PlansPage({ merchant, onMerchantChange }) {
   const T = useT();
+  const iS = InputStyle(T);
   const profile = useMemo(() => merchantProfile(merchant), [merchant]);
   const widgetOn = profile.caps.widget;
-  const SUBS = widgetOn ? [{ id:"planes", label:"Planes" }, { id:"widget", label:"Widget" }] : [];
   const [sub, setSub] = useState(() => readSub(widgetOn));
   const [plans, setPlans] = useState([]);
   const [products, setProducts] = useState([]);
+  const [activeSubs, setActiveSubs] = useState([]);
+  const [failedSubs, setFailedSubs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("active");
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState(readSort);
   // editor: null | { plan: null } (nuevo) | { plan } (edición)
   const [editor, setEditor] = useState(null);
   const [embedFor, setEmbedFor] = useState(null);
@@ -57,12 +83,17 @@ export function PlansPage({ merchant, onMerchantChange }) {
   async function loadAll() {
     setLoading(true);
     // El catálogo solo existe con tienda conectada (Shopify); sin tienda los planes son manuales.
-    const [p, pr] = await Promise.all([
+    // Las suscripciones activas / con pago fallido dan las métricas por plan (sin tocar el backend).
+    const [p, pr, act, fail] = await Promise.all([
       apiGet("plans"),
       profile.caps.catalog ? apiGet("shopify", { action: "products" }) : Promise.resolve({ products: [] }),
+      apiGet("subscribers", { status: "active" }).catch(() => null),
+      apiGet("subscribers", { status: "payment_failed" }).catch(() => null),
     ]);
     setPlans(p?.plans || []);
     setProducts(pr?.products || []);
+    setActiveSubs(act?.subscribers || []);
+    setFailedSubs(fail?.subscribers || []);
     setLoading(false);
   }
   useEffect(() => { loadAll(); /* eslint-disable-next-line */ }, [profile.caps.catalog]);
@@ -85,6 +116,7 @@ export function PlansPage({ merchant, onMerchantChange }) {
     const d = await apiPost("subscribers", { plan_id: p.id, new_amount: amount }, { action: "reprice" });
     if (d?.error) return toast("Error: " + d.error, "error", 6000);
     appAlert(`✓ Repreciadas: ${d.updated} de ${d.total}` + (d.failed?.length ? `\n✗ Fallaron ${d.failed.length}:\n` + d.failed.slice(0, 5).map(f => `· ${f.id}: ${f.error}`).join("\n") : ""), { title:"Resultado del repricing" });
+    loadAll();
   }
 
   async function deactivatePlan(p) {
@@ -105,6 +137,36 @@ export function PlansPage({ merchant, onMerchantChange }) {
     loadAll();
   }
 
+  // Métricas por plan: activas, ingreso mensual y pagos fallidos (por plan_id).
+  const byPlan = useMemo(() => {
+    const m = {};
+    const row = (id) => (m[id] = m[id] || { active: 0, mrr: 0, failed: 0 });
+    for (const s of activeSubs) if (s.plan_id) { const r = row(String(s.plan_id)); r.active++; r.mrr += mrrOfSub(s); }
+    for (const s of failedSubs) if (s.plan_id) row(String(s.plan_id)).failed++;
+    return m;
+  }, [activeSubs, failedSubs]);
+  const totalMrr = useMemo(() => activeSubs.reduce((t, s) => t + mrrOfSub(s), 0), [activeSubs]);
+  const stat = (p) => byPlan[String(p.id)] || { active: 0, mrr: 0, failed: 0 };
+
+  const activeCount = plans.filter(p => p.active !== false).length;
+  const inactiveCount = plans.length - activeCount;
+  const top = useMemo(() => [...plans].sort((a, b) => stat(b).active - stat(a).active)[0], [plans, byPlan]);
+  const topStat = top ? stat(top) : null;
+
+  const q = search.trim().toLowerCase();
+  const list = useMemo(() => {
+    const rows = plans.filter(p => (filter === "all" || (filter === "active" ? p.active !== false : p.active === false))
+      && (!q || String(p.product_title || "").toLowerCase().includes(q)));
+    const cmp = {
+      subs: (a, b) => stat(b).active - stat(a).active || stat(b).mrr - stat(a).mrr,
+      mrr:  (a, b) => stat(b).mrr - stat(a).mrr,
+      name: (a, b) => String(a.product_title || "").localeCompare(String(b.product_title || "")),
+      new:  (a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")),
+    }[sort];
+    return rows.sort(cmp);
+  }, [plans, filter, q, sort, byPlan]);
+  const pickSort = (s) => { setSort(s); try { localStorage.setItem(SORT_KEY, s); } catch (_) {} };
+
   // ── Editor a pantalla completa (reemplaza al viejo NewPlanModal) ──
   if (editor) {
     return (
@@ -117,8 +179,9 @@ export function PlansPage({ merchant, onMerchantChange }) {
     );
   }
 
-  const iconBtn = { padding:"6px 9px", fontSize:DS.font.sm };
-  const tabs = SUBS.length ? <SubTabs T={T} tabs={SUBS.map(s => s.id === "planes" ? { ...s, count: loading ? null : plans.length } : s)} active={sub} onChange={goSub}/> : null;
+  const tabs = widgetOn
+    ? <Segmented T={T} options={[{ id:"planes", label:"Planes", count: loading ? null : plans.length }, { id:"widget", label:"Widget" }]} value={sub} onChange={goSub} ariaLabel="Sección de planes"/>
+    : null;
 
   if (widgetOn && sub === "widget") {
     return (
@@ -132,6 +195,13 @@ export function PlansPage({ merchant, onMerchantChange }) {
   const subtitle = profile.caps.catalog
     ? `Convertí cualquier producto de ${profile.channelInfo.label} en suscripción recurrente.`
     : `Cada plan es ${profile.vocab.item === "membresía" ? "una membresía" : "una suscripción"} con su propio link para compartir. No hace falta tienda online.`;
+  const filterTabs = [
+    { id:"active", label:"Activos", count: activeCount },
+    ...(inactiveCount ? [{ id:"inactive", label:"Inactivos", count: inactiveCount }] : []),
+    { id:"all", label:"Todos", count: plans.length },
+  ];
+  const pill = { ...iS, width:"auto", height:34, borderRadius:99, fontSize:DS.font.md, boxSizing:"border-box" };
+  const label = { fontSize:10, fontWeight:700, color:T.textSm, textTransform:"uppercase", letterSpacing:0.5 };
 
   return (
     <div>
@@ -141,10 +211,6 @@ export function PlansPage({ merchant, onMerchantChange }) {
           <Btn T={T} variant="solid" onClick={()=>setEditor({ plan: null })}>+ Nuevo plan</Btn>
         </>}/>
 
-      <Callout T={T} tone="warning" style={{ marginBottom:DS.sp.lg }}>
-        Cambiar el precio de un plan <strong>no</strong> afecta a las suscripciones existentes ({profile.providerInfo.label} mantiene el monto autorizado). Usá <strong>💲 Repreciar</strong> en el plan para actualizarlas.
-      </Callout>
-
       {loading ? (
         <Loading T={T}/>
       ) : plans.length === 0 ? (
@@ -152,56 +218,112 @@ export function PlansPage({ merchant, onMerchantChange }) {
           subtitle={profile.caps.catalog ? "Un plan convierte un producto de tu tienda en suscripción recurrente." : `Cargá tu primer plan (ej: nombre, precio y cada cuántos días se cobra) y compartí el link con tus ${profile.vocab.customers}.`}
           action={<Btn T={T} variant="solid" onClick={()=>setEditor({ plan: null })}>+ Nuevo plan</Btn>}/>
       ) : (
-        <div className="gh-stagger" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(min(100%, 330px), 1fr))", gap:DS.sp.lg }}>
-          {plans.map(p => {
-            const manualPlan = p.item_source === "manual" || !p.shopify_variant_id;
-            const hasDiscount = (p.discount_pct || 0) > 0;
-            return (
-              <Card key={p.id} T={T} hoverable className="gh-card-enter" padding="md">
-                <div style={{ display:"flex", alignItems:"flex-start", gap:12, marginBottom:12 }}>
-                  {p.product_image
-                    ? <img src={p.product_image} alt="" style={{ width:52, height:52, borderRadius:DS.r.lg, objectFit:"cover", border:`1px solid ${T.borderL}`, flexShrink:0 }}/>
-                    : <div style={{ width:52, height:52, borderRadius:DS.r.lg, background:T.surface, border:`1px solid ${T.borderL}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>{TYPE_EMOJI[profile.businessType] || "📦"}</div>}
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }} title={p.product_title}>{p.product_title}</div>
-                    <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:2 }}>{fmtFreq(p.frequency_days).replace(/^./, c => c.toUpperCase())}{hasDiscount ? ` · ${p.discount_pct}% OFF` : ""}</div>
-                    <div style={{ marginTop:6, display:"flex", gap:6, flexWrap:"wrap" }}>
+        <>
+          {/* KPIs */}
+          <div className="kpi-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 200px), 1fr))", gap:10, marginBottom:14 }}>
+            <KpiCard T={T} label="Planes activos" value={fmtN(activeCount)} hint={inactiveCount ? `${inactiveCount} inactivo${inactiveCount === 1 ? "" : "s"}` : "todos a la venta"} color={T.accentSolid}
+              onClick={() => setFilter("active")}/>
+            <KpiCard T={T} label="Suscripciones activas" value={fmtN(activeSubs.length)} hint={`en ${Object.values(byPlan).filter(r => r.active).length} plan${Object.values(byPlan).filter(r => r.active).length === 1 ? "" : "es"}`} color={T.green}/>
+            <KpiCard T={T} label="Ingreso recurrente" value={fmtARS(totalMrr)} valueColor={T.accent} hint="por mes, todos los planes" color={T.accentSolid}/>
+            <KpiCard T={T} label="Plan más elegido" value={top && topStat.active ? clip(top.product_title) : "—"}
+              hint={top && topStat.active ? `${fmtN(topStat.active)} activas · ${totalMrr ? Math.round((topStat.mrr / totalMrr) * 100) : 0}% del ingreso` : "todavía sin suscripciones"} color={T.blue}/>
+          </div>
+
+          {/* Barra: estado · búsqueda · orden · conteo */}
+          <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:10 }}>
+            <Segmented T={T} options={filterTabs} value={filter} onChange={setFilter} ariaLabel="Estado del plan"/>
+            <div style={{ position:"relative", flex:"0 1 240px", minWidth:160 }}>
+              <span style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)", display:"flex", pointerEvents:"none" }}><SearchIcon color={T.textSm}/></span>
+              <input type="search" aria-label="Buscar planes" placeholder="Buscar plan…" value={search} onChange={e => setSearch(e.target.value)} style={{ ...pill, width:"100%", padding:"0 12px 0 30px" }}/>
+            </div>
+            <select aria-label="Ordenar planes" value={sort} onChange={e => pickSort(e.target.value)} style={{ ...pill, padding:"0 12px", cursor:"pointer" }}>
+              {SORTS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+            </select>
+            <span style={{ marginLeft:"auto", fontSize:DS.font.sm, color:T.textSm, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap" }}>{fmtN(list.length)} plan{list.length === 1 ? "" : "es"}</span>
+          </div>
+
+          <div style={{ fontSize:DS.font.sm, color:T.textSm, marginBottom:14, lineHeight:1.5 }}>
+            Cambiar el precio de un plan <strong style={{ color:T.textMd }}>no</strong> cambia lo que pagan las suscripciones existentes ({profile.providerInfo.label} mantiene el monto autorizado). Para actualizarlas usá <strong style={{ color:T.textMd }}>Repreciar</strong> en el menú ⋮ del plan.
+          </div>
+
+          {list.length === 0 ? (
+            <div style={{ padding:"36px 12px", textAlign:"center", color:T.textSm, fontSize:DS.font.base, border:`1px dashed ${T.border}`, borderRadius:12 }}>
+              Ningún plan coincide con el filtro. <button onClick={() => { setSearch(""); setFilter("all"); }} style={{ background:"none", border:"none", color:T.accent, cursor:"pointer", fontWeight:700, fontFamily:"inherit", fontSize:"inherit" }}>Ver todos</button>
+            </div>
+          ) : (
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(min(100%, 320px), 1fr))", gap:12 }}>
+              {list.map(p => {
+                const manualPlan = p.item_source === "manual" || !p.shopify_variant_id;
+                const hasDiscount = (p.discount_pct || 0) > 0;
+                const st = stat(p);
+                const share = totalMrr ? Math.round((st.mrr / totalMrr) * 100) : 0;
+                const off = p.active === false;
+                return (
+                  <article key={p.id} style={{ background:`linear-gradient(150deg, ${T.card} 60%, ${T.accentSolid}0c)`, border:`1px solid ${T.border}`, borderRadius:12, padding:"14px 14px 12px", display:"flex", flexDirection:"column", gap:12, minWidth:0, opacity: off ? 0.72 : 1 }}>
+                    {/* Encabezado: imagen · nombre · frecuencia · badges · menú */}
+                    <div style={{ display:"flex", alignItems:"flex-start", gap:12 }}>
+                      {p.product_image
+                        ? <img src={p.product_image} alt="" style={{ width:48, height:48, borderRadius:10, objectFit:"cover", border:`1px solid ${T.borderL}`, flexShrink:0 }}/>
+                        : <div aria-hidden="true" style={{ width:48, height:48, borderRadius:10, background:T.surface, border:`1px solid ${T.borderL}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:21, flexShrink:0 }}>{TYPE_EMOJI[profile.businessType] || "📦"}</div>}
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:14.5, fontWeight:800, color:T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", letterSpacing:-0.2 }} title={p.product_title}>{p.product_title}</div>
+                        <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:2 }}>{fmtFreq(p.frequency_days).replace(/^./, c => c.toUpperCase())}{hasDiscount ? ` · ${p.discount_pct}% OFF` : ""}</div>
+                        <div style={{ marginTop:6, display:"flex", gap:6, flexWrap:"wrap" }}>
+                          {manualPlan
+                            ? <span title="Se vende con su link de suscripción"><DSBadge T={T} color={T.accent} size="sm">Link de suscripción</DSBadge></span>
+                            : pricingModeOf(p) === "packs"
+                              ? <span title="Recurrentes arma el selector de packs en tu tienda"><DSBadge T={T} color={T.accent} size="sm">Packs {(p.packs||[]).map(k=>k.qty).join("·") || "—"}</DSBadge></span>
+                              : <span title="El precio, la cantidad y la frecuencia salen de tu tema"><DSBadge T={T} color={T.textSm} size="sm">Precio del tema</DSBadge></span>}
+                          {off && <DSBadge T={T} color={T.yellow} size="sm">Inactivo</DSBadge>}
+                          {st.failed > 0 && <span title="Suscripciones de este plan con el último cobro rechazado"><DSBadge T={T} color={T.red} size="sm">{st.failed} con pago fallido</DSBadge></span>}
+                        </div>
+                      </div>
+                      <RowMenu T={T} label={`Acciones de ${p.product_title}`} items={[
+                        { label:"Repreciar suscripciones", icon:"💲", onClick: () => repricePlan(p) },
+                        { label:"Desactivar plan", icon:"⏸", hidden: off, onClick: () => deactivatePlan(p) },
+                        { label:"Borrar definitivamente", icon:"🗑", danger:true, onClick: () => hardDeletePlan(p) },
+                      ]}/>
+                    </div>
+
+                    {/* Números: precio · activas · por mes */}
+                    <div style={{ display:"grid", gridTemplateColumns:"1.15fr 0.8fr 1.15fr", gap:8, padding:"10px 0", borderTop:`1px solid ${T.borderL}`, borderBottom:`1px solid ${T.borderL}` }}>
+                      <div style={{ minWidth:0 }}>
+                        <div style={label}>{manualPlan ? "Se cobra" : "Precio sub"}</div>
+                        <div style={{ fontSize:17, fontWeight:800, color:T.accent, letterSpacing:-0.4, fontVariantNumeric:"tabular-nums" }}>{fmtARS(p.subscription_price_ars)}</div>
+                        {hasDiscount && p.base_price_ars > 0 && <div style={{ fontSize:DS.font.xs, color:T.textSm, textDecoration:"line-through", fontVariantNumeric:"tabular-nums" }}>{fmtARS(p.base_price_ars)}</div>}
+                      </div>
+                      <div>
+                        <div style={label}>Activas</div>
+                        <div style={{ fontSize:17, fontWeight:800, color: st.active ? T.text : T.textSm, fontVariantNumeric:"tabular-nums" }}>{fmtN(st.active)}</div>
+                      </div>
+                      <div style={{ minWidth:0 }}>
+                        <div style={label}>Por mes</div>
+                        <div style={{ fontSize:17, fontWeight:800, color: st.mrr ? T.text : T.textSm, letterSpacing:-0.4, fontVariantNumeric:"tabular-nums" }}>{fmtARS(st.mrr)}</div>
+                      </div>
+                    </div>
+
+                    {/* Participación en el ingreso recurrente */}
+                    <div title={`${share}% del ingreso recurrente de todos los planes`}>
+                      <div style={{ display:"flex", justifyContent:"space-between", fontSize:DS.font.xs, color:T.textSm, marginBottom:5 }}>
+                        <span>Del ingreso recurrente</span><span style={{ fontWeight:700, color:T.textMd, fontVariantNumeric:"tabular-nums" }}>{share}%</span>
+                      </div>
+                      <div style={{ height:5, background:T.border, borderRadius:99, overflow:"hidden" }}>
+                        <div style={{ width:`${share}%`, height:"100%", background:T.accentSolid, borderRadius:99 }}/>
+                      </div>
+                    </div>
+
+                    <div style={{ display:"flex", gap:6 }}>
+                      <Btn T={T} variant="secondary" size="sm" onClick={()=>setEditor({ plan: p })} style={{ flex:1, justifyContent:"center" }}>Editar</Btn>
                       {manualPlan
-                        ? <span title="Se vende con su link de suscripción"><DSBadge T={T} color={T.accent} size="sm">🔗 Link de suscripción</DSBadge></span>
-                        : pricingModeOf(p) === "packs"
-                          ? <span title="Recurrentes arma el selector de packs en tu tienda"><DSBadge T={T} color={T.accent} size="sm">Packs {(p.packs||[]).map(k=>k.qty).join("·") || "—"}</DSBadge></span>
-                          : <span title="El precio, la cantidad y la frecuencia salen de tu tema"><DSBadge T={T} color={T.textSm} size="sm">Precio del tema</DSBadge></span>}
-                      {p.active === false && <DSBadge T={T} color={T.yellow} size="sm">Inactivo</DSBadge>}
+                        ? <Btn T={T} variant="secondary" size="sm" onClick={()=>setLinkFor(p)} style={{ flex:1, justifyContent:"center" }}>🔗 Link</Btn>
+                        : <Btn T={T} variant="secondary" size="sm" onClick={()=>setEmbedFor(p)} style={{ flex:1, justifyContent:"center" }}>&lt;/&gt; Snippet</Btn>}
                     </div>
-                  </div>
-                </div>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:10, padding:"10px 0", borderTop:`1px solid ${T.borderL}`, borderBottom:`1px solid ${T.borderL}` }}>
-                  <div>
-                    <div style={{ fontSize:DS.font.xs, color:T.textSm, textTransform:"uppercase", fontWeight:DS.w.semibold, letterSpacing:0.4 }}>{manualPlan ? "Se cobra" : "Precio sub"}</div>
-                    <div style={{ fontSize:18, fontWeight:DS.w.black, color:T.accent, letterSpacing:-0.4, fontVariantNumeric:"tabular-nums" }}>{fmtARS(p.subscription_price_ars)}</div>
-                  </div>
-                  {hasDiscount && (
-                    <div style={{ textAlign:"right" }}>
-                      <div style={{ fontSize:DS.font.xs, color:T.textSm, textTransform:"uppercase", fontWeight:DS.w.semibold, letterSpacing:0.4 }}>Precio normal</div>
-                      <div style={{ fontSize:DS.font.base, color:T.textMd, textDecoration:"line-through", fontVariantNumeric:"tabular-nums" }}>{fmtARS(p.base_price_ars)}</div>
-                    </div>
-                  )}
-                </div>
-                <div style={{ display:"flex", gap:6, marginTop:12, flexWrap:"wrap" }}>
-                  <Btn T={T} variant="secondary" size="sm" onClick={()=>setEditor({ plan: p })} style={{ flex:1 }}>✏️ Editar</Btn>
-                  {manualPlan
-                    ? <Btn T={T} variant="secondary" size="sm" onClick={()=>setLinkFor(p)} style={{ flex:1 }}>🔗 Link</Btn>
-                    : <Btn T={T} variant="secondary" size="sm" onClick={()=>setEmbedFor(p)} style={{ flex:1 }}>📋 Snippet</Btn>}
-                  <Btn T={T} variant="secondary" size="sm" onClick={()=>repricePlan(p)} title="Repreciar suscripciones de este plan" style={iconBtn}>💲</Btn>
-                  {/* Desactivar (soft): el plan deja de ofrecerse pero las subs ya creadas siguen vivas. */}
-                  <Btn T={T} variant="secondary" size="sm" onClick={()=>deactivatePlan(p)} title="Desactivar (mantiene historial)" style={{ ...iconBtn, color:T.yellow, borderColor:T.yellow+"66" }}>⏸</Btn>
-                  {/* Borrar definitivamente (hard): elimina el plan de Firestore. El preapproval_plan en MP queda allá. */}
-                  <Btn T={T} variant="danger" size="sm" onClick={()=>hardDeletePlan(p)} title="Borrar definitivamente" style={iconBtn}>🗑</Btn>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
       {embedFor && <EmbedSnippetModal plan={embedFor} merchant={merchant} onClose={()=>setEmbedFor(null)}/>}
