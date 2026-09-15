@@ -150,6 +150,19 @@ Recurrentes deja de ser solo "Shopify + MP". Cada merchant tiene un **perfil** e
 - Se elige en Configuración → Negocio (`save-settings` con `business_type/channel/payment_provider`, solo dueño; dejar Shopify con token pide `confirm_channel_change`).
 - Pendiente: adapters Tiendanube / Impultienda / Stripe, moneda por merchant (todo asume ARS), renombrar `shopify_orders`/`shopify_order_id` a genéricos.
 
+## Integraciones y panel (tanda del 2026-09-15, rama `integracion`)
+Todo apagado por env hasta que Thiago configure cada consola (ver `TAREAS_THIAGO.md`). `npm test` corre todas las suites (money-path de Lumina incluida) con Firestore en memoria y red bloqueada.
+- **MP OAuth 1 clic**: `_lib/mpOauth.js` (PKCE S256, state firmado en `oauth_states`, refresh 7 días antes en cron, `invalid_grant` → "Reconectar"). Pegar token sigue como alternativa.
+- **Shopify**: app creada por el comerciante (dominio + Client ID + secret) con guía `ShopifyConnect.jsx` + video (`src/lib/tutorials.js`). Scopes únicos en `shared/platform/shopify.js`. Webhooks de compliance con HMAC antes de leer Firestore.
+- **Tiendanube**: `_lib/tiendanube.js` + `_lib/tiendanubeApi.js` vía `/api/shopify?action=tn-*` (rewrites `/api/tiendanube/callback|webhooks`). `fulfillCharge` rama tiendanube; `channelAvailable()` en profile.js (env `TIENDANUBE_APP_ID`+`TIENDANUBE_CLIENT_SECRET`).
+- **Pasarelas alternativas**: registro `_lib/providers/` (mobbex, stripe, whop) + `_lib/charges/processProviderCharge.js` + webhook `/api/public?action=provider-webhook&p=<id>`. Flags `MOBBEX_ENABLED` / `STRIPE_ENABLED` / `WHOP_ENABLED`. En profile.js siguen "soon" (falta habilitarlos por env y la moneda USD).
+- **Entrega digital**: `plan.digital_delivery` → mail con link al activar/renovar (`_lib/delivery.js`, no-op con envío).
+- **WhatsApp**: Cloud API de Meta, paso `whatsapp` en flujos, `message_log`, webhook `/api/public?action=wa-webhook` (BAJA/ALTA). Plantillas en `WHATSAPP.md`.
+- **Admin**: `ADMIN_EMAILS` (email verificado), `/api/stats?action=admin-*`, `#/admin`, "ver como" solo lectura con `X-Admin-As` + `admin_audit`.
+- **Transferir tienda**: `_lib/transfer.js` (`/api/merchant?action=transfer-*`, `#/transferir`), `profiles/{uid}` para logins cuya principal se transfirió.
+- **Confiabilidad**: `GET /api/cron?action=health` (CRON_SECRET o admin), heartbeat en `system/cron_heartbeat`, cron `retry-fulfillment` (alerta siempre; reintento solo con `FULFILL_RETRY_ENABLED=1`).
+- **Seguridad**: `firestore.rules` cierra toda lectura cliente de `merchants/*` (el panel usa el SDK web solo para Auth). Disputas de MP solo actúan si el pago releído las confirma (`_lib/webhookguard.js`).
+
 ## Foco y comunicación (desde 2026-09-14)
 Tiendas online de **Argentina**: Shopify hoy; Tiendanube e Impultienda (tienda de ebooks) próximos. La landing habla de ecommerce argentino. Los tipos digital/servicio y la venta por link siguen en el producto, pero no son el foco comercial.
 

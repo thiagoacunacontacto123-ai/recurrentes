@@ -16,7 +16,8 @@ Entrá a https://vercel.com/dashboard → proyecto **recurrentess** → **Settin
 | Variable | Valor | Para qué |
 |---|---|---|
 | `APP_BASE_URL` | `https://www.recurrentesapp.com` (con www, sin `/` al final) | Links de mails, widget y avisos de Mercado Pago con el dominio nuevo |
-| `ADMIN_EMAILS` | `thiagoacunacontacto123@gmail.com,TU_MAIL_DE_LOGIN_ACTUAL` | Entrás al panel de admin (`#/admin`) |
+| `ADMIN_EMAILS` | `thiagoacunacontacto123@gmail.com,TU_MAIL_DE_LOGIN_ACTUAL` | Entrás al panel de admin (`#/admin`) y al chequeo de salud |
+| `PLATFORM_ALERT_EMAIL` | `thiagoacunacontacto123@gmail.com` | Te llega un mail si un cobro se aprobó pero la orden no se pudo crear |
 
 - Si `APP_BASE_URL` ya existe: tocá los tres puntitos → **Edit** → cambiá el valor → **Save**.
 - Si no existe: arriba completá **Key** y **Value**, dejá tildado **Production** (y **Preview**) → **Save**.
@@ -32,6 +33,13 @@ Hoy un miembro del equipo de una tienda podría leer las claves de Mercado Pago 
 3. Tocá **Publicar**.
 
 📸 Captura con el cartel de "publicadas".
+
+---
+
+### 1.3 Chequeo de salud (después de que publique)
+Abrí https://www.recurrentesapp.com/api/cron?action=health estando logueado en Recurrentes con tu mail de admin. Muestra, integración por integración, qué variables faltan (nunca los valores) y si los procesos automáticos están corriendo.
+
+📸 Captura de lo que muestra.
 
 ---
 
@@ -87,8 +95,28 @@ Hoy los mails salen con la dirección genérica de Resend. Con esto salen de `@r
 
 ---
 
-## Parte 5 — Tiendanube
-_(completo esta parte cuando termine el agente de Tiendanube)_
+## Parte 5 — Tiendanube (≈30 min + revisión de Tiendanube)
+Mientras no cargues las variables, en el panel sigue diciendo "Próximamente". Cuando las cargues, el comerciante conecta su tienda con un clic, los productos aparecen al crear el plan, el widget se instala solo en su tienda y cada cobro crea la orden paga en Tiendanube.
+
+1. Creá tu cuenta de Partner en https://partners.tiendanube.com → **Crear aplicación**.
+2. **Datos básicos → Editar datos** → URL de redirección: `https://www.recurrentesapp.com/api/tiendanube/callback`
+3. **Permisos**: ver productos, ver y crear órdenes, crear clientes y scripts (`read_products`, `read_orders`, `write_orders`, `write_customers`, `write_scripts`).
+4. **Webhooks LGPD** (privacidad), cargá estas 3 URLs:
+   - `https://www.recurrentesapp.com/api/tiendanube/webhooks?topic=store-redact`
+   - `https://www.recurrentesapp.com/api/tiendanube/webhooks?topic=customers-redact`
+   - `https://www.recurrentesapp.com/api/tiendanube/webhooks?topic=customers-data-request`
+5. **Scripts → Crear script**: subí el archivo `public/tiendanube-loader.js` (te lo paso si no lo encontrás), con ubicación **store**, evento **onload** y **sin** instalación automática. Anotá el número del script.
+6. Vercel → Environment Variables:
+   - `TIENDANUBE_APP_ID` = el ID de la app
+   - `TIENDANUBE_CLIENT_SECRET` = el secret
+   - `TIENDANUBE_CONTACT_EMAIL` = tu mail de soporte (Tiendanube lo pide)
+   - `TIENDANUBE_SCRIPT_ID` = el número del script del paso 5
+7. Probá con una **tienda de prueba** de Tiendanube: conectar → crear un plan → suscribirte con Mercado Pago → fijate que aparezca la orden paga con la nota RECURRENTE.
+8. Cuando ande, mandá la app a **homologación** (revisión) desde el portal de Partners.
+
+📸 Captura de la app en Partners (redirect y permisos) y de la orden de prueba.
+
+> Límites de Tiendanube: las órdenes no tienen etiquetas (usamos la nota interna) y el medio de pago figura como "offline", no como "Mercado Pago". Por ahora los packs no andan en Tiendanube; se usa el selector clásico.
 
 ---
 
