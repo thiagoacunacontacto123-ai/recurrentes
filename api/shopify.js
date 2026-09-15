@@ -19,6 +19,7 @@ import { shListProducts, shGetShippingRates, shGetShopInfo, buildShopInfoPatch, 
 import { signToken } from "./_lib/token.js";
 import { appBaseUrl } from "./_lib/config.js";
 import { rateLimit, clientIp } from "./_lib/ratelimit.js";
+import { oauthScopes } from "../shared/platform/shopify.js";
 
 const productsCache = new Map();
 const SHOP_RE = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i;
@@ -100,7 +101,8 @@ async function handleOauthStart(req, res) {
     return res.status(400).json({ error: "Falta configurar las credenciales: completá Client ID + Secret + Shop en Integraciones → Shopify y volvé a tocar \"Conectar tienda\"." });
   }
 
-  const scopes = process.env.SHOPIFY_SCOPES || "read_products,write_orders,read_orders,read_customers,write_customers,write_draft_orders";
+  // Lista compartida (shared/platform/shopify.js) + extras de la env SHOPIFY_SCOPES.
+  const scopes = oauthScopes(process.env.SHOPIFY_SCOPES);
   const redirect = `${appBaseUrl() || "http://localhost:3000"}/api/shopify/oauth-callback`;
 
   // `mid` = merchant destino (tienda activa); `uid` se mantiene por compat con el callback.

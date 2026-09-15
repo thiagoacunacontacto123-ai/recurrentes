@@ -20,6 +20,7 @@
 import React from "react";
 import { apiGet } from "./api.js";
 import { merchantProfile } from "../../shared/platform/profile.js";
+import { SHOPIFY_SCOPE_IDS } from "../../shared/platform/shopify.js";
 
 export const WHATSAPP_SOPORTE = "https://wa.me/5491164117974";
 // Pasos del perfil histórico (físico + Shopify). El total real sale de computeSteps().
@@ -123,7 +124,7 @@ export function computeSteps({ merchant, user, plansCount }) {
     steps.push({ id:"shopify", done:shopifyOk, title:"Conectar Shopify",
       short:"Para leer tus productos y crear una orden en tu tienda con cada cobro.",
       why:"Recurrentes lee tu catálogo para armar los planes y crea una orden en Shopify cada vez que Mercado Pago cobra una suscripción. Sin esto no hay envíos.",
-      needs:["Ser dueño o staff con permisos de la tienda","Crear una app personalizada en Shopify (5 min, la guía te lleva paso a paso)","Tu dominio tu-tienda.myshopify.com"],
+      needs:["Entrar con la cuenta dueña de la tienda","Crear tu propia app en dev.shopify.com (5 min, una sola vez: te guiamos paso a paso y copiás todo con un botón)","Tu dominio tu-tienda.myshopify.com"],
       tab:"configuracion", configSec:"integraciones", guideSec:"shopify", cta:"Conectar Shopify" });
   }
 
@@ -255,7 +256,7 @@ export const TIPS = {
   pack: "Un pack es una cantidad del mismo producto que ofrecés en el selector: x1, x2, x3… Cada pack tiene su precio (y opcionalmente su precio tachado y una etiqueta tipo \"Más elegido\"). El cliente elige el pack y se suscribe a esa cantidad: cada cobro genera una orden con esas unidades.",
   widgetDesign: "El diseño del widget es global para tu tienda: elegís 1 de los 10 layouts, tu color, las esquinas y los textos. Los packs y precios NO se cargan acá, salen de cada plan. La vista previa usa tus planes reales.",
   mpToken: "El Access Token de PRODUCCIÓN empieza con APP_USR-. Lo sacás en mercadopago.com.ar/developers → Tus integraciones → tu aplicación → Credenciales de producción. Tiene que ser de la cuenta que cobra, con el producto Suscripciones habilitado. Nunca lo compartas: es la llave de tu caja.",
-  shopifyApp: "Recurrentes entra a tu Shopify con una app personalizada que creás vos en dev.shopify.com/dashboard → Crear app. Le das los permisos read_products, write_orders, read_customers, write_customers y read_shipping, y copiás el Client ID y el Secret acá. La guía tiene el paso a paso con la Redirect URL exacta.",
+  shopifyApp: `Recurrentes entra a tu Shopify con una app que creás vos en dev.shopify.com/dashboard → Create app (crear app). Le pegás los permisos (${SHOPIFY_SCOPE_IDS.join(", ")}) y la URL de redirección, tocás Release (publicar la versión) y copiás el Client ID y el Secret acá. En Conectar Shopify tenés el paso a paso con todo para copiar.`,
   subscriptionLink: "Cada plan tiene un link propio a un checkout de Recurrentes: el cliente deja sus datos, paga y queda suscripto. Funciona en Instagram, WhatsApp, mails, tu web o impreso como QR. No necesitás tienda online.",
   subscribersEmpty: "Un suscriptor aparece acá recién cuando completó el pago en Mercado Pago. Mientras no pague figura en Suscripciones → Sin pagar.",
   chargesEmpty: "Cada cobro que procesa Mercado Pago (el primero y las renovaciones) queda acá. Con tienda conectada, con su orden; si la orden falla, podés reintentarla desde la fila.",
