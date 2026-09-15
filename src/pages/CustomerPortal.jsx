@@ -323,6 +323,7 @@ function RegistroSection({ T, merchant, activity, mails, loading, reload, goTab 
     cancellation:   { t:"Cancelación",  c:T.red,    e:"🚫" },
     invitation:     { t:"Invitación",   c:T.blue,   e:"🔗" },
     flow:           { t:"Flujos",       c:T.accent, e:"🔁" },
+    delivery:       { t:"Entrega digital", c:T.blue, e:"📚" },
   };
   const mailLabel = (m) => m.type === "flow" ? { ...MAIL_LABEL.flow, t: m.flow_name || "Flujo" } : (MAIL_LABEL[m.type] || { t: m.type || "Mail", c:T.textMd, e:"📧" });
   const events = activity?.klaviyo_events || [];
