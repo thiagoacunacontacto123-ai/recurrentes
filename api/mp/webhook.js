@@ -15,6 +15,7 @@ import { mpGetPayment, mpGetPreapproval, mpResolvePaymentLike, mpUpdatePreapprov
 import { claimCharge } from "../_lib/chargeclaim.js";
 import { timingSafeEqualStr } from "../_lib/token.js";
 import { fetchWithTimeout } from "../_lib/http.js";
+import { disputeConfirmed } from "../_lib/webhookguard.js";
 import {
   syncSubscriber, fulfillCharge, notifyActivation, notifyRenewal, applyPaymentFailed, repriceAfterFirstCharge,
 } from "../_lib/sync.js";
@@ -487,6 +488,7 @@ async function handleDispute(disputeId, kind, hintMid) {
     // un payment, devuelve OK. Si es de un claim/chargeback, MP devuelve la
     // info con payment_id adentro.
     let paymentId = disputeId;
+    let claimFound = false;
     try {
       const direct = await mpGetPayment(token, disputeId);
       if (direct?.id) paymentId = direct.id;
@@ -498,7 +500,7 @@ async function handleDispute(disputeId, kind, hintMid) {
           headers: { Authorization: `Bearer ${token}` },
         }, 10000);
         const d = await r.json().catch(() => ({}));
-        if (r.ok && d?.resource_id) paymentId = d.resource_id;
+        if (r.ok && d?.resource_id) { paymentId = d.resource_id; claimFound = true; }
         else continue;
       } catch (_) { continue; }
     }
@@ -508,6 +510,12 @@ async function handleDispute(disputeId, kind, hintMid) {
     let payment;
     try { payment = await mpGetPayment(token, paymentId); } catch (_) { continue; }
     if (!payment?.id) continue;
+    // Un aviso falso (cualquiera puede postear al webhook con un id de pago real)
+    // no alcanza: el pago releído de MP tiene que confirmar la disputa.
+    if (!disputeConfirmed(kind, payment, { claimFound })) {
+      console.warn(`[mp-webhook] dispute ${kind} ${disputeId} ignorada: pago ${payment.id} en ${payment.status}/${payment.status_detail || "-"}`);
+      continue;
+    }
 
     const merchantId = m.id;
     let subscriberId = null;
