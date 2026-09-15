@@ -26,6 +26,8 @@ import { emailFlowStep, effectiveBrand } from "./email.js";
 import { logEmail } from "./emaillog.js";
 import { isUnsubscribed } from "./unsub.js";
 import { computeRecoverUrl } from "./abandoned.js";
+// Paso "whatsapp": plantilla aprobada por la Cloud API de Meta; registra en message_log.
+import { runWhatsappFlowStep } from "./whatsapp.js";
 import { TRIGGER_BY_ID, FLOW_VARIABLES, renderVars, waitMs } from "../../shared/platform/flows.js";
 
 const H = 3600e3, D = 24 * H;
@@ -194,6 +196,18 @@ async function advanceRun(mid, merchant, flows, doc, out) {
       i++;
       // Se guarda el avance después de cada mail: si el proceso corta, no se reenvía.
       await doc.ref.update({ step: i, sent, updated_at: nowIso(), ...(er?.error ? { last_error: String(er.error).slice(0, 300) } : {}) });
+      continue;
+    }
+    if (step.type === "whatsapp") {
+      // Solo sale si la tienda tiene WhatsApp conectado, el cliente tiene teléfono y
+      // no pidió la baja de WhatsApp (la baja de MAILS no aplica acá). Si no, se
+      // saltea este paso y el flujo sigue con los demás.
+      const chk = await stillIn(mid, trig, run);
+      if (!chk.ok) return finish("exited", { exit_reason: chk.reason, converted: !!chk.converted, step: i, sent });
+      const wr = await runWhatsappFlowStep({ mid, merchant, sub: chk.sub, subscriberId: run.subscriber_id, step, vars: flowVars(merchant, mid, chk.sub), flowId: run.flow_id, flowName: flow.name || run.flow_name, stepNo: i + 1 });
+      if (wr?.ok) { out.wa_sent = (out.wa_sent || 0) + 1; await statRef.update({ "stats.wa_sent": FieldValue.increment(1) }).catch(() => {}); }
+      i++;
+      await doc.ref.update({ step: i, sent, updated_at: nowIso(), ...(wr?.ok ? {} : { last_skip: String(wr?.reason || wr?.error || "error").slice(0, 300) }) });
       continue;
     }
     i++; // tipo desconocido: se saltea

@@ -7,7 +7,11 @@
 // recuperó la tarjeta, se reactivó…), la saca. `goal` marca qué salida cuenta
 // como "recuperado" en las métricas.
 
+// Paso "whatsapp" (plantilla aprobada de Meta): validación y plantillas en ./whatsapp.js.
+import { sanitizeWhatsappStep, WA_TEMPLATE_BY_NAME } from "./whatsapp.js";
+
 export const FLOW_MAX_FLOWS = 30;
+export const FLOW_MAX_WHATSAPP = 4;
 export const FLOW_MAX_STEPS = 12;
 export const FLOW_MAX_EMAILS = 6;
 export const FLOW_MAX_WAIT_DAYS = 90;
@@ -70,10 +74,12 @@ export const newStepId = () => "s" + Date.now().toString(36) + (_seq++).toString
 export function flowSummary(flow) {
   const steps = Array.isArray(flow?.steps) ? flow.steps : [];
   const emails = steps.filter(s => s.type === "email").length;
+  const was = steps.filter(s => s.type === "whatsapp").length;
   const total = steps.filter(s => s.type === "wait").reduce((a, s) => a + waitMs(s), 0);
   const span = total >= WAIT_UNITS.days ? `${Math.round(total / WAIT_UNITS.days)} día${Math.round(total / WAIT_UNITS.days) === 1 ? "" : "s"}`
     : total >= WAIT_UNITS.hours ? `${Math.round(total / WAIT_UNITS.hours)} h`
     : total > 0 ? `${Math.round(total / WAIT_UNITS.minutes)} min` : "al instante";
+  if (was) return `${[emails ? `${emails} mail${emails === 1 ? "" : "s"}` : "", `${was} WhatsApp`].filter(Boolean).join(" + ")} · ${span}`;
   return `${emails} mail${emails === 1 ? "" : "s"} · ${span}`;
 }
 
@@ -121,6 +127,24 @@ export function defaultFlow(triggerId) {
   return flow;
 }
 
+// Flujo sugerido listo para usar: "Aviso de próximo cobro por WhatsApp" (se muestra
+// en el panel solo si la tienda tiene WhatsApp conectado). Usa la plantilla
+// aviso_proximo_cobro, que el comerciante tiene que tener APROBADA en Meta.
+export const WA_FLOW_SUGGESTION = {
+  id: "wa_upcoming_charge", label: "Aviso de próximo cobro por WhatsApp", icon: "💬",
+  desc: "Un WhatsApp unos días antes de cada renovación, con fecha, monto y el link a su portal.",
+};
+export function defaultWhatsappFlow(templateName = "aviso_proximo_cobro") {
+  const t = WA_TEMPLATE_BY_NAME[templateName] || WA_TEMPLATE_BY_NAME.aviso_proximo_cobro;
+  const flow = {
+    name: templateName === "aviso_proximo_cobro" ? WA_FLOW_SUGGESTION.label : `${t.title} por WhatsApp`,
+    trigger: t.trigger, active: false,
+    steps: [{ id: newStepId(), type: "whatsapp", template: t.name, lang: t.lang, vars: { ...t.vars } }],
+  };
+  if (TRIGGER_BY_ID[t.trigger]?.days) flow.days_before = 3;
+  return flow;
+}
+
 // Valida y limpia un flujo que viene del panel → { flow } | { error }.
 export function sanitizeFlow(input) {
   const f = input || {};
@@ -131,6 +155,7 @@ export function sanitizeFlow(input) {
   if (raw.length > FLOW_MAX_STEPS) return { error: `Máximo ${FLOW_MAX_STEPS} pasos por flujo` };
   const steps = [];
   let emails = 0;
+  let whatsapps = 0;
   for (const s of raw) {
     const id = /^[a-z0-9]{2,32}$/i.test(String(s?.id || "")) ? String(s.id) : newStepId();
     if (s?.type === "wait") {
@@ -147,10 +172,16 @@ export function sanitizeFlow(input) {
       const cta_label = cta === "none" ? "" : (String(s.cta_label || "").trim().slice(0, 40) || (cta === "portal" ? "Ir a mi portal" : "Retomar"));
       steps.push({ id, type: "email", subject, body, cta, cta_label });
       emails++;
+    } else if (s?.type === "whatsapp") {
+      const w = sanitizeWhatsappStep(s, FLOW_VARIABLES.map(v => v.key), whatsapps + 1);
+      if (w.error) return { error: w.error };
+      steps.push({ id, ...w.step });
+      whatsapps++;
     }
   }
-  if (!emails) return { error: "El flujo necesita al menos un mail" };
+  if (!emails && !whatsapps) return { error: "El flujo necesita al menos un mail o un WhatsApp" };
   if (emails > FLOW_MAX_EMAILS) return { error: `Máximo ${FLOW_MAX_EMAILS} mails por flujo` };
+  if (whatsapps > FLOW_MAX_WHATSAPP) return { error: `Máximo ${FLOW_MAX_WHATSAPP} WhatsApp por flujo` };
   const flow = { name, trigger: T.id, active: f.active === true, steps };
   if (T.days) flow.days_before = Math.min(14, Math.max(1, Math.floor(Number(f.days_before) || 3)));
   return { flow };

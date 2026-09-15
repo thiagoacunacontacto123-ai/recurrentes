@@ -6,6 +6,11 @@ import { Btn, DSBadge, DSToggle, Spinner, PageHeader, Callout, Field, InputStyle
 import { KpiCard, Panel } from "../ui/charts.jsx";
 import { RowMenu } from "./_shared.jsx";
 import { FLOW_TRIGGERS, TRIGGER_BY_ID, FLOW_VARIABLES, CTA_OPTIONS, WAIT_UNIT_LABEL, FLOW_MAX_STEPS, defaultFlow, sanitizeFlow, flowSummary, fmtWait, renderVars, newStepId } from "../../shared/platform/flows.js";
+// Paso "whatsapp" (plantillas aprobadas de la Cloud API de Meta): solo si la tienda lo conectó.
+import { WA_FLOW_SUGGESTION, defaultWhatsappFlow } from "../../shared/platform/flows.js";
+import { WA_DEFAULT_LANG, WA_TEMPLATES } from "../../shared/platform/whatsapp.js";
+import { appPrompt } from "../ui/components.jsx";
+import { WaStepCard, WhatsAppPreview, WA_GREEN } from "./FlowsWhatsApp.jsx";
 
 // ─── Flujos de email ───────────────────────────────────────────────
 // Lista (métricas + activar/pausar) y editor en línea de tiempo (esperar / mail),
@@ -54,6 +59,9 @@ export function FlowsPage({ merchant }) {
   const active = flows.filter(f => f.active).length;
   const used = new Set(flows.map(f => f.trigger));
   const ideas = FLOW_TRIGGERS.filter(t => !used.has(t.id));
+  // WhatsApp: sugerencia lista solo si la tienda lo tiene conectado.
+  const waOn = Boolean(merchant?.whatsapp_connected);
+  const hasWaFlow = flows.some(f => (f.steps || []).some(s => s.type === "whatsapp"));
 
   return (
     <div>
@@ -74,11 +82,17 @@ export function FlowsPage({ merchant }) {
       <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, marginBottom:16 }}>
         Aparte de estos flujos, Recurrentes sigue mandando los mails automáticos de <strong style={{ color:T.textMd }}>activación</strong>, <strong style={{ color:T.textMd }}>pago rechazado</strong> y <strong style={{ color:T.textMd }}>cancelación</strong>. Cada mail de un flujo trae el link para darse de baja.
       </div>
+      {!waOn && (
+        <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, margin:"-8px 0 16px" }}>
+          ¿Querés avisar también por WhatsApp? <a href="#/config/integraciones" style={{ color:T.accent, fontWeight:700, textDecoration:"none" }}>Conectá WhatsApp en Integraciones →</a>
+        </div>
+      )}
 
       {loading && !flows.length ? <Loading T={T}/> : flows.length === 0 ? (
         <Panel T={T} title="Empezá con uno de estos" sub="Vienen con los mails escritos: los revisás, los ajustás a tu marca y los activás.">
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 230px), 1fr))", gap:10 }}>
             {RECOMMENDED.map(id => <TriggerCard key={id} T={T} trig={TRIGGER_BY_ID[id]} onPick={() => setEditing(defaultFlow(id))}/>)}
+            {waOn && <TriggerCard T={T} trig={WA_FLOW_SUGGESTION} onPick={() => setEditing(defaultWhatsappFlow())}/>}
           </div>
           <button type="button" onClick={() => setPicking(true)} style={{ marginTop:12, background:"none", border:"none", color:T.accent, fontWeight:700, cursor:"pointer", fontFamily:F, fontSize:DS.font.md, padding:0 }}>Ver todos los disparadores →</button>
         </Panel>
@@ -103,6 +117,7 @@ export function FlowsPage({ merchant }) {
                   <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
                     <Stat T={T} v={s.entered} l="Entraron"/>
                     <Stat T={T} v={s.sent} l="Mails"/>
+                    {Number(s.wa_sent) > 0 && <Stat T={T} v={s.wa_sent} l="WhatsApp"/>}
                     {trig.goal && <Stat T={T} v={s.converted} l="Recuperados" c={s.converted ? T.green : undefined}/>}
                     <Stat T={T} v={f.running} l="En curso"/>
                   </div>
@@ -130,6 +145,12 @@ export function FlowsPage({ merchant }) {
                 ))}
               </div>
             </div>
+          )}
+          {waOn && !hasWaFlow && (
+            <button type="button" onClick={() => setEditing(defaultWhatsappFlow())} title={WA_FLOW_SUGGESTION.desc}
+              style={{ marginTop:10, display:"inline-flex", alignItems:"center", gap:6, height:32, padding:"0 12px", borderRadius:99, border:`1px solid ${WA_GREEN}66`, background:WA_GREEN + "12", color:T.text, cursor:"pointer", fontFamily:F, fontSize:12, fontWeight:600 }}>
+              <span aria-hidden="true">{WA_FLOW_SUGGESTION.icon}</span>{WA_FLOW_SUGGESTION.label}
+            </button>
           )}
         </>
       )}
@@ -195,6 +216,19 @@ function FlowEditor({ T, merchant, initial, onBack }) {
   const steps = draft.steps || [];
   const selected = steps.find(s => s.id === sel && s.type === "email") || null;
   const emailNo = (id) => steps.filter(s => s.type === "email").findIndex(s => s.id === id) + 1;
+  // WhatsApp: pasos y plantillas de la cuenta de WhatsApp Business (null = sin cargar).
+  const waOn = Boolean(merchant?.whatsapp_connected);
+  const selWa = steps.find(s => s.id === sel && s.type === "whatsapp") || null;
+  const waNo = (id) => steps.filter(s => s.type === "whatsapp").findIndex(s => s.id === id) + 1;
+  const [waTpls, setWaTpls] = useState(null);
+  useEffect(() => {
+    if (!waOn) return;
+    let alive = true;
+    apiGet("merchant", { action: "whatsapp-templates" })
+      .then(d => { if (alive) setWaTpls(Array.isArray(d?.templates) ? d.templates : []); })
+      .catch(() => { if (alive) setWaTpls([]); });
+    return () => { alive = false; };
+  }, [waOn]);
 
   const upd = (patch) => setDraft(d => ({ ...d, ...patch }));
   const updStep = (id, patch) => setDraft(d => ({ ...d, steps: d.steps.map(s => s.id === id ? { ...s, ...patch } : s) }));
@@ -207,6 +241,14 @@ function FlowEditor({ T, merchant, initial, onBack }) {
   };
   const addStep = (type, at) => {
     if (steps.length >= FLOW_MAX_STEPS) return toast(`Máximo ${FLOW_MAX_STEPS} pasos por flujo`, "warning");
+    if (type === "whatsapp") {
+      // Arranca con la plantilla sugerida para este disparador (si hay una).
+      const tpl = WA_TEMPLATES.find(t => t.trigger === draft.trigger);
+      const w = { id:newStepId(), type:"whatsapp", template: tpl?.name || "", lang: tpl?.lang || WA_DEFAULT_LANG, vars: tpl ? { ...tpl.vars } : {} };
+      setDraft(d => { const n = [...d.steps]; n.splice(at, 0, w); return { ...d, steps: n }; });
+      setSel(w.id);
+      return;
+    }
     const s = type === "wait"
       ? { id:newStepId(), type:"wait", amount:1, unit:"days" }
       : { id:newStepId(), type:"email", subject:"", body:"", cta:trig.cta, cta_label: trig.cta === "portal" ? "Ir a mi portal" : "Retomar" };
@@ -249,6 +291,17 @@ function FlowEditor({ T, merchant, initial, onBack }) {
     if (d?.error) return toast(d.error, "error", 7000);
     toast(`Te mandamos la prueba a ${d.to}`, "success", 6000);
   }
+  async function testWa(step) {
+    const chk = sanitizeFlow({ trigger: draft.trigger, steps: [step] });
+    if (chk.error) return toast(chk.error, "warning", 6000);
+    const to = await appPrompt("Te mandamos la plantilla con datos de ejemplo. Tiene que estar aprobada por Meta.", merchant?.owner_whatsapp || "", { title:"¿A qué WhatsApp te mandamos la prueba?", okLabel:"Enviar prueba", placeholder:"11 6411 7974" });
+    if (!to) return;
+    setTesting(step.id);
+    const d = await apiPost("merchant", { template: step.template, lang: step.lang, vars: step.vars, to }, { action: "whatsapp-test" });
+    setTesting(null);
+    if (d?.error) return toast(d.error, "error", 8000);
+    toast(`Te mandamos la prueba a ${d.to}`, "success", 6000);
+  }
 
   const label = { fontSize:10, fontWeight:700, color:T.textSm, textTransform:"uppercase", letterSpacing:0.6 };
   const ctrlBtn = (disabled) => ({ width:26, height:26, borderRadius:7, border:`1px solid ${T.border}`, background:"transparent", color:T.textSm, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.35 : 1, fontSize:11, fontFamily:F, padding:0 });
@@ -256,9 +309,12 @@ function FlowEditor({ T, merchant, initial, onBack }) {
     <div style={{ display:"flex", gap:6, margin:"2px 0 10px" }}>
       <button type="button" onClick={() => addStep("wait", at)} style={{ fontSize:11, padding:"3px 9px", borderRadius:99, border:`1px dashed ${T.border}`, background:"transparent", color:T.textSm, cursor:"pointer", fontFamily:F }}>+ Esperar</button>
       <button type="button" onClick={() => addStep("email", at)} style={{ fontSize:11, padding:"3px 9px", borderRadius:99, border:`1px dashed ${T.border}`, background:"transparent", color:T.textSm, cursor:"pointer", fontFamily:F }}>+ Mail</button>
+      {waOn && <button type="button" onClick={() => addStep("whatsapp", at)} style={{ fontSize:11, padding:"3px 9px", borderRadius:99, border:`1px dashed ${WA_GREEN}88`, background:"transparent", color:T.textSm, cursor:"pointer", fontFamily:F }}>+ WhatsApp</button>}
     </div>
   );
-  const Node = ({ icon, color, last, children }) => (
+  // useMemo: si Node cambiara de identidad en cada render, React remontaría cada paso
+  // y los campos de texto perderían el foco con cada tecla.
+  const Node = React.useMemo(() => function FlowNode({ icon, color, last, children }) { return (
     <div style={{ display:"grid", gridTemplateColumns:"30px minmax(0,1fr)", gap:12 }}>
       <div style={{ display:"flex", flexDirection:"column", alignItems:"center" }}>
         <div aria-hidden="true" style={{ width:30, height:30, borderRadius:99, background:color + "22", color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:800, flexShrink:0 }}>{icon}</div>
@@ -266,7 +322,7 @@ function FlowEditor({ T, merchant, initial, onBack }) {
       </div>
       <div style={{ minWidth:0, paddingBottom:4 }}>{children}</div>
     </div>
-  );
+  ); }, [T]);
 
   return (
     <div>
@@ -303,8 +359,12 @@ function FlowEditor({ T, merchant, initial, onBack }) {
           </Node>
 
           {steps.map((s, i) => (
-            <Node key={s.id} icon={s.type === "wait" ? "⏱" : "✉"} color={s.type === "wait" ? T.yellow : T.blue}>
-              {s.type === "wait" ? (
+            <Node key={s.id} icon={s.type === "wait" ? "⏱" : s.type === "whatsapp" ? "💬" : "✉"} color={s.type === "wait" ? T.yellow : s.type === "whatsapp" ? WA_GREEN : T.blue}>
+              {s.type === "whatsapp" ? (
+                <WaStepCard T={T} step={s} no={waNo(s.id)} first={i === 0} last={i === steps.length - 1} open={sel === s.id}
+                  onToggle={() => setSel(sel === s.id ? null : s.id)} onChange={(patch) => updStep(s.id, patch)} onMove={(dir) => move(i, dir)} onRemove={() => removeStep(s.id)}
+                  templates={waTpls} connected={waOn} testing={testing === s.id} onTest={() => testWa(s)}/>
+              ) : s.type === "wait" ? (
                 <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", border:`1px solid ${T.border}`, borderRadius:12, padding:"10px 12px", marginBottom:6, background:T.surface }}>
                   <span style={{ fontSize:DS.font.md, fontWeight:700, color:T.text }}>Esperar</span>
                   <input type="number" min={1} value={s.amount} onChange={e => updStep(s.id, { amount: e.target.value })} aria-label="Cantidad" style={{ ...iS, width:70, padding:"6px 8px" }}/>
@@ -372,10 +432,13 @@ function FlowEditor({ T, merchant, initial, onBack }) {
 
         {/* Vista previa */}
         <div style={{ position:"sticky", top:80 }}>
-          <EmailPreview T={T} merchant={merchant} step={selected}/>
+          {selWa ? <WhatsAppPreview T={T} merchant={merchant} step={selWa} templates={waTpls}/> : <EmailPreview T={T} merchant={merchant} step={selected}/>}
           <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, marginTop:10 }}>
             Los cambios aplican a quienes entren al flujo después de guardar. Pausar el flujo corta los mails pendientes.
           </div>
+          {!waOn && (steps.some(s => s.type === "whatsapp")
+            ? <Callout T={T} tone="warning" title="WhatsApp no está conectado" style={{ marginTop:12 }}>Los pasos de WhatsApp de este flujo se saltean hasta que lo conectes en <a href="#/config/integraciones" style={{ color:T.accent, fontWeight:700 }}>Integraciones</a>.</Callout>
+            : <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, marginTop:10 }}>¿Querés sumar avisos por WhatsApp? <a href="#/config/integraciones" style={{ color:T.accent, fontWeight:700, textDecoration:"none" }}>Conectá WhatsApp en Integraciones →</a></div>)}
         </div>
       </div>
     </div>

@@ -8,6 +8,7 @@ import { MpTokenTip } from "./Onboarding.jsx";
 import { WidgetThemeCard } from "./OperationalSettings.jsx";
 import { MONO, fmtDateShort } from "./_shared.jsx";
 import { CHANNELS, PAYMENT_PROVIDERS, merchantProfile } from "../../shared/platform/profile.js";
+import { WhatsAppRow } from "./WhatsAppIntegration.jsx";
 
 // ─── Integraciones (Configuración → Integraciones) — estilo Growith ──────
 // Una tarjeta con filas agrupadas (Tienda · Pasarelas · Publicidad · Emails):
@@ -374,6 +375,10 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
             En cada evento también actualizamos el perfil con <code style={{ fontFamily:MONO }}>recurrentes_status</code>, <code style={{ fontFamily:MONO }}>recurrentes_plan</code>, <code style={{ fontFamily:MONO }}>recurrentes_next_charge_at</code> y más, para segmentar campañas.
           </Hint>
         </Row>
+
+        {/* ── Mensajes (WhatsApp Cloud API, WhatsAppIntegration.jsx) ── */}
+        <GroupTitle T={T}>Mensajes</GroupTitle>
+        <WhatsAppRow T={T} merchant={m} onChange={onChange} ui={{ Row, Modal, Steps, CopyCode, A, S, btnStyles }}/>
         <div style={{ height:8 }}/>
       </div>
 
