@@ -150,6 +150,11 @@ Recurrentes deja de ser solo "Shopify + MP". Cada merchant tiene un **perfil** e
 - Se elige en Configuración → Negocio (`save-settings` con `business_type/channel/payment_provider`, solo dueño; dejar Shopify con token pide `confirm_channel_change`).
 - Pendiente: adapters Tiendanube / Impultienda / Stripe, moneda por merchant (todo asume ARS), renombrar `shopify_orders`/`shopify_order_id` a genéricos.
 
+## Decisiones del 2026-09-15 (Thiago)
+- **Klaviyo retirado**: `klaviyoEnabled()` devuelve siempre false (todo envío es no-op) y no aparece en ningún lado del panel. Recupero, avisos y "pagos completados" van por **Flujos de email** propios (Resend). No se crean carritos ni borradores en Shopify/Tiendanube/Impultienda: todo queda en Recurrentes.
+- **Mails**: salen de `Recurrentes <hola@recurrentesapp.com>` (dominio verificado en Resend; ese dominio NO recibe mails). Todos llevan al pie "mail automático, no lo respondas · escribí a <email_reply_to de la tienda>"; los flujos no se activan sin ese mail.
+- **WhatsApp**: un solo número de Recurrentes para todas las tiendas (Cloud API de Meta directa, plantillas de utilidad); el costo por mensaje se le suma al comerciante con +10%.
+
 ## Integraciones y panel (tanda del 2026-09-15, rama `integracion`)
 Todo apagado por env hasta que Thiago configure cada consola (ver `TAREAS_THIAGO.md`). `npm test` corre todas las suites (money-path de Lumina incluida) con Firestore en memoria y red bloqueada.
 - **MP OAuth 1 clic**: `_lib/mpOauth.js` (PKCE S256, state firmado en `oauth_states`, refresh 7 días antes en cron, `invalid_grant` → "Reconectar"). Pegar token sigue como alternativa.
