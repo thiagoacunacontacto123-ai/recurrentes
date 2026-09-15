@@ -100,3 +100,15 @@ test("sync de una suscripción vieja (sin plan ad-hoc) cuyo preapproval no apare
   assert.equal(r2.orders_created, 0);
   assert.equal(W.shopify.orderPosts.length, 1);
 });
+
+test("tienda ARCHIVADA (tienda muerta): su renovación no crea orden en ningún lado ni la toca el sync", async () => {
+  seedDoc(`merchants/${OTRA}`, luminaMerchant({ store_name: "INDATROPIC", shopify_shop: OTRA_SHOP, shopify_token: "shpat_indatropic", archived_at: "2026-09-15T20:00:00.000Z" }));
+  seedDoc(`merchants/${OTRA}/subscribers/sub_muerta`, subscriber({ customer_email: "muerta@cliente.test", mp_preapproval_plan_id: null, mp_preapproval_id: "pre_muerta" }));
+  W.mp.addPayment(mpPayment({ id: 1310000230, amount: 12300, preapprovalId: "pre_muerta", externalReference: `${OTRA}:sub_muerta` }), MP_TOKEN);
+  await deliver(1310000230);
+  assert.equal(otra.orderPosts.length, 0, "no tiene que crear órdenes en la tienda archivada");
+  assert.equal(W.shopify.orderPosts.length, 0, "tampoco en Lumina");
+  const r = await syncSubscriber(OTRA, "sub_muerta");
+  assert.equal(r.error, "merchant_archived");
+  assert.equal(otra.orderPosts.length, 0);
+});

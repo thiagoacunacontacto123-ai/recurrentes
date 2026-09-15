@@ -72,13 +72,14 @@ async function resolveMerchantByUserId(userId) {
 // Lista de merchants con MP a probar: primero el hint (mid o user_id), después el resto.
 async function merchantsToTry(hintMid) {
   const all = await db().collection("merchants").where("mp_access_token", "!=", "").get();
-  const docs = all.docs.slice();
+  // Tiendas archivadas (archived_at): Recurrentes no las procesa (MP puede seguir cobrando).
+  const docs = all.docs.filter(d => !d.data().archived_at);
   if (!hintMid) return docs;
   const i = docs.findIndex(d => d.id === hintMid);
   if (i > 0) { const [h] = docs.splice(i, 1); docs.unshift(h); }
   else if (i < 0) {
     const s = await db().collection("merchants").doc(hintMid).get();
-    if (s.exists && s.data().mp_access_token) docs.unshift(s);
+    if (s.exists && s.data().mp_access_token && !s.data().archived_at) docs.unshift(s);
   }
   return docs;
 }
@@ -225,7 +226,7 @@ async function pickMerchantForPayment(resolved, docs) {
   if (refMid && refMid !== resolved.merchantId) {
     const snap = docs.find(d => d.id === refMid) || await db().collection("merchants").doc(refMid).get().catch(() => null);
     const data = snap?.exists ? snap.data() : null;
-    if (data?.mp_access_token) return { merchantId: refMid, merchant: data };
+    if (data?.mp_access_token && !data.archived_at) return { merchantId: refMid, merchant: data };
   }
   if (await resolveSubscriberForPayment(resolved.merchantId, resolved.merchant, payment)) return resolved;
   const uid = resolved.merchant.mp_user_id;

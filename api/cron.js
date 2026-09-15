@@ -120,6 +120,7 @@ export default async function handler(req, res) {
     for (const m of merchants) {
       if (outOfTime()) { partial = true; break; }
       const md = m.data();
+      if (md.archived_at) continue; // tienda archivada: fuera del sync (MP puede seguir cobrando)
       try {
         merchantsProcessed += 1;
         const merchantSubs = db().collection("merchants").doc(m.id).collection("subscribers");

@@ -311,6 +311,7 @@ export async function syncSubscriber(merchantId, subscriberId) {
   if (!merchantSnap.exists) return { status: "error", error: "merchant_not_found" };
   const merchant = merchantSnap.data();
   if (!merchant.mp_access_token) return { status: "error", error: "no_mp_token" };
+  if (merchant.archived_at) return { status: "error", error: "merchant_archived" }; // tienda archivada: Recurrentes no la procesa
   const token = merchant.mp_access_token;
 
   const subRef = merchantRef.collection("subscribers").doc(subscriberId);
@@ -698,6 +699,7 @@ export async function linkPaymentToSubscriber(merchantId, subscriberId, paymentI
   if (!merchantSnap.exists) return { status: "error", error: "merchant_not_found" };
   const merchant = merchantSnap.data();
   if (!merchant.mp_access_token) return { status: "error", error: "no_mp_token" };
+  if (merchant.archived_at) return { status: "error", error: "merchant_archived" }; // tienda archivada: Recurrentes no la procesa
   const token = merchant.mp_access_token;
 
   const subRef = merchantRef.collection("subscribers").doc(subscriberId);
