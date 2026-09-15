@@ -47,7 +47,7 @@ Hace más rápida la vista "Cobros con error" y el aviso de órdenes que no se c
 3. Tocá **Crear** y esperá unos minutos a que diga "Habilitado".
 
 ### 1.4 Chequeo de salud (después de que publique)
-Abrí https://www.recurrentesapp.com/api/cron?action=health estando logueado en Recurrentes con tu mail de admin. Muestra, integración por integración, qué variables faltan (nunca los valores) y si los procesos automáticos están corriendo.
+Entrá a https://www.recurrentesapp.com/#/admin con tu cuenta de Google `thiagoacunacontacto123@gmail.com`. Arriba de todo está la tarjeta **"Salud del sistema"**: dice si falta alguna variable (nunca muestra los valores), si la base de datos responde y si los procesos automáticos están corriendo. "Ver detalle por integración" lo muestra integración por integración. Los procesos pueden figurar "Atrasado" durante los primeros 10 minutos después de publicar.
 
 📸 Captura de lo que muestra.
 

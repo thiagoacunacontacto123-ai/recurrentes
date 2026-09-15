@@ -161,6 +161,8 @@ export function AdminPage() {
         </Callout>
       )}
 
+      <HealthPanel T={T}/>
+
       <div style={kpiGrid}>
         <KpiCard T={T} hero loading={!ov} label="Comercios" value={fmtN(o.merchants?.accounts)} color={T.accentSolid}
           hint={`+${fmtN(o.merchants?.new_30d)} en 30 días${o.merchants?.stores_extra ? ` · ${fmtN(o.merchants.stores_extra)} tiendas extra` : ""}`} spark={lastN(sig.cumulative, 30)}/>
@@ -247,6 +249,76 @@ export function AdminPage() {
 
       {openId && <MerchantPanel id={openId} onClose={() => setOpenId(null)} onChanged={reloadAll}/>}
     </div>
+  );
+}
+
+// ─── Salud del sistema (/api/cron?action=health: solo admins, nunca valores) ───
+function HealthPanel({ T }) {
+  const [h, setH] = useState(null);
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const d = await apiGet("cron", { action: "health" });
+      if (!d || d.error) { setH(null); setErr(d?.error ? `No pudimos revisar la salud (${d.error}). ¿Tu mail está en ADMIN_EMAILS?` : "No pudimos revisar la salud."); }
+      else { setErr(""); setH(d); }
+    } catch (e) { setErr(e.message || "No pudimos revisar la salud."); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  const fails = h?.summary?.required_failed || [];
+  const warns = h?.summary?.warnings || [];
+  const tone = !h ? T.textSm : fails.length ? T.red : warns.length ? T.yellow : T.green;
+  const status = !h ? (err ? "Sin datos" : "Revisando…") : fails.length ? "Falta configurar algo" : warns.length ? "Anda, con avisos" : "Todo en orden";
+  const card = { border:`1px solid ${T.borderL}`, borderRadius:10, padding:"8px 10px", background:T.bg };
+  const head = { display:"flex", justifyContent:"space-between", gap:8, fontSize:DS.font.sm, fontWeight:700, color:T.text };
+  const small = { fontSize:DS.font.xs, color:T.textSm, marginTop:3, wordBreak:"break-word" };
+  return (
+    <Panel T={T} title="Salud del sistema" style={{ marginBottom:16 }}
+      sub={h ? `Revisado ${fmtDateTime(h.checked_at)} · variables de Vercel, base de datos y procesos automáticos` : "Variables de Vercel, base de datos y procesos automáticos"}
+      right={<div style={{ display:"flex", gap:8, alignItems:"center" }}>
+        <DSBadge T={T} color={tone}>{status}</DSBadge>
+        <Btn T={T} variant="secondary" size="sm" onClick={load} disabled={loading}>{loading ? "Revisando…" : "Revisar"}</Btn>
+      </div>}>
+      {err && <div style={{ color:T.red, fontSize:DS.font.sm }}>{err}</div>}
+      {h && (<>
+        {[...fails.map(t => [T.red, "✕", t]), ...warns.map(t => [T.yellow, "!", t])].map(([c, i, t]) => (
+          <div key={t} style={{ display:"flex", gap:8, alignItems:"flex-start", fontSize:DS.font.sm, color:T.text, padding:"3px 0" }}>
+            <span style={{ color:c, fontWeight:800, width:14, textAlign:"center", flexShrink:0 }}>{i}</span><span>{t}</span>
+          </div>
+        ))}
+        {!fails.length && !warns.length && <div style={{ fontSize:DS.font.sm, color:T.textMd }}>Variables, base de datos y procesos automáticos: todo bien.</div>}
+        <button type="button" onClick={() => setOpen(o => !o)} style={{ marginTop:8, background:"none", border:"none", color:T.accentSolid, cursor:"pointer", padding:0, fontSize:DS.font.sm, fontWeight:600 }}>
+          {open ? "Ocultar detalle" : "Ver detalle por integración"}
+        </button>
+        {open && (
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:8, marginTop:10 }}>
+            {Object.entries(h.env || {}).map(([id, g]) => {
+              const missing = Object.entries(g.vars || {}).filter(([, v]) => !v).map(([k]) => k);
+              return (
+                <div key={id} style={card}>
+                  <div style={head}><span>{g.label}</span><span style={{ color: g.configured ? T.green : g.required ? T.red : T.textSm }}>{g.configured ? "✓" : g.required ? "Falta" : "Apagado"}</span></div>
+                  {!g.configured && missing.length > 0 && <div style={small}>Falta: {missing.join(", ")}</div>}
+                </div>
+              );
+            })}
+            <div style={card}>
+              <div style={head}><span>Base de datos</span><span style={{ color: h.firestore?.reachable ? T.green : T.red }}>{h.firestore?.reachable ? "✓" : "No responde"}</span></div>
+              {h.firestore?.latency_ms != null && <div style={small}>Respondió en {h.firestore.latency_ms} ms</div>}
+            </div>
+            {Object.entries(h.crons || {}).map(([name, c]) => (
+              <div key={`cron-${name}`} style={card}>
+                <div style={head}><span>Proceso {name}</span><span style={{ color: c.stale ? T.red : T.green }}>{c.stale ? "Atrasado" : "✓"}</span></div>
+                <div style={small}>{c.minutes_since_ok == null ? "Todavía no corrió desde que se publicó" : `Último OK hace ${c.minutes_since_ok} min`}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </>)}
+    </Panel>
   );
 }
 
