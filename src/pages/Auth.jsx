@@ -5,7 +5,7 @@
 import React, { useState, useEffect } from "react";
 import { auth } from "../lib/firebase.js";
 import {
-  GoogleAuthProvider, signInWithPopup,
+  GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult,
   createUserWithEmailAndPassword, signInWithEmailAndPassword,
   sendEmailVerification, sendPasswordResetEmail, updateProfile,
 } from "firebase/auth";
@@ -17,6 +17,8 @@ import Landing from "./Landing.jsx";
 const F = "'Inter',system-ui,sans-serif";
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });
+// Navegadores dentro de apps (Instagram, Facebook, TikTok…): Google bloquea el login ahí (disallowed_useragent).
+const IN_APP_BROWSER = typeof navigator !== "undefined" && /Instagram|FBAN|FBAV|FB_IAB|Line\/|TikTok|musical_ly/i.test(navigator.userAgent || "");
 
 function authViewFromHash() {
   const h = (typeof window !== "undefined" ? window.location.hash : "").toLowerCase().replace(/^#\/?/, "").split("?")[0];
@@ -58,6 +60,9 @@ const ERR = {
   "auth/operation-not-allowed": "Ese método de acceso no está habilitado.",
   "auth/user-disabled": "Esta cuenta está deshabilitada.",
   "auth/missing-password": "Ingresá tu contraseña.",
+  "auth/unauthorized-domain": "El acceso con Google todavía no está habilitado en este sitio. Mientras tanto entrá con tu email y contraseña.",
+  "auth/web-storage-unsupported": "Tu navegador bloquea el inicio de sesión (cookies desactivadas o modo privado estricto). Probá con otro navegador.",
+  "auth/internal-error": "Google no respondió bien. Probá de nuevo en unos segundos.",
 };
 const errMsg = (e) => ERR[e?.code] || e?.message || "Ocurrió un error. Intentá de nuevo.";
 
@@ -73,16 +78,24 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
   const isLogin = mode === "login", isRegister = mode === "register", isReset = mode === "reset";
 
   useEffect(() => { setError(""); setInfo(""); }, [mode]);
+  // Vuelta de signInWithRedirect (cuando el navegador bloqueó la ventana): si falló, mostramos el error.
+  useEffect(() => { getRedirectResult(auth).catch(e => setError(errMsg(e))); }, []);
 
   const changeMode = (m) => { if (setMode) setMode(m); };
 
   async function handleGoogle() {
     if (isRegister && !acepta) return setError("Tenés que aceptar los Términos y la Política de privacidad.");
+    if (IN_APP_BROWSER) return setError("Google no deja entrar desde el navegador de Instagram o Facebook. Abrí esta página en Chrome o Safari (menú ⋯ → Abrir en el navegador).");
     setLoading(true); setError("");
     try {
       await signInWithPopup(auth, googleProvider);
       // App detecta el user vía onAuthStateChanged; el merchant se crea en el primer GET /api/merchant.
-    } catch (e) { setError(errMsg(e)); }
+    } catch (e) {
+      // Ventana bloqueada: probamos en la misma pestaña (vuelve con getRedirectResult).
+      if (e?.code === "auth/popup-blocked") {
+        try { await signInWithRedirect(auth, googleProvider); return; } catch (e2) { setError(errMsg(e2)); }
+      } else setError(errMsg(e));
+    }
     setLoading(false);
   }
 
@@ -142,6 +155,7 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
                 <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
                 {isRegister ? "Registrarme con Google" : "Continuar con Google"}
               </button>
+              {isLogin && <div style={{fontSize:11,color:T.textSm,textAlign:"center",margin:"-10px 0 16px",lineHeight:1.5}}>Si es tu primera vez, al continuar con Google aceptás los <a href="#/terminos" target="_blank" rel="noreferrer" style={{color:T.textSm}}>Términos</a> y la <a href="#/privacidad" target="_blank" rel="noreferrer" style={{color:T.textSm}}>Privacidad</a>.</div>}
               <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18}}>
                 <div style={{flex:1,height:1,background:T.border}}/>
                 <span style={{fontSize:12,color:T.textSm}}>o con email</span>
