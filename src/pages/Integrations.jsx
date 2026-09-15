@@ -11,6 +11,7 @@ import { MP_RECONNECT_COPY, MP_LAST_ERROR_COPY } from "../lib/mpOauth.js";
 import { CHANNELS, PAYMENT_PROVIDERS, merchantProfile } from "../../shared/platform/profile.js";
 import { ShopifyConnectSteps, ShopifyTroubleshoot, ShopifyScopeNotice, TutorialVideo, shopifyCredsWarning } from "./ShopifyConnect.jsx";
 import { WhatsAppRow } from "./WhatsAppIntegration.jsx";
+import { UsdProviderRows } from "./UsdProviders.jsx";
 
 // ─── Integraciones (Configuración → Integraciones) — estilo Growith ──────
 // Una tarjeta con filas agrupadas (Tienda · Pasarelas · Publicidad · Emails):
@@ -362,7 +363,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
 
   // Lo que viene (visible, no elegible).
   const soonChannels = Object.values(CHANNELS).filter(c => c.status !== "available" && c.id !== profile.channel && c.types.includes(profile.businessType));
-  const soonProviders = Object.values(PAYMENT_PROVIDERS).filter(p => p.status !== "available");
+  const soonProviders = Object.values(PAYMENT_PROVIDERS).filter(p => p.status !== "available" && !(p.id === "stripe" && m.stripe_enabled) && !(p.id === "whop" && m.whop_enabled));
   const reqTotal = profile.channel === "shopify" ? 2 : 1;
   const reqOk = (profile.channel === "shopify" ? Number(shopifyOk) : 0) + Number(mpOk);
   const code = (t) => <code style={{ fontFamily:MONO, fontSize:DS.font.sm, color:T.text }}>{t}</code>;
@@ -434,6 +435,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
         </Row>
         {m.mobbex_available && <MobbexRow T={T} m={m} profile={profile} onChange={onChange} open={open === "mobbex"} onToggle={() => toggle("mobbex")}/>}
         {soonProviders.filter(p => !(p.id === "mobbex" && m.mobbex_available)).map(p => <Row key={p.id} T={T} id={p.id} label={p.label} soon sub={p.desc}/>)}
+        <UsdProviderRows T={T} m={m} onChange={onChange} open={open} toggle={toggle} ui={{ Row, Modal, Steps, CopyCode, S }}/>{/* Stripe / Whop si su *_ENABLED está prendido */}
 
         {/* ── Publicidad ── */}
         <GroupTitle T={T}>Publicidad</GroupTitle>

@@ -70,9 +70,12 @@ import { startMpOauth, mpOauthConfigured, mpConnectionStatus } from "./_lib/mpOa
 import { whatsappApi } from "./_lib/whatsappApi.js";
 import { whatsappSafe } from "./_lib/whatsapp.js";
 import { transferApi, publicPending } from "./_lib/transfer.js";
+import { providerFlags, providerConnectAction, PROVIDER_CONNECT_ACTIONS, STRIPE_CALLBACK_ACTION, stripeConnectCallback } from "./_lib/providers/stripeWhopApi.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
+  // Stripe Connect vuelve acá sin Bearer (redirect del navegador): el merchant sale del state firmado.
+  if (req.method === "GET" && String(req.query?.action || "") === STRIPE_CALLBACK_ACTION) return stripeConnectCallback(req, res);
   // Transferir tienda a otra cuenta (_lib/transfer.js): cada acción hace su propia auth.
   const qAction = String(req.query?.action || "");
   if (qAction.startsWith("transfer-")) return transferApi(req, res, { secciones: SECCIONES, storeName: storeDisplayName });
@@ -214,6 +217,8 @@ export default async function handler(req, res) {
         // admin_view = "ver como" activo (solo lectura).
         is_admin: ctx.is_admin === true,
         admin_view: ctx.admin_view === true,
+        // Stripe / Whop (USD): flags de env + estado de conexión. Nunca claves.
+        ...(await providerFlags(merchant)),
       };
       return res.json({ merchant: safe });
     } catch (e) {
@@ -254,6 +259,7 @@ export default async function handler(req, res) {
     if (action === "save-owner")           return saveOwner(ctx, req, res);
     if (action.startsWith("flow-"))        return flowsApi(ctx, action, req, res);
     if (action.startsWith("whatsapp-"))    return whatsappApi(ctx, action, req, res);
+    if (PROVIDER_CONNECT_ACTIONS.has(action)) return providerConnectAction(ctx, action, req, res); // Stripe / Whop (solo dueño)
 
     // Multi-tienda / equipo
     if (action === "store-create")   return storeCreate(ctx, req, res);
