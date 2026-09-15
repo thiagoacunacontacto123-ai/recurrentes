@@ -33,9 +33,15 @@ export default async function handler(req, res) {
   try {
     const merchantRef = db().collection("merchants").doc(merchantId);
 
-    // Subs completos + charges acotados: por rango (?from&to) o últimos 400.
-    // Requiere índice charges (created_at desc) — ver firestore.indexes.json.
-    const chargesQ = chargesRange(merchantRef.collection("charges"), req.query);
+    // Período del Inicio (?days=7|30|90, default 30). Charges desde el inicio del
+    // período ANTERIOR (para los deltas) o del mes pasado (revenue.last_month),
+    // lo que sea más viejo. Índice simple sobre created_at.
+    const days = [7, 30, 90].includes(parseInt(req.query.days)) ? parseInt(req.query.days) : 30;
+    const _now = new Date();
+    const periodFromIso = new Date(_now.getTime() - 2 * days * 86400000 - 86400000).toISOString();
+    const lastMonthFromIso = new Date(_now.getFullYear(), _now.getMonth() - 1, 1).toISOString();
+    const windowFromIso = periodFromIso < lastMonthFromIso ? periodFromIso : lastMonthFromIso;
+    const chargesQ = merchantRef.collection("charges").where("created_at", ">=", windowFromIso).orderBy("created_at", "desc").limit(5000);
     const [subsSnap, chargesSnap] = await Promise.all([
       merchantRef.collection("subscribers").get(),
       chargesQ.get(),
@@ -139,6 +145,7 @@ export default async function handler(req, res) {
       },
       growth: { new_7d: new7, new_30d: new30, cancelled_30d: cancelled30, churn_rate_pct: Math.round(churnRate * 10) / 10 },
       upcoming_charges: upcomingCharges.slice(0, 10),
+      period: buildPeriod(subs, charges, days, mrr),
     });
   } catch (e) {
     return res.status(500).json({ error: e.message });
@@ -266,6 +273,112 @@ function chargesRange(col, query = {}) {
   return q.limit(from || to ? 2000 : 400);
 }
 
+
+// ─── Período del Inicio (?days=7|30|90) ─────────────────────────────────────
+// KPIs del período vs el período anterior del mismo largo + series diarias
+// (días en hora Argentina). Activas / MRR por día se reconstruyen con las fechas
+// del sub (alta, baja), igual que analytics: es una aproximación (no ve pausas
+// históricas); el último punto se iguala al valor real de hoy.
+const AR_OFFSET_MS = 3 * 3600 * 1000;
+const DAY_MS = 86400000;
+const arDay = (iso) => { const t = Date.parse(iso || ""); return Number.isFinite(t) ? new Date(t - AR_OFFSET_MS).toISOString().slice(0, 10) : ""; };
+// Fin del día AR (23:59:59.999 hora Argentina) como ISO UTC.
+const arDayEndIso = (key) => new Date(Date.parse(key + "T23:59:59.999Z") + AR_OFFSET_MS).toISOString();
+const perChargeOf = (s) => {
+  const qty = s.quantity || s.plan_snapshot?.units_per_shipment || 1;
+  return s.plan_snapshot?.total_per_charge_ars || ((s.plan_snapshot?.subscription_price_ars || 0) * qty);
+};
+const mrrOfSub = (s) => perChargeOf(s) * (30 / (s.plan_snapshot?.frequency_days || 30));
+const everChargedSub = (s) => !!s.last_charge_at || (Array.isArray(s.shopify_orders) && s.shopify_orders.length > 0) || ["active", "paused", "payment_failed"].includes(s.status);
+// Fecha desde la que el sub dejó de estar activo (null = sigue activo). Pausadas y
+// con pago fallido salen de la cuenta desde su cambio de estado, así el último
+// punto de la serie coincide con las activas reales de hoy.
+const leftAtIso = (s) => s.status === "cancelled" ? (s.cancelled_at || s.updated_at || "")
+  : s.status === "paused" ? (s.paused_at || s.updated_at || "")
+  : s.status === "payment_failed" ? (s.last_payment_failed_at || s.updated_at || "")
+  : null;
+const aliveAtIso = (s, tIso) => {
+  if (s.status === "pending" || !everChargedSub(s)) return false;
+  if ((s.first_charge_at || s.activated_at || s.created_at || "") > tIso) return false;
+  const left = leftAtIso(s);
+  return left == null || left > tIso;
+};
+
+export function buildPeriod(subs, charges, days, mrrNow, nowMs = Date.now()) {
+  const keys = [], prevKeys = [];
+  for (let i = days - 1; i >= 0; i--) keys.push(arDay(new Date(nowMs - i * DAY_MS).toISOString()));
+  for (let i = 2 * days - 1; i >= days; i--) prevKeys.push(arDay(new Date(nowMs - i * DAY_MS).toISOString()));
+  const inCur = new Set(keys), inPrev = new Set(prevKeys);
+  const zero = () => Object.fromEntries(keys.map(k => [k, 0]));
+  const cobrado = zero(), cobros = zero(), nuevas = zero(), bajas = zero(), fallidos = zero();
+  const prev = { cobrado: 0, cobros: 0, nuevas: 0, bajas: 0, fallidos: 0 };
+
+  for (const c of charges) {
+    if (c.error || (c.status && c.status !== "approved") || isSimCharge(c.id, c)) continue;
+    const k = arDay(c.created_at), amt = Number(c.amount_ars) || 0;
+    if (inCur.has(k)) { cobrado[k] += amt; cobros[k]++; }
+    else if (inPrev.has(k)) { prev.cobrado += amt; prev.cobros++; }
+  }
+  for (const s of subs) {
+    if (s.status !== "pending" && everChargedSub(s)) {
+      const k = arDay(s.first_charge_at || s.activated_at || s.created_at);
+      if (inCur.has(k)) nuevas[k]++; else if (inPrev.has(k)) prev.nuevas++;
+    }
+    if (s.status === "cancelled") {
+      const k = arDay(s.cancelled_at || s.updated_at);
+      if (inCur.has(k)) bajas[k]++; else if (inPrev.has(k)) prev.bajas++;
+    }
+    if (s.last_payment_failed_at) {
+      const k = arDay(s.last_payment_failed_at);
+      if (inCur.has(k)) fallidos[k]++; else if (inPrev.has(k)) prev.fallidos++;
+    }
+  }
+
+  // Activas y MRR al cierre de cada día (hoy = ahora). days × subs: 90 × miles, liviano.
+  const nowIso = new Date(nowMs).toISOString();
+  const activas = [], mrr = [];
+  keys.forEach((k, i) => {
+    const t = i === keys.length - 1 ? nowIso : arDayEndIso(k);
+    let n = 0, m = 0;
+    for (const s of subs) if (aliveAtIso(s, t)) { n++; m += mrrOfSub(s); }
+    activas.push(n); mrr.push(Math.round(m));
+  });
+  const activeNow = subs.filter(s => s.status === "active").length;
+  activas[activas.length - 1] = activeNow;
+  mrr[mrr.length - 1] = Math.round(mrrNow);
+
+  // Valores al cierre del período anterior (para el delta de activas y MRR).
+  const startIso = arDayEndIso(prevKeys[prevKeys.length - 1]);
+  let activasPrev = 0, mrrPrev = 0;
+  for (const s of subs) if (aliveAtIso(s, startIso)) { activasPrev++; mrrPrev += mrrOfSub(s); }
+
+  const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
+  const cur = { cobrado: sum(cobrado), cobros: sum(cobros), nuevas: sum(nuevas), bajas: sum(bajas), fallidos: sum(fallidos) };
+  const base = activasPrev + cur.nuevas;
+  return {
+    days, from: keys[0], to: keys[keys.length - 1],
+    kpis: {
+      mrr: { value: Math.round(mrrNow), prev: Math.round(mrrPrev) },
+      activas: { value: activeNow, prev: activasPrev },
+      cobrado: { value: Math.round(cur.cobrado), prev: Math.round(prev.cobrado) },
+      cobros: { value: cur.cobros, prev: prev.cobros },
+      nuevas: { value: cur.nuevas, prev: prev.nuevas },
+      bajas: { value: cur.bajas, prev: prev.bajas },
+      fallidos: { value: cur.fallidos, prev: prev.fallidos },
+      churn_pct: base > 0 ? Math.round((cur.bajas / base) * 1000) / 10 : 0,
+    },
+    series: {
+      dates: keys,
+      cobrado: keys.map(k => Math.round(cobrado[k])),
+      cobros: keys.map(k => cobros[k]),
+      nuevas: keys.map(k => nuevas[k]),
+      bajas: keys.map(k => bajas[k]),
+      fallidos: keys.map(k => fallidos[k]),
+      activas,
+      mrr,
+    },
+  };
+}
 
 // ─── GET ?action=analytics&months=N ─────────────────────────────────────────
 // Lecturas acotadas: subs completos (ya se leen en el Home) + charges de los
