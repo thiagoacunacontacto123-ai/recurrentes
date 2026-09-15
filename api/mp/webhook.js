@@ -455,8 +455,11 @@ async function handlePreapproval(preapprovalId, hintMid) {
 async function healRecentActiveNoOrder(merchantId, limit = 1) {
   try {
     const cutoff = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
-    const snap = await db().collection("merchants").doc(merchantId).collection("subscribers")
-      .where("status", "==", "active").get();
+    const subsCol = db().collection("merchants").doc(merchantId).collection("subscribers");
+    // Solo las activas creadas en la ventana (índice status+created_at): el filtro de
+    // abajo descartaba el resto igual. Sin índice → lectura completa como antes.
+    const snap = await subsCol.where("status", "==", "active").where("created_at", ">=", cutoff).get()
+      .catch(() => subsCol.where("status", "==", "active").get());
     let done = 0;
     for (const doc of snap.docs) {
       if (done >= limit) break;

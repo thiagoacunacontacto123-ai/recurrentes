@@ -539,3 +539,31 @@ export async function shCreatePaidOrder(shop, token, params) {
     throw e;
   }
 }
+
+// ¿Existe YA una orden para este pago de MP? Solo lectura. Busca entre las órdenes
+// del CLIENTE (mail exacto; en Shopify el mail de cliente es único) la que tenga
+// note_attributes.mp_payment_id = paymentId. No depende del volumen de la tienda
+// (a diferencia de findRecentOrderByPaymentId, que mira las últimas 50 de 48h).
+//   { verified:true, order:{id, order_status_url}|null } · { verified:false, reason }
+// verified:false = no se pudo confirmar → quien llama NO debe crear la orden.
+export async function shFindOrderForPayment(shop, token, email, paymentId) {
+  const emailNorm = String(email || "").trim().toLowerCase();
+  if (!emailNorm) return { verified: false, reason: "sin mail del cliente" };
+  const want = String(paymentId);
+  try {
+    const search = await call(shop, token, "GET", `/customers/search.json?query=email:${encodeURIComponent(emailNorm)}&fields=id,email&limit=50`);
+    const all = search.customers || [];
+    const matches = all.filter(c => String(c.email || "").toLowerCase() === emailNorm);
+    if (!matches.length) return all.length >= 50 ? { verified: false, reason: "búsqueda de clientes incompleta" } : { verified: true, order: null, customer: false };
+    for (const c of matches) {
+      const data = await call(shop, token, "GET", `/customers/${encodeURIComponent(String(c.id))}/orders.json?status=any&limit=250&fields=id,order_status_url,note_attributes`);
+      const orders = data.orders || [];
+      const hit = orders.find(o => (o.note_attributes || []).some(a => a.name === "mp_payment_id" && String(a.value) === want));
+      if (hit) return { verified: true, order: { id: hit.id, order_status_url: hit.order_status_url || null } };
+      if (orders.length >= 250) return { verified: false, reason: "el cliente tiene demasiadas órdenes para verificar" };
+    }
+    return { verified: true, order: null, customer: true };
+  } catch (e) {
+    return { verified: false, reason: String(e.message || e).slice(0, 200) };
+  }
+}

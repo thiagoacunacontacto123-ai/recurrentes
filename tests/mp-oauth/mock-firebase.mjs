@@ -95,3 +95,5 @@ const _db = {
 };
 export function db() { return _db; }
 export async function requireMerchant() { throw new Error("no usar en tests"); }
+// cron.js importa _lib/health.js, que usa initAdmin (Firebase Auth) solo en ?action=health.
+export function initAdmin() {}
