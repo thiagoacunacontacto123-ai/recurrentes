@@ -9,6 +9,7 @@ import { WidgetThemeCard } from "./OperationalSettings.jsx";
 import { MONO, fmtDateShort } from "./_shared.jsx";
 import { MP_RECONNECT_COPY, MP_LAST_ERROR_COPY } from "../lib/mpOauth.js";
 import { CHANNELS, PAYMENT_PROVIDERS, merchantProfile } from "../../shared/platform/profile.js";
+import { ShopifyConnectSteps, ShopifyTroubleshoot, ShopifyScopeNotice, TutorialVideo, shopifyCredsWarning } from "./ShopifyConnect.jsx";
 
 // ─── Integraciones (Configuración → Integraciones) — estilo Growith ──────
 // Una tarjeta con filas agrupadas (Tienda · Pasarelas · Publicidad · Emails):
@@ -19,7 +20,6 @@ import { CHANNELS, PAYMENT_PROVIDERS, merchantProfile } from "../../shared/platf
 
 const F = "'Inter',system-ui,sans-serif";
 const BRAND = { shopify:"#95BF47", tiendanube:"#00a0e3", impultienda:"#111827", link:"#10b981", mercadopago:"#00B1EA", mobbex:"#6f2cf5", stripe:"#635BFF", whop:"#FA4616", meta:"#1877F2", klaviyo:"#232426" };
-const SHOPIFY_SCOPES = "read_products,write_orders,read_orders,read_customers,write_customers,write_draft_orders";
 
 // Dominio de Shopify: completa .myshopify.com y detecta si pegaron el dominio propio.
 function parseShop(raw) {
@@ -247,11 +247,14 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
   const [clientSecret, setClientSecret] = useState("");
   const shopP = parseShop(shopRaw);
   const openShopify = () => { setShopRaw(m.shopify_shop || ""); setClientId(""); setClientSecret(""); setModal("shopify"); };
+  // Reconectar con la app ya guardada (misma tienda, campos vacíos): no hace falta volver a pegar las claves.
+  const reuseCreds = !envApp && Boolean(m.shopify_has_own_app) && shopP.ok && shopP.shop === m.shopify_shop && !clientId.trim() && !clientSecret.trim();
+  const credsWarn = envApp ? "" : shopifyCredsWarning(clientId, clientSecret);
   async function connectShopify() {
     if (!shopP.ok) return toast("Poné el dominio .myshopify.com de tu tienda", "warning");
-    if (!envApp && (!clientId.trim() || !clientSecret.trim())) return toast("Pegá el Client ID y el Client Secret de tu app", "warning");
+    if (!envApp && !reuseCreds && (!clientId.trim() || !clientSecret.trim())) return toast("Pegá el Client ID y el Client Secret de tu app", "warning");
     setBusy("shopify");
-    const d = await apiPost("shopify", { shop: shopP.shop, client_id: clientId.trim(), client_secret: clientSecret.trim() }, { action: "save-creds" });
+    const d = reuseCreds ? {} : await apiPost("shopify", { shop: shopP.shop, client_id: clientId.trim(), client_secret: clientSecret.trim() }, { action: "save-creds" });
     if (d?.error) { setBusy(""); return toast("Error: " + d.error, "error", 6000); }
     // oauth-start (autenticado) devuelve la URL de consentimiento de Shopify.
     const o = await apiGet("shopify", { action: "oauth-start" });
@@ -388,6 +391,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
               <span style={{ fontSize:DS.font.md, color:T.textMd }}>Tienda: {code(m.shopify_shop || "—")}</span>
               <button type="button" style={b.ghost} onClick={openShopify}>Reconectar</button>
             </div>
+            <ShopifyScopeNotice T={T} scope={m.shopify_scope} onReconnect={openShopify}/>
             <div style={{ height:1, background:T.borderL, margin:"0 0 14px" }}/>
             <WidgetThemeCard merchant={m} onChange={onChange} bare/>
           </Row>
@@ -480,24 +484,22 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
 
       {/* ── Modales de conexión ── */}
       {modal === "shopify" && (
-        <Modal T={T} title="Conectar Shopify" busy={busy === "shopify"} onClose={close}
-          sub={envApp ? "Poné tu dominio .myshopify.com, tocá Autorizar y aceptá en Shopify. Listo." : "Creás una app en tu Shopify (5 minutos) y pegás las 2 claves. Te guiamos paso a paso."}
+        <Modal T={T} title={shopifyOk ? "Reconectar Shopify" : "Conectar Shopify"} busy={busy === "shopify"} onClose={close} maxWidth={envApp ? 560 : 640}
+          sub={envApp ? "Poné tu dominio .myshopify.com, tocá Autorizar y aceptá en Shopify. Listo." : "Creás tu propia app en Shopify (5 minutos, una sola vez) y pegás 2 claves. Te guiamos paso a paso y copiás todo con un botón."}
           footer={<>
             <Btn T={T} variant="secondary" onClick={close} disabled={busy === "shopify"}>Cancelar</Btn>
-            <Btn T={T} variant="solid" onClick={connectShopify} disabled={busy === "shopify" || !shopP.ok || (!envApp && (!clientId.trim() || !clientSecret.trim()))}>{busy === "shopify" ? <><Spinner size={12}/> Conectando…</> : "Autorizar en Shopify →"}</Btn>
+            <Btn T={T} variant="solid" onClick={connectShopify} disabled={busy === "shopify" || !shopP.ok || (!envApp && !reuseCreds && (!clientId.trim() || !clientSecret.trim()))}>{busy === "shopify" ? <><Spinner size={12}/> Conectando…</> : "Autorizar en Shopify →"}</Btn>
           </>}>
           {!envApp && (
-            <Steps T={T} title="Crear tu app en Shopify">
-              <li>Entrá a <A T={T} href="https://dev.shopify.com/dashboard">dev.shopify.com/dashboard</A> → <S T={T}>Crear app</S> → nombre <S T={T}>Recurrentes</S>.</li>
-              <li>En <S T={T}>Configuración → URLs</S> agregá esta URL de redirección:<CopyCode T={T} text={`${window.location.origin}/api/shopify/oauth-callback`}/></li>
-              <li>En <S T={T}>Acceso a la API (scopes)</S> marcá estos permisos:<CopyCode T={T} text={SHOPIFY_SCOPES}/></li>
-              <li>Guardá y andá a <S T={T}>Credenciales</S>: copiá el <S T={T}>ID de cliente</S> y el <S T={T}>Secreto</S> (tocá el ojito para verlo).</li>
-              <li>Pegalos abajo con tu dominio y tocá <S T={T}>Autorizar</S>. En Shopify aceptá la instalación y volvés conectado.</li>
-            </Steps>
+            <>
+              <TutorialVideo T={T}/>
+              <ShopifyConnectSteps T={T}/>
+            </>
           )}
           <Field T={T} label={envApp ? "Tu dominio Shopify" : "1 · Tu dominio Shopify"}>
             <input value={shopRaw} onChange={e => setShopRaw(e.target.value)} placeholder="tu-tienda.myshopify.com" style={iS} autoFocus disabled={busy === "shopify"}/>
           </Field>
+          {!shopRaw.trim() && <Hint T={T}>Es el dominio interno de Shopify: termina en <S T={T}>.myshopify.com</S>. Lo ves en tu admin de Shopify → Configuración → Dominios. Si escribís solo la primera parte, completamos el resto.</Hint>}
           {shopRaw.trim() && (
             <div style={{ fontSize:11, margin:"-4px 0 10px", padding:"6px 10px", borderRadius:6, background:(shopP.ok ? T.green : T.red) + "14", border:`1px solid ${(shopP.ok ? T.green : T.red)}44`, color:T.text }}>
               {shopP.ok ? <>Se va a conectar <S T={T}>{shopP.shop}</S>{shopP.completed && <span style={{ color:T.textSm }}> (completamos el .myshopify.com)</span>}</>
@@ -513,9 +515,12 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
               <Field T={T} label="3 · Client Secret (Secreto)">
                 <input type="password" value={clientSecret} onChange={e => setClientSecret(e.target.value)} placeholder="••••••••••••••••••••••••••••••••" style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} disabled={busy === "shopify"}/>
               </Field>
-              <Hint T={T}>La URL de redirección de tu app tiene que ser exactamente la del paso 2; si no, Shopify rechaza la autorización.</Hint>
+              {reuseCreds && <Hint T={T} style={{ color:T.green }}>Ya tenemos guardadas las claves de tu app: dejá los campos vacíos para reconectar con las mismas, o pegá nuevas.</Hint>}
+              {credsWarn && <Hint T={T} style={{ color:T.red }}>{credsWarn}</Hint>}
+              <Hint T={T}>Las claves quedan guardadas en el servidor y nunca se muestran de vuelta.</Hint>
             </>
           )}
+          <ShopifyTroubleshoot T={T}/>
         </Modal>
       )}
 

@@ -6,6 +6,7 @@ import { BtnPrimary, BtnSecondary, Btn, Card, SectionIcon, Callout, DSEmpty, Tip
 import { RecLogo } from "../ui/Shell.jsx";
 import { STEP_ICONS, TIPS, SECTION_NEEDS, WHATSAPP_SOPORTE, useOnb, planHiddenKey, readFlag, writeFlag, goGuideSection, planExample } from "../lib/onboarding.js";
 import { merchantProfile } from "../../shared/platform/profile.js";
+import { SHOPIFY_SCOPE_IDS } from "../../shared/platform/shopify.js";
 import BusinessProfileSection from "./BusinessProfile.jsx";
 
 // ─────────────────────────────────────────────────────────────────
@@ -222,7 +223,7 @@ export default function OnboardingWizard({ T: Tp, DS: DSp, merchant, onb, onClos
               ))}
             </div>
 
-            {s.id === "shopify" && <StepHint T={T} DS={DS}>Los permisos exactos son <Code T={T}>read_products</Code> <Code T={T}>write_orders</Code> <Code T={T}>read_customers</Code> <Code T={T}>write_customers</Code> <Code T={T}>read_shipping</Code>. Están copiables en la guía.</StepHint>}
+            {s.id === "shopify" && <StepHint T={T} DS={DS}>Los permisos exactos son {SHOPIFY_SCOPE_IDS.map(sc => <React.Fragment key={sc}><Code T={T}>{sc}</Code> </React.Fragment>)}. En Conectar Shopify los copiás con un botón.</StepHint>}
             {s.id === "mp" && <StepHint T={T} DS={DS}>Usá el token de <strong style={{ color:T.text }}>producción</strong> (empieza con <Code T={T}>APP_USR-</Code>). Con uno <Code T={T}>TEST-</Code> podés probar, pero nadie te va a poder pagar de verdad.</StepHint>}
             {s.id === "plan" && <StepHint T={T} DS={DS}>Un buen arranque: pack x1 al precio normal con 10% de descuento por suscribirse, y pack x2 o x3 un poco más barato por unidad.</StepHint>}
             {s.id === "snippet" && <StepHint T={T} DS={DS}>Se pega una sola vez para toda la tienda. El widget solo aparece en los productos que tienen plan activo.</StepHint>}

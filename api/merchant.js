@@ -111,6 +111,7 @@ export default async function handler(req, res) {
         shopify_connected_at: merchant.shopify_connected_at || null,
         shopify_has_own_app: !!(merchant.shopify_client_id && merchant.shopify_client_secret),
         shopify_env_app: !!(process.env.SHOPIFY_API_KEY && process.env.SHOPIFY_API_SECRET),
+        shopify_scope: merchant.shopify_scope || null,   // permisos que dio Shopify (no es secreto): el panel sugiere reconectar si falta alguno
         // Datos de la tienda leídos de shop.json (OAuth / save-creds / refresh-shop).
         shop_name: merchant.shop_name || null,
         shop_email: merchant.shop_email || null,

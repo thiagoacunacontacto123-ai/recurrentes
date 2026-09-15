@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { DS, useT } from "../ui/theme.js";
 import { Card, Btn, Callout, PageHeader, SubTabs, toast } from "../ui/components.jsx";
 import { WHATSAPP_SOPORTE, useOnb, goConfigSection, goPlanesWidget } from "../lib/onboarding.js";
+import { SHOPIFY_SCOPES } from "../../shared/platform/shopify.js";
+import { ShopifyConnectSteps, ShopifyTroubleshoot, TutorialVideo } from "./ShopifyConnect.jsx";
 
 // ─────────────────────────────────────────────────────────────────
 // Guía escrita dentro de la app. Vive en Configuración → Ayuda (embedded);
@@ -26,7 +28,6 @@ export const GUIDE_SECTIONS = [
   { id:"klaviyo", label:"Klaviyo" },
   { id:"faq",     label:"Preguntas" },
 ];
-const SHOPIFY_SCOPES = ["read_products", "write_orders", "read_customers", "write_customers", "read_shipping"];
 
 function readHashSec() {
   try {
@@ -194,32 +195,23 @@ function SecInicio({ T, go, goTab }) {
   );
 }
 
+// Los pasos, el video y "¿Algo falló?" salen de ShopifyConnect.jsx (los mismos del
+// modal de Integraciones); los permisos, de shared/platform/shopify.js.
 function SecShopify({ T, onb, goTab, origin }) {
-  const redirect = `${origin}/api/shopify/oauth-callback`;
   return (
     <>
-      <Sec T={T} title="Conectar Shopify con una app personalizada" sub="Recurrentes entra a tu tienda con una app que creás vos en tu cuenta de Shopify. Es tuya, la controlás vos y la podés borrar cuando quieras. Lleva 5 minutos."
+      <Sec T={T} title="Conectar Shopify con tu propia app" sub="Recurrentes entra a tu tienda con una app que creás vos en el panel de desarrolladores de Shopify. Es tuya: la controlás vos y la podés borrar cuando quieras. Lleva 5 minutos y se hace una sola vez."
         right={<><StepStatus T={T} onb={onb} id="shopify"/><Btn T={T} variant="primary" size="sm" onClick={() => goConfigSection(goTab, "integraciones")}>Ir a Integraciones →</Btn></>}>
-        <Callout T={T} tone="info" style={{ marginBottom:12 }}>Si en Configuración → Integraciones la card de Shopify <B T={T}>no</B> te pide Client ID ni Secret, Recurrentes ya tiene una app propia configurada: solo pegá tu dominio <Code T={T}>tu-tienda.myshopify.com</Code>, tocá <B T={T}>Conectar tienda</B> e instalá. Podés saltear el resto de esta sección.</Callout>
-        <Steps T={T} items={[
-          <>Entrá a <A T={T} href="https://dev.shopify.com/dashboard">dev.shopify.com/dashboard</A> con la cuenta dueña de la tienda y tocá <B T={T}>Crear app</B>. Nombre: <Code T={T}>Recurrentes</Code>.<Crumb T={T} path="Shopify Dev Dashboard › Apps › Crear app"/></>,
-          <>Dentro de la app, andá a <B T={T}>Configuración</B>. En la sección <B T={T}>URLs</B> agregá esta Redirect URL <B T={T}>exactamente</B> así:<CodeBlock T={T} code={redirect}/></>,
-          <>En <B T={T}>Acceso a la API</B> (scopes / permisos) marcá estos cinco y guardá:
-            <Screen T={T} title="Shopify › Configuración › Acceso a la API" rows={SHOPIFY_SCOPES.map(s => ({ label:"☑ permiso", value:s, mono:true, hl:true }))}/>
-            <CodeBlock T={T} code={SHOPIFY_SCOPES.join(",")} label="Copiar lista"/>
-          </>,
-          <>Volvé a <B T={T}>Configuración → Credenciales</B>. Copiá el <B T={T}>ID de cliente</B> y el <B T={T}>Secreto</B> (tocá el ojito para verlo).
-            <Screen T={T} title="Shopify › Configuración › Credenciales" rows={[{ label:"ID de cliente", value:"a1b2c3d4e5f6…", mono:true }, { label:"Secreto", value:"shpss_••••••••••••", mono:true, btn:"👁 Ver" }]}/>
-          </>,
-          <>En Recurrentes → <B T={T}>Configuración → Integraciones → Shopify</B> pegá dominio, Client ID y Secret, y tocá <B T={T}>Conectar tienda →</B>.
-            <Screen T={T} title="Recurrentes › Configuración › Integraciones › Shopify" rows={[{ label:"Dominio", value:"tu-tienda.myshopify.com", mono:true }, { label:"Client ID", value:"a1b2c3d4e5f6…", mono:true }, { label:"Client Secret", value:"shpss_••••••••••••", mono:true, btn:"Conectar tienda →" }]}/>
-          </>,
-          <>Shopify te muestra la pantalla de permisos. Tocá <B T={T}>Instalar app</B>. Volvés a Recurrentes con Shopify en verde ✓.</>,
-        ]}/>
-        <Callout T={T} tone="warning" title="Si falla el OAuth">Casi siempre es la Redirect URL: tiene que coincidir letra por letra con la de arriba (https incluido). Revisala, guardá en Shopify y volvé a tocar Conectar tienda.</Callout>
+        <Callout T={T} tone="info" style={{ marginBottom:12 }}>Si en Configuración → Integraciones la conexión de Shopify <B T={T}>no</B> te pide Client ID ni Secret, Recurrentes ya tiene una app configurada: solo pegá tu dominio <Code T={T}>tu-tienda.myshopify.com</Code>, tocá <B T={T}>Autorizar en Shopify</B> e instalá. Podés saltear el resto de esta sección.</Callout>
+        <TutorialVideo T={T}/>
+        <ShopifyConnectSteps T={T} origin={origin} where="guide"/>
+        <P T={T}>En Recurrentes, <B T={T}>Conectar Shopify</B> te pide tres datos:</P>
+        <Screen T={T} title="Recurrentes › Configuración › Integraciones › Conectar Shopify" rows={[{ label:"1 · Dominio", value:"tu-tienda.myshopify.com", mono:true }, { label:"2 · Client ID", value:"a1b2c3d4e5f6…", mono:true }, { label:"3 · Client Secret", value:"shpss_••••••••••••", mono:true, btn:"Autorizar en Shopify →" }]}/>
+        <ShopifyTroubleshoot T={T} origin={origin} defaultOpen/>
       </Sec>
       <Sec T={T} title="Qué hace Recurrentes en tu Shopify">
         <P T={T}><B T={T}>Lee</B> productos y variantes (para armar planes), <B T={T}>crea</B> órdenes pagas con etiqueta <Code T={T}>RECURRENTE</Code> cada cobro, <B T={T}>crea o actualiza</B> el cliente con su dirección y <B T={T}>lee</B> tus tarifas de envío y los datos de la tienda (nombre, dominio, moneda, mail). No toca stock, precios ni temas.</P>
+        <Screen T={T} title="Permisos que pide Recurrentes" rows={SHOPIFY_SCOPES.map(s => ({ label:s.id, value:s.why }))}/>
       </Sec>
     </>
   );
