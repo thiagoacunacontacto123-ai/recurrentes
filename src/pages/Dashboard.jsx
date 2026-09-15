@@ -19,6 +19,7 @@ import { AnalyticsPage } from "./Analytics.jsx";
 import { RetentionPage } from "./Retention.jsx";
 import { CustomerPortalPage } from "./CustomerPortal.jsx";
 import { FlowsPage } from "./Flows.jsx";
+import { mpOauthReturnToast } from "../lib/mpOauth.js";
 
 // Resuelve un id de tab (nuevo o viejo) a { tab, config?, query? }.
 function resolveTab(id) {
@@ -127,8 +128,8 @@ export default function Dashboard({ user, onLogout }) {
     const mp = q.get("mp");
     const shopifyOk = q.get("shopify_ok");
     if (!mp && !shopifyOk) return;
-    if (mp === "ok") toast("Mercado Pago conectado", "success");
-    else if (mp === "error") toast("No se pudo conectar Mercado Pago: " + (q.get("msg") || "error desconocido"), "error", 7000);
+    const mpToast = mpOauthReturnToast(q); // textos en src/lib/mpOauth.js
+    if (mpToast) toast(mpToast.text, mpToast.tone, mpToast.ms);
     else if (shopifyOk) toast("Shopify conectado", "success");
     window.history.replaceState(null, "", window.location.pathname + "#/config/integraciones");
     setTab("configuracion");

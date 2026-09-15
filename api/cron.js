@@ -27,7 +27,8 @@ import { syncSubscriber } from "./_lib/sync.js";
 import { isProd } from "./_lib/config.js";
 import { timingSafeEqualStr } from "./_lib/token.js";
 import { runFlowsForMerchant } from "./_lib/flows.js";
-import { mpRefreshToken, mpCancelPreapprovalPlan, mpUpdatePreapproval, mpGetPreapproval, isMpAuthError } from "./_lib/mp.js";
+import { mpCancelPreapprovalPlan, mpUpdatePreapproval, mpGetPreapproval, isMpAuthError } from "./_lib/mp.js";
+import { refreshMpTokenIfNeeded } from "./_lib/mpOauth.js";
 
 export const config = { maxDuration: 300 };
 
@@ -77,7 +78,7 @@ export default async function handler(req, res) {
   const minute = new Date(start).getMinutes();
   let merchantsSnap = null;
   let merchantsProcessed = 0, subsProcessed = 0, activated = 0, errors = 0;
-  let tokensRefreshed = 0, plansCancelled = 0, resumed = 0;
+  let tokensRefreshed = 0, plansCancelled = 0, resumed = 0, tokensReconnect = 0;
   let partial = false;
   const outOfTime = () => (Date.now() - start) > BUDGET_MS;
 
@@ -112,25 +113,19 @@ export default async function handler(req, res) {
         merchantsProcessed += 1;
         const merchantSubs = db().collection("merchants").doc(m.id).collection("subscribers");
 
-        // 0) REFRESH TOKEN OAUTH MP — si vence en menos de 7 días. Best effort.
-        if (md.mp_refresh_token && md.mp_token_expires_at && ms(md.mp_token_expires_at) < now + 7 * D) {
-          try {
-            const t = await mpRefreshToken(md.mp_refresh_token);
-            await m.ref.set({
-              mp_access_token: t.access_token,
-              mp_refresh_token: t.refresh_token,
-              mp_token_expires_at: new Date(now + (Number(t.expires_in) || 15552000) * 1000).toISOString(),
-              mp_token_refreshed_at: nowIso(),
-              mp_token_invalid_at: null,
-              mp_token_error: null,
-            }, { merge: true });
-            md.mp_access_token = t.access_token;
-            tokensRefreshed += 1;
-            console.log(`[cron] token MP refrescado para ${m.id}`);
-          } catch (e) {
-            console.error(`[cron] refresh token MP ${m.id} falló:`, e.message);
-            await m.ref.set({ mp_token_refresh_error: String(e.message || e).slice(0, 300), mp_token_refresh_error_at: nowIso() }, { merge: true }).catch(() => {});
-          }
+        // 0) REFRESH TOKEN OAUTH MP — 7 días antes de vencer. Best effort (_lib/mpOauth.js):
+        //    backoff de 1 h tras un error; invalid_grant (el vendedor quitó el permiso o
+        //    venció) → el panel pide "Reconectar" y no se reintenta. El access_token
+        //    actual se sigue usando mientras valga.
+        const rf = await refreshMpTokenIfNeeded(m.ref, md, now).catch(e => ({ status: "error", error: e.message }));
+        if (rf.status === "refreshed") {
+          tokensRefreshed += 1;
+          console.log(`[cron] token MP refrescado para ${m.id}`);
+        } else if (rf.status === "reconnect") {
+          tokensReconnect += 1;
+          console.warn(`[cron] token MP de ${m.id}: MP rechazó el refresh (${rf.error}) → reconectar`);
+        } else if (rf.status === "error") {
+          console.error(`[cron] refresh token MP ${m.id} falló: ${rf.error}`);
         }
 
         // 1) + 2) ACTIVAS — una sola lectura de la colección.
@@ -322,6 +317,7 @@ export default async function handler(req, res) {
       activated,
       errors,
       tokens_refreshed: tokensRefreshed,
+      tokens_reconnect: tokensReconnect,
       plans_cancelled: plansCancelled,
       resumed,
       elapsed_ms: elapsed,

@@ -120,6 +120,7 @@ export async function mpRefreshToken(refreshToken) {
   if (!r.ok || !data.access_token) {
     const err = new Error(`MP POST /oauth/token: HTTP ${r.status} ${data?.message || data?.error || ""} — ${String(text).replace(/\s+/g, " ").slice(0, 200)}`);
     err.status = r.status;
+    err.mp_error = data?.error || null; // invalid_grant = el vendedor revocó / venció → reconectar
     throw err;
   }
   return {
@@ -127,6 +128,8 @@ export async function mpRefreshToken(refreshToken) {
     refresh_token: data.refresh_token || refreshToken,
     expires_in: data.expires_in,
     user_id: data.user_id,
+    public_key: data.public_key,
+    live_mode: data.live_mode,
   };
 }
 
