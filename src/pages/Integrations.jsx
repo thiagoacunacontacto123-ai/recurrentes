@@ -7,6 +7,7 @@ import { BrandIcon } from "../ui/brands.jsx";
 import { MpTokenTip } from "./Onboarding.jsx";
 import { WidgetThemeCard } from "./OperationalSettings.jsx";
 import { MONO, fmtDateShort } from "./_shared.jsx";
+import { MP_RECONNECT_COPY, MP_LAST_ERROR_COPY } from "../lib/mpOauth.js";
 import { CHANNELS, PAYMENT_PROVIDERS, merchantProfile } from "../../shared/platform/profile.js";
 
 // ─── Integraciones (Configuración → Integraciones) — estilo Growith ──────
@@ -46,7 +47,7 @@ function btnStyles(T) {
   };
 }
 
-function Row({ T, id, label, sub, connected, soon, required, error, optional, ready, onConnect, onDisconnect, connectLabel = "Conectar", open, onToggle, action, children }) {
+function Row({ T, id, label, sub, connected, soon, required, error, warn, optional, ready, onConnect, onDisconnect, connectLabel = "Conectar", open, onToggle, action, children }) {
   const b = btnStyles(T);
   const brand = BRAND[id] || T.accentSolid;
   return (
@@ -59,7 +60,8 @@ function Row({ T, id, label, sub, connected, soon, required, error, optional, re
           <div style={{ fontSize:13.5, fontWeight:700, color:T.text, display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
             {label}
             {optional && <span style={{ fontSize:11, fontWeight:500, color:T.textSm }}>opcional</span>}
-            {connected && <Pill T={T} c={T.green} dot>Conectado</Pill>}
+            {connected && !warn && <Pill T={T} c={T.green} dot>Conectado</Pill>}
+            {warn && <Pill T={T} c={T.red} dot>{warn}</Pill>}
             {ready && <Pill T={T} c={T.green}>Listo</Pill>}
             {error && <Pill T={T} c={T.red}>Con error</Pill>}
             {required && !connected && <Pill T={T} c={T.red}>Necesaria</Pill>}
@@ -265,10 +267,15 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
 
   // ── Mercado Pago ──
   const [mpToken, setMpToken] = useState("");
+  const [mpPaste, setMpPaste] = useState(false);   // pegar el token (alternativa a la conexión automática)
   const mpTokenOk = /^(APP_USR-|TEST-)/.test(mpToken.trim());
+  const mpOauth = m.mp_method === "oauth";
+  const mpReconnect = mpOk && Boolean(m.mp_reconnect_required);
+  const openMp = (paste = false) => { setMpToken(""); setMpPaste(paste || !m.mp_oauth_available); setModal("mp"); };
   async function connectMPOauth() {
     setBusy("mp-oauth");
-    const d = await apiPost("merchant", {}, { action: "mp-oauth-start" });
+    // return_origin: volver al mismo dominio donde estás logueado (el backend lo valida).
+    const d = await apiPost("merchant", { return_origin: window.location.origin }, { action: "mp-oauth-start" });
     if (d?.url) window.location.href = d.url;
     else { setBusy(""); toast("Error: " + (d?.error || "La conexión automática con Mercado Pago no está disponible"), "error"); }
   }
@@ -394,15 +401,30 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
         {/* ── Pasarelas ── */}
         <GroupTitle T={T}>Pasarelas de pago</GroupTitle>
         <Row T={T} id="mercadopago" label="Mercado Pago" required connected={mpOk} open={open === "mp"} onToggle={() => toggle("mp")}
-          sub={mpOk ? `Cuenta ${m.mp_email || "conectada"}${m.mp_method ? ` · ${m.mp_method === "oauth" ? "conectada con OAuth" : "token pegado"}` : ""}` : "La cuenta que cobra las suscripciones y procesa cada renovación."}
-          onConnect={() => { setMpToken(""); setModal("mp"); }} onDisconnect={disconnectMP}>
-          <div style={{ fontSize:DS.font.md, color:T.textMd, lineHeight:1.6, marginBottom:12 }}>
-            {m.mp_email && <>Cuenta: <S T={T}>{m.mp_email}</S><br/></>}
-            Método: {m.mp_method === "oauth" ? "conexión automática (OAuth)" : "Access Token pegado"}{m.mp_connected_at ? ` · desde ${fmtDateShort(m.mp_connected_at)}` : ""}
+          warn={mpReconnect ? "Reconectar" : null} error={mpOk && !mpReconnect && Boolean(m.mp_last_error)}
+          action={mpReconnect ? <button type="button" style={b.solid} onClick={() => openMp(false)}>Reconectar</button> : null}
+          sub={mpOk ? `Cuenta ${m.mp_email || "conectada"} · ${mpOauth ? "conexión automática" : "Access Token pegado"}${m.mp_live_mode === false ? " · modo prueba" : ""}` : "La cuenta que cobra las suscripciones y procesa cada renovación."}
+          onConnect={() => openMp(false)} onDisconnect={disconnectMP}>
+          {mpReconnect && (
+            <Callout T={T} tone="danger" title="Hay que reconectar Mercado Pago" style={{ marginBottom:12 }}>
+              {MP_RECONNECT_COPY[m.mp_reconnect_reason] || MP_RECONNECT_COPY.refresh_invalid}
+            </Callout>
+          )}
+          {!mpReconnect && m.mp_last_error && (
+            <Callout T={T} tone="warning" title={`${MP_LAST_ERROR_COPY[m.mp_last_error] || "Mercado Pago rechazó un pedido"}${m.mp_last_error_at ? ` · ${fmtDateShort(m.mp_last_error_at)}` : ""}`} style={{ marginBottom:12 }}>
+              A veces es algo puntual. Si los cobros nuevos no aparecen en Recurrentes, reconectá tu cuenta.
+            </Callout>
+          )}
+          <div style={{ fontSize:DS.font.md, color:T.textMd, lineHeight:1.7, marginBottom:12 }}>
+            Cuenta: <S T={T}>{m.mp_email || (m.mp_user_id ? `ID ${m.mp_user_id}` : "—")}</S><br/>
+            Cómo está conectada: <S T={T}>{mpOauth ? "conexión automática con Mercado Pago" : "Access Token pegado a mano"}</S>{m.mp_connected_at ? ` · desde el ${fmtDateShort(m.mp_connected_at)}` : ""}<br/>
+            {mpOauth && m.mp_token_expires_at && !mpReconnect && <>El acceso se renueva solo: vence el {fmtDateShort(m.mp_token_expires_at)} y lo renovamos antes.<br/></>}
+            {m.mp_live_mode === false && <span style={{ color:T.yellow }}>Es una cuenta de prueba: los cobros no son reales.<br/></span>}
+            {m.mp_country && m.mp_country !== "AR" && <span style={{ color:T.yellow }}>La cuenta no es de Argentina: las suscripciones en pesos pueden no funcionar.<br/></span>}
           </div>
           <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-            {m.mp_oauth_available && <button type="button" style={b.ghost} onClick={connectMPOauth} disabled={busy === "mp-oauth"}>{busy === "mp-oauth" ? "Abriendo…" : "Reconectar con OAuth"}</button>}
-            <button type="button" style={b.ghost} onClick={() => { setMpToken(""); setModal("mp"); }}>Cambiar Access Token</button>
+            {m.mp_oauth_available && <button type="button" style={mpReconnect ? b.solid : b.ghost} onClick={() => openMp(false)}>{mpOauth || mpReconnect ? "Reconectar con Mercado Pago" : "Pasar a conexión automática"}</button>}
+            <button type="button" style={b.ghost} onClick={() => openMp(true)}>{mpOauth ? "Pegar un Access Token" : "Cambiar Access Token"}</button>
           </div>
         </Row>
         {m.mobbex_available && <MobbexRow T={T} m={m} profile={profile} onChange={onChange} open={open === "mobbex"} onToggle={() => toggle("mobbex")}/>}
@@ -498,28 +520,47 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
       )}
 
       {modal === "mp" && (
-        <Modal T={T} title={mpOk ? "Cambiar la cuenta de Mercado Pago" : "Conectar Mercado Pago"} busy={busy === "mp"} onClose={close}
+        <Modal T={T} title={mpReconnect ? "Reconectar Mercado Pago" : mpOk ? "Cambiar la cuenta de Mercado Pago" : "Conectar Mercado Pago"} busy={busy === "mp" || busy === "mp-oauth"} onClose={close}
           sub="Es la cuenta que cobra las suscripciones. Cada renovación entra directo ahí."
-          footer={<>
+          footer={mpPaste ? <>
             <Btn T={T} variant="secondary" onClick={close} disabled={busy === "mp"}>Cancelar</Btn>
             <Btn T={T} variant="solid" onClick={saveMpToken} disabled={busy === "mp" || !mpTokenOk}>{busy === "mp" ? <><Spinner size={12}/> Guardando…</> : "Guardar token"}</Btn>
-          </>}>
+          </> : null}>
+          {mpOk && (
+            <Callout T={T} tone="warning" title="Usá la misma cuenta que ya cobra" style={{ marginBottom:14 }}>
+              Si conectás otra cuenta, las suscripciones que ya existen siguen cobrándose en la anterior y no las vamos a poder procesar.
+            </Callout>
+          )}
           {m.mp_oauth_available && (
             <>
-              <Btn T={T} variant="solid" onClick={connectMPOauth} disabled={busy === "mp-oauth"} style={{ width:"100%", justifyContent:"center" }}>{busy === "mp-oauth" ? "Abriendo Mercado Pago…" : "Conectar con Mercado Pago →"}</Btn>
-              <div style={{ display:"flex", alignItems:"center", gap:10, margin:"14px 0", fontSize:11, color:T.textSm }}><span style={{ flex:1, height:1, background:T.borderL }}/>o pegá tu Access Token<span style={{ flex:1, height:1, background:T.borderL }}/></div>
+              <button type="button" onClick={connectMPOauth} disabled={busy === "mp-oauth"}
+                style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:10, padding:"13px 18px", borderRadius:10, border:"none", background:BRAND.mercadopago, color:"#fff", fontSize:14.5, fontWeight:700, cursor: busy === "mp-oauth" ? "wait" : "pointer", fontFamily:F, boxShadow:"0 4px 14px rgba(0,177,234,0.30)" }}>
+                <span style={{ width:26, height:26, borderRadius:7, background:"#fff", display:"inline-flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><BrandIcon name="mercadopago" size={20}/></span>
+                {busy === "mp-oauth" ? "Abriendo Mercado Pago…" : "Conectar con Mercado Pago"}
+              </button>
+              <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.55, marginTop:9, textAlign:"center" }}>
+                Te llevamos a Mercado Pago: entrás con la cuenta que cobra, tocás <S T={T}>Autorizar</S> y volvés acá conectado. No tenés que copiar nada.
+              </div>
+              {!mpPaste && (
+                <div style={{ textAlign:"center", marginTop:16 }}>
+                  <button type="button" onClick={() => setMpPaste(true)} style={{ background:"none", border:"none", padding:0, color:T.textMd, fontSize:DS.font.sm, textDecoration:"underline", cursor:"pointer", fontFamily:F }}>¿Preferís pegar el Access Token?</button>
+                </div>
+              )}
+              {mpPaste && <div style={{ display:"flex", alignItems:"center", gap:10, margin:"16px 0 14px", fontSize:11, color:T.textSm }}><span style={{ flex:1, height:1, background:T.borderL }}/>o pegá tu Access Token<span style={{ flex:1, height:1, background:T.borderL }}/></div>}
             </>
           )}
+          {mpPaste && <>
           <Steps T={T} title="Dónde está tu Access Token">
             <li>Entrá a <A T={T} href="https://www.mercadopago.com.ar/developers/panel/app">mercadopago.com.ar/developers</A> con la cuenta que va a cobrar.</li>
             <li>Abrí tu aplicación (o creá una: tipo <S T={T}>Pagos online</S>, producto <S T={T}>Suscripciones</S>).</li>
             <li>En <S T={T}>Credenciales de producción</S> copiá el <S T={T}>Access Token</S> (empieza con APP_USR-). Para probar podés usar uno de prueba (TEST-).</li>
           </Steps>
           <Field T={T} label={<span style={{ display:"inline-flex", alignItems:"center", gap:8 }}>Access Token <MpTokenTip T={T} label=""/></span>}>
-            <input type="password" value={mpToken} onChange={e => setMpToken(e.target.value)} placeholder="APP_USR-… o TEST-…" style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} autoFocus={!m.mp_oauth_available} disabled={busy === "mp"}/>
+            <input type="password" value={mpToken} onChange={e => setMpToken(e.target.value)} placeholder="APP_USR-… o TEST-…" style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} autoFocus disabled={busy === "mp"}/>
           </Field>
           {mpToken.trim() && !mpTokenOk && <Hint T={T} style={{ color:T.red }}>Ese no parece un Access Token: empieza con APP_USR- (o TEST-).</Hint>}
           <Hint T={T}>Lo guardamos cifrado y nunca lo mostramos de vuelta.</Hint>
+          </>}
         </Modal>
       )}
 

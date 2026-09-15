@@ -62,6 +62,7 @@ import { klaviyoEnabled, klaviyoValidateKey, klaviyoCheckoutStarted } from "./_l
 import { merchantProfile, validateProfilePatch } from "../shared/platform/profile.js";
 import { flowsApi } from "./_lib/flowsApi.js";
 import { mobbexSafeFields, saveMobbex, disconnectMobbex } from "./_lib/providers/merchantActions.js";
+import { startMpOauth, mpOauthConfigured, mpConnectionStatus } from "./_lib/mpOauth.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
@@ -124,7 +125,11 @@ export default async function handler(req, res) {
         mp_access_token: merchant.mp_access_token ? "•••••" : null,
         mp_connected_at: merchant.mp_connected_at || null,
         mp_method: merchant.mp_method || (merchant.mp_access_token ? "manual" : null),
-        mp_oauth_available: !!process.env.MP_APP_ID,
+        mp_oauth_available: mpOauthConfigured(),
+        // OAuth: modo (prueba/producción), vencimiento y si hay que reconectar (_lib/mpOauth.js). Sin tokens.
+        mp_live_mode: typeof merchant.mp_live_mode === "boolean" ? merchant.mp_live_mode : null,
+        mp_token_expires_at: merchant.mp_method === "oauth" ? (merchant.mp_token_expires_at || null) : null,
+        ...mpConnectionStatus(merchant),
         // Meta CAPI: solo flags/pixel (nunca el token)
         meta_pixel_id: merchant.meta_pixel_id || null,
         meta_connected: !!(merchant.meta_pixel_id && merchant.meta_capi_token),
@@ -223,7 +228,7 @@ export default async function handler(req, res) {
     if (action === "save-discount-codes")  return saveDiscountCodes(merchantId, req, res);
     if (action === "test-email")           return testEmail(merchantId, req, res);
     if (action === "backfill-email-log")   return backfillEmailLog(merchantId, req, res);
-    if (action === "mp-oauth-start")       return mpOauthStart(merchantId, req, res);
+    if (action === "mp-oauth-start")       return mpOauthStart(ctx, req, res);
     if (action === "disconnect-mp")        return disconnect(merchantId, "mp", res);
     if (action === "disconnect-shopify")   return disconnect(merchantId, "shopify", res);
     if (action === "plan-request")         return planRequest(ctx, merchantId, req, res);
@@ -315,22 +320,26 @@ async function planRequest(ctx, merchantId, req, res) {
   }
 }
 
-// ─── OAuth MP: arma la URL de autorización. El callback vive en /api/mp/oauth-callback.
-async function mpOauthStart(merchantId, req, res) {
-  const appId = process.env.MP_APP_ID;
-  if (!appId) return res.status(400).json({ error: "OAuth MP no configurado" });
-  const redirect = process.env.MP_REDIRECT_URI || `${appBaseUrl()}/api/mp/oauth-callback`;
-  // `mid` = merchant destino (tienda activa). `uid` se mantiene por compat con el callback.
-  const state = signToken({ uid: merchantId, mid: merchantId }, 600);
-  const url = `https://auth.mercadopago.com.ar/authorization?client_id=${encodeURIComponent(appId)}&response_type=code&platform_id=mp&state=${encodeURIComponent(state)}&redirect_uri=${encodeURIComponent(redirect)}`;
-  return res.json({ url });
+// ─── OAuth MP: arma la URL de autorización (state firmado {mid, uid} + nonce de un
+// solo uso + PKCE S256, ver _lib/mpOauth.js). El callback vive en /api/mp/oauth-callback.
+// body { return_origin? } → a qué dominio volver (solo los nuestros).
+async function mpOauthStart(ctx, req, res) {
+  try {
+    const r = await startMpOauth({ mid: ctx.merchantId, uid: ctx.uid, returnTo: req.body?.return_origin });
+    if (r.error) return res.status(400).json({ error: r.error });
+    return res.json({ url: r.url });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
 }
 
 // ─── Desconectar: borra tokens y marca la fecha. Las subs siguen en MP.
 async function disconnect(merchantId, which, res) {
   const now = new Date().toISOString();
   const patch = which === "mp"
-    ? { mp_access_token: FieldValue.delete(), mp_refresh_token: FieldValue.delete(), mp_token_expires_at: FieldValue.delete(), mp_public_key: FieldValue.delete(), mp_disconnected_at: now }
+    ? { mp_access_token: FieldValue.delete(), mp_refresh_token: FieldValue.delete(), mp_token_expires_at: FieldValue.delete(), mp_public_key: FieldValue.delete(), mp_disconnected_at: now,
+        mp_live_mode: FieldValue.delete(), mp_scope: FieldValue.delete(), mp_reconnect_required_at: FieldValue.delete(), mp_reconnect_reason: FieldValue.delete(),
+        mp_token_invalid_at: FieldValue.delete(), mp_token_error: FieldValue.delete(), mp_token_refresh_error: FieldValue.delete(), mp_token_refresh_error_at: FieldValue.delete() }
     : { shopify_token: FieldValue.delete(), shopify_scope: FieldValue.delete(), shopify_disconnected_at: now };
   try {
     await db().collection("merchants").doc(merchantId).set(patch, { merge: true });
@@ -1015,6 +1024,18 @@ async function saveMpToken(merchantId, req, res) {
       mp_connected_at: new Date().toISOString(),
       mp_method: "manual",
       mp_disconnected_at: null,
+      // Token pegado: se descarta lo de OAuth (si no, el cron lo "renovaría" con el refresh viejo).
+      mp_refresh_token: FieldValue.delete(),
+      mp_token_expires_at: FieldValue.delete(),
+      mp_token_refreshed_at: FieldValue.delete(),
+      mp_live_mode: FieldValue.delete(),
+      mp_scope: FieldValue.delete(),
+      mp_token_invalid_at: FieldValue.delete(),
+      mp_token_error: FieldValue.delete(),
+      mp_token_refresh_error: FieldValue.delete(),
+      mp_token_refresh_error_at: FieldValue.delete(),
+      mp_reconnect_required_at: FieldValue.delete(),
+      mp_reconnect_reason: FieldValue.delete(),
     }, { merge: true });
     return res.json({ ok: true, mp_user_id: me.id, email: me.email });
   } catch (e) {
