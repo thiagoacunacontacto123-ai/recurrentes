@@ -60,6 +60,7 @@ import { rateLimit } from "./_lib/ratelimit.js";
 import { klaviyoEnabled, klaviyoValidateKey, klaviyoCheckoutStarted } from "./_lib/klaviyo.js";
 import { merchantProfile, validateProfilePatch } from "../shared/platform/profile.js";
 import { flowsApi } from "./_lib/flowsApi.js";
+import { mobbexSafeFields, saveMobbex, disconnectMobbex } from "./_lib/providers/merchantActions.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
@@ -180,6 +181,8 @@ export default async function handler(req, res) {
         business_type: merchant.business_type || null,
         channel: merchant.channel || null,
         payment_provider: merchant.payment_provider || null,
+        // Mobbex (pasarela alternativa, env MOBBEX_ENABLED): solo flags, nunca las claves.
+        ...mobbexSafeFields(merchant),
       };
       return res.json({ merchant: safe });
     } catch (e) {
@@ -198,6 +201,10 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: "Solo el dueño de la tienda puede cambiar el tipo de negocio." });
     }
 
+    // Mobbex (api/_lib/providers): credenciales de la pasarela, solo el dueño.
+    if ((action === "save-mobbex" || action === "disconnect-mobbex") && ctx.role !== "owner") return res.status(403).json({ error: "Solo el dueño de la tienda puede administrar las integraciones." });
+    if (action === "save-mobbex")          return saveMobbex(merchantId, req, res);
+    if (action === "disconnect-mobbex")    return disconnectMobbex(merchantId, res);
     if (action === "save-mp-token")        return saveMpToken(merchantId, req, res);
     if (action === "save-klaviyo")         return saveKlaviyo(merchantId, req, res);
     if (action === "disconnect-klaviyo")   return disconnectKlaviyo(merchantId, res);

@@ -13,6 +13,9 @@
     },
     "api/subscribers.js": {
       "maxDuration": 60
+    },
+    "api/public.js": {
+      "maxDuration": 60
     }
   },
   "rewrites": [

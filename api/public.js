@@ -101,6 +101,9 @@ export default async function handler(req, res) {
   if (action === "unsub") return handleUnsub(req, res);
   if (action === "update-address") return handleUpdateAddress(req, res);
   if (action === "pause-offer") return handlePauseOffer(req, res);
+  // Webhook de pasarelas alternativas (Mobbex/Stripe/Whop): ?p=<id>&mid=<merchant>&t=<token>.
+  // Mercado Pago sigue en /api/mp/webhook. Carga el código de pasarelas solo para esta acción.
+  if (action === "provider-webhook") return (await import("./_lib/providers/webhook.js")).handleProviderWebhook(req, res);
   return res.status(400).json({ error: "action debe ser plan | sub | discount | unsub | update-address | pause-offer" });
 }
 
