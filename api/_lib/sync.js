@@ -29,6 +29,7 @@ import { appBaseUrl } from "./config.js";
 import { klaviyoEnabled, klaviyoLifecycle, klaviyoPlacedOrder, KLAVIYO_METRICS } from "./klaviyo.js";
 import { merchantProfile, internalFulfillmentId } from "../../shared/platform/profile.js";
 import { emitFlowEvent } from "./flows.js";
+import { sendDigitalDelivery } from "./delivery.js";
 
 /**
  * Cumple un cobro según el canal del merchant (shared/platform/profile.js).
@@ -181,6 +182,8 @@ export async function notifyActivation(merchantId, merchant, subscriberId, sub, 
       console.warn(`[${tag}] email activación falló:`, e.message);
     }
   }
+  // Entrega digital (link del plan por mail). No-op para negocios con envío (Lumina); nunca lanza.
+  await sendDigitalDelivery(merchantId, merchant, subscriberId, sub, payment, "activation", { tag, portalUrl: portalUrlFor(sub) });
   // Klaviyo: "Subscription Activated" (+ "Placed Order" solo si el merchant lo pidió;
   // por defecto la integración Shopify→Klaviyo ya manda la orden). Best-effort.
   if (klaviyoEnabled(merchant)) {
@@ -202,6 +205,8 @@ export async function notifyActivation(merchantId, merchant, subscriberId, sub, 
 export async function notifyRenewal(merchantId, merchant, subscriberId, sub, payment, tag = "sync", { shopifyOrderId = null } = {}) {
   // Flujos de email propios ("Renovación cobrada"). No-op sin flujos activos.
   await emitFlowEvent(merchantId, merchant, "renewed", subscriberId, sub, { key: payment?.id || shopifyOrderId || undefined });
+  // Entrega digital en renovaciones (si el plan lo pide). No-op con envío; nunca lanza.
+  await sendDigitalDelivery(merchantId, merchant, subscriberId, sub, payment, "renewal", { tag, portalUrl: portalUrlFor(sub) });
   if (!klaviyoEnabled(merchant)) return;
   try {
     const ordersCount = (sub.shopify_orders || []).length + (shopifyOrderId ? 1 : 0);

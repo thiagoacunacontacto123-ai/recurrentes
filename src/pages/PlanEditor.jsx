@@ -7,6 +7,30 @@ import { BundlePreview, SAMPLE_PLAN } from "./WidgetDesigner.jsx";
 import { fmtARS, fmtFreq, SurfaceBox, MONO, copyText } from "./_shared.jsx";
 import { merchantProfile, hostedCheckoutUrl } from "../../shared/platform/profile.js";
 import { planExample } from "../lib/onboarding.js";
+import { deliveryApplies, normalizeDigitalDelivery, DELIVERY_MESSAGE_MAX, DELIVERY_SEND_ON, DELIVERY_SEND_ON_LABELS } from "../../shared/platform/delivery.js";
+
+// Vista previa del mail de entrega digital (mismo contenido que emailDigitalDelivery).
+function DeliveryEmailPreview({ T, brand, color, title, url, message }) {
+  const accent = /^#[0-9a-fA-F]{6}$/.test(color || "") ? color : "#10b981";
+  return (
+    <div style={{ marginTop:12 }}>
+      <div style={{ fontSize:DS.font.sm, fontWeight:DS.w.semibold, color:T.textMd, marginBottom:6 }}>Así le llega el mail</div>
+      <div style={{ background:"#f5f7f6", borderRadius:DS.r.xl, padding:12, border:`1px solid ${T.borderL}` }}>
+        <div style={{ background:"#fff", border:"1px solid #e5e7eb", borderRadius:12, overflow:"hidden", color:"#1f2937" }}>
+          <div style={{ padding:"11px 16px", borderBottom:"1px solid #e5e7eb", fontSize:15, fontWeight:800, color:accent, overflowWrap:"anywhere" }}>{brand}</div>
+          <div style={{ padding:"14px 16px", fontSize:13, lineHeight:1.55 }}>
+            <div style={{ fontSize:15, fontWeight:700, color:"#111827", marginBottom:8, overflowWrap:"anywhere" }}>Ya podés entrar a {title}</div>
+            <div>Hola Ana,</div>
+            <div style={{ marginTop:6 }}>Tu suscripción a <b>{title}</b> ya está activa. Entrás con el botón de abajo.</div>
+            {message.trim() && <div style={{ background:"#f9fafb", border:"1px solid #e5e7eb", borderRadius:10, padding:10, margin:"10px 0 0", whiteSpace:"pre-wrap", overflowWrap:"anywhere" }}>{message.trim()}</div>}
+            <div style={{ display:"inline-block", marginTop:12, background:accent, color:"#fff", padding:"9px 16px", borderRadius:10, fontWeight:700, fontSize:13 }}>Acceder a tu contenido</div>
+            {url && <div style={{ marginTop:8, fontSize:10.5, color:"#6b7280", overflowWrap:"anywhere" }}>{url}</div>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Título de bloque dentro de un formulario (con línea arriba). Plans.jsx la re-exporta.
 export function FormSection({ T, title, right, children, first }) {
@@ -124,6 +148,15 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
   const [packs, setPacks] = useState(() => packsFromPlan(plan));
   const [freqScales, setFreqScales] = useState(plan ? plan.frequency_scales_with_qty !== false : true);
   const [saving, setSaving] = useState(false);
+  // Entrega digital (solo negocios sin envío): link + mensaje que mandamos por mail al cobrar.
+  const showDelivery = deliveryApplies(profile);
+  const dd0 = plan?.digital_delivery || {};
+  const [ddEnabled, setDdEnabled] = useState(dd0.enabled === true);
+  const [ddTouched, setDdTouched] = useState(!!plan?.digital_delivery);
+  const [ddUrl, setDdUrl] = useState(dd0.url || "");
+  const [ddMessage, setDdMessage] = useState(dd0.message || "");
+  const [ddSendOn, setDdSendOn] = useState(Array.isArray(dd0.send_on) && dd0.send_on.length ? dd0.send_on : ["activation"]);
+  const ddPayload = () => ({ enabled: ddEnabled, url: ddUrl.trim(), message: ddMessage.trim(), send_on: ddSendOn });
 
   const basePrice = isEdit ? (parseFloat(editBasePrice) || 0) : manual ? (parseFloat(manualPrice) || 0) : (Number(variant?.price) || 0);
   const discountNum = isService && manual ? 0 : Math.max(0, Math.min(80, parseInt(discount, 10) || 0));
@@ -181,6 +214,7 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
       qty_discount_tiers: showPacks ? tiers : [],
       allow_custom_frequency: showPacks ? allowCustomFreq : false,
       max_pack_discount_pct: parseInt(maxPackDisc, 10) || 0,
+      ...(showDelivery ? { digital_delivery: normalizeDigitalDelivery(ddPayload()).value } : {}),
     };
   }
   const manualFields = () => ({ product_title: itemTitle.trim(), product_image: itemImage.trim() || null });
@@ -188,6 +222,10 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
     if (effectiveMode === "packs") {
       const perr = validatePacks(packs);
       if (perr) return toast(perr, "warning", 5000);
+    }
+    if (showDelivery) {
+      const dErr = normalizeDigitalDelivery(ddPayload()).error;
+      if (dErr) return toast(dErr, "warning", 5000);
     }
     if (manual && !itemTitle.trim()) return toast("Poné un nombre al plan", "warning");
     if (manual && itemImage.trim() && !/^https:\/\//i.test(itemImage.trim())) return toast("La imagen tiene que ser un link https://", "warning");
@@ -352,6 +390,30 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
                     <input type="text" value={shippingName} onChange={e=>setShippingName(e.target.value)} style={iS} placeholder="Envío a domicilio"/>
                   </Field>
                 </>
+              )}
+            </FormSection>
+          )}
+
+          {/* ─── Entrega digital (negocios sin envío: digitales, servicios) ─── */}
+          {showDelivery && (
+            <FormSection T={T} title="Qué recibe tu cliente">
+              <div style={{ ...small, marginBottom:10 }}>Pegá el link a tu curso, ebook, carpeta de Drive o área de {profile.vocab.customers}. Se lo mandamos por mail apenas se cobra la suscripción.</div>
+              <CheckLine T={T} checked={ddEnabled} onChange={(v)=>{ setDdTouched(true); setDdEnabled(v); }} style={{ marginBottom:12, color:T.text }}>Mandar el acceso por mail</CheckLine>
+              <Field T={T} label="Link de acceso">
+                <input value={ddUrl} inputMode="url" onChange={e=>{ const v = e.target.value; setDdUrl(v); if (!ddTouched && v.trim()) setDdEnabled(true); }} style={iS} placeholder="https://drive.google.com/…"/>
+              </Field>
+              <Field T={T} label={<>Mensaje <span style={{ color:T.textSm, fontWeight:DS.w.regular, textTransform:"none" }}>(opcional · {ddMessage.length}/{DELIVERY_MESSAGE_MAX})</span></>}>
+                <textarea value={ddMessage} rows={3} onChange={e=>setDdMessage(e.target.value.slice(0, DELIVERY_MESSAGE_MAX))} style={{ ...iS, resize:"vertical", minHeight:72, fontFamily:"inherit" }} placeholder="Ej: Entrás con el mail con el que pagaste. Cualquier duda, escribinos por WhatsApp."/>
+              </Field>
+              <div style={{ fontSize:DS.font.sm, fontWeight:DS.w.semibold, color:T.textMd, marginBottom:6 }}>Cuándo se manda</div>
+              {DELIVERY_SEND_ON.map(k => (
+                <CheckLine key={k} T={T} checked={ddSendOn.includes(k)} style={{ marginBottom:6, color:T.text }}
+                  onChange={(v)=>setDdSendOn(s => v ? [...new Set([...s, k])] : s.filter(x => x !== k))}>{DELIVERY_SEND_ON_LABELS[k]}</CheckLine>
+              ))}
+              {ddEnabled && ddSendOn.length === 0 && <Hint T={T}>Sin ninguna opción marcada, lo mandamos cuando se activa.</Hint>}
+              {ddEnabled && (
+                <DeliveryEmailPreview T={T} brand={m.email_brand || m.store_name || m.shop_name || "Tu tienda"} color={m.widget_color}
+                  title={title} url={normalizeDigitalDelivery({ url: ddUrl }).value?.url || ddUrl.trim()} message={ddMessage}/>
               )}
             </FormSection>
           )}

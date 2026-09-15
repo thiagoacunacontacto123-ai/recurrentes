@@ -297,6 +297,37 @@ export async function emailPaymentFailed({ to, customerName, productTitle, porta
   return sendEmail({ from: snd.from, replyTo: snd.replyTo, to, subject: `Hubo un problema con tu pago — ${prodTxt}`, html, tags: { type: "payment_failed" } });
 }
 
+// ─── Entrega digital (ebooks, cursos, membresías) ─────────────────
+// Link + mensaje que carga el comerciante en el plan (shared/platform/delivery.js).
+// event: "activation" (primer cobro) | "renewal" (cada renovación, si el plan lo pide).
+// Lo manda api/_lib/delivery.js (dedupe por pago + email_log type "delivery").
+export async function emailDigitalDelivery({ to, customerName, productTitle, url, message, event = "activation", portalUrl, merchant, from, brand, accent, replyTo }) {
+  const link = String(url || "").trim();
+  if (!/^https?:\/\//i.test(link)) return { ok: false, error: "link de entrega inválido" };
+  const snd = resolveSender({ merchant, from, brand, accent, replyTo });
+  const prodTxt = plain(productTitle) || "tu suscripción";
+  const prod = escapeHtml(prodTxt);
+  const renewal = event === "renewal";
+  const msg = String(message || "").trim().slice(0, 500);
+  const html = baseTemplate({
+    brand: snd.brand, accent: snd.accent,
+    title: renewal ? `Tu acceso a ${prodTxt} de este período` : `Ya podés entrar a ${prodTxt}`,
+    body: `
+      <p>${greet(customerName)}</p>
+      <p>${renewal
+        ? `Se renovó tu suscripción a <strong>${prod}</strong>. Acá tenés tu acceso.`
+        : `Tu suscripción a <strong>${prod}</strong> ya está activa. Entrás con el botón de abajo.`}</p>
+      ${msg ? `<p style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:14px;margin:18px 0;">${escapeHtml(msg).replace(/\n/g, "<br/>")}</p>` : ""}
+      <p style="font-size:12px;color:#6b7280;">Si el botón no funciona, copiá este link en tu navegador:<br/><a href="${escapeAttr(link)}" style="color:#6b7280;word-break:break-all;">${escapeHtml(link)}</a></p>
+      ${portalUrl ? `<p>Podés pausar o cancelar tu suscripción desde <a href="${escapeAttr(portalUrl)}" style="color:#111827;">tu portal</a>.</p>` : ""}
+    `,
+    ctaLabel: "Acceder a tu contenido",
+    ctaUrl: link,
+    footerNote: "Guardá este mail: es tu acceso. Si no podés entrar, respondé a este email.",
+  });
+  return sendEmail({ from: snd.from, replyTo: snd.replyTo, to, subject: renewal ? `Tu acceso a ${prodTxt} de este período` : `Tu acceso a ${prodTxt}`, html, tags: { type: "delivery", event: renewal ? "renewal" : "activation" } });
+}
+
 // ─── Equipo: invitación a una tienda ─────────────────────────────
 // Lo recibe la persona invitada por el dueño desde Configuración → Equipo. El
 // claim es por email: tiene que crear su cuenta / loguearse en Recurrentes con

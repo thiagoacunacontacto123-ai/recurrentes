@@ -13,6 +13,8 @@ import { db, requireMerchant } from "./_lib/firebase.js";
 import { mpCreatePreapprovalPlan } from "./_lib/mp.js";
 import { appBaseUrl } from "./_lib/config.js";
 import { normalizePacks, resolvePack, defaultPackIndex, withPackDefaults, planPricingMode } from "./_lib/packs.js";
+import { merchantProfile } from "../shared/platform/profile.js";
+import { normalizeDigitalDelivery } from "../shared/platform/delivery.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
@@ -65,6 +67,10 @@ export default async function handler(req, res) {
     const modeRes = profile.caps.packs ? resolvePricingMode(pricing_mode, pk.packs) : { mode: "theme" };
     if (modeRes.error) return res.status(400).json({ error: modeRes.error });
     const packsMode = modeRes.mode === "packs";
+    // Entrega digital (solo negocios sin envío; shared/platform/delivery.js). Se
+    // valida antes de crear el plan en MP para no dejar planes huérfanos.
+    const ddRes = !profile.caps.shipping && body.digital_delivery != null ? normalizeDigitalDelivery(body.digital_delivery) : { value: null };
+    if (ddRes.error) return res.status(400).json({ error: ddRes.error });
 
     if (!merchant.mp_access_token) return res.status(400).json({ error: "Conectá MP primero" });
 
@@ -150,6 +156,7 @@ export default async function handler(req, res) {
       allow_custom_frequency: allow_custom_frequency === true,
       max_pack_discount_pct: clampPct(max_pack_discount_pct, 35),
       mp_preapproval_plan_id: mpPlan.id,
+      ...(ddRes.value ? { digital_delivery: ddRes.value } : {}),
       active: true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -186,6 +193,12 @@ export default async function handler(req, res) {
     if (patch.active != null) out.active = !!patch.active;
     if (patch.allow_custom_frequency != null) out.allow_custom_frequency = patch.allow_custom_frequency === true;
     if (patch.max_pack_discount_pct != null) out.max_pack_discount_pct = clampPct(patch.max_pack_discount_pct, 35);
+    // Entrega digital (el envío solo sale para negocios sin envío: _lib/delivery.js).
+    if ("digital_delivery" in patch) {
+      const dd = normalizeDigitalDelivery(patch.digital_delivery);
+      if (dd.error) return res.status(400).json({ error: dd.error });
+      out.digital_delivery = dd.value;
+    }
     // Packs (bundle). `packs: []` vacía la lista y vuelve a "theme" salvo pricing_mode explícito.
     let packsChanged = false;
     if ("packs" in patch && patch.packs !== undefined) {
