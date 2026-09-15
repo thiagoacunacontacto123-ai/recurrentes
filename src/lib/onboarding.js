@@ -100,7 +100,8 @@ export function computeSteps({ merchant, user, plansCount }) {
   const snippetOk = readFlag(widgetKey(mid));
   const linkOk = readFlag(linkKey(mid));
   const ratesOk = Array.isArray(m.checkout_shipping_rates) && m.checkout_shipping_rates.length > 0;
-  const settingsOk = p.channel === "shopify" ? Boolean(m.store_domain) && ratesOk : ratesOk;
+  // El dominio sale de Shopify (store_domain_effective) o se carga a mano (store_domain).
+  const settingsOk = p.channel === "shopify" ? Boolean(m.store_domain_effective || m.store_domain) && ratesOk : ratesOk;
   const klaviyoOk = Boolean(m.klaviyo_connected || m.klaviyo_api_key || m.klaviyo_public_key);
   const klaviyoLater = readFlag(klaviyoLaterKey(mid));
   const lockedMsg = p.missing.length ? `Primero conectá ${p.missing.join(" y ")}.` : "";
@@ -166,11 +167,11 @@ export function computeSteps({ merchant, user, plansCount }) {
   }
 
   if (p.caps.shipping) {
-    steps.push({ id:"settings", done:settingsOk, title: p.channel === "shopify" ? "Configurar tienda y envíos" : "Configurar tus envíos",
-      short: p.channel === "shopify" ? "Dominio público de tu tienda y las tarifas de envío del checkout." : "Las opciones de envío que el cliente elige al suscribirse.",
+    steps.push({ id:"settings", done:settingsOk, title: "Configurar los envíos del checkout",
+      short: "Las opciones de envío que el cliente elige al suscribirse.",
       why:"Las tarifas de envío son las que el cliente elige en el checkout de suscripción y se repiten en cada cobro." + (p.channel === "shopify" ? " El dominio arma los links de los mails y del portal del cliente." : ""),
       needs: p.channel === "shopify" ? ["El dominio público (ej: www.mitienda.com)","Nombre y precio de cada opción de envío (hasta 6)"] : ["Nombre y precio de cada opción de envío (hasta 6)"],
-      tab:"configuracion", configSec:"tienda", guideSec:"tienda", cta: p.channel === "shopify" ? "Configurar tienda" : "Configurar envíos" });
+      tab:"configuracion", configSec:"checkout", guideSec:"tienda", cta: "Configurar envíos" });
   }
 
   steps.push({ id:"klaviyo", done:klaviyoOk || klaviyoLater, optional:true, later:klaviyoLater && !klaviyoOk, manual:true, manualLabel:"Más tarde", manualKey:klaviyoLaterKey(mid), title:"Conectar Klaviyo (opcional)",

@@ -353,7 +353,7 @@ function SecProbar({ T, goTab }) {
 function SecTienda({ T, onb, goTab }) {
   return (
     <Sec T={T} title="Tienda y envíos" sub="Los datos de tu tienda salen solos de Shopify y de Mercado Pago. Lo único que conviene revisar son los envíos que el cliente elige al suscribirse."
-      right={<><StepStatus T={T} onb={onb} id="settings"/><Btn T={T} variant="primary" size="sm" onClick={() => goConfigSection(goTab, "tienda")}>Ir a Tienda →</Btn></>}>
+      right={<><StepStatus T={T} onb={onb} id="settings"/><Btn T={T} variant="primary" size="sm" onClick={() => goConfigSection(goTab, "checkout")}>Ir a Checkout →</Btn></>}>
       <Steps T={T} items={[
         <>Entrá a <B T={T}>Configuración → Tienda</B>.<Crumb T={T} path="Recurrentes › Configuración › Tienda"/></>,
         <>En <B T={T}>Datos de tu tienda</B> vas a ver nombre, dominio público, moneda y mail (de Shopify) y la cuenta de Mercado Pago que cobra. No se cargan a mano: si cambiaste algo en Shopify, tocá <B T={T}>Actualizar desde Shopify</B>. "Editar dominio" es solo para el caso raro de que tu cliente vea otro dominio.</>,

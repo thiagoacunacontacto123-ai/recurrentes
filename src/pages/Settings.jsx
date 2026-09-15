@@ -4,12 +4,13 @@ import { auth } from "../lib/firebase.js";
 import * as api from "../lib/api.js";
 import { NewStoreModal, ManageStoreModal, StoreAvatar } from "../ui/Shell.jsx";
 import { IntegrationsTab } from "./Integrations.jsx";
-import StoreSettings from "./StoreSettings.jsx";
+import CheckoutSettings, { StoreDataSection } from "./StoreSettings.jsx";
 import { PlanPage } from "./Billing.jsx";
 import { AdvancedSettingsCard } from "./OperationalSettings.jsx";
 import GuidePage from "./Guide.jsx";
 import BusinessProfileSection from "./BusinessProfile.jsx";
 import { merchantProfile } from "../../shared/platform/profile.js";
+import { KpiCard, Panel as UiPanel } from "../ui/charts.jsx";
 import {
   BtnPrimary, BtnSecondary, BtnDanger, InputStyle,
   AsyncButton, appConfirm, appAlert, toast as uiToast,
@@ -22,18 +23,18 @@ const { apiGet, apiPost } = api;
 // Configuración — nav a la izquierda, una sección por vez (#/config/<sec>).
 //   cuenta        → email, contraseña, eliminar cuenta
 //   negocio       → qué vende, dónde y con qué cobra (BusinessProfile.jsx)
-//   tiendas       → tiendas del perfil (crear / gestionar / activar / eliminar)
+//   tiendas       → tiendas del perfil (crear / gestionar / activar / eliminar) + datos de la activa
 //   equipo        → miembros con acceso por secciones (solo owner)
 //   integraciones → tienda (según el negocio), Mercado Pago, Meta, Klaviyo (Integrations.jsx)
-//   tienda        → datos de la tienda + envíos del checkout (StoreSettings.jsx)
+//   checkout      → envíos del checkout + códigos de descuento (StoreSettings.jsx; alias viejo "tienda")
 //   facturacion   → tu plan de Recurrentes (Billing.jsx)
-//   avanzado      → checkout del widget, códigos de descuento, modo dev (OperationalSettings.jsx)
+//   avanzado      → widget en el tema de Shopify (provisorio) + modo de prueba (OperationalSettings.jsx)
 //   ayuda         → Guía escrita (Guide.jsx) embebida
 // ─────────────────────────────────────────────────────────────────
 
-export const CFG_SECS = ["cuenta", "negocio", "tiendas", "equipo", "integraciones", "tienda", "facturacion", "avanzado", "ayuda"];
+export const CFG_SECS = ["cuenta", "negocio", "tiendas", "equipo", "integraciones", "checkout", "facturacion", "avanzado", "ayuda"];
 // Secciones viejas → nuevas (links guardados / plan de acción viejo).
-const CFG_ALIASES = { operacion: "avanzado", widget: "__planes_widget__" };
+const CFG_ALIASES = { operacion: "avanzado", widget: "__planes_widget__", tienda: "checkout" };
 
 export const TEAM_SECTIONS = [
   { id: "inicio",        label: "Inicio" },
@@ -127,59 +128,101 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
   // Perfil del negocio: descripciones de las secciones según qué vende y dónde.
   const profile = merchantProfile(merchant);
   const withStore = profile.channel !== "none";
+  const billing = merchant?.billing || null;
+  const missing = profile.missing || [];
+  const stores = workspace?.stores || [];
+  const activeStore = stores.find(s => s.id === (workspace?.active_merchant_id || merchant?.id)) || null;
+  const go = (id) => { setSec(id); try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch (_) {} };
+
+  // Nav agrupada estilo Growith; `badge` = aviso en la sección (falta conectar, plan por activar…).
   const NAVS = [
-    { id: "cuenta",        l: "Cuenta",        d: "Email, contraseña y baja",   icon: "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" },
-    { id: "negocio",       l: "Negocio",       d: profile.explicit ? `${profile.type.emoji} ${profile.type.short} · ${profile.channelInfo.label}` : "Qué vendés, dónde y cómo cobrás", icon: "M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 10h.01M15 10h.01" },
-    { id: "tiendas",       l: "Tiendas",       d: "Tus tiendas y cuál está activa", icon: "M3 9l1-5h16l1 5M3 9h18v11H3zM9 20v-6h6v6" },
-    ...(isOwner ? [{ id: "equipo", l: "Equipo", d: "Quién entra y qué ve", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" }] : []),
-    { id: "integraciones", l: "Integraciones", d: withStore ? `${profile.channelInfo.label}, ${profile.providerInfo.label}, Meta, Klaviyo` : `${profile.providerInfo.label}, Meta, Klaviyo`, icon: "M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" },
-    { id: "tienda",        l: withStore ? "Tienda" : "Datos",        d: profile.caps.shipping ? (withStore ? "Datos de la tienda y envíos del checkout" : "Datos del negocio y envíos") : "Nombre y datos del negocio", icon: "M3 9l1-5h16l1 5M3 9h18v11H3zM3 9a3 3 0 006 0 3 3 0 006 0 3 3 0 006 0" },
-    { id: "facturacion",   l: "Facturación",   d: "Tu plan de Recurrentes", icon: "M1 6a2 2 0 012-2h18a2 2 0 012 2v12a2 2 0 01-2 2H3a2 2 0 01-2-2zM1 10h22M5 15h4" },
-    { id: "avanzado",      l: "Avanzado",      d: "Checkout, cupones y modo dev", icon: "M12 20a8 8 0 100-16 8 8 0 000 16zM12 14a2 2 0 100-4 2 2 0 000 4zM12 2v2M12 20v2M2 12h2M20 12h2" },
-    { id: "ayuda",         l: "Ayuda",         d: "Guía paso a paso y soporte", icon: "M12 22a10 10 0 100-20 10 10 0 000 20zM9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" },
+    { group: "Cuenta", id: "cuenta", l: "Cuenta", d: "Email, contraseña y baja", icon: "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8z" },
+    ...(isOwner ? [{ group: "Cuenta", id: "equipo", l: "Equipo", d: "Quién entra y qué ve", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" }] : []),
+    { group: "Cuenta", id: "facturacion", l: "Facturación", d: "Tu plan de Recurrentes", icon: "M1 6a2 2 0 012-2h18a2 2 0 012 2v12a2 2 0 01-2 2H3a2 2 0 01-2-2zM1 10h22M5 15h4",
+      badge: billing?.needs_activation ? { t: "Activar", c: T.yellow } : billing?.plan_requested ? { t: "Pedido", c: T.blue } : null },
+    { group: "Negocio", id: "negocio", l: "Negocio", d: profile.explicit ? `${profile.type.emoji} ${profile.type.short} · ${profile.channelInfo.label}` : "Qué vendés, dónde y cómo cobrás", icon: "M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 10h.01M15 10h.01" },
+    { group: "Negocio", id: "tiendas", l: "Tiendas", d: "Tus tiendas y cuál está activa", icon: "M3 9l1-5h16l1 5M3 9h18v11H3zM9 20v-6h6v6",
+      badge: stores.length > 1 ? { t: String(stores.length), c: T.textSm } : null },
+    { group: "Negocio", id: "checkout", l: "Checkout", d: profile.caps.shipping ? "Envíos y códigos de descuento" : "Códigos de descuento", icon: "M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0" },
+    { group: "Conexiones", id: "integraciones", l: "Integraciones", d: withStore ? `${profile.channelInfo.label}, ${profile.providerInfo.label}, Meta, Klaviyo` : `${profile.providerInfo.label}, Meta, Klaviyo`, icon: "M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71",
+      badge: missing.length ? { t: `${missing.length} pendiente${missing.length === 1 ? "" : "s"}`, c: T.red } : null },
+    { group: "Conexiones", id: "avanzado", l: "Avanzado", d: profile.caps.widget ? "Widget en tu tema y modo de prueba" : "Modo de prueba", icon: "M12 20a8 8 0 100-16 8 8 0 000 16zM12 14a2 2 0 100-4 2 2 0 000 4zM12 2v2M12 20v2M2 12h2M20 12h2" },
+    { group: "Ayuda", id: "ayuda", l: "Ayuda", d: "Guía paso a paso y soporte", icon: "M12 22a10 10 0 100-20 10 10 0 000 20zM9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" },
   ];
   const HEAD = {
     cuenta:        ["Cuenta", "Tu acceso a Recurrentes: email de inicio de sesión, contraseña y eliminación de la cuenta."],
     negocio:       ["Negocio", "Qué vendés, dónde lo vendés y con qué cobrás. El panel, el onboarding y el checkout se adaptan a esto."],
-    tiendas:       ["Tiendas", "Un mismo login puede manejar varias tiendas. Cada tienda tiene su propia conexión a Shopify y Mercado Pago, sus planes y sus suscriptores."],
+    tiendas:       ["Tiendas", "Un mismo login puede manejar varias tiendas. Cada tienda tiene su propia conexión a Shopify y Mercado Pago, sus planes y sus suscriptores. Abajo, los datos de la tienda activa."],
     equipo:        ["Equipo", "Invitá a gente de tu equipo con su propio login. Ven solo las secciones que les habilites."],
     integraciones: ["Integraciones", withStore
       ? `Conectá tu ${profile.channelInfo.label} y tu ${profile.providerInfo.label} (necesarios) y, si querés, Meta Ads y Klaviyo.`
       : `Conectá tu ${profile.providerInfo.label} (necesario) y, si querés, Meta Ads y Klaviyo. Sin tienda online no hay nada más que conectar.`],
-    tienda:        [withStore ? "Tienda" : "Datos", withStore
-      ? "Nombre, dominio, moneda y mail salen de tu Shopify; la cuenta de cobro, de Mercado Pago. Y los envíos que el cliente elige al suscribirse."
-      : `Nombre del negocio, dominio (opcional) y la cuenta de ${profile.providerInfo.label}.${profile.caps.shipping ? " Y los envíos que el cliente elige al suscribirse." : ""}`],
-    facturacion:   ["Facturación", "Tu plan de Recurrentes: qué incluye, cuántos pedidos llevás este mes y cómo cambiarlo."],
-    avanzado:      ["Avanzado", "Flujo del checkout del widget, selector CSS a ocultar, códigos de descuento y modo desarrollador."],
+    checkout:      ["Checkout", profile.caps.shipping ? "Lo que ve el cliente al suscribirse: las opciones de envío y los códigos de descuento." : "Los códigos de descuento que tus clientes pueden usar al suscribirse."],
+    facturacion:   ["Facturación", "Tu plan de Recurrentes: qué incluye, cuántos suscriptores activos llevás y cómo cambiarlo."],
+    avanzado:      ["Avanzado", profile.caps.widget ? "Cómo se comporta el widget pegado en tu tema de Shopify, y el modo de prueba." : "Herramientas para probar el flujo sin cobrar."],
     ayuda:         ["Ayuda", "La guía completa de Recurrentes: conectar Shopify y Mercado Pago, crear planes con packs, pegar el snippet y probar. Y el WhatsApp de soporte."],
   };
   const H = HEAD[sec] || ["", ""];
   const cur = NAVS.some(n => n.id === sec) ? sec : "cuenta";
+  const reqTotal = withStore ? 2 : 1;
+  const nSubs = billing?.active_subscribers ?? null;
+  const badgeStyle = (c) => ({ marginLeft: "auto", flexShrink: 0, fontSize: 9.5, fontWeight: 800, padding: "1px 7px", borderRadius: 99, background: c + "22", color: c, lineHeight: 1.6, whiteSpace: "nowrap" });
 
   return (
     <div style={{ fontFamily: "inherit", color: T.text }}>
-      <div className="stack-mobile" style={{ display: "grid", gridTemplateColumns: "210px minmax(0,1fr)", gap: 28, alignItems: "start" }}>
-        {/* Navegación lateral */}
-        <nav style={{ position: "sticky", top: 16, display: "flex", flexDirection: "column", gap: 2 }}>
-          {NAVS.map(n => {
+      {/* Estado de la cuenta de un vistazo — cada tarjeta abre su sección */}
+      <div className="kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 190px), 1fr))", gap: 10, marginBottom: 20 }}>
+        <KpiCard T={T} label="Tu plan" value={billing?.plan_label || "—"} valueColor={billing?.needs_activation ? T.yellow : T.text} color={T.accentSolid}
+          hint={nSubs == null ? "Recurrentes" : `${nSubs.toLocaleString("es-AR")} suscriptor${nSubs === 1 ? "" : "es"} activo${nSubs === 1 ? "" : "s"}${billing?.needs_activation ? " · falta activarlo" : ""}`} onClick={() => go("facturacion")} />
+        <KpiCard T={T} label="Conexiones" value={`${reqTotal - missing.length} de ${reqTotal}`} valueColor={missing.length ? T.red : T.text} color={missing.length ? T.red : T.green}
+          hint={missing.length ? `Falta conectar ${missing.join(" y ")}` : withStore ? `${profile.channelInfo.label} y ${profile.providerInfo.label} al día` : `${profile.providerInfo.label} al día`} onClick={() => go("integraciones")} />
+        <KpiCard T={T} label="Negocio" value={`${profile.type.emoji} ${profile.type.short}`} color={T.blue}
+          hint={`${withStore ? profile.channelInfo.label : "Sin tienda online"} · ${profile.providerInfo.label}`} onClick={() => go("negocio")} />
+        <KpiCard T={T} label="Tiendas" value={String(stores.length || 1)} color={T.textSm}
+          hint={activeStore ? `Activa: ${activeStore.name}` : "una sola tienda"} onClick={() => go("tiendas")} />
+      </div>
+
+      <div className="stack-mobile" style={{ display: "grid", gridTemplateColumns: "220px minmax(0,1fr)", gap: 28, alignItems: "start" }}>
+        {/* Navegación lateral agrupada (desktop) */}
+        <nav aria-label="Secciones de configuración" className="hide-mobile" style={{ position: "sticky", top: 80, display: "flex", flexDirection: "column", gap: 2 }}>
+          {NAVS.map((n, i) => {
             const act = cur === n.id;
+            const head = n.group !== NAVS[i - 1]?.group;
             return (
-              <button key={n.id} onClick={() => { setSec(n.id); try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch (_) {} }}
-                style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: DS.r.lg, border: "none", textAlign: "left", cursor: "pointer", width: "100%",
-                  background: act ? T.accentSolid + "18" : "transparent", color: act ? T.accent : T.textMd, fontFamily: "inherit", transition: "background .12s" }}
-                onMouseEnter={e => { if (!act) e.currentTarget.style.background = T.card; }}
-                onMouseLeave={e => { if (!act) e.currentTarget.style.background = "transparent"; }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={act ? 2.2 : 1.8} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: act ? 1 : 0.7 }}><path d={n.icon} /></svg>
-                <span style={{ minWidth: 0 }}>
-                  <span style={{ display: "block", fontSize: DS.font.base, fontWeight: act ? DS.w.bold : DS.w.semibold, lineHeight: 1.2 }}>{n.l}</span>
-                  <span style={{ display: "block", fontSize: 10.5, color: T.textSm, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{n.d}</span>
-                </span>
-              </button>
+              <React.Fragment key={n.id}>
+                {head && <div style={{ padding: i ? "14px 12px 4px" : "0 12px 4px", fontSize: 10, fontWeight: 700, color: T.textSm, letterSpacing: 0.7, textTransform: "uppercase", opacity: 0.6, userSelect: "none" }}>{n.group}</div>}
+                <button onClick={() => go(n.id)} aria-current={act ? "page" : undefined}
+                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: DS.r.lg, border: "none", textAlign: "left", cursor: "pointer", width: "100%",
+                    background: act ? T.accentSolid + "18" : "transparent", color: act ? T.accent : T.textMd, fontFamily: "inherit", transition: "background .12s" }}
+                  onMouseEnter={e => { if (!act) e.currentTarget.style.background = T.card; }}
+                  onMouseLeave={e => { if (!act) e.currentTarget.style.background = "transparent"; }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={act ? 2.2 : 1.8} strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: act ? 1 : 0.7 }}><path d={n.icon} /></svg>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: "block", fontSize: DS.font.base, fontWeight: act ? DS.w.bold : DS.w.semibold, lineHeight: 1.2 }}>{n.l}</span>
+                    <span style={{ display: "block", fontSize: 10.5, color: T.textSm, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{n.d}</span>
+                  </span>
+                  {n.badge && <span style={badgeStyle(n.badge.c)}>{n.badge.t}</span>}
+                </button>
+              </React.Fragment>
             );
           })}
         </nav>
 
         <div style={{ minWidth: 0 }}>
+          {/* Navegación en píldoras deslizables (mobile) */}
+          <div className="mobile-only no-scrollbar" role="tablist" aria-label="Secciones de configuración" style={{ display: "none", gap: 6, overflowX: "auto", marginBottom: 14, paddingBottom: 2 }}>
+            {NAVS.map(n => {
+              const act = cur === n.id;
+              return (
+                <button key={n.id} role="tab" aria-selected={act} onClick={() => go(n.id)}
+                  style={{ flexShrink: 0, height: 34, padding: "0 12px", borderRadius: 99, border: `1px solid ${act ? T.accentSolid + "55" : T.border}`, background: act ? T.accentSolid + "18" : "transparent",
+                    color: act ? T.accent : T.textMd, fontSize: 12, fontWeight: act ? 700 : 500, fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap", cursor: "pointer" }}>
+                  {n.l}{n.badge && <span aria-label={n.badge.t} style={{ width: 6, height: 6, borderRadius: 99, background: n.badge.c }} />}
+                </button>
+              );
+            })}
+          </div>
+
           <div style={{ marginBottom: 18, paddingBottom: 14, borderBottom: `1px solid ${T.borderL}` }}>
             <div style={{ fontSize: DS.font["2xl"], fontWeight: DS.w.black, color: T.text, letterSpacing: -0.4 }}>{H[0]}</div>
             <div style={{ fontSize: 12.5, color: T.textSm, marginTop: 4, lineHeight: 1.5 }}>{H[1]}</div>
@@ -187,10 +230,10 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
 
           {cur === "cuenta"        && <CuentaSection T={T} DS={DS} user={user} merchant={merchant} toast={toast} />}
           {cur === "negocio"       && <BusinessProfileSection merchant={merchant} onChange={reloadMerchant} />}
-          {cur === "tiendas"       && <TiendasSection T={T} DS={DS} user={user} merchant={merchant} workspace={workspace} reloadMerchant={reloadMerchant} toast={toast} />}
+          {cur === "tiendas"       && <><TiendasSection T={T} DS={DS} user={user} merchant={merchant} workspace={workspace} reloadMerchant={reloadMerchant} toast={toast} /><StoreDataSection merchant={merchant} onChange={reloadMerchant} /></>}
           {cur === "equipo"        && isOwner && <MiembrosCuentaCard T={T} DS={DS} user={user} merchant={merchant} toast={toast} />}
           {cur === "integraciones" && <IntegrationsTab merchant={merchant} onChange={reloadMerchant} embedded />}
-          {cur === "tienda"        && <StoreSettings merchant={merchant} onChange={reloadMerchant} />}
+          {cur === "checkout"      && <CheckoutSettings merchant={merchant} onChange={reloadMerchant} />}
           {cur === "facturacion"   && <PlanPage T={T} DS={DS} merchant={merchant} reloadMerchant={reloadMerchant} />}
           {cur === "avanzado"      && <AdvancedSettingsCard merchant={merchant} onChange={reloadMerchant} />}
           {cur === "ayuda"         && <GuidePage merchant={merchant} goTab={goTab} embedded />}
@@ -536,13 +579,9 @@ export function MiembrosCuentaCard({ T: Tp, DS: DSp, user, merchant, toast: toas
 }
 
 // ─── Piezas chicas ───────────────────────────────────────────────
-function Panel({ T, DS, title, sub, right, children, style = {} }) {
-  return (
-    <Card T={T} style={{ marginBottom: 16, ...style }}>
-      {(title || right) && <SectionTitle T={T} sub={sub} right={right}>{title}</SectionTitle>}
-      {children}
-    </Card>
-  );
+// Misma tarjeta de sección que el resto del panel (src/ui/charts.jsx).
+function Panel({ T, title, sub, right, children, style = {} }) {
+  return <UiPanel T={T} title={title} sub={sub} right={right} style={{ marginBottom: 16, ...style }}>{children}</UiPanel>;
 }
 
 function Pill({ T, color, children }) {

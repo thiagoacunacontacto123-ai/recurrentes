@@ -137,7 +137,7 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
   // Envíos del checkout (Configuración → Tienda): si hay, el cliente elige entre esos.
   const checkoutRates = Array.isArray(m.checkout_shipping_rates) ? m.checkout_shipping_rates : [];
   const hasCheckoutRates = checkoutRates.length > 0;
-  const goStoreSettings = () => { try { window.location.hash = "#/config/tienda"; } catch (_) {} };
+  const goStoreSettings = () => { try { window.location.hash = "#/config/checkout"; } catch (_) {} };
 
   // ── borrador para la vista previa del widget ──────────────────────────
   const draftPacks = useMemo(() => serializePacks(packs), [packs]);
@@ -332,7 +332,7 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
                 <SurfaceBox T={T}>
                   <div style={{ fontSize:DS.font.md, color:T.textMd, lineHeight:1.55 }}>
                     El cliente elige entre los <strong style={{ color:T.text }}>envíos del checkout</strong> ({checkoutRates.slice(0, 3).map(r => r.name).join(" · ")}{checkoutRates.length > 3 ? ` · +${checkoutRates.length - 3}` : ""}).
-                    {" "}Se configuran en <button type="button" style={linkBtn} onClick={goStoreSettings}>Configuración → Tienda →</button>
+                    {" "}Se configuran en <button type="button" style={linkBtn} onClick={goStoreSettings}>Configuración → Checkout →</button>
                   </div>
                 </SurfaceBox>
               ) : (

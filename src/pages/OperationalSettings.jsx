@@ -1,116 +1,190 @@
 import React from "react";
 import { apiPatch } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
-import { Card, Btn, Field, InputStyle, Spinner, CardHeader, Hint, CheckLine, toast } from "../ui/components.jsx";
+import { Btn, Field, InputStyle, Spinner, Hint, CheckLine, DSBadge, toast } from "../ui/components.jsx";
+import { Panel } from "../ui/charts.jsx";
 import { MONO, SurfaceBox } from "./_shared.jsx";
+import { merchantProfile } from "../../shared/platform/profile.js";
 
-// ─── Configuración → Avanzado ────────────────────────────────────
-// Flujo del checkout del widget, ruta de la página de checkout, selector CSS a
-// ocultar, códigos de descuento y modo desarrollador. Guarda PARCIAL por card
-// con merchant?action=save-settings (solo lo que se manda); los códigos con
-// save-discount-codes. Tienda/envíos → StoreSettings.jsx · mails → Portal del cliente.
+// ─── Ajustes del checkout y de prueba ────────────────────────────
+//   DiscountCodesCard → Configuración → Checkout (junto a los envíos).
+//   WidgetThemeCard   → cómo sigue el cliente después de tocar "Suscribirme" en el
+//                       widget pegado a mano en Shopify. Provisorio: con la app
+//                       nativa de Shopify esto se resuelve solo.
+//   DevModeCard       → herramientas de prueba (Avanzado).
+// Guardan PARCIAL con merchant?action=save-settings; los códigos con save-discount-codes.
 
 export const CHECKOUT_PAGE_PATH_DEFAULT = "/pages/suscripcion-form";
 
-export function AdvancedSettingsCard({ merchant, onChange }) {
+async function saveSettings(body, okMsg, onChange) {
+  const d = await apiPatch("merchant", body, { action: "save-settings" });
+  if (d?.error) { toast("Error: " + d.error, "error", 6000); return false; }
+  toast(okMsg || "Guardado", "success");
+  onChange?.();
+  return true;
+}
+
+const XBtn = ({ T, onClick, title = "Quitar" }) => (
+  <button type="button" onClick={onClick} title={title} aria-label={title} style={{ background:"transparent", border:"none", color:T.textSm, cursor:"pointer", fontSize:14, padding:"4px 6px", fontFamily:"inherit", lineHeight:1 }}
+    onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.textSm}>✕</button>
+);
+const Dirty = ({ T }) => <DSBadge T={T} color={T.yellow} size="sm">Cambios sin guardar</DSBadge>;
+
+// ── Códigos de descuento ──────────────────────────────────────────
+export function DiscountCodesCard({ merchant, onChange }) {
   const T = useT();
   const iS = InputStyle(T);
   const m = merchant || {};
-  const [devMode, setDevMode]   = React.useState(m.dev_mode === true);
-  const [hideSel, setHideSel]   = React.useState(m.widget_hide_selector || "");
-  const [flow, setFlow]         = React.useState(m.widget_checkout_flow || "redirect");
-  const [pagePath, setPagePath] = React.useState(m.widget_checkout_page_path || "");
-  const [codes, setCodes]       = React.useState(Array.isArray(m.discount_codes) ? m.discount_codes : []);
-  const [busy, setBusy]         = React.useState("");
+  const [codes, setCodes] = React.useState(Array.isArray(m.discount_codes) ? m.discount_codes : []);
+  const [busy, setBusy] = React.useState(false);
+  const [dirty, setDirty] = React.useState(false);
+  React.useEffect(() => { setCodes(Array.isArray(m.discount_codes) ? m.discount_codes : []); setDirty(false); }, [m.discount_codes]);
 
-  React.useEffect(() => {
-    setDevMode(m.dev_mode === true); setHideSel(m.widget_hide_selector || ""); setFlow(m.widget_checkout_flow || "redirect"); setPagePath(m.widget_checkout_page_path || "");
-    setCodes(Array.isArray(m.discount_codes) ? m.discount_codes : []);
-    // eslint-disable-next-line
-  }, [merchant]);
-
-  async function save(section, body) {
-    setBusy(section);
-    const d = await apiPatch("merchant", body, { action: "save-settings" });
-    setBusy("");
-    if (d?.error) return toast("Error: " + d.error, "error", 6000);
-    toast("Guardado", "success");
-    onChange?.();
-  }
-  async function saveCodes() {
-    setBusy("codes");
+  async function save() {
+    setBusy(true);
     const d = await apiPatch("merchant", { discount_codes: codes }, { action: "save-discount-codes" });
-    setBusy("");
+    setBusy(false);
     if (d?.error) return toast("Error: " + d.error, "error", 6000);
     toast("Códigos guardados", "success");
+    setDirty(false);
     onChange?.();
   }
-  const updCode = (i, k, v) => setCodes(cs => cs.map((c, j) => j === i ? { ...c, [k]: v } : c));
+  const upd = (i, k, v) => { setCodes(cs => cs.map((c, j) => j === i ? { ...c, [k]: v } : c)); setDirty(true); };
   const inl = { ...iS, padding:"7px 10px", fontSize:DS.font.md, marginBottom:0 };
-  const xBtn = (onClick, title="Quitar") => (
-    <button type="button" onClick={onClick} title={title} style={{ background:"transparent", border:"none", color:T.textSm, cursor:"pointer", fontSize:14, padding:"4px 6px", fontFamily:"inherit", lineHeight:1 }}
-      onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.textSm}>✕</button>
-  );
-  const saveBtn = (section, body, label="Guardar") => (
-    <Btn T={T} variant="primary" onClick={()=>save(section, body)} disabled={!!busy} style={{ marginTop:4 }}>{busy===section ? <><Spinner size={12} color={T.accent}/> Guardando…</> : label}</Btn>
-  );
   const chk = { width:14, height:14, accentColor:T.accentSolid };
+  const active = codes.filter(c => c.active !== false && c.code).length;
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
-      {/* Checkout del widget */}
-      <Card T={T}>
-        <CardHeader T={T} title="Checkout de suscripción" sub="Cómo pasa el cliente del selector al formulario de suscripción en tu tienda."/>
-        <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 14px" }}>
-          <Field T={T} label="Flujo del checkout">
-            <select value={flow} onChange={e=>setFlow(e.target.value)} style={iS}>
-              <option value="redirect">Redirigir a la página de checkout</option>
-              <option value="inline">Inline (formulario en el producto)</option>
-            </select>
-          </Field>
-          <Field T={T} label="Ruta de la página de checkout">
-            <input value={pagePath} onChange={e=>setPagePath(e.target.value)} style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} placeholder={CHECKOUT_PAGE_PATH_DEFAULT}/>
-          </Field>
+    <Panel T={T} title="Códigos de descuento"
+      sub={<>El cliente los escribe en el checkout de suscripción. <strong style={{ color:T.textMd }}>Solo 1er cobro</strong>: las renovaciones se cobran a precio pleno.{codes.length ? ` · ${active} activo${active === 1 ? "" : "s"}` : ""}</>}
+      right={<>
+        {dirty && <Dirty T={T}/>}
+        <Btn T={T} variant="secondary" size="sm" type="button" onClick={() => { setCodes(cs => [...cs, { code:"", type:"percent", value:10, active:true, recovery_only:false, first_charge_only:false }]); setDirty(true); }}>+ Agregar</Btn>
+      </>}>
+      {codes.length === 0 && <SurfaceBox T={T} style={{ marginBottom:12 }}><div style={{ fontSize:DS.font.sm, color:T.textSm }}>Todavía no hay códigos. Agregá uno (ej. BIENVENIDA10) para usarlo en el checkout de suscripción.</div></SurfaceBox>}
+      {codes.map((c, i) => (
+        <div key={i} style={{ display:"flex", gap:8, alignItems:"center", marginBottom:6, flexWrap:"wrap", background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:10, padding:"6px 8px" }}>
+          <input value={c.code} onChange={e=>upd(i, "code", e.target.value.toUpperCase())} aria-label="Código" style={{ ...inl, fontFamily:MONO, flex:"1 1 130px", minWidth:0 }} placeholder="CODIGO"/>
+          <select value={c.type || "percent"} onChange={e=>upd(i, "type", e.target.value)} aria-label="Tipo de descuento" style={{ ...inl, flex:"0 1 100px" }}>
+            <option value="percent">% off</option>
+            <option value="fixed">$ fijo</option>
+          </select>
+          <input type="number" min="0" value={c.value} onChange={e=>upd(i, "value", e.target.value)} aria-label="Valor" style={{ ...inl, flex:"0 1 80px" }}/>
+          <label style={{ display:"flex", gap:5, alignItems:"center", whiteSpace:"nowrap", fontSize:DS.font.sm, color:T.textMd, cursor:"pointer" }}><input type="checkbox" style={chk} checked={c.active !== false} onChange={e=>upd(i, "active", e.target.checked)}/>Activo</label>
+          <label style={{ display:"flex", gap:5, alignItems:"center", whiteSpace:"nowrap", fontSize:DS.font.sm, color:T.textMd, cursor:"pointer" }}><input type="checkbox" style={chk} checked={c.first_charge_only === true} onChange={e=>upd(i, "first_charge_only", e.target.checked)}/>Solo 1er cobro</label>
+          <span style={{ marginLeft:"auto" }}><XBtn T={T} onClick={() => { setCodes(cs => cs.filter((_, j) => j !== i)); setDirty(true); }} title={`Quitar ${c.code || "código"}`}/></span>
         </div>
-        <Hint T={T}>Vacío = <code style={{ fontFamily:MONO }}>{CHECKOUT_PAGE_PATH_DEFAULT}</code> (la página de tu Shopify donde pegaste el bloque del checkout). Tiene que empezar con <code style={{ fontFamily:MONO }}>/</code>.</Hint>
-        <Field T={T} label="Selector CSS a ocultar en modo suscripción">
-          <input value={hideSel} onChange={e=>setHideSel(e.target.value)} style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} placeholder=".product-form__buttons, .shopify-payment-button"/>
-        </Field>
-        <Hint T={T}>Opcional: elementos del tema (botón de compra, Shop Pay) que se esconden cuando el cliente elige Suscripción. Separá varios con coma.</Hint>
-        {saveBtn("checkout", { widget_checkout_page_path: pagePath, widget_checkout_flow: flow, widget_hide_selector: hideSel })}
-      </Card>
+      ))}
+      <div style={{ marginTop:8 }}>
+        <Btn T={T} variant="primary" onClick={save} disabled={busy || !dirty}>{busy ? <><Spinner size={12} color={T.accent}/> Guardando…</> : "Guardar códigos"}</Btn>
+      </div>
+    </Panel>
+  );
+}
 
-      {/* Códigos de descuento */}
-      <Card T={T}>
-        <CardHeader T={T} title="Códigos de descuento" sub={<>Se aplican en el checkout de suscripción. "Solo 1er cobro" = las renovaciones van a precio pleno.</>}
-          right={<Btn T={T} variant="secondary" size="sm" onClick={()=>setCodes(cs=>[...cs,{code:"",type:"percent",value:10,active:true,recovery_only:false,first_charge_only:false}])} type="button">+ Agregar</Btn>}/>
-        {codes.length === 0 && <SurfaceBox T={T} style={{ marginBottom:12 }}><div style={{ fontSize:DS.font.sm, color:T.textSm }}>Todavía no hay códigos. Agregá uno para usarlo en el checkout de suscripción.</div></SurfaceBox>}
-        {codes.map((c, i) => (
-          <div key={i} style={{ display:"flex", gap:8, alignItems:"center", marginBottom:6, flexWrap:"wrap", background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:DS.r.md, padding:"6px 8px" }}>
-            <input value={c.code} onChange={e=>updCode(i,"code",e.target.value.toUpperCase())} style={{ ...inl, fontFamily:MONO, flex:"1 1 130px" }} placeholder="CODIGO"/>
-            <select value={c.type || "percent"} onChange={e=>updCode(i,"type",e.target.value)} style={{ ...inl, flex:"0 1 100px" }}>
-              <option value="percent">% off</option>
-              <option value="fixed">$ fijo</option>
-            </select>
-            <input type="number" min="0" value={c.value} onChange={e=>updCode(i,"value",e.target.value)} style={{ ...inl, flex:"0 1 80px" }}/>
-            <label style={{ display:"flex", gap:5, alignItems:"center", whiteSpace:"nowrap", fontSize:DS.font.sm, color:T.textMd, cursor:"pointer" }}><input type="checkbox" style={chk} checked={c.active !== false} onChange={e=>updCode(i,"active",e.target.checked)}/>Activo</label>
-            <label style={{ display:"flex", gap:5, alignItems:"center", whiteSpace:"nowrap", fontSize:DS.font.sm, color:T.textMd, cursor:"pointer" }}><input type="checkbox" style={chk} checked={c.first_charge_only === true} onChange={e=>updCode(i,"first_charge_only",e.target.checked)}/>Solo 1er cobro</label>
-            <span style={{ marginLeft:"auto" }}>{xBtn(()=>setCodes(cs=>cs.filter((_,j)=>j!==i)))}</span>
+// ── Widget en el tema de Shopify (provisorio hasta la app nativa) ──
+export function WidgetThemeCard({ merchant, onChange }) {
+  const T = useT();
+  const iS = InputStyle(T);
+  const m = merchant || {};
+  const [flow, setFlow] = React.useState(m.widget_checkout_flow || "redirect");
+  const [pagePath, setPagePath] = React.useState(m.widget_checkout_page_path || "");
+  const [hideSel, setHideSel] = React.useState(m.widget_hide_selector || "");
+  const [open, setOpen] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const reset = () => { setFlow(m.widget_checkout_flow || "redirect"); setPagePath(m.widget_checkout_page_path || ""); setHideSel(m.widget_hide_selector || ""); };
+  // eslint-disable-next-line
+  React.useEffect(reset, [m.widget_checkout_flow, m.widget_checkout_page_path, m.widget_hide_selector]);
+
+  async function save() {
+    setBusy(true);
+    const ok = await saveSettings({ widget_checkout_flow: flow, widget_checkout_page_path: pagePath.trim(), widget_hide_selector: hideSel.trim() }, "Widget guardado", onChange);
+    setBusy(false);
+    if (ok) setOpen(false);
+  }
+  const path = (m.widget_checkout_page_path || "").trim() || CHECKOUT_PAGE_PATH_DEFAULT;
+  const savedFlow = m.widget_checkout_flow || "redirect";
+  const savedHide = (m.widget_hide_selector || "").trim();
+  const label = { fontSize:10, fontWeight:700, color:T.textSm, textTransform:"uppercase", letterSpacing:0.6, margin:"2px 0 8px" };
+  const Option = ({ id, title, desc }) => {
+    const on = flow === id;
+    return (
+      <label style={{ display:"flex", gap:10, alignItems:"flex-start", padding:"11px 12px", borderRadius:12, cursor:"pointer", border:`1px solid ${on ? T.accentSolid + "66" : T.border}`, background: on ? T.accentSolid + "0f" : T.surface }}>
+        <input type="radio" name="widget-flow" checked={on} onChange={() => setFlow(id)} style={{ accentColor:T.accentSolid, marginTop:2 }}/>
+        <span style={{ minWidth:0 }}>
+          <span style={{ display:"block", fontSize:DS.font.base, fontWeight:700, color:T.text }}>{title}</span>
+          <span style={{ display:"block", fontSize:DS.font.sm, color:T.textSm, marginTop:2, lineHeight:1.45 }}>{desc}</span>
+        </span>
+      </label>
+    );
+  };
+
+  return (
+    <Panel T={T} title="Widget en tu tema de Shopify"
+      sub="Qué pasa después de que el cliente toca Suscribirme. Solo aplica al widget pegado a mano; con la integración nativa de Shopify se va a configurar solo."
+      right={!open && <Btn T={T} variant="secondary" size="sm" onClick={() => setOpen(true)}>Cambiar</Btn>}>
+      {!open ? (
+        <ul style={{ margin:0, paddingLeft:18, display:"flex", flexDirection:"column", gap:6, fontSize:DS.font.md, color:T.textMd, lineHeight:1.5 }}>
+          <li>{savedFlow === "inline" ? "El formulario se abre en la misma página del producto." : <>El formulario se abre en una página aparte de tu tienda: <code style={{ fontFamily:MONO, color:T.text }}>{path}</code></>}</li>
+          <li>{savedHide ? <>Además escondemos del tema: <code style={{ fontFamily:MONO, color:T.text }}>{savedHide}</code></> : "Cuando elige Suscripción escondemos el botón de compra normal del tema (lo estándar)."}</li>
+        </ul>
+      ) : (
+        <>
+          <div style={label}>¿Dónde completa sus datos el cliente?</div>
+          <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
+            <Option id="redirect" title="En una página aparte (recomendado)" desc="Va a la página de tu tienda donde pegaste el bloque del checkout."/>
+            <Option id="inline" title="En la misma página del producto" desc="El formulario se abre ahí mismo, debajo del selector."/>
           </div>
-        ))}
-        <div style={{ marginTop:8 }}>
-          <Btn T={T} variant="primary" onClick={saveCodes} disabled={!!busy}>{busy==="codes" ? <><Spinner size={12} color={T.accent}/> Guardando…</> : "Guardar códigos"}</Btn>
-        </div>
-      </Card>
+          {flow === "redirect" && (
+            <>
+              <Field T={T} label="Dirección de esa página">
+                <input value={pagePath} onChange={e => setPagePath(e.target.value)} style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} placeholder={CHECKOUT_PAGE_PATH_DEFAULT}/>
+              </Field>
+              <Hint T={T}>Lo que va después de tu dominio, empezando con <code style={{ fontFamily:MONO }}>/</code>. Si la dejás vacía usamos <code style={{ fontFamily:MONO }}>{CHECKOUT_PAGE_PATH_DEFAULT}</code>.</Hint>
+            </>
+          )}
+          <Field T={T} label="Botones del tema a esconder (opcional)">
+            <input value={hideSel} onChange={e => setHideSel(e.target.value)} style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} placeholder=".product-form__buttons, .shopify-payment-button"/>
+          </Field>
+          <Hint T={T}>Solo si al elegir Suscripción todavía se ve el botón de compra normal o Shop Pay. Pegá el selector CSS de esos botones (varios separados por coma) o escribinos por WhatsApp y lo vemos con vos.</Hint>
+          <div style={{ display:"flex", gap:8, marginTop:6 }}>
+            <Btn T={T} variant="primary" onClick={save} disabled={busy}>{busy ? <><Spinner size={12} color={T.accent}/> Guardando…</> : "Guardar"}</Btn>
+            <Btn T={T} variant="ghost" onClick={() => { reset(); setOpen(false); }} style={{ color:T.textSm }}>Cancelar</Btn>
+          </div>
+        </>
+      )}
+    </Panel>
+  );
+}
 
-      {/* Dev */}
-      <Card T={T}>
-        <CardHeader T={T} title="Modo desarrollador" sub="Herramientas de prueba para validar el flujo sin cobrar."/>
-        <CheckLine T={T} checked={devMode} onChange={setDevMode} style={{ color:T.text, marginBottom:12 }}>
-          Habilitar herramientas de prueba (ej. "Simular próximo cobro": crea una orden Shopify SIMULADA, sin cobro ni mails)
-        </CheckLine>
-        {saveBtn("dev", { dev_mode: devMode })}
-      </Card>
+// ── Modo de prueba ─────────────────────────────────────────────────
+export function DevModeCard({ merchant, onChange }) {
+  const T = useT();
+  const m = merchant || {};
+  const profile = merchantProfile(m);
+  const [devMode, setDevMode] = React.useState(m.dev_mode === true);
+  const [busy, setBusy] = React.useState(false);
+  React.useEffect(() => { setDevMode(m.dev_mode === true); }, [m.dev_mode]);
+  const dirty = devMode !== (m.dev_mode === true);
+  async function save() { setBusy(true); await saveSettings({ dev_mode: devMode }, devMode ? "Modo de prueba activado" : "Modo de prueba desactivado", onChange); setBusy(false); }
+  return (
+    <Panel T={T} title="Modo de prueba" sub="Herramientas para validar el flujo completo sin cobrar." right={dirty && <Dirty T={T}/>}>
+      <CheckLine T={T} checked={devMode} onChange={setDevMode} style={{ color:T.text, marginBottom:12 }}>
+        Habilitar "Simular próximo cobro" en la ficha de cada suscripción: {profile.caps.orders ? `crea una orden SIMULADA en ${profile.channelInfo.label}` : "registra un cobro SIMULADO"}, sin cobrar ni mandar mails.
+      </CheckLine>
+      <Btn T={T} variant="primary" onClick={save} disabled={busy || !dirty}>{busy ? <><Spinner size={12} color={T.accent}/> Guardando…</> : "Guardar"}</Btn>
+    </Panel>
+  );
+}
+
+// Configuración → Avanzado. El widget en el tema pasa a Integraciones → Shopify
+// cuando se rehaga esa sección; mientras, vive acá (solo si hay widget).
+export function AdvancedSettingsCard({ merchant, onChange }) {
+  const profile = merchantProfile(merchant || {});
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
+      {profile.caps.widget && <WidgetThemeCard merchant={merchant} onChange={onChange}/>}
+      <DevModeCard merchant={merchant} onChange={onChange}/>
     </div>
   );
 }
