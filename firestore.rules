@@ -21,20 +21,36 @@ service cloud.firestore {
     // Multi-tienda: el doc merchants/{mid} lo puede LEER su propio login
     // (mid == uid, caso clásico), el PERFIL dueño (ownerUid, tiendas m_xxx) y
     // los miembros del equipo (teamUids). Escritura: nunca.
+    // Tienda principal TRANSFERIDA (merchants/{uid} con ownerUid = otro login):
+    // el login original deja de leerla por ser "su" id; solo si quedó en el equipo.
     match /merchants/{mid} {
       allow read: if request.auth != null && (
-        request.auth.uid == mid
+        (request.auth.uid == mid && resource.data.get('ownerUid', mid) == mid)
         || request.auth.uid == resource.data.get('ownerUid', '')
         || request.auth.uid in resource.data.get('teamUids', [])
       );
       allow write: if false;
 
       // Subcolecciones (plans, subscribers, charges, email_log…): solo el login
-      // cuyo uid es el id del doc. Dueños de tiendas extra y equipo las leen por API.
+      // cuyo uid es el id del doc y que SIGUE siendo su dueño. Dueños de tiendas
+      // extra y equipo las leen por API.
       match /{subcol}/{docId=**} {
-        allow read: if request.auth != null && request.auth.uid == mid;
+        allow read: if request.auth != null && request.auth.uid == mid
+          && get(/databases/$(database)/documents/merchants/$(mid)).data.get('ownerUid', mid) == mid;
         allow write: if false;
       }
+    }
+
+    // Transferencias de tiendas, perfiles de logins sin tienda principal y
+    // auditoría: solo Admin SDK (api/_lib/transfer.js).
+    match /store_transfers/{id} {
+      allow read, write: if false;
+    }
+    match /profiles/{uid} {
+      allow read, write: if false;
+    }
+    match /audit_log/{id} {
+      allow read, write: if false;
     }
 
     // Internos (rate limits, tokens temporales): solo Admin SDK.

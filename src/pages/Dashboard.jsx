@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { apiGet, apiPost, setActiveMerchantId } from "../lib/api.js";
+import { StoreTransferredScreen } from "./Transfer.jsx";
 import { auth } from "../lib/firebase.js";
 import { sendEmailVerification } from "firebase/auth";
 import { DS, useTheme, useT } from "../ui/theme.js";
@@ -50,6 +51,7 @@ export default function Dashboard({ user, onLogout }) {
   const [workspace, setWorkspace] = useState(null);
   const [loading, setLoading] = useState(true);
   const [unverified, setUnverified] = useState(false);
+  const [noStore, setNoStore] = useState(false); // su tienda principal fue transferida y no tiene otra activa
   const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem("rec_sidebar_collapsed") === "1"; } catch (_) { return false; } });
   const [newStoreOpen, setNewStoreOpen] = useState(false);
   const [manageStoreId, setManageStoreId] = useState(null);
@@ -104,6 +106,7 @@ export default function Dashboard({ user, onLogout }) {
       // Cuenta nueva sin verificar el mail → el backend responde 403 email_unverified.
       if (d?.code === "email_unverified") { setUnverified(true); setLoading(false); return; }
       setUnverified(false);
+      if (d?.reason === "store_transferred") { setNoStore(true); setLoading(false); return; }
       if (d?.error && !d?.merchant) {
         setLoadError(d.error);
         setMerchant(null);
@@ -228,6 +231,7 @@ export default function Dashboard({ user, onLogout }) {
   useEffect(() => { if (!navList.some(n => n.id === tab)) goTab("inicio"); }, [navList, tab, goTab]);
 
   if (unverified) return <><VerifyEmailScreen user={user} onLogout={onLogout} onRetry={reloadMerchant}/><ToastContainer T={T}/></>;
+  if (noStore) return <><StoreTransferredScreen user={user} onLogout={onLogout}/><ToastContainer T={T}/></>;
 
   const navItem = NAV.find(n => n.id === tab) || NAV[0];
   const shellProps = { T, nav: navList, activeTab: tab, onTab: goTab, user, merchant, workspace: effectiveWorkspace, onSwitchStore: switchStore, onCreateStore: () => setNewStoreOpen(true), onManageStore: (id) => setManageStoreId(id), darkMode, setDarkMode, onLogout, alerts: { onboarding: onb.ready ? onb.pending : 0 }, pendientes: pendientesSidebar, onVerPlan: () => goTab("inicio") };

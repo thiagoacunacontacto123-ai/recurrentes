@@ -9,6 +9,7 @@ import Portal from "./pages/Portal.jsx";
 import CheckoutSuccess from "./pages/CheckoutSuccess.jsx";
 import Checkout from "./pages/Checkout.jsx";
 import LegalPage from "./pages/Legal.jsx";
+import { TransferAcceptPage } from "./pages/Transfer.jsx";
 
 // Routing simple hash-based.
 // Rutas PÚBLICAS (ignoran si hay user logueado o no):
@@ -44,6 +45,8 @@ export default function App() {
   if (route === "checkout-success") return <CheckoutSuccess/>;
   if (route === "terminos") return <LegalPage kind="terminos" T={readStoredDark() ? DARK : LIGHT}/>;
   if (route === "privacidad") return <LegalPage kind="privacidad" T={readStoredDark() ? DARK : LIGHT}/>;
+  // Aceptar una tienda transferida: anda con o sin sesión (maneja el login adentro).
+  if (route === "transferir") return <TransferAcceptPage user={user} authReady={authReady}/>;
 
   if (!authReady) {
     return (
@@ -66,5 +69,6 @@ function parseRoute() {
   if (path === "checkout-success") return "checkout-success";
   if (path === "terminos") return "terminos";
   if (path === "privacidad") return "privacidad";
+  if (path === "transferir") return "transferir";
   return "default";
 }

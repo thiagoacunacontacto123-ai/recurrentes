@@ -68,6 +68,20 @@ export async function requireAuth(req, res) {
   return decoded ? decoded.uid : null;
 }
 
+// Como requireAuth pero devuelve el token decodificado completo ({ uid, email,
+// email_verified }) — lo usa la transferencia de tiendas (_lib/transfer.js).
+export async function requireUser(req, res) {
+  return verifyBearer(req, res);
+}
+
+// Login OPCIONAL: token decodificado si viene un Bearer válido, null si no.
+// Nunca responde nada (para endpoints que funcionan con o sin sesión).
+export async function optionalUser(req) {
+  const tok = (req.headers?.authorization || "").replace(/^Bearer\s+/i, "");
+  if (!tok) return null;
+  try { initAdmin(); return await getAuth().verifyIdToken(tok); } catch (_) { return null; }
+}
+
 // ─── Multi-tienda ──────────────────────────────────────────────────────────
 // Un PERFIL (login, uid de Firebase Auth) puede operar sobre varios MERCHANTS:
 //   · merchants/{uid}      → su tienda principal (caso clásico: Lumina).
@@ -116,13 +130,13 @@ export async function resolveMerchantAccess(uid, merchantId, seccion) {
   const target = String(merchantId || "").trim();
   if (!target) return { ok: false, code: 400, error: "merchant_id requerido" };
   const meta = await merchantMeta(target);
-  if (meta.deleted) return { ok: false, code: 403, error: "Esta tienda está eliminada." };
-  if (target === uid) {
-    // Tienda MOVIDA a otro perfil: el login original ya no es dueño de su
-    // propio doc — no opera aunque el id coincida.
-    if (meta.ownerUid && meta.ownerUid !== uid) return { ok: false, code: 403, error: "Esta tienda fue movida a otro perfil. Este usuario ya no tiene acceso." };
-    return { ok: true, role: "owner" };
-  }
+  // Tienda principal MOVIDA/transferida a otro perfil (merchants/{uid} con
+  // ownerUid = otro): el login original ya no es dueño de su propio doc. Solo
+  // sigue entrando si el nuevo dueño lo dejó como miembro del equipo (abajo).
+  const movedSelf = target === uid && !!meta.ownerUid && meta.ownerUid !== uid;
+  const TRANSFERRED = { ok: false, code: 403, transferred: true, error: "Esta tienda fue transferida a otra cuenta. Este usuario ya no tiene acceso." };
+  if (meta.deleted) return movedSelf ? TRANSFERRED : { ok: false, code: 403, error: "Esta tienda está eliminada." };
+  if (target === uid && !movedSelf) return { ok: true, role: "owner" };
   if (!meta.exists) return { ok: false, code: 403, error: "No tenés acceso a esta tienda." };
   // Perfil DUEÑO de esta tienda (multi-tienda): acceso total.
   if (meta.ownerUid && meta.ownerUid === uid) return { ok: true, role: "owner", viaOwner: true };
@@ -139,6 +153,7 @@ export async function resolveMerchantAccess(uid, merchantId, seccion) {
     return { ok: true, role: "member", viaTeam: true, member };
   }
   if (meta.team.includes(uid)) return { ok: true, role: "member", viaTeam: true }; // legacy: acceso total
+  if (movedSelf) return TRANSFERRED;
   console.warn(`[auth] ${uid} intentó operar sobre ${target}`);
   return { ok: false, code: 403, error: "No tenés acceso a esta tienda." };
 }
@@ -148,8 +163,14 @@ export async function resolveMerchantAccess(uid, merchantId, seccion) {
  *   { uid, email, merchantId, role, viaOwner?, viaTeam?, member? }
  * o null (ya respondió 401/403). merchantId sale de `X-Merchant-Id`,
  * `?merchant_id` o, si no viene, del uid (comportamiento histórico).
+ *
+ * Login cuya tienda principal fue transferida (merchants/{uid} ya es de otro)
+ * y que no quedó como miembro: responde 403 con reason "store_transferred"
+ * (el panel muestra "tu tienda fue transferida"). Con opts.allowNoStore
+ * (acciones de PERFIL: workspace, store-create…) devuelve un ctx SIN tienda:
+ * { uid, email, merchantId: null, role: null, noStore: true }.
  */
-export async function requireMerchant(req, res, seccion) {
+export async function requireMerchant(req, res, seccion, opts = {}) {
   const decoded = await verifyBearer(req, res);
   if (!decoded) return null;
   const uid = decoded.uid;
@@ -159,7 +180,10 @@ export async function requireMerchant(req, res, seccion) {
   const merchantId = fromHeader || fromQuery || uid;
   const acc = await resolveMerchantAccess(uid, merchantId, seccion);
   if (!acc.ok) {
-    res.status(acc.code || 403).json({ error: acc.error, code: "merchant_forbidden" });
+    if (acc.transferred === true && merchantId === uid && opts.allowNoStore === true) {
+      return { uid, email: decoded.email || null, merchantId: null, role: null, viaOwner: false, viaTeam: false, member: null, noStore: true };
+    }
+    res.status(acc.code || 403).json({ error: acc.error, code: "merchant_forbidden", ...(acc.transferred ? { reason: "store_transferred" } : {}) });
     return null;
   }
   return {
@@ -178,6 +202,9 @@ export async function requireMerchant(req, res, seccion) {
 // Los merchants nuevos nacen con los campos multi-tienda (ownerUid = su propio
 // id, teamUids, stores[], active_merchant_id). Los viejos (Lumina) no los tienen
 // y todo funciona igual: ownerUid ausente = dueño de sí mismo.
+// Transferencias (_lib/transfer.js): si merchants/{uid} fue transferido, el doc
+// EXISTE (con ownerUid = el nuevo dueño) → acá solo se lee, nunca se recrea ni
+// se pisa. El login original queda sin tienda (su perfil pasa a profiles/{uid}).
 export async function getOrCreateMerchant(merchantId, email) {
   const ref = db().collection("merchants").doc(merchantId);
   const snap = await ref.get();

@@ -9,6 +9,7 @@ import { PlanPage } from "./Billing.jsx";
 import { AdvancedSettingsCard } from "./OperationalSettings.jsx";
 import GuidePage from "./Guide.jsx";
 import BusinessProfileSection from "./BusinessProfile.jsx";
+import { TransferStoreModal, PendingTransferNote } from "./Transfer.jsx";
 import { merchantProfile } from "../../shared/platform/profile.js";
 import { KpiCard, Panel as UiPanel } from "../ui/charts.jsx";
 import {
@@ -337,6 +338,7 @@ function TiendasSection({ T, DS, user, merchant, workspace, reloadMerchant, toas
   const [manageId, setManageId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [busyId, setBusyId] = useState("");
+  const [transferId, setTransferId] = useState(null);
 
   async function activar(store) {
     if (store.id === activeId) return;
@@ -435,8 +437,10 @@ function TiendasSection({ T, DS, user, merchant, workspace, reloadMerchant, toas
                   <div style={{ display: "flex", gap: 6, flexShrink: 0, flexWrap: "wrap" }}>
                     {!isActive && <button onClick={() => activar(s)} disabled={!!busyId} style={{ ...BtnSecondary(T), fontSize: DS.font.sm, padding: "5px 10px" }}>{busyId === s.id ? "…" : "Activar"}</button>}
                     {isOwner && <button onClick={() => setManageId(s.id)} style={{ ...BtnSecondary(T), fontSize: DS.font.sm, padding: "5px 10px" }}>Gestionar</button>}
+                    {s.can_transfer && !(s.transfer_pending && !s.transfer_pending.expired) && <button onClick={() => setTransferId(s.id)} style={{ ...BtnSecondary(T), fontSize: DS.font.sm, padding: "5px 10px" }}>Transferir a otra cuenta</button>}
                   </div>
                 </div>
+                {s.transfer_pending && <PendingTransferNote T={T} store={s} onChange={reloadMerchant} />}
               </div>
             );
           })}
@@ -448,6 +452,7 @@ function TiendasSection({ T, DS, user, merchant, workspace, reloadMerchant, toas
 
       {showCreate && <NewStoreModal T={T} onClose={() => setShowCreate(false)} onCreate={crear} />}
       {manageStore && <ManageStoreModal T={T} store={manageStore} totalStores={stores.length || 1} onClose={() => setManageId(null)} onSave={guardar} onDelete={manageStore.is_primary && stores.length <= 1 ? null : eliminar} />}
+      {transferId && stores.some(s => s.id === transferId) && <TransferStoreModal T={T} store={stores.find(s => s.id === transferId)} onClose={() => setTransferId(null)} onDone={reloadMerchant} />}
     </>
   );
 }

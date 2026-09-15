@@ -379,3 +379,49 @@ export async function emailFlowStep({ to, subject, bodyText, ctaLabel, ctaUrl, m
   return sendEmail({ from: snd.from, replyTo: snd.replyTo, to, subject: plain(subject, 180), html, headers,
     tags: { type: "flow", ...(tags || {}), ...(merchantId ? { merchant: merchantId } : {}) } });
 }
+
+// ─── Transferir una tienda a otra cuenta (_lib/transfer.js) ───────────
+const fmtDay = (iso) => {
+  try { return new Date(iso).toLocaleDateString("es-AR", { day: "numeric", month: "long", timeZone: "America/Argentina/Buenos_Aires" }); }
+  catch (_) { return ""; }
+};
+
+// A la persona que RECIBE la tienda: link para aceptar (vence en 7 días). El
+// aceptar exige entrar con este mismo mail. Sale siempre con la marca Recurrentes.
+export async function emailStoreTransfer({ to, fromEmail, storeName, acceptUrl, expiresAt }) {
+  const store = plain(storeName, 60) || "una tienda";
+  const who = plain(fromEmail, 120);
+  const title = `Te quieren pasar la tienda ${store} en Recurrentes`;
+  const vence = fmtDay(expiresAt);
+  const body = `
+    <p>${who ? `<b>${escapeHtml(who)}</b> te quiere pasar` : "Te quieren pasar"} la tienda <b>${escapeHtml(store)}</b> en Recurrentes.</p>
+    <p>Si aceptás, la tienda pasa a ser tuya con todo lo que tiene: planes, suscriptores, cobros y las conexiones con Shopify y Mercado Pago.</p>
+    <p>Para aceptar tenés que entrar con <b>este mismo email</b>: <b>${escapeHtml(to)}</b>. Si todavía no tenés cuenta, la creás desde el link.</p>
+    ${vence ? `<p>El link vence el <b>${escapeHtml(vence)}</b>.</p>` : ""}
+    <p style="margin-top:14px;color:#6b7280;font-size:13px;">Si no esperabas este mail, ignoralo: no pasa nada hasta que aceptes.</p>`;
+  const html = baseTemplate({
+    title, body,
+    ctaLabel: "Ver la transferencia",
+    ctaUrl: acceptUrl,
+    brand: "Recurrentes",
+    accent: "#10b981",
+    footerNote: "Por seguridad, no reenvíes este mail: el link es personal.",
+  });
+  return sendEmail({ from: platformFrom(), replyTo: fromEmail || undefined, to, subject: title, html, tags: { type: "store_transfer" } });
+}
+
+// Al dueño ANTERIOR: la transferencia se aceptó o se rechazó (aviso de seguridad).
+export async function emailStoreTransferResult({ to, kind, storeName, toEmail, keptAccess }) {
+  const store = plain(storeName, 60) || "tu tienda";
+  const dest = plain(toEmail, 120);
+  const accepted = kind === "accepted";
+  const title = accepted ? `Transferiste ${store}` : `Rechazaron la transferencia de ${store}`;
+  const body = accepted
+    ? `<p><b>${escapeHtml(dest)}</b> aceptó la transferencia: <b>${escapeHtml(store)}</b> ya es de esa cuenta.</p>
+       <p>${keptAccess ? "Seguís entrando a la tienda como miembro del equipo, con acceso a todas las secciones." : "Tu login ya no tiene acceso a esta tienda."}</p>
+       <p>Si el Mercado Pago conectado a la tienda es tuyo, los cobros siguen entrando ahí hasta que la nueva cuenta conecte el suyo.</p>
+       <p style="margin-top:14px;color:#6b7280;font-size:13px;">Si no fuiste vos, respondé este mail cuanto antes.</p>`
+    : `<p><b>${escapeHtml(dest)}</b> rechazó la transferencia de <b>${escapeHtml(store)}</b>. La tienda sigue siendo tuya y no cambió nada.</p>`;
+  const html = baseTemplate({ title, body, brand: "Recurrentes", accent: "#10b981" });
+  return sendEmail({ from: platformFrom(), to, subject: title, html, tags: { type: accepted ? "store_transfer_accepted" : "store_transfer_declined" } });
+}

@@ -40,6 +40,9 @@
 //   POST   ?action=member-invite  { email, name, secciones? }
 //   POST   ?action=member-update  { member_uid, secciones }
 //   POST   ?action=member-remove  { member_uid | email }
+//   Transferir una tienda a otra cuenta (_lib/transfer.js; auth propia, antes de requireMerchant):
+//   POST   ?action=transfer-start   { merchant_id, email, keep_access } · transfer-cancel { merchant_id }
+//   GET    ?action=transfer-info&t= · POST transfer-accept { t } · transfer-decline { t }
 //
 // Todas las requests pasan por requireMerchant: el merchant activo sale del
 // header X-Merchant-Id (o el uid del login si no viene → sin cambios para
@@ -60,10 +63,15 @@ import { rateLimit } from "./_lib/ratelimit.js";
 import { klaviyoEnabled, klaviyoValidateKey, klaviyoCheckoutStarted } from "./_lib/klaviyo.js";
 import { merchantProfile, validateProfilePatch } from "../shared/platform/profile.js";
 import { flowsApi } from "./_lib/flowsApi.js";
+import { transferApi, publicPending } from "./_lib/transfer.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
-  const ctx = await requireMerchant(req, res);
+  // Transferir tienda a otra cuenta (_lib/transfer.js): cada acción hace su propia auth.
+  const qAction = String(req.query?.action || "");
+  if (qAction.startsWith("transfer-")) return transferApi(req, res, { secciones: SECCIONES, storeName: storeDisplayName });
+  // Acciones de PERFIL: andan aunque la tienda principal del login haya sido transferida (ctx sin tienda).
+  const ctx = await requireMerchant(req, res, undefined, { allowNoStore: NO_STORE_ACTIONS.includes(qAction) });
   if (!ctx) return;
   // uid = login (perfil). merchantId = tienda activa (== uid si no hay header).
   const { uid, merchantId } = ctx;
@@ -1032,6 +1040,8 @@ const nowIso = () => new Date().toISOString();
 const purgeAtIso = () => new Date(Date.now() + PURGE_DAYS * 86400000).toISOString();
 const emailLower = (v) => String(v || "").trim().toLowerCase();
 const isStoreId = (id) => /^m_[a-z0-9]+$/i.test(String(id || ""));
+// Acciones de perfil que funcionan sin tienda (login cuya principal fue transferida).
+const NO_STORE_ACTIONS = ["workspace", "store-create", "store-activate", "account-delete"];
 
 // Solo claves válidas con `true` (un miembro nunca recibe secciones inventadas).
 function cleanSecciones(obj) {
@@ -1067,6 +1077,9 @@ function storeEntry(id, d, { role, uid, member }) {
     mp_connected: !!d?.mp_access_token,
     // Miembro: permisos por sección (null = acceso total legacy vía teamUids sin teamMembers).
     secciones: role === "member" ? (member ? cleanSecciones(member.secciones) : null) : null,
+    // Transferir a otra cuenta: solo el dueño REAL (ownerUid, o el propio id si falta).
+    can_transfer: role === "owner" && String(d?.ownerUid || id) === uid,
+    transfer_pending: role === "owner" ? publicPending(d?.transfer_pending) : null,
   };
 }
 
@@ -1074,14 +1087,22 @@ function storeEntry(id, d, { role, uid, member }) {
 // es SIEMPRE el uid del token; un miembro operando sobre una tienda ajena
 // (viaTeam) no gestiona el perfil desde ahí (misma regla que Growith).
 async function profileGuard(ctx, res, { allowViaTeam = false } = {}) {
+  // Tienda principal TRANSFERIDA a otra cuenta: merchants/{uid} ya no es suyo. Su
+  // perfil (tiendas, tienda activa) vive en profiles/{uid}; el doc ajeno nunca se escribe.
+  const mine = (await db().collection("merchants").doc(ctx.uid).get()).data() || {};
+  if (mine.ownerUid && mine.ownerUid !== ctx.uid) {
+    const pRef = db().collection("profiles").doc(ctx.uid);
+    const p = (await pRef.get()).data() || {};
+    if (p.deleted === true) { res.status(403).json({ error: "Esta cuenta está eliminada." }); return null; }
+    return { myRef: pRef, my: { ...p, moved: true }, moved: true };
+  }
   if (ctx.viaTeam && !allowViaTeam) {
     res.status(403).json({ error: "Cambiá a tu propia tienda para gestionar tu perfil." });
     return null;
   }
   const myRef = db().collection("merchants").doc(ctx.uid);
-  const my = (await myRef.get()).data() || {};
+  const my = mine;
   if (my.deleted === true) { res.status(403).json({ error: "Esta cuenta está eliminada." }); return null; }
-  if (my.ownerUid && my.ownerUid !== ctx.uid) { res.status(403).json({ error: "Este usuario ya no tiene un perfil propio (su tienda fue movida)." }); return null; }
   return { myRef, my };
 }
 
@@ -1089,7 +1110,7 @@ async function profileGuard(ctx, res, { allowViaTeam = false } = {}) {
 // array, lo inicializamos con su tienda principal para no perderla del cache.
 function profileStores(uid, my) {
   const list = Array.isArray(my.stores) ? my.stores.filter(s => s && s.id) : [];
-  if (!list.some(s => s.id === uid)) {
+  if (!my.moved && !list.some(s => s.id === uid)) { // perfil sin principal (transferida): no la re-agrega
     list.unshift({ id: uid, name: storeDisplayName(my), color: my.store_color || my.widget_color || "#10b981", role: "owner", created_at: my.created_at || nowIso() });
   }
   return list;
@@ -1135,6 +1156,8 @@ async function workspace(ctx, req, res) {
     const my = (await myRef.get()).data() || {};
     const selfMoved = !!(my.ownerUid && my.ownerUid !== uid);
     const selfDeleted = my.deleted === true;
+    // Principal transferida: la tienda activa elegida vive en profiles/{uid} (no en el doc ajeno).
+    const prof = selfMoved ? ((await db().collection("profiles").doc(uid).get()).data() || {}) : my;
     const stores = [];
     const seen = new Set();
     if (!selfMoved && !selfDeleted) { stores.push(storeEntry(uid, my, { role: "owner", uid })); seen.add(uid); }
@@ -1153,8 +1176,8 @@ async function workspace(ctx, req, res) {
     }
 
     // 3) Activa: la guardada en el perfil si sigue en la lista; si no, la propia; si no, la primera.
-    let active = my.active_merchant_id && stores.some(s => s.id === my.active_merchant_id) ? my.active_merchant_id : null;
-    if (!active) active = (stores.find(s => s.is_self) || stores.find(s => s.role === "owner") || stores[0])?.id || uid;
+    let active = prof.active_merchant_id && stores.some(s => s.id === prof.active_merchant_id) ? prof.active_merchant_id : null;
+    if (!active) active = (stores.find(s => s.is_self) || stores.find(s => s.role === "owner") || stores[0])?.id || (selfMoved ? null : uid);
 
     return res.json({
       ok: true,
@@ -1164,6 +1187,7 @@ async function workspace(ctx, req, res) {
       email: myEmail || null,
       self_moved: selfMoved,
       self_deleted: selfDeleted,
+      primary_transferred: selfMoved ? (prof.primary_transferred || { merchant_id: uid }) : null,
       claimed_invites: claimed,
       max_stores: MAX_STORES_BETA,
     });
@@ -1248,7 +1272,7 @@ async function storeRename(ctx, req, res) {
   }
   try {
     const tRef = db().collection("merchants").doc(tid);
-    const d = tid === uid ? my : (await tRef.get()).data();
+    const d = tid === uid && !g.moved ? my : (await tRef.get()).data(); // transferida → se lee el doc real (ya no es suyo)
     const isOwner = tid === uid ? !(d?.ownerUid && d.ownerUid !== uid) : d?.ownerUid === uid;
     if (!d || !isOwner || d.deleted === true) return res.status(403).json({ error: "Solo el dueño puede renombrar la tienda." });
     await tRef.set({ store_name: name, ...(color ? { store_color: color } : {}), ...photoPatch, updated_at: nowIso() }, { merge: true });
@@ -1277,7 +1301,7 @@ async function storeDelete(ctx, req, res) {
     await tRef.set({ deleted: true, deleted_at: nowIso(), purge_at, deleted_by: uid }, { merge: true });
     const list = profileStores(uid, my).map(s => s.id === tid ? { ...s, deleted: true } : s);
     const patch = { stores: list };
-    if (my.active_merchant_id === tid) patch.active_merchant_id = uid;
+    if (my.active_merchant_id === tid) patch.active_merchant_id = g.moved ? null : uid;
     await myRef.set(patch, { merge: true });
     clearMerchantCache(tid);
     // TODO: cron de purga real (subcolecciones plans/subscribers/charges/email_log) al vencer purge_at.
