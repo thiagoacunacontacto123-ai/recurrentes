@@ -26,6 +26,7 @@ Ver los `console.log` del código: `RECURRENTES_TEST_VERBOSE=1 npm test`
 | `portal.test.mjs` | `api/public.js?action=sub`: pausar / reactivar / cancelar con token de portal, tokens viejos (MP_WEBHOOK_SECRET), token inválido, MP caído, tienda que no permite cancelar. |
 | `flows-hook.test.mjs` | `emitFlowEvent` hace **cero** lecturas si la tienda no tiene flujos; con flujos, el webhook engancha activación / renovación / rechazo. |
 | `widget.test.mjs` | `api/widget.js` sirve JavaScript válido con `API_BASE` = `APP_BASE_URL`, el merchant y las tarifas legacy. |
+| `reconcile.test.mjs` | Conciliación con MP (`_lib/reconcile.js`, cron `reconcile-mp`) con dos tiendas en la misma cuenta: fantasma → pending, relink + cancelada que paga → active, `payment_failed` intacto, renovación sin registrar → 1 orden (sync o link directo), archivada salteada, `RECONCILE_DRY_RUN`, Lumina en orden → cero escrituras. |
 | `infra.test.mjs` | Chequea el propio andamiaje (Firestore en memoria, router de fetch). |
 
 ## Cómo funciona (tests/helpers/)

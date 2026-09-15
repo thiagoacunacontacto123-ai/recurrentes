@@ -25,7 +25,24 @@ export const EXPECTED_CRONS = {
   "sync-all-pending": { every_min: 2, stale_after_min: 10 },
   "run-flows": { every_min: 5, stale_after_min: 20 },
   "retry-fulfillment": { every_min: 10, stale_after_min: 40 },
+  "reconcile-mp": { every_min: 60, stale_after_min: 150 },
 };
+
+// Resumen de la última conciliación con MP (system/reconcile_last, _lib/reconcile.js).
+// Solo números y fechas: nada de ids ni datos de clientes.
+export function reconcileReport(r, now = Date.now()) {
+  if (!r) return null;
+  return {
+    at: r.at || null,
+    minutes_since: minutesSince(r.at, now),
+    ok: r.ok !== false,
+    partial: r.partial === true,
+    dry_run: r.dry_run === true,
+    corrections: Number(r.corrections) || 0,
+    missed_payments_found: Number(r.totals?.missed_payments_found) || 0,
+    errors: Number(r.errors) || 0,
+  };
+}
 
 // Variables por integración. `required`: sin eso la plataforma no funciona
 // (cuenta para `ok`). El resto se informa como configurada o no.
@@ -112,17 +129,19 @@ export async function buildHealth({ now = Date.now() } = {}) {
 
   // Firestore: UNA lectura (el doc del heartbeat, que además usamos abajo).
   const firestore = { reachable: false, latency_ms: null };
-  let hb = {}, cronLast = null;
+  let hb = {}, cronLast = null, reconcileLast = null;
   const t0 = Date.now();
   try {
-    const [hbSnap, lastSnap] = await Promise.all([
+    const [hbSnap, lastSnap, recSnap] = await Promise.all([
       db().collection(HEARTBEAT_DOC[0]).doc(HEARTBEAT_DOC[1]).get(),
       db().collection("system").doc("cron_last").get(),
+      db().collection("system").doc("reconcile_last").get(),
     ]);
     firestore.reachable = true;
     firestore.latency_ms = Date.now() - t0;
     hb = hbSnap.exists ? (hbSnap.data() || {}) : {};
     cronLast = lastSnap.exists ? (lastSnap.data() || null) : null;
+    reconcileLast = recSnap?.exists ? (recSnap.data() || null) : null;
   } catch (e) {
     firestore.error_code = /credenciales|FIREBASE_/i.test(e.message || "") ? "no_credentials"
       : String(e.code || "").replace(/[^A-Za-z0-9_]/g, "").slice(0, 40) || "error";
@@ -169,6 +188,7 @@ export async function buildHealth({ now = Date.now() } = {}) {
     env,
     firestore,
     crons,
+    reconcile: reconcileReport(reconcileLast, now),
     fulfillment: { retry_enabled: process.env.FULFILL_RETRY_ENABLED === "1", platform_alerts: isSet("PLATFORM_ALERT_EMAIL") },
     runtime: { production: process.env.VERCEL_ENV === "production" },
   };

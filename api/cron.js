@@ -15,6 +15,8 @@
 // ?action=retry-fulfillment — cobros aprobados sin orden (cada 10 min): aviso al
 //   comerciante + reintento con backoff si FULFILL_RETRY_ENABLED=1 (_lib/fulfillretry.js).
 // ?action=health — chequeo de configuración (solo booleanos), ver _lib/health.js.
+// ?action=reconcile-mp — conciliación con MP cada hora (_lib/reconcile.js): relinkea
+//   preapprovals, corrige estados, fantasmas → pending y renovaciones sin registrar.
 //
 //   7) pausas por oferta de retención con resume_at vencido → status authorized en
 //      MP + active local (best effort, máx 20 por merchant y corrida, 3 intentos)
@@ -36,6 +38,8 @@ import { refreshMpTokenIfNeeded } from "./_lib/mpOauth.js";
 import { healthHandler, cronHeartbeat } from "./_lib/health.js";
 // ?action=retry-fulfillment (cada 10 min): aviso + reintento de cobros sin orden.
 import { fulfillmentCron } from "./_lib/fulfillretry.js";
+// ?action=reconcile-mp (cada hora, minuto 17): conciliación con MP (_lib/reconcile.js).
+import { runReconcile } from "./_lib/reconcile.js";
 
 export const config = { maxDuration: 300 };
 
@@ -80,6 +84,7 @@ export default async function handler(req, res) {
   const action = String(req.query.action || "sync-all-pending");
   if (action === "run-flows") return runFlowsCron(res);
   if (action === "retry-fulfillment") return fulfillmentCron(res);
+  if (action === "reconcile-mp") return reconcileCron(res);
   if (action !== "sync-all-pending") {
     return res.status(400).json({ error: "action no reconocida" });
   }
@@ -380,6 +385,27 @@ async function runFlowsCron(res) {
     console.error("[cron] run-flows error global:", e.message);
     const out = { ok: false, error: e.message, ...tot, elapsed_ms: Date.now() - start };
     await cronHeartbeat("run-flows", out);
+    return res.status(200).json(out);
+  }
+}
+
+// ─── ?action=reconcile-mp ──────────────────────────────────────────
+// Conciliación con Mercado Pago (api/_lib/reconcile.js): presupuesto 200s, resumen en
+// system/reconcile_last. RECONCILE_DRY_RUN=1 → solo informa. Nunca 500.
+async function reconcileCron(res) {
+  const start = Date.now();
+  try {
+    const s = await runReconcile();
+    const out = {
+      ok: s.ok, partial: s.partial, dry_run: s.dry_run, groups: s.groups, corrections: s.corrections,
+      totals: s.totals, errors: s.errors, elapsed_ms: s.elapsed_ms,
+    };
+    await cronHeartbeat("reconcile-mp", out);
+    return res.json(out);
+  } catch (e) {
+    console.error("[cron] reconcile-mp error global:", e.message);
+    const out = { ok: false, error: e.message, elapsed_ms: Date.now() - start };
+    await cronHeartbeat("reconcile-mp", out);
     return res.status(200).json(out);
   }
 }
