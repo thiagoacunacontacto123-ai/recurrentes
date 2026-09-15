@@ -2,7 +2,7 @@
 
 **Cómo usar esto:** hacé las partes en orden. Donde dice 📸, sacá una captura. Cuando termines, pasame todas las capturas y yo publico y verifico.
 
-**Estado:** todo lo nuevo está en la rama `integracion`, **sin publicar**. Solo publiqué un arreglo urgente: crear planes nuevos daba error en producción. Lumina no se tocó.
+**Estado (15-sept):** todo lo nuevo está **publicado** y verificado; Lumina sigue cobrando igual. Hechas: Parte 1, Parte 2 (Mercado Pago en 1 clic) y Parte 3 (mails desde `hola@recurrentesapp.com`). Klaviyo se retiró. WhatsApp quedó listo esperando la configuración de Meta (Parte 7).
 
 Con 🟥 marco lo que hace falta para poder publicar. El resto lo podés hacer cuando quieras.
 
@@ -76,7 +76,8 @@ El comerciante toca **"Conectar con Mercado Pago"**, autoriza y vuelve conectado
 
 ---
 
-## Parte 3 — Mails desde tu dominio (≈15 min + espera de verificación)
+## ✅ Parte 3 — Mails desde tu dominio (HECHO el 15-sept: dominio verificado en Resend, `EMAIL_FROM` = `Recurrentes <hola@recurrentesapp.com>`)
+_Quedó hecho con los registros nuevos de Resend (1 TXT + 2 CNAME). Lo de abajo queda como referencia._
 Hoy los mails salen con la dirección genérica de Resend. Con esto salen de `@recurrentesapp.com` y caen menos en spam.
 
 1. Entrá a https://resend.com/domains → **Add domain** → `recurrentesapp.com` → región **São Paulo** (la más cercana).
