@@ -28,7 +28,7 @@ const { apiGet, apiPost } = api;
 //   integraciones → tienda (según el negocio), Mercado Pago, Meta, Klaviyo (Integrations.jsx)
 //   checkout      → envíos del checkout + códigos de descuento (StoreSettings.jsx; alias viejo "tienda")
 //   facturacion   → tu plan de Recurrentes (Billing.jsx)
-//   avanzado      → widget en el tema de Shopify (provisorio) + modo de prueba (OperationalSettings.jsx)
+//   avanzado      → modo de prueba (OperationalSettings.jsx); el widget en el tema está en Integraciones → Shopify
 //   ayuda         → Guía escrita (Guide.jsx) embebida
 // ─────────────────────────────────────────────────────────────────
 
@@ -146,7 +146,7 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
     { group: "Negocio", id: "checkout", l: "Checkout", d: profile.caps.shipping ? "Envíos y códigos de descuento" : "Códigos de descuento", icon: "M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0" },
     { group: "Conexiones", id: "integraciones", l: "Integraciones", d: withStore ? `${profile.channelInfo.label}, ${profile.providerInfo.label}, Meta, Klaviyo` : `${profile.providerInfo.label}, Meta, Klaviyo`, icon: "M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71",
       badge: missing.length ? { t: `${missing.length} pendiente${missing.length === 1 ? "" : "s"}`, c: T.red } : null },
-    { group: "Conexiones", id: "avanzado", l: "Avanzado", d: profile.caps.widget ? "Widget en tu tema y modo de prueba" : "Modo de prueba", icon: "M12 20a8 8 0 100-16 8 8 0 000 16zM12 14a2 2 0 100-4 2 2 0 000 4zM12 2v2M12 20v2M2 12h2M20 12h2" },
+    { group: "Conexiones", id: "avanzado", l: "Avanzado", d: "Modo de prueba", icon: "M12 20a8 8 0 100-16 8 8 0 000 16zM12 14a2 2 0 100-4 2 2 0 000 4zM12 2v2M12 20v2M2 12h2M20 12h2" },
     { group: "Ayuda", id: "ayuda", l: "Ayuda", d: "Guía paso a paso y soporte", icon: "M12 22a10 10 0 100-20 10 10 0 000 20zM9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" },
   ];
   const HEAD = {
@@ -159,7 +159,7 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
       : `Conectá tu ${profile.providerInfo.label} (necesario) y, si querés, Meta Ads y Klaviyo. Sin tienda online no hay nada más que conectar.`],
     checkout:      ["Checkout", profile.caps.shipping ? "Lo que ve el cliente al suscribirse: las opciones de envío y los códigos de descuento." : "Los códigos de descuento que tus clientes pueden usar al suscribirse."],
     facturacion:   ["Facturación", "Tu plan de Recurrentes: qué incluye, cuántos suscriptores activos llevás y cómo cambiarlo."],
-    avanzado:      ["Avanzado", profile.caps.widget ? "Cómo se comporta el widget pegado en tu tema de Shopify, y el modo de prueba." : "Herramientas para probar el flujo sin cobrar."],
+    avanzado:      ["Avanzado", "Herramientas para probar el flujo completo sin cobrar."],
     ayuda:         ["Ayuda", "La guía completa de Recurrentes: conectar Shopify y Mercado Pago, crear planes con packs, pegar el snippet y probar. Y el WhatsApp de soporte."],
   };
   const H = HEAD[sec] || ["", ""];

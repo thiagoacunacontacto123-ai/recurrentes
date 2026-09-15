@@ -83,7 +83,8 @@ export function DiscountCodesCard({ merchant, onChange }) {
 }
 
 // ── Widget en el tema de Shopify (provisorio hasta la app nativa) ──
-export function WidgetThemeCard({ merchant, onChange }) {
+// bare: sin borde de tarjeta (va adentro de Integraciones → Shopify → Ajustes).
+export function WidgetThemeCard({ merchant, onChange, bare = false }) {
   const T = useT();
   const iS = InputStyle(T);
   const m = merchant || {};
@@ -119,8 +120,9 @@ export function WidgetThemeCard({ merchant, onChange }) {
     );
   };
 
+  const Wrap = bare ? BareWrap : Panel;
   return (
-    <Panel T={T} title="Widget en tu tema de Shopify"
+    <Wrap T={T} title="Widget en tu tema de Shopify"
       sub="Qué pasa después de que el cliente toca Suscribirme. Solo aplica al widget pegado a mano; con la integración nativa de Shopify se va a configurar solo."
       right={!open && <Btn T={T} variant="secondary" size="sm" onClick={() => setOpen(true)}>Cambiar</Btn>}>
       {!open ? (
@@ -153,7 +155,23 @@ export function WidgetThemeCard({ merchant, onChange }) {
           </div>
         </>
       )}
-    </Panel>
+    </Wrap>
+  );
+}
+
+// Mismo contenido que Panel pero sin tarjeta (título, bajada y acción a la derecha).
+function BareWrap({ T, title, sub, right, children }) {
+  return (
+    <div>
+      <div style={{ display:"flex", alignItems:"flex-start", gap:10, marginBottom:10, flexWrap:"wrap" }}>
+        <div style={{ flex:"1 1 220px", minWidth:0 }}>
+          <div style={{ fontSize:13, fontWeight:800, color:T.text }}>{title}</div>
+          {sub && <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:2, lineHeight:1.45 }}>{sub}</div>}
+        </div>
+        {right}
+      </div>
+      {children}
+    </div>
   );
 }
 
@@ -177,14 +195,8 @@ export function DevModeCard({ merchant, onChange }) {
   );
 }
 
-// Configuración → Avanzado. El widget en el tema pasa a Integraciones → Shopify
-// cuando se rehaga esa sección; mientras, vive acá (solo si hay widget).
+// Configuración → Avanzado: solo el modo de prueba. El widget en el tema vive en
+// Integraciones → Shopify → Ajustes (hasta la integración nativa, que lo resuelve sola).
 export function AdvancedSettingsCard({ merchant, onChange }) {
-  const profile = merchantProfile(merchant || {});
-  return (
-    <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
-      {profile.caps.widget && <WidgetThemeCard merchant={merchant} onChange={onChange}/>}
-      <DevModeCard merchant={merchant} onChange={onChange}/>
-    </div>
-  );
+  return <DevModeCard merchant={merchant} onChange={onChange}/>;
 }
