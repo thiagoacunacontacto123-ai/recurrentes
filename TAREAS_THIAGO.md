@@ -36,7 +36,17 @@ Hoy un miembro del equipo de una tienda podría leer las claves de Mercado Pago 
 
 ---
 
-### 1.3 Chequeo de salud (después de que publique)
+### 1.3 (Opcional) Índice nuevo en Firebase
+Hace más rápida la vista "Cobros con error" y el aviso de órdenes que no se crearon. Sin el índice todo funciona igual, solo lee un poco más.
+1. Entrá a https://console.firebase.google.com/project/recurrentes-16fbd/firestore/indexes → **Crear índice**.
+2. Completá así:
+   - ID de colección: `charges`
+   - Alcance: **Colección**
+   - Campo 1: `shopify_order_id` **Ascendente**
+   - Campo 2: `created_at` **Descendente**
+3. Tocá **Crear** y esperá unos minutos a que diga "Habilitado".
+
+### 1.4 Chequeo de salud (después de que publique)
 Abrí https://www.recurrentesapp.com/api/cron?action=health estando logueado en Recurrentes con tu mail de admin. Muestra, integración por integración, qué variables faltan (nunca los valores) y si los procesos automáticos están corriendo.
 
 📸 Captura de lo que muestra.
@@ -163,3 +173,36 @@ Mientras no cargues las variables, en el panel sigue diciendo "Próximamente". C
 - [ ] **Transferir tienda:** creá una tienda de prueba, transferila a tu otro mail, aceptá desde el link del mail y fijate que la cuenta vieja ya no la vea. **Nunca con Lumina.**
 
 📸 Captura de cada una.
+
+---
+
+## Qué quedó hecho (resumen)
+Todo está en la rama `integracion`. Pasan las 68 pruebas automáticas, incluidas las que simulan el circuito de cobro de Lumina de punta a punta.
+
+| Qué | Estado |
+|---|---|
+| Mercado Pago en 1 clic (con renovación automática y aviso de "Reconectar") | Listo, falta Parte 2 |
+| Shopify: guía paso a paso + lugar para tu video + ayuda de errores | Listo, falta el video |
+| Tiendanube: conectar, productos, widget automático, orden paga por cobro | Listo, falta Parte 5 |
+| Entrega digital (link por mail al suscribirse / renovar) | Listo |
+| Impultienda: investigación + mensaje para su equipo | Listo, falta mandarlo |
+| Mobbex (pesos) | Listo, apagado hasta probar |
+| Stripe y Whop (dólares) | Listo, apagado (futuro) |
+| WhatsApp a clientes (en los flujos) | Listo, falta Parte 7 |
+| Panel de admin (tus 2 cuentas) con "ver como" | Listo, falta `ADMIN_EMAILS` |
+| Transferir una tienda a otra cuenta | Listo |
+| Registro en 2 pasos + Google con tu dominio | Listo (retenido hasta `APP_BASE_URL`) |
+| Seguridad: claves cerradas, avisos falsos de contracargo bloqueados, límites | Listo, falta publicar reglas |
+| Aviso por mail si un cobro no genera su orden + chequeo de salud | Listo |
+
+**Arreglos que ya estaban rotos en producción:**
+- Crear un plan daba error. Esto ya está publicado.
+- Un miembro quitado del equipo seguía entrando a la tienda.
+- Un aviso falso de contracargo podía cancelar la suscripción de un cliente.
+
+## Pendientes y riesgos (para más adelante)
+- **Mobbex, Stripe y Whop** todavía no se pueden elegir en Configuración → Negocio. Falta habilitarlos y que la app maneje dólares (hoy todo asume pesos).
+- **Mobbex:** el primer cobro no está probado contra Mobbex de verdad. Por eso va primero con una tienda de prueba.
+- **Reintento automático de órdenes:** está apagado a propósito. Si Shopify tarda en responder, reintentar podría duplicar una orden. Primero miramos las alertas un par de semanas.
+- **Alertas de órdenes sin crear:** al publicar, si Lumina tuvo algún cobro de los últimos 3 días sin orden, le va a llegar un mail de aviso por cada uno. Es esperable.
+- **Tiendanube:** hay que confirmar en la tienda de prueba si acepta órdenes sin dirección (servicios o digitales).
