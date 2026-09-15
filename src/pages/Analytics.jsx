@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { apiGet } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
 import { Card, KPI, Btn, DSBadge, Spinner, DSTable, PageHeader, SubTabs, CardHeader, Loading, Tip, Callout } from "../ui/components.jsx";
-import { KpiCard, Segmented, AreaChart } from "../ui/charts.jsx";
+import { KpiCard, Segmented, AreaChart, BarList, Panel } from "../ui/charts.jsx";
 import { OnbEmpty } from "./Onboarding.jsx";
 import { fmtARS, fmtPct, downloadCsv } from "./_shared.jsx";
 
@@ -24,7 +24,7 @@ export async function fetchAnalytics(months = 6) {
 }
 
 const MONTH_LABEL = (ym) => { try { const [y, m] = String(ym).split("-").map(Number); return new Date(y, (m || 1) - 1, 1).toLocaleDateString("es-AR", { month:"short" }).replace(".", ""); } catch (_) { return ym; } };
-const REASON_LABELS = { sin_motivo:"Sin motivo", precio:"Me resulta caro", stock:"Todavía tengo producto", no_uso:"Ya no lo uso", calidad:"No me convenció", otro:"Otro motivo", too_expensive:"Muy caro", too_much:"Tengo de sobra", quality:"No me gustó el producto", shipping:"Problemas con el envío", switching:"Cambio a otra marca", temporary:"Es temporal", other:"Otro" };
+export const REASON_LABELS = { sin_motivo:"Sin motivo", precio:"Me resulta caro", stock:"Todavía tengo producto", no_uso:"Ya no lo uso", calidad:"No me convenció", otro:"Otro motivo", too_expensive:"Muy caro", too_much:"Tengo de sobra", quality:"No me gustó el producto", shipping:"Problemas con el envío", switching:"Cambio a otra marca", temporary:"Es temporal", other:"Otro" };
 
 const MONTHS_KEY = "rec_analytics_months";
 const PERIODS = [{ id:6, label:"6 meses" }, { id:12, label:"12 meses" }];
@@ -32,43 +32,6 @@ const readMonths = () => { try { const m = parseInt(localStorage.getItem(MONTHS_
 const fmtN = (n) => Math.round(Number(n) || 0).toLocaleString("es-AR");
 const fmtDM = (iso) => { try { const d = new Date(iso); return `${d.getDate()}/${d.getMonth() + 1}`; } catch (_) { return ""; } };
 const monthTick = (ym) => `${MONTH_LABEL(ym)} ${String(ym).slice(2, 4)}`;
-
-// Barras horizontales (como "Mejores días" de Growith): etiqueta · barra · valor.
-function BarList({ T, rows, color, fmt = fmtN, empty }) {
-  if (!rows.length) return <div style={{ fontSize:DS.font.sm, color:T.textSm, padding:"6px 0 2px" }}>{empty}</div>;
-  const max = Math.max(1, ...rows.map(r => Number(r.value) || 0));
-  return (
-    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-      {rows.map(r => (
-        <div key={r.key} style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) minmax(60px,120px) auto", alignItems:"center", gap:10, fontSize:DS.font.sm }}>
-          <span style={{ color:T.textMd, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }} title={r.label}>{r.label}</span>
-          <span style={{ height:6, background:T.border, borderRadius:99, overflow:"hidden" }}>
-            <span style={{ display:"block", height:"100%", width:`${Math.round(((Number(r.value) || 0) / max) * 100)}%`, background:color, borderRadius:99 }}/>
-          </span>
-          <span style={{ fontWeight:700, color:T.text, fontVariantNumeric:"tabular-nums", textAlign:"right", minWidth:70, whiteSpace:"nowrap" }}>
-            {fmt(r.value)}{r.extra != null && <span style={{ color:T.textSm, fontWeight:500 }}> · {r.extra}</span>}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// Panel de sección: título + bajada + contenido (flush = tabla pegada a los bordes).
-function Panel({ T, title, sub, right, children, flush }) {
-  return (
-    <section style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, overflow:"hidden", minWidth:0 }}>
-      <div style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"14px 16px 10px" }}>
-        <div style={{ flex:1, minWidth:0 }}>
-          <h3 style={{ margin:0, fontSize:14, fontWeight:800, color:T.text, letterSpacing:-0.2 }}>{title}</h3>
-          {sub && <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:2, lineHeight:1.45 }}>{sub}</div>}
-        </div>
-        {right}
-      </div>
-      <div style={{ padding: flush ? 0 : "2px 16px 16px" }}>{children}</div>
-    </section>
-  );
-}
 
 // ─── Página: Analíticas — estilo Growith: KPIs con sparkline mensual,
 // gráfico con pestañas, próximos 30 días por semana, motivos de baja y mes a mes.

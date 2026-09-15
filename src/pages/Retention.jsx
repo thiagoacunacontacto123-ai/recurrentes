@@ -1,11 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
 import { apiGet, apiPatch } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
-import { Card, Btn, DSBadge, DSToggle, Spinner, DSTable, CellStack, PageHeader, CardHeader, Callout, Field, InputStyle, Hint, StatCard, Loading, toast } from "../ui/components.jsx";
+import { Btn, DSBadge, DSToggle, Spinner, DSTable, CellStack, PageHeader, Callout, Field, InputStyle, Hint, Loading, toast } from "../ui/components.jsx";
+import { KpiCard, Segmented, BarList, Panel } from "../ui/charts.jsx";
 import { goConfigSection } from "../lib/onboarding.js";
-import { fmtARS, fmtDateOnly, fmtPct, SurfaceBox, copyText, portalUrl } from "./_shared.jsx";
-import { fetchAnalytics } from "./Analytics.jsx";
+import { fmtARS, fmtDateOnly, fmtAgo, copyText, portalUrl, hashQuery } from "./_shared.jsx";
+import { fetchAnalytics, REASON_LABELS } from "./Analytics.jsx";
 import { performSubAction, StatusBadge } from "./Subscriptions.jsx";
+import { merchantProfile } from "../../shared/platform/profile.js";
 
 // Solo de respaldo: el GET del merchant siempre trae retention.reasons.
 const DEFAULT_REASONS = [
@@ -17,10 +19,19 @@ const DEFAULT_REASONS = [
 ];
 const MAX_REASONS = 8;
 const slug = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 32) || "motivo";
+const fmtN = (n) => Math.round(Number(n) || 0).toLocaleString("es-AR");
+const pctOf = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 
-// ─── Página: Retención ─────────────────────────────────────────────
+// Secciones (píldoras): #/dashboard/retencion?sec=fallidos|sinpagar
+const SECS = ["cancelacion", "fallidos", "sinpagar"];
+const readSec = () => { const s = hashQuery().get("sec"); return SECS.includes(s) ? s : "cancelacion"; };
+
+// ─── Página: Retención — estilo Growith: KPIs de 30 días arriba y las tres
+// palancas (cancelación · pagos fallidos · checkouts sin pagar) en píldoras.
 export function RetentionPage({ merchant, reloadMerchant, goTab }) {
   const T = useT();
+  const profile = useMemo(() => merchantProfile(merchant), [merchant]);
+  const [sec, setSec] = useState(readSec);
   const [analytics, setAnalytics] = useState(null);
   const [failed, setFailed] = useState([]);
   const [unpaidCount, setUnpaidCount] = useState(null);
@@ -40,21 +51,58 @@ export function RetentionPage({ merchant, reloadMerchant, goTab }) {
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
+  const goSec = (id) => {
+    setSec(id);
+    try { window.history.replaceState(null, "", `${window.location.pathname}#/dashboard/retencion${id === "cancelacion" ? "" : "?sec=" + id}`); } catch (_) {}
+  };
+
+  const a = analytics || {};
+  const monthly = Array.isArray(a.monthly) ? a.monthly : [];
+  const rec = a.recovery || null;
+  const cancelled30 = Number(a.cancelled_30d) || 0;
+  const saved30 = a.saved_30d ?? null;
+  const attempts = saved30 != null ? cancelled30 + saved30 : null;
+  const churn = Number(a.churn_30d_pct) || 0;
+  const first = loading && !analytics;
+
+  const tabs = [
+    { id:"cancelacion", label:"Cancelación" },
+    { id:"fallidos",    label:"Pagos fallidos", count: loading ? null : failed.length },
+    { id:"sinpagar",    label:"Sin pagar",      count: loading || unpaidCount == null ? null : unpaidCount },
+  ];
 
   return (
     <div>
-      <PageHeader T={T} title="Retención" subtitle="Menos bajas, más pagos recuperados. Acá configurás qué pasa cuando un cliente quiere cancelar, qué hacemos cuando falla un cobro y cómo seguir a los que no terminaron de pagar."
-        right={<Btn T={T} variant="secondary" size="sm" onClick={load} disabled={loading}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Refrescar</Btn>}/>
+      <PageHeader T={T} title="Retención" subtitle="Menos bajas, más pagos recuperados. Qué pasa cuando un cliente quiere cancelar, cuando falla un cobro y con los que no terminaron de pagar."
+        right={<Btn T={T} variant="secondary" size="sm" onClick={load} disabled={loading} style={{ height:34 }}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>}/>
 
-      <CancelFlowCard T={T} merchant={merchant} reloadMerchant={reloadMerchant} analytics={analytics} loading={loading}/>
-      <FailedPaymentsCard T={T} merchant={merchant} analytics={analytics} failed={failed} loading={loading} reload={load} goTab={goTab}/>
-      <UnpaidCard T={T} merchant={merchant} count={unpaidCount} loading={loading} goTab={goTab}/>
+      {/* KPIs de los últimos 30 días — tocás una y abre su sección */}
+      <div className="kpi-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 210px), 1fr))", gap:10, marginBottom:16 }}>
+        <KpiCard T={T} hero loading={first} label="Churn · 30 días" value={`${churn.toLocaleString("es-AR", { maximumFractionDigits:1 })}%`}
+          valueColor={churn > 5 ? T.red : T.text} color={T.red} spark={monthly.map(m => Number(m.cancelled) || 0)}
+          hint={`${fmtN(cancelled30)} baja${cancelled30 === 1 ? "" : "s"} · línea: bajas por mes`}/>
+        <KpiCard T={T} hero loading={first} label="Bajas evitadas" value={saved30 == null ? "—" : fmtN(saved30)} valueColor={saved30 ? T.green : T.text} color={T.green}
+          hint={attempts ? `${pctOf(saved30, attempts)}% de ${fmtN(attempts)} intentos de baja` : "pausaron o aceptaron descuento"} onClick={() => goSec("cancelacion")}/>
+        <KpiCard T={T} hero loading={first} label="Pagos recuperados" value={rec ? `${fmtN(rec.recovered_30d)}/${fmtN(rec.failed_30d)}` : "—"} color={T.yellow}
+          hint={rec?.failed_30d ? `${pctOf(rec.recovered_30d, rec.failed_30d)}% recuperado · ${fmtN(failed.length)} en pago fallido hoy` : "sin pagos fallidos en 30 días"} onClick={() => goSec("fallidos")}/>
+        <KpiCard T={T} hero loading={loading && unpaidCount == null} label="Checkouts sin pagar" value={unpaidCount == null ? "—" : fmtN(unpaidCount)} valueColor={unpaidCount ? T.yellow : T.text} color={T.blue}
+          hint="últimos 30 días" onClick={() => goSec("sinpagar")}/>
+      </div>
+
+      <div style={{ marginBottom:14, maxWidth:"100%", overflowX:"auto" }}>
+        <Segmented T={T} options={tabs} value={sec} onChange={goSec} ariaLabel="Sección de retención"/>
+      </div>
+
+      {/* Las tres quedan montadas (solo se ocultan) para no perder cambios sin guardar del flujo de cancelación al cambiar de píldora. */}
+      <div hidden={sec !== "cancelacion"}><CancelSection T={T} merchant={merchant} reloadMerchant={reloadMerchant} analytics={analytics} loading={loading}/></div>
+      <div hidden={sec !== "fallidos"}><FailedSection T={T} merchant={merchant} profile={profile} failed={failed} loading={loading} reload={load} goTab={goTab}/></div>
+      <div hidden={sec !== "sinpagar"}><UnpaidSection T={T} merchant={merchant} profile={profile} count={unpaidCount} loading={loading} goTab={goTab}/></div>
     </div>
   );
 }
 
 // ─── (a) Cancelación ───────────────────────────────────────────────
-function CancelFlowCard({ T, merchant, reloadMerchant, analytics, loading }) {
+function CancelSection({ T, merchant, reloadMerchant, analytics, loading }) {
   const iS = InputStyle(T);
   const saved = merchant?.retention || {};
   const [enabled, setEnabled] = useState(saved.enabled !== false);
@@ -96,76 +144,69 @@ function CancelFlowCard({ T, merchant, reloadMerchant, analytics, loading }) {
   }
 
   const a = analytics || {};
-  const topReasons = useMemo(() => [...(a.cancel_reasons || [])].sort((x, y) => (y.count || 0) - (x.count || 0)).slice(0, 3), [a.cancel_reasons]);
-  const labelOf = (code) => reasons.find(r => r.code === code)?.label || DEFAULT_REASONS.find(r => r.code === code)?.label || code || "Sin motivo";
-  const saved30 = a.saved_30d ?? a.retention?.saved_30d ?? a.retention_saved_30d ?? null;
+  const labelOf = (code) => reasons.find(r => r.code === code)?.label || DEFAULT_REASONS.find(r => r.code === code)?.label || REASON_LABELS[code] || code || "Sin motivo";
+  const allReasons = Array.isArray(a.cancel_reasons) ? a.cancel_reasons : [];
+  const totalReasons = allReasons.reduce((s, r) => s + (Number(r.count) || 0), 0);
+  const reasonRows = [...allReasons].sort((x, y) => (y.count || 0) - (x.count || 0)).slice(0, 6).map(r => ({
+    key: r.code || "sin", label: labelOf(r.code), value: Number(r.count) || 0,
+    extra: `${pctOf(r.count || 0, totalReasons)}%${r.saved ? ` · ${r.saved} salvada${r.saved === 1 ? "" : "s"}` : ""}`,
+  }));
+  const sectionLabel = { fontSize:10, textTransform:"uppercase", color:T.textSm, fontWeight:700, letterSpacing:0.6, margin:"16px 0 8px" };
 
   return (
-    <Card T={T} style={{ marginBottom:DS.sp.lg }}>
-      <CardHeader T={T} icon="🛑" title="Cancelación" sub="Antes de dejar cancelar, preguntamos el motivo y ofrecemos alternativas. Es lo que más bajas evita."
-        right={<Btn T={T} variant="solid" size="sm" onClick={save} disabled={saving || !dirty}>{saving ? <><Spinner size={11}/> Guardando…</> : "Guardar"}</Btn>}/>
+    <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"minmax(0,1.3fr) minmax(0,1fr)", gap:DS.sp.lg, alignItems:"start" }}>
+      <Panel T={T} title="Flujo de cancelación" sub="Antes de dejar cancelar, preguntamos el motivo y ofrecemos alternativas. Es lo que más bajas evita."
+        right={<>
+          {dirty && <DSBadge T={T} color={T.yellow} size="sm">Cambios sin guardar</DSBadge>}
+          <Btn T={T} variant="solid" size="sm" onClick={save} disabled={saving || !dirty}>{saving ? <><Spinner size={11}/> Guardando…</> : "Guardar"}</Btn>
+        </>}>
+        <ToggleRow T={T} active={enabled} onToggle={mark(() => setEnabled(!enabled))} title="Preguntar motivo y ofrecer pausa antes de cancelar" desc="El cliente elige un motivo en el portal y ve las alternativas antes del botón final."/>
 
-      <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"minmax(0,1.3fr) minmax(0,1fr)", gap:DS.sp.xl, alignItems:"start" }}>
-        <div>
-          <ToggleRow T={T} active={enabled} onToggle={mark(() => setEnabled(!enabled))} title="Preguntar motivo y ofrecer pausa antes de cancelar" desc="El cliente elige un motivo en el portal y ve las alternativas antes del botón final."/>
-
-          <div style={{ opacity: enabled ? 1 : 0.5, pointerEvents: enabled ? "auto" : "none" }}>
-            <div style={{ fontSize:DS.font.sm, textTransform:"uppercase", color:T.textSm, fontWeight:DS.w.semibold, letterSpacing:0.6, margin:"16px 0 8px" }}>Motivos ({reasons.length}/{MAX_REASONS})</div>
-            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-              {reasons.map((r, i) => (
-                <div key={r.code + i} style={{ display:"flex", alignItems:"center", gap:6 }}>
-                  <div style={{ display:"flex", flexDirection:"column", gap:1 }}>
-                    <button onClick={() => move(i, -1)} disabled={i === 0} title="Subir" style={arrowBtn(T, i === 0)}>▲</button>
-                    <button onClick={() => move(i, 1)} disabled={i === reasons.length - 1} title="Bajar" style={arrowBtn(T, i === reasons.length - 1)}>▼</button>
-                  </div>
-                  <input value={r.label} onChange={e => editLabel(i, e.target.value)} maxLength={60} style={{ ...iS, flex:1, padding:"7px 10px", fontSize:DS.font.md }}/>
-                  <code style={{ fontSize:DS.font.xs, color:T.textSm, minWidth:90, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }} title={r.code}>{r.code}</code>
-                  <button onClick={() => remove(i)} title="Quitar" style={{ background:"transparent", border:"none", color:T.textSm, cursor:"pointer", fontSize:15, padding:"2px 6px" }}>✕</button>
+        <div style={{ opacity: enabled ? 1 : 0.5, pointerEvents: enabled ? "auto" : "none" }}>
+          <div style={sectionLabel}>Motivos ({reasons.length}/{MAX_REASONS})</div>
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            {reasons.map((r, i) => (
+              <div key={r.code + i} style={{ display:"flex", alignItems:"center", gap:6 }}>
+                <div style={{ display:"flex", flexDirection:"column", gap:1 }}>
+                  <button onClick={() => move(i, -1)} disabled={i === 0} title="Subir" aria-label={`Subir "${r.label}"`} style={arrowBtn(T, i === 0)}>▲</button>
+                  <button onClick={() => move(i, 1)} disabled={i === reasons.length - 1} title="Bajar" aria-label={`Bajar "${r.label}"`} style={arrowBtn(T, i === reasons.length - 1)}>▼</button>
                 </div>
-              ))}
-            </div>
-            {reasons.length < MAX_REASONS && (
-              <div style={{ display:"flex", gap:6, marginTop:8 }}>
-                <input value={newLabel} onChange={e => setNewLabel(e.target.value)} onKeyDown={e => { if (e.key === "Enter") add(); }} placeholder="Nuevo motivo (ej. “Me mudo”)" maxLength={60} style={{ ...iS, flex:1, padding:"7px 10px", fontSize:DS.font.md }}/>
-                <Btn T={T} variant="secondary" size="sm" onClick={add} disabled={!newLabel.trim()}>+ Agregar</Btn>
+                <input value={r.label} onChange={e => editLabel(i, e.target.value)} maxLength={60} aria-label={`Motivo ${i + 1}`} style={{ ...iS, flex:1, minWidth:0, padding:"7px 10px", fontSize:DS.font.md }}/>
+                <code className="hide-mobile" style={{ fontSize:DS.font.xs, color:T.textSm, width:90, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }} title={r.code}>{r.code}</code>
+                <button onClick={() => remove(i)} title="Quitar" aria-label={`Quitar "${r.label}"`} style={{ background:"transparent", border:"none", color:T.textSm, cursor:"pointer", fontSize:15, padding:"2px 6px" }}>✕</button>
               </div>
-            )}
+            ))}
+          </div>
+          {reasons.length < MAX_REASONS && (
+            <div style={{ display:"flex", gap:6, marginTop:8 }}>
+              <input value={newLabel} onChange={e => setNewLabel(e.target.value)} onKeyDown={e => { if (e.key === "Enter") add(); }} placeholder="Nuevo motivo (ej. “Me mudo”)" maxLength={60} aria-label="Nuevo motivo" style={{ ...iS, flex:1, minWidth:0, padding:"7px 10px", fontSize:DS.font.md }}/>
+              <Btn T={T} variant="secondary" size="sm" onClick={add} disabled={!newLabel.trim()}>+ Agregar</Btn>
+            </div>
+          )}
 
-            <div style={{ marginTop:18 }}>
-              <ToggleRow T={T} active={offerPause} onToggle={mark(() => setOfferPause(!offerPause))} title="Ofrecer pausar en vez de cancelar" desc="Le proponemos saltear los próximos ciclos y seguir después."
-                right={offerPause && (
-                  <select value={pauseCycles} onChange={e => { setPauseCycles(Number(e.target.value)); setDirty(true); }} style={{ ...iS, width:"auto", padding:"5px 8px", fontSize:DS.font.sm }}>
-                    <option value={1}>1 ciclo</option><option value={2}>2 ciclos</option><option value={3}>3 ciclos</option>
-                  </select>)}/>
-            </div>
-            <div style={{ marginTop:14, maxWidth:320 }}>
-              <Field T={T} label="Descuento de retención (%)">
-                <input type="number" min={0} max={90} value={discount} onChange={e => { setDiscount(e.target.value); setDirty(true); }} style={iS}/>
-              </Field>
-              <Hint T={T}>0 = no ofrecer. Si ponés 15, le proponemos 15% menos en el próximo cobro antes de que cancele. El descuento se aplica repreciando la suscripción en Mercado Pago.</Hint>
-            </div>
+          <div style={{ marginTop:18 }}>
+            <ToggleRow T={T} active={offerPause} onToggle={mark(() => setOfferPause(!offerPause))} title="Ofrecer pausar en vez de cancelar" desc="Le proponemos saltear los próximos ciclos y seguir después."
+              right={offerPause && (
+                <select value={pauseCycles} onChange={e => { setPauseCycles(Number(e.target.value)); setDirty(true); }} aria-label="Ciclos de pausa" style={{ ...iS, width:"auto", padding:"5px 8px", fontSize:DS.font.sm }}>
+                  <option value={1}>1 ciclo</option><option value={2}>2 ciclos</option><option value={3}>3 ciclos</option>
+                </select>)}/>
+          </div>
+          <div style={{ marginTop:14, maxWidth:320 }}>
+            <Field T={T} label="Descuento de retención (%)">
+              <input type="number" min={0} max={90} value={discount} onChange={e => { setDiscount(e.target.value); setDirty(true); }} style={iS}/>
+            </Field>
+            <Hint T={T}>0 = no ofrecer. Si ponés 15, le proponemos 15% menos en el próximo cobro antes de que cancele. El descuento se aplica repreciando la suscripción en Mercado Pago.</Hint>
           </div>
         </div>
+      </Panel>
 
-        <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.md }}>
-          <CancelPreview T={T} enabled={enabled} reasons={reasons} offerPause={offerPause} pauseCycles={pauseCycles} discount={Number(discount) || 0} brand={merchant?.email_brand_effective || merchant?.store_name || "Tu marca"} color={merchant?.widget_color || T.accentSolid}/>
-          <SurfaceBox T={T} title="Últimos 30 días">
-            {loading ? <Loading T={T}/> : (
-              <>
-                <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:8 }}>
-                  <StatCard T={T} label="Canceladas" value={a.cancelled_30d ?? 0} color={T.red}/>
-                  <StatCard T={T} label="Salvadas" value={saved30 == null ? "—" : saved30} color={T.green} sub={saved30 == null ? "cuando el portal lo reporte" : "pausaron o aceptaron descuento"}/>
-                </div>
-                <div style={{ fontSize:DS.font.xs, textTransform:"uppercase", color:T.textSm, fontWeight:DS.w.bold, letterSpacing:0.5, margin:"6px 0 4px" }}>Top motivos</div>
-                {topReasons.length === 0 ? <div style={{ fontSize:DS.font.sm, color:T.textSm }}>Sin motivos registrados todavía.</div> : topReasons.map(r => (
-                  <div key={r.code} style={{ display:"flex", justifyContent:"space-between", fontSize:DS.font.md, padding:"4px 0", borderTop:`1px solid ${T.borderL}` }}><span>{labelOf(r.code)}</span><strong>{r.count}</strong></div>
-                ))}
-              </>
-            )}
-          </SurfaceBox>
-        </div>
+      <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg, minWidth:0 }}>
+        <CancelPreview T={T} enabled={enabled} reasons={reasons} offerPause={offerPause} pauseCycles={pauseCycles} discount={Number(discount) || 0} brand={merchant?.email_brand_effective || merchant?.store_name || "Tu marca"} color={merchant?.widget_color || T.accentSolid}/>
+        <Panel T={T} title="Motivos de baja" sub="Lo que eligen tus clientes al cancelar desde el portal, y cuántas se salvaron con la pausa o el descuento.">
+          {loading && !analytics ? <Loading T={T}/> : <BarList T={T} rows={reasonRows} color={T.red} empty="Sin motivos registrados todavía."/>}
+        </Panel>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -190,9 +231,9 @@ function CancelPreview({ T, enabled, reasons, offerPause, pauseCycles, discount,
   const [picked, setPicked] = useState(null);
   const btn = (primary) => ({ width:"100%", padding:"8px 10px", borderRadius:8, fontSize:12, fontWeight:600, cursor:"pointer", border: primary ? "none" : `1px solid ${T.border}`, background: primary ? color : "transparent", color: primary ? "#fff" : T.textMd, fontFamily:"inherit", marginTop:6 });
   return (
-    <div style={{ border:`1px solid ${T.border}`, borderRadius:DS.r.xl, overflow:"hidden", background:T.bg }}>
+    <div style={{ border:`1px solid ${T.border}`, borderRadius:12, overflow:"hidden", background:T.bg }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background:T.surface, borderBottom:`1px solid ${T.borderL}` }}>
-        <span style={{ fontSize:DS.font.xs, color:T.textSm, fontWeight:DS.w.bold, textTransform:"uppercase", letterSpacing:0.5 }}>Vista previa · portal</span>
+        <span style={{ fontSize:10, color:T.textSm, fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Vista previa · portal</span>
         <span style={{ display:"flex", gap:4 }}>{[0, 1, 2].map(i => <span key={i} style={{ width:6, height:6, borderRadius:"50%", background: i === step ? color : T.border }}/>)}</span>
       </div>
       <div style={{ padding:14, minHeight:190 }}>
@@ -234,68 +275,75 @@ function CancelPreview({ T, enabled, reasons, offerPause, pauseCycles, discount,
 }
 
 // ─── (b) Pagos fallidos ────────────────────────────────────────────
-function FailedPaymentsCard({ T, merchant, analytics, failed, loading, reload, goTab }) {
+function FailedSection({ T, merchant, profile, failed, loading, reload, goTab }) {
   const [busy, setBusy] = useState(null);
-  const rec = analytics?.recovery || null;
   const klaviyo = Boolean(merchant?.klaviyo_connected);
   const run = (s, action) => performSubAction(s, action, { setBusy: (id) => setBusy(id ? s.id : null), refresh: reload });
-  return (
-    <Card T={T} style={{ marginBottom:DS.sp.lg }}>
-      <CardHeader T={T} icon="💳" title="Pagos fallidos" sub="Qué pasa cuando Mercado Pago no puede cobrar una renovación."/>
-      <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) minmax(0,1fr)", gap:DS.sp.lg, alignItems:"start", marginBottom:DS.sp.lg }}>
-        <SurfaceBox T={T} title="Cómo funciona">
-          <ol style={{ margin:0, paddingLeft:18, fontSize:DS.font.md, color:T.textMd, lineHeight:1.6 }}>
-            <li><strong style={{ color:T.text }}>Mercado Pago reintenta solo</strong> el cobro varias veces durante los días siguientes (hasta ~4 intentos). No hace falta que hagas nada.</li>
-            <li>Al primer rechazo, la suscripción pasa a <StatusBadge status="payment_failed"/> y <strong style={{ color:T.text }}>Recurrentes le manda un mail al cliente</strong> con el link del portal para actualizar la tarjeta.</li>
-            <li>{klaviyo ? <>También disparamos el evento <code style={{ color:T.text }}>Subscription Payment Failed</code> en tu Klaviyo (trae <code>portal_url</code>) para que sigas con tu flow.</> : <>Si conectás Klaviyo, además disparamos el evento <code style={{ color:T.text }}>Subscription Payment Failed</code> para que armes tu propio flow (mail + SMS).</>}</li>
-            <li>Cuando MP logra cobrar, la suscripción vuelve a activa sola y se crea la orden en Shopify. Si pasan los reintentos sin éxito, MP la cancela.</li>
-          </ol>
-        </SurfaceBox>
-        <div>
-          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-            <StatCard T={T} label="Fallidos 30d" value={loading ? undefined : (rec?.failed_30d ?? failed.length)} color={T.red}/>
-            <StatCard T={T} label="Recuperados 30d" value={loading ? undefined : (rec?.recovered_30d ?? "—")} color={T.green} sub={rec?.failed_30d ? fmtPct((rec.recovered_30d / rec.failed_30d) * 100, 0) + " de recupero" : undefined}/>
-            <StatCard T={T} label="En pago fallido hoy" value={loading ? undefined : failed.length} color={failed.length ? T.yellow : undefined}/>
-          </div>
-          {!klaviyo && <Callout T={T} tone="info" style={{ marginTop:12 }} right={<Btn T={T} variant="secondary" size="sm" onClick={() => goConfigSection(goTab, "integraciones")}>Configurar Klaviyo</Btn>}>Con Klaviyo podés mandar recordatorios con tu marca y por SMS.</Callout>}
-        </div>
-      </div>
+  const failedAt = (s) => s.last_payment_failed_at || s.payment_failed_at || s.updated_at;
+  const afterCharge = profile.caps.orders ? `se crea la orden en ${profile.channelInfo.label}` : "se registra el cobro";
+  const steps = [
+    <><strong style={{ color:T.text }}>Mercado Pago reintenta solo</strong> el cobro varias veces durante los días siguientes (hasta ~4 intentos). No hace falta que hagas nada.</>,
+    <>Al primer rechazo, la suscripción pasa a <StatusBadge status="payment_failed"/> y <strong style={{ color:T.text }}>le mandamos un mail al cliente</strong> con el link del portal para actualizar la tarjeta.</>,
+    klaviyo
+      ? <>También disparamos el evento <code style={{ color:T.text }}>Subscription Payment Failed</code> en tu Klaviyo (trae <code>portal_url</code>) para que sigas con tu flow.</>
+      : <>Si conectás Klaviyo, además disparamos el evento <code style={{ color:T.text }}>Subscription Payment Failed</code> para que armes tu propio flow (mail + SMS).</>,
+    <>Cuando MP logra cobrar, la suscripción vuelve a activa sola y {afterCharge}. Si pasan los reintentos sin éxito, MP la cancela.</>,
+  ];
 
-      <div style={{ fontSize:DS.font.sm, textTransform:"uppercase", color:T.textSm, fontWeight:DS.w.semibold, letterSpacing:0.6, marginBottom:8 }}>Suscripciones con pago fallido</div>
-      {loading ? <Loading T={T}/> : failed.length === 0 ? (
-        <div style={{ fontSize:DS.font.md, color:T.textSm, padding:"10px 0" }}>Ninguna. Cuando MP rechace un cobro, aparece acá.</div>
-      ) : (
-        <DSTable T={T} rows={failed} rowKey={s => s.id} dense minWidth={640} columns={[
-          { key:"cliente", label:"Cliente", render: s => <CellStack T={T} main={s.customer_name || s.customer_email} sub={s.customer_name ? s.customer_email : ""}/> },
-          { key:"plan", label:"Plan", hideMobile:true, render: s => <span style={{ color:T.textMd }}>{s.plan_snapshot?.product_title || "—"}</span> },
-          { key:"monto", label:"Monto", align:"right", nowrap:true, render: s => <span style={{ fontWeight:DS.w.bold }}>{fmtARS(s.plan_snapshot?.total_per_charge_ars || s.plan_snapshot?.subscription_price_ars)}</span> },
-          { key:"desde", label:"Falló", nowrap:true, hideMobile:true, render: s => <span style={{ color:T.textSm, fontSize:DS.font.sm }}>{fmtDateOnly(s.payment_failed_at || s.updated_at)}</span> },
-          { key:"acc", label:"", align:"right", nowrap:true, render: s => (
-            <div style={{ display:"inline-flex", gap:6 }}>
-              <Btn T={T} variant="secondary" size="sm" disabled={busy === s.id} onClick={() => run(s, "sync")} style={{ padding:"4px 9px", fontSize:DS.font.xs }}>{busy === s.id ? <Spinner size={10} color={T.textMd}/> : "⟳ Sincronizar"}</Btn>
-              <Btn T={T} variant="secondary" size="sm" disabled={!portalUrl(s)} onClick={() => copyText(portalUrl(s), "Link del portal copiado")} style={{ padding:"4px 9px", fontSize:DS.font.xs }}>🔗 Link del portal</Btn>
-            </div>) },
-        ]}/>
-      )}
-    </Card>
+  return (
+    <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"minmax(0,1.5fr) minmax(0,1fr)", gap:DS.sp.lg, alignItems:"start" }}>
+      <Panel T={T} title="Suscripciones con pago fallido" sub="Mandales el link del portal para que actualicen la tarjeta, o sincronizá si ya pagaron." flush>
+        {loading ? <div style={{ padding:16 }}><Loading T={T}/></div> : failed.length === 0 ? (
+          <div style={{ fontSize:DS.font.md, color:T.textSm, padding:"4px 16px 18px" }}>✅ Ninguna. Cuando MP rechace un cobro, aparece acá.</div>
+        ) : (
+          <DSTable T={T} rows={failed} rowKey={s => s.id} dense minWidth={620} style={{ border:"none", borderRadius:0, boxShadow:"none", borderTop:`1px solid ${T.border}` }} columns={[
+            { key:"cliente", label:"Cliente", render: s => <CellStack T={T} main={s.customer_name || s.customer_email} sub={s.customer_name ? s.customer_email : ""}/> },
+            { key:"plan", label:"Plan", hideMobile:true, render: s => <span style={{ color:T.textMd }}>{s.plan_snapshot?.product_title || "—"}</span> },
+            { key:"desde", label:"Falló", nowrap:true, render: s => failedAt(s) ? <CellStack T={T} main={fmtDateOnly(failedAt(s))} sub={fmtAgo(failedAt(s))}/> : <span style={{ color:T.textSm }}>—</span> },
+            { key:"monto", label:"Monto", align:"right", nowrap:true, render: s => <span style={{ fontWeight:DS.w.bold, fontVariantNumeric:"tabular-nums" }}>{fmtARS(s.plan_snapshot?.total_per_charge_ars || s.plan_snapshot?.subscription_price_ars)}</span> },
+            { key:"acc", label:"", align:"right", nowrap:true, render: s => (
+              <div style={{ display:"inline-flex", gap:6 }}>
+                <Btn T={T} variant="secondary" size="sm" disabled={!portalUrl(s)} onClick={() => copyText(portalUrl(s), "Link del portal copiado")} style={{ padding:"4px 9px", fontSize:DS.font.xs }}>🔗 Link del portal</Btn>
+                <Btn T={T} variant="secondary" size="sm" disabled={busy === s.id} onClick={() => run(s, "sync")} title="Sincronizar con Mercado Pago" style={{ padding:"4px 9px", fontSize:DS.font.xs }}>{busy === s.id ? <Spinner size={10} color={T.textMd}/> : "⟳"}</Btn>
+              </div>) },
+          ]}/>
+        )}
+      </Panel>
+
+      <Panel T={T} title="Cómo funciona" sub="Qué pasa cuando Mercado Pago no puede cobrar una renovación.">
+        <ol style={{ margin:0, padding:0, listStyle:"none", display:"flex", flexDirection:"column", gap:12 }}>
+          {steps.map((s, i) => (
+            <li key={i} style={{ display:"flex", gap:10, fontSize:DS.font.md, color:T.textMd, lineHeight:1.55 }}>
+              <span aria-hidden="true" style={{ width:20, height:20, borderRadius:99, background:T.accentSolid + "22", color:T.accent, fontSize:11, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:1 }}>{i + 1}</span>
+              <span style={{ minWidth:0 }}>{s}</span>
+            </li>
+          ))}
+        </ol>
+        {!klaviyo && <Callout T={T} tone="info" style={{ marginTop:14 }} right={<Btn T={T} variant="secondary" size="sm" onClick={() => goConfigSection(goTab, "integraciones")}>Configurar Klaviyo</Btn>}>Con Klaviyo podés mandar recordatorios con tu marca y por SMS.</Callout>}
+      </Panel>
+    </div>
   );
 }
 
-// ─── (c) Carritos sin pagar ────────────────────────────────────────
-function UnpaidCard({ T, merchant, count, loading, goTab }) {
+// ─── (c) Checkouts sin pagar ───────────────────────────────────────
+function UnpaidSection({ T, merchant, profile, count, loading, goTab }) {
   const klaviyo = Boolean(merchant?.klaviyo_connected);
+  const whenPaid = profile.caps.orders ? `la orden entra a ${profile.channelInfo.label}` : "el cobro queda registrado";
+  const openUnpaid = () => { goTab?.("suscripciones"); setTimeout(() => { try { window.location.hash = "#/dashboard/suscripciones?status=unpaid"; } catch (_) {} }, 0); };
   return (
-    <Card T={T}>
-      <CardHeader T={T} icon="🛒" title="Checkouts sin pagar" sub="Clientes que iniciaron la suscripción y no terminaron el pago en Mercado Pago."
-        right={<Btn T={T} variant="secondary" size="sm" onClick={() => { goTab?.("suscripciones"); setTimeout(() => { try { window.location.hash = "#/dashboard/suscripciones?status=unpaid"; } catch (_) {} }, 0); }}>Ver en Suscripciones →</Btn>}/>
-      <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"200px minmax(0,1fr)", gap:DS.sp.lg, alignItems:"start" }}>
-        <StatCard T={T} label="Sin pagar · 30 días" value={loading ? undefined : (count == null ? "—" : count)} color={count ? T.yellow : undefined}/>
+    <Panel T={T} title="Checkouts sin pagar" sub="Clientes que iniciaron la suscripción y no terminaron el pago en Mercado Pago."
+      right={<Btn T={T} variant="secondary" size="sm" onClick={openUnpaid}>Ver la lista en Suscripciones →</Btn>}>
+      <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"minmax(0,220px) minmax(0,1fr)", gap:DS.sp.lg, alignItems:"start" }}>
+        <div style={{ border:`1px solid ${T.border}`, borderRadius:12, padding:"14px 16px", background:T.bg }}>
+          <div style={{ fontSize:10, fontWeight:700, color:T.textSm, textTransform:"uppercase", letterSpacing:0.5, marginBottom:6 }}>Sin pagar · 30 días</div>
+          <div style={{ fontSize:28, fontWeight:800, color: count ? T.yellow : T.text, letterSpacing:-1, fontVariantNumeric:"tabular-nums" }}>{loading && count == null ? "…" : count == null ? "—" : fmtN(count)}</div>
+          <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:4 }}>{count ? "para recuperar" : "nada pendiente"}</div>
+        </div>
         <Callout T={T} tone={klaviyo ? "success" : "info"} title={klaviyo ? "Klaviyo conectado: recibe “Checkout Started”" : "Recuperalos con Klaviyo"}
           right={<Btn T={T} variant={klaviyo ? "secondary" : "solid"} size="sm" onClick={() => goConfigSection(goTab, "integraciones")}>{klaviyo ? "Ver integración" : "Configurar Klaviyo"}</Btn>}>
-          Cada checkout de suscripción se manda a Klaviyo como <strong style={{ color:T.text }}>Checkout Started</strong> con el link para retomar. Usalo como disparador de tu flow de carrito abandonado; cuando paga, la orden entra a Shopify y el flow se corta solo.
+          Cada checkout de suscripción se manda a Klaviyo como <strong style={{ color:T.text }}>Checkout Started</strong> con el link para retomar. Usalo como disparador de tu flow de carrito abandonado; cuando paga, {whenPaid} y el flow se corta solo.
         </Callout>
       </div>
-      {!!count && <div style={{ marginTop:10, fontSize:DS.font.sm, color:T.textSm }}><DSBadge T={T} color={T.yellow} size="sm">{count} sin pagar</DSBadge> en los últimos 30 días.</div>}
-    </Card>
+    </Panel>
   );
 }

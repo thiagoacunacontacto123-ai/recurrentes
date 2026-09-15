@@ -98,6 +98,45 @@ export function Segmented({ T, options, value, onChange, ariaLabel }) {
   );
 }
 
+// Panel de sección: título + bajada + acciones a la derecha + contenido
+// (flush = tabla pegada a los bordes).
+export function Panel({ T, title, sub, right, children, flush, style = {} }) {
+  return (
+    <section style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, overflow:"hidden", minWidth:0, fontFamily:F, ...style }}>
+      <div style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"14px 16px 10px", flexWrap:"wrap" }}>
+        <div style={{ flex:"1 1 220px", minWidth:0 }}>
+          <h3 style={{ margin:0, fontSize:14, fontWeight:800, color:T.text, letterSpacing:-0.2 }}>{title}</h3>
+          {sub && <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:2, lineHeight:1.45 }}>{sub}</div>}
+        </div>
+        {right && <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", maxWidth:"100%" }}>{right}</div>}
+      </div>
+      <div style={{ padding: flush ? 0 : "2px 16px 16px" }}>{children}</div>
+    </section>
+  );
+}
+
+// Barras horizontales (como "Mejores días" de Growith): etiqueta · barra · valor.
+//   rows: [{ key, label, value, extra }]
+export function BarList({ T, rows, color, fmt = (n) => Math.round(Number(n) || 0).toLocaleString("es-AR"), empty }) {
+  if (!rows.length) return <div style={{ fontSize:DS.font.sm, color:T.textSm, padding:"6px 0 2px" }}>{empty}</div>;
+  const max = Math.max(1, ...rows.map(r => Number(r.value) || 0));
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+      {rows.map(r => (
+        <div key={r.key} style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) minmax(60px,120px) auto", alignItems:"center", gap:10, fontSize:DS.font.sm, fontFamily:F }}>
+          <span style={{ color:T.textMd, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }} title={r.label}>{r.label}</span>
+          <span style={{ height:6, background:T.border, borderRadius:99, overflow:"hidden" }}>
+            <span style={{ display:"block", height:"100%", width:`${Math.round(((Number(r.value) || 0) / max) * 100)}%`, background:color, borderRadius:99 }}/>
+          </span>
+          <span style={{ fontWeight:700, color:T.text, fontVariantNumeric:"tabular-nums", textAlign:"right", minWidth:70, whiteSpace:"nowrap" }}>
+            {fmt(r.value)}{r.extra != null && <span style={{ color:T.textSm, fontWeight:500 }}> · {r.extra}</span>}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Gráfico de área/líneas con pestañas y hover (línea vertical + valores del día).
 //   tabs: [{ id, label, series:[{ key, label, color, values, fmt }] }]
 export function AreaChart({ T, title, total, tabs, dates = [], fmtDate = (d) => d, height = 240 }) {
