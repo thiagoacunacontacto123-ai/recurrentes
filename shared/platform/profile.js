@@ -78,9 +78,10 @@ export const CHANNELS = {
     id: "tiendanube",
     label: "Tiendanube",
     emoji: "☁️",
-    status: "soon",
+    status: "soon", // se habilita solo: ver channelAvailable()
     types: ["physical", "digital"],
     catalog: true, orders: true, widget: true,
+    packs: false,    // el selector de packs necesita el checkout on-store (solo Shopify por ahora)
     desc: "Tus productos de Tiendanube como suscripción, con una orden por cobro.",
   },
   impultienda: {
@@ -158,6 +159,23 @@ function defaultChannelFor(typeId, m) {
 
 const isAvailable = (entry) => !!entry && entry.status === "available";
 
+// Env del backend (en el navegador no hay `process`: devuelve "").
+const envVar = (k) => { try { return String(globalThis.process?.env?.[k] || ""); } catch (_) { return ""; } };
+
+/**
+ * ¿Se puede elegir este canal? Los "available" siempre. Tiendanube se habilita sola
+ * cuando existe la app de Partner (env TIENDANUBE_APP_ID + TIENDANUBE_CLIENT_SECRET en el backend; flag
+ * `tiendanube_enabled` del GET /api/merchant en el panel) o si la cuenta ya la tiene
+ * conectada. `m` = doc crudo del merchant o el `safe` del GET.
+ */
+export function channelAvailable(id, m) {
+  const ch = CHANNELS[id];
+  if (!ch) return false;
+  if (isAvailable(ch)) return true;
+  if (id === "tiendanube") return !!(m?.tiendanube_enabled || m?.tiendanube_token || (envVar("TIENDANUBE_APP_ID") && envVar("TIENDANUBE_CLIENT_SECRET")));
+  return false;
+}
+
 /**
  * Perfil efectivo del merchant. Acepta el doc crudo (backend) o el `safe` del
  * GET /api/merchant (tokens enmascarados "•••••": alcanza con que sean truthy).
@@ -175,7 +193,7 @@ export function merchantProfile(m) {
   const paymentProvider = isAvailable(PAYMENT_PROVIDERS[doc.payment_provider]) ? doc.payment_provider : "mercadopago";
   const providerInfo = PAYMENT_PROVIDERS[paymentProvider];
 
-  const channelConnected = channel === "none" ? true : channel === "shopify" ? !!doc.shopify_token : false;
+  const channelConnected = channel === "none" ? true : channel === "shopify" ? !!doc.shopify_token : channel === "tiendanube" ? !!doc.tiendanube_token : false;
   const paymentConnected = paymentProvider === "mercadopago" ? !!doc.mp_access_token : false;
 
   const missing = [];
@@ -204,7 +222,7 @@ export function merchantProfile(m) {
       orders: channelInfo.orders,       // cada cobro crea una orden en la tienda
       widget: channelInfo.widget,       // se vende con el snippet en la página de producto
       link: !channelInfo.widget,        // se vende con el link de suscripción (checkout hosteado)
-      packs: channelInfo.widget,        // selector de packs x1·x2·x3 (solo en el widget)
+      packs: channelInfo.packs ?? channelInfo.widget, // selector de packs x1·x2·x3 (solo en el widget)
     },
   };
 }
@@ -225,7 +243,7 @@ export function validateProfilePatch(current, patch) {
     channelId = String(b.channel || "");
     const ch = CHANNELS[channelId];
     if (!ch) return { error: "channel inválido" };
-    if (!isAvailable(ch)) return { error: `${ch.label} todavía no está disponible` };
+    if (!channelAvailable(channelId, current)) return { error: `${ch.label} todavía no está disponible` };
     if (!ch.types.includes(typeId)) return { error: `${ch.label} no aplica a ${BUSINESS_TYPES[typeId].label.toLowerCase()}` };
   } else {
     channelId = CHANNELS[cur.channel].types.includes(typeId) ? cur.channel : defaultChannelFor(typeId, current);

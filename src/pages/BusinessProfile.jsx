@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { apiPatch } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
 import { Card, Btn, DSBadge, CardHeader, Callout, Spinner, appConfirm, toast } from "../ui/components.jsx";
-import { BUSINESS_TYPES, CHANNELS, PAYMENT_PROVIDERS, merchantProfile } from "../../shared/platform/profile.js";
+import { BUSINESS_TYPES, CHANNELS, PAYMENT_PROVIDERS, merchantProfile, channelAvailable } from "../../shared/platform/profile.js";
 
 // ─── Configuración → Negocio ─────────────────────────────────────
 // Qué vende el comerciante, dónde lo vende y con qué cobra (shared/platform/
@@ -56,9 +56,9 @@ function StepLabel({ T, n, children, sub }) {
 const grid = { display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(190px, 1fr))", gap:10 };
 
 // Canal que queda al cambiar de tipo: el mismo si le sirve, si no el primero disponible.
-function channelForType(typeId, current) {
+function channelForType(typeId, current, merchant) {
   const c = CHANNELS[current];
-  if (c && c.status === "available" && c.types.includes(typeId)) return current;
+  if (c && channelAvailable(current, merchant) && c.types.includes(typeId)) return current;
   return typeId === "physical" ? "shopify" : "none";
 }
 
@@ -94,7 +94,7 @@ export default function BusinessProfileSection({ merchant, onChange, compact = f
 
   function pickType(id) {
     setType(id);
-    setChannel(ch => channelForType(id, ch));
+    setChannel(ch => channelForType(id, ch, merchant));
   }
 
   async function save() {
@@ -155,8 +155,8 @@ export default function BusinessProfileSection({ merchant, onChange, compact = f
       <StepLabel T={T} n={2} sub="Con tienda, los productos salen de tu catálogo y cada cobro crea una orden. Sin tienda, vendés con un link.">¿Dónde vendés?</StepLabel>
       <div style={grid}>
         {channels.map(c => (
-          <OptionCard key={c.id} T={T} selected={channel === c.id} disabled={!isOwner || c.status !== "available"} emoji={c.emoji} title={c.label} desc={c.desc}
-            badge={c.status !== "available" ? soon : null} onClick={() => setChannel(c.id)}/>
+          <OptionCard key={c.id} T={T} selected={channel === c.id} disabled={!isOwner || !channelAvailable(c.id, merchant)} emoji={c.emoji} title={c.label} desc={c.desc}
+            badge={!channelAvailable(c.id, merchant) ? soon : null} onClick={() => setChannel(c.id)}/>
         ))}
       </div>
 

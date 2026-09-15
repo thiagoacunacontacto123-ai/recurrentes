@@ -21,6 +21,7 @@ import {
   isMpAuthError,
 } from "./mp.js";
 import { shFindOrCreateCustomer, shCreatePaidOrder } from "./shopify.js";
+import { createTiendanubeOrderForSub } from "./tiendanube.js";
 import { emailSubscriptionActivated, emailPaymentFailed } from "./email.js";
 import { sendMetaPurchase } from "./meta.js";
 import { logEmail } from "./emaillog.js";
@@ -43,6 +44,8 @@ import { emitFlowEvent } from "./flows.js";
 export async function fulfillCharge(merchant, subscriberId, sub, params, tag = "sync") {
   const { channel, channelInfo } = merchantProfile(merchant);
   if (channel === "shopify") return createShopifyOrderForSub(merchant, subscriberId, sub, params, tag);
+  // Tiendanube: orden PAGA en la tienda (api/_lib/tiendanube.js), mismo contrato e idempotencia.
+  if (channel === "tiendanube") return createTiendanubeOrderForSub(merchant, subscriberId, sub, params, tag);
   if (channel === "none") {
     if (params?.requireAddress && !(sub.shipping_address?.address1 && sub.shipping_address?.city)) {
       return { shopifyOrderId: null, orderStatusUrl: null, shopifyError: "Faltan datos: shipping_address.address1/city" };
