@@ -76,6 +76,15 @@ export function verifyPortalToken(token) {
   return p && p.mid && p.sid ? p : null;
 }
 
+// Tope por suscripción para las acciones POST del portal (cada una pega a MP y
+// dispara mails/eventos). Un cliente real hace 2-3 por visita. Fail-open.
+async function portalRateLimited(res, payload) {
+  const rl = await rateLimit(`portal:${payload.mid}:${payload.sid}`, { limit: 30, windowSec: 3600 });
+  if (rl.ok) return false;
+  res.status(429).json({ error: "Demasiados intentos. Esperá unos minutos y volvé a intentar." });
+  return true;
+}
+
 // Generador exportable — lo usa checkout/init para armar el back_url con el portal token.
 export function generatePortalToken(merchantId, subscriberId, ttlDays = 180) {
   return signToken({ mid: merchantId, sid: subscriberId }, ttlDays * 86400);
@@ -249,6 +258,7 @@ async function handleUpdateAddress(req, res) {
   const token = req.query.token || req.body?.token;
   const payload = verifyPortalToken(String(token || ""));
   if (!payload) return res.status(403).json({ error: "Token inválido o expirado" });
+  if (await portalRateLimited(res, payload)) return;
   const { mid: merchantId, sid: subscriberId } = payload;
   const subRef = db().collection("merchants").doc(merchantId).collection("subscribers").doc(subscriberId);
   const subSnap = await subRef.get();
@@ -349,6 +359,7 @@ async function handleSub(req, res) {
   }
 
   if (req.method === "POST") {
+    if (await portalRateLimited(res, payload)) return;
     const { action: subAction } = req.body || {};
     if (!["pause", "resume", "cancel"].includes(subAction)) {
       return res.status(400).json({ error: "action debe ser pause | resume | cancel" });
@@ -476,6 +487,7 @@ async function handlePauseOffer(req, res) {
   const token = req.query.token || req.body?.token;
   const payload = verifyPortalToken(String(token || ""));
   if (!payload) return res.status(403).json({ error: "Token inválido o expirado" });
+  if (await portalRateLimited(res, payload)) return;
   const { mid: merchantId, sid: subscriberId } = payload;
   const cycles = parseInt(req.body?.cycles, 10);
   if (!Number.isInteger(cycles) || cycles < 1 || cycles > RETENTION_MAX_PAUSE_CYCLES) {

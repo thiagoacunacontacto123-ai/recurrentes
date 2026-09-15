@@ -73,7 +73,9 @@ async function handleShippingRates(req, res) {
     res.setHeader("Cache-Control", "no-store");
     return res.json({ rates });
   } catch (e) {
-    return res.json({ rates: [], error: e.message });
+    // Endpoint público: el detalle (URL de la tienda, respuesta de Shopify) va al log, no al comprador.
+    console.warn(`[shopify/shipping-rates] ${merchantId}:`, e.message);
+    return res.json({ rates: [], error: "No pudimos consultar los envíos de la tienda" });
   }
 }
 

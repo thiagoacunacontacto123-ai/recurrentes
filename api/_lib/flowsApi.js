@@ -5,7 +5,7 @@
 //   POST ?action=flow-test    { trigger, step } → ese mail, con datos de ejemplo, al mail del login (20/día)
 // Después de guardar/borrar se recalcula merchant.flows_active_triggers (syncFlowsIndex),
 // que es lo único que mira emitFlowEvent en el camino del cobro.
-import { db } from "./firebase.js";
+import { db, resolveMerchantAccess } from "./firebase.js";
 import { rateLimit } from "./ratelimit.js";
 import { sanitizeFlow, FLOW_MAX_FLOWS } from "../../shared/platform/flows.js";
 import { syncFlowsIndex, sendFlowTest } from "./flows.js";
@@ -17,6 +17,12 @@ const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 export async function flowsApi(ctx, action, req, res) {
   const mid = ctx.merchantId;
+  // Permiso de equipo "flujos": /api/merchant no pide sección, así que lo exigimos
+  // acá. Un miembro sin esa sección no ve, edita ni prueba flujos. Dueños sin cambios.
+  if (ctx.role === "member") {
+    const acc = await resolveMerchantAccess(ctx.uid, mid, "flujos");
+    if (!acc.ok) return res.status(acc.code || 403).json({ error: acc.error, code: "merchant_forbidden" });
+  }
   try {
     if (action === "flows") {
       const snap = await flowsCol(mid).get();

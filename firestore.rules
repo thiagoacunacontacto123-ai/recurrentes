@@ -5,9 +5,12 @@
 //     etc.) pasan por endpoints serverless de /api/* con el Admin SDK, que
 //     bypassea estas rules. Por eso el cliente NUNCA escribe: así el merchant
 //     no puede setear plan:"pro", abandoned_enabled, inventar charges, etc.
-//   - El cliente Firebase Web SDK del comerciante solo puede LEER su propio
-//     doc merchants/{uid} y subcollections (+ el doc de tiendas donde es dueño
-//     o miembro: ownerUid / teamUids; sus subcolecciones van por API).
+//   - LECTURAS también por API (desde 2026-09-15). El panel usa el Web SDK solo
+//     para Auth; no lee Firestore. Antes merchants/{mid} era legible por su login,
+//     el perfil dueño y el equipo (teamUids): cualquier miembro del equipo podía
+//     leer con el SDK web mp_access_token, mp_refresh_token, shopify_token,
+//     shopify_client_secret, klaviyo_api_key y meta_capi_token, aunque la API se
+//     los oculte y le prohíba tocar integraciones. Ahora: cerrado del todo.
 //   - El widget del storefront y el portal del cliente final NO usan Firebase
 //     Web SDK directamente — todo pasa por /api/public/* con tokens firmados.
 //
@@ -18,22 +21,13 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Multi-tienda: el doc merchants/{mid} lo puede LEER su propio login
-    // (mid == uid, caso clásico), el PERFIL dueño (ownerUid, tiendas m_xxx) y
-    // los miembros del equipo (teamUids). Escritura: nunca.
+    // merchants/{mid} y TODAS sus subcolecciones (plans, subscribers, charges,
+    // email_log, flows…): el cliente no lee ni escribe. Todo va por /api/*
+    // (Admin SDK), que aplica dueño / equipo / permisos por sección.
     match /merchants/{mid} {
-      allow read: if request.auth != null && (
-        request.auth.uid == mid
-        || request.auth.uid == resource.data.get('ownerUid', '')
-        || request.auth.uid in resource.data.get('teamUids', [])
-      );
-      allow write: if false;
-
-      // Subcolecciones (plans, subscribers, charges, email_log…): solo el login
-      // cuyo uid es el id del doc. Dueños de tiendas extra y equipo las leen por API.
+      allow read, write: if false;
       match /{subcol}/{docId=**} {
-        allow read: if request.auth != null && request.auth.uid == mid;
-        allow write: if false;
+        allow read, write: if false;
       }
     }
 
