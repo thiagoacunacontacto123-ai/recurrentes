@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { apiGet, apiPost } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
-import { KPI, Btn, DSBadge, Spinner, DSTable, CellStack, PageHeader, SubTabs, Loading, appConfirm, toast } from "../ui/components.jsx";
+import { KPI, Btn, InputStyle, DSBadge, Spinner, DSTable, CellStack, PageHeader, SubTabs, Loading, appConfirm, toast } from "../ui/components.jsx";
+import { KpiCard, Segmented, AreaChart } from "../ui/charts.jsx";
 import { OnbEmpty } from "./Onboarding.jsx";
 import { TIPS } from "../lib/onboarding.js";
 import { MONO, fmtARS, fmtDateTime, fmtDateOnly, ExtLink, mpPaymentUrl, shopifyOrderUrl, orderLabel, weekBucket, hashQuery } from "./_shared.jsx";
@@ -28,10 +29,25 @@ export async function fetchErrors(processed = null) {
   return list.filter(c => c.error);
 }
 
-// ─── Página: Cobros ────────────────────────────────────────────────
+// ─── Página: Cobros — estilo Growith: período 7/30/90 con KPIs + sparkline,
+// gráfico diario (cobrado / cantidad), estados en píldoras con contador,
+// búsqueda y tabla densa. Mismas acciones que antes (reintentar orden).
+const DAYS_KEY = "rec_charges_days";
+const PERIODS = [{ id:7, label:"7 días" }, { id:30, label:"30 días" }, { id:90, label:"90 días" }];
+const readDays = () => { try { const d = parseInt(localStorage.getItem(DAYS_KEY)); return [7, 30, 90].includes(d) ? d : 30; } catch (_) { return 30; } };
+const fmtN = (n) => Math.round(Number(n) || 0).toLocaleString("es-AR");
+const fmtShortDate = (key) => { const [, m, d] = String(key).split("-"); return d ? `${parseInt(d)}/${parseInt(m)}` : key; };
+const SearchIcon = ({ color }) => (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="5" stroke={color} strokeWidth="1.6"/><path d="M11 11l3.5 3.5" stroke={color} strokeWidth="1.6" strokeLinecap="round"/></svg>
+);
+
 export function ChargesPage({ shop = null }) {
   const T = useT();
+  const iS = InputStyle(T);
   const [view, setView] = useState(() => { const v = hashQuery().get("view"); return ["processed", "upcoming", "errors"].includes(v) ? v : "processed"; });
+  const [days, setDays] = useState(readDays);
+  const [period, setPeriod] = useState(null);
+  const [search, setSearch] = useState("");
   const [charges, setCharges] = useState([]);
   const [totals, setTotals] = useState({ amount_ars:0, ok:0, failed:0, total:0 });
   const [upcoming, setUpcoming] = useState([]);
@@ -51,14 +67,18 @@ export function ChargesPage({ shop = null }) {
     if (!more) setTotals(d?.totals || { amount_ars:0, ok:0, failed:0, total:0 });
     return list;
   }
+  async function loadStats(d = days) {
+    const st = await apiGet("stats", { days: d }).catch(() => null);
+    if (st && !st.error) { setThisMonth(st.revenue?.this_month || null); setPeriod(st.period || null); }
+    return st;
+  }
   async function loadAll() {
     setLoading(true);
     try {
-      const [list, up, st] = await Promise.all([loadProcessed(false), fetchUpcoming().catch(() => []), apiGet("stats").catch(() => null)]);
+      const [list, up, st] = await Promise.all([loadProcessed(false), fetchUpcoming().catch(() => []), loadStats()]);
       setUpcoming(up);
       setErrors(await fetchErrors(list).catch(() => []));
-      if (st && !st.error) setThisMonth(st.revenue?.this_month || null);
-      else {
+      if (!st || st.error) {
         const start = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
         const m = list.filter(c => !c.error && (c.created_at || "") >= start);
         setThisMonth({ count: m.length, amount: m.reduce((a, c) => a + (c.amount_ars || 0), 0) });
@@ -66,6 +86,9 @@ export function ChargesPage({ shop = null }) {
     } finally { setLoading(false); }
   }
   useEffect(() => { loadAll(); }, []);
+  // Cambiar el período solo recarga las métricas (la tabla no depende del período).
+  useEffect(() => { if (period) loadStats(days); /* eslint-disable-next-line */ }, [days]);
+  const pickDays = (d) => { setDays(d); try { localStorage.setItem(DAYS_KEY, String(d)); } catch (_) {} };
 
   // Reintenta la orden Shopify de un charge que quedó con error (mismo payment_id).
   async function retryOrder(c) {
@@ -83,88 +106,134 @@ export function ChargesPage({ shop = null }) {
     finally { setRetrying(null); }
   }
 
+  // Búsqueda por cliente, email, pago MP, orden o plan (en las tres vistas).
+  const q = search.trim().toLowerCase();
+  const match = (c) => !q || [c.customer_name, c.name, c.customer_email, c.email, c.mp_payment_id, c.shopify_order_id, c.plan_title, c.product_title]
+    .some(v => String(v ?? "").toLowerCase().includes(q));
+  const chargesF = useMemo(() => charges.filter(match), [charges, q]);
+  const errorsF = useMemo(() => errors.filter(match), [errors, q]);
+  const upcomingF = useMemo(() => upcoming.filter(match), [upcoming, q]);
+
   const upcomingTotal = useMemo(() => upcoming.reduce((a, u) => a + (Number(u.amount_ars) || 0), 0), [upcoming]);
   const weeks = useMemo(() => {
     const map = new Map();
-    for (const u of upcoming) {
+    for (const u of upcomingF) {
       const { idx, label } = weekBucket(u.next_charge_at);
       if (!map.has(idx)) map.set(idx, { idx, label, items: [], total: 0 });
       const w = map.get(idx); w.items.push(u); w.total += Number(u.amount_ars) || 0;
     }
     return [...map.values()].sort((a, b) => a.idx - b.idx);
-  }, [upcoming]);
+  }, [upcomingF]);
 
   const customerCell = (c) => <CellStack T={T} main={c.customer_name || c.name || c.customer_email || c.email || (c.subscriber_id ? `Sub ${String(c.subscriber_id).slice(0, 8)}…` : "—")} sub={(c.customer_name || c.name) ? (c.customer_email || c.email) : (c.plan_title || c.product_title || "")}/>;
+  const dateCell = (iso) => <span style={{ color:T.textSm, fontSize:DS.font.sm, fontVariantNumeric:"tabular-nums" }}>{fmtDateTime(iso)}</span>;
+  const mpCell = (c) => c.mp_payment_id ? <ExtLink T={T} href={mpPaymentUrl(c.mp_payment_id)} style={{ fontFamily:MONO, fontSize:DS.font.sm }}>{c.mp_payment_id}</ExtLink> : <span style={{ color:T.textSm }}>—</span>;
+  const amountCell = (v) => <span style={{ fontWeight:DS.w.bold, fontVariantNumeric:"tabular-nums" }}>{fmtARS(v)}</span>;
 
   const processedCols = [
-    { key:"fecha", label:"Fecha", nowrap:true, render: c => <span style={{ color:T.textSm, fontSize:DS.font.sm }}>{fmtDateTime(c.created_at)}</span> },
+    { key:"fecha", label:"Fecha", nowrap:true, render: c => dateCell(c.created_at) },
     { key:"cliente", label:"Cliente", render: customerCell },
-    { key:"monto", label:"Monto", nowrap:true, align:"right", render: c => <span style={{ fontWeight:DS.w.black, fontSize:DS.font.lg, fontVariantNumeric:"tabular-nums" }}>{fmtARS(c.amount_ars)}</span> },
-    { key:"mp", label:"Pago MP", nowrap:true, hideMobile:true, render: c => c.mp_payment_id ? <ExtLink T={T} href={mpPaymentUrl(c.mp_payment_id)} style={{ fontFamily:MONO, fontSize:DS.font.sm }}>{c.mp_payment_id}</ExtLink> : <span style={{ color:T.textSm }}>—</span> },
+    { key:"mp", label:"Pago MP", nowrap:true, hideMobile:true, render: mpCell },
     { key:"orden", label:"Orden", nowrap:true, render: c => c.shopify_order_id
         ? <ExtLink T={T} href={shopifyOrderUrl(shop, c.shopify_order_id)} style={{ fontFamily:MONO, fontSize:DS.font.sm }}>{orderLabel(c.shopify_order_id)}</ExtLink>
         : <span style={{ color:T.textSm }}>—</span> },
     { key:"estado", label:"Estado", render: c => c.error ? (
-      <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:5, maxWidth:320 }}>
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-start", gap:4, maxWidth:300 }}>
         <span title={c.error} style={{ cursor:"help" }}><DSBadge T={T} color={T.red} size="sm">✗ Falló</DSBadge></span>
-        <span style={{ fontSize:DS.font.sm, color:T.red, lineHeight:1.35, overflow:"hidden", textOverflow:"ellipsis", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }} title={c.error}>{c.error}</span>
+        <span style={{ fontSize:DS.font.xs, color:T.red, lineHeight:1.35, overflow:"hidden", textOverflow:"ellipsis", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }} title={c.error}>{c.error}</span>
       </div>
-    ) : <DSBadge T={T} color={T.green} size="sm">✓ OK</DSBadge> },
+    ) : <DSBadge T={T} color={T.green} size="sm">✓ Cobrado</DSBadge> },
+    { key:"monto", label:"Monto", nowrap:true, align:"right", render: c => amountCell(c.amount_ars) },
   ];
 
   const errorCols = [
-    { key:"fecha", label:"Fecha", nowrap:true, render: c => <span style={{ color:T.textSm, fontSize:DS.font.sm }}>{fmtDateTime(c.created_at)}</span> },
+    { key:"fecha", label:"Fecha", nowrap:true, render: c => dateCell(c.created_at) },
     { key:"cliente", label:"Cliente", render: customerCell },
-    { key:"monto", label:"Monto", nowrap:true, align:"right", render: c => <span style={{ fontWeight:DS.w.bold, fontVariantNumeric:"tabular-nums" }}>{fmtARS(c.amount_ars)}</span> },
-    { key:"mp", label:"Pago MP", nowrap:true, hideMobile:true, render: c => c.mp_payment_id ? <ExtLink T={T} href={mpPaymentUrl(c.mp_payment_id)} style={{ fontFamily:MONO, fontSize:DS.font.sm }}>{c.mp_payment_id}</ExtLink> : <span style={{ color:T.textSm }}>—</span> },
-    { key:"error", label:"Error", render: c => <span style={{ fontSize:DS.font.sm, color:T.red, lineHeight:1.35, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden", maxWidth:360 }} title={c.error}>{c.error || "—"}</span> },
+    { key:"mp", label:"Pago MP", nowrap:true, hideMobile:true, render: mpCell },
+    { key:"error", label:"Error", render: c => <span style={{ fontSize:DS.font.sm, color:T.red, lineHeight:1.35, display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden", maxWidth:340 }} title={c.error}>{c.error || "—"}</span> },
+    { key:"monto", label:"Monto", nowrap:true, align:"right", render: c => amountCell(c.amount_ars) },
     { key:"accion", label:"", align:"right", nowrap:true, render: c => c.shopify_order_id
         ? <ExtLink T={T} href={shopifyOrderUrl(shop, c.shopify_order_id)}>{orderLabel(c.shopify_order_id)}</ExtLink>
         : <Btn T={T} variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); retryOrder(c); }} disabled={retrying === c.id} style={{ padding:"4px 9px", fontSize:DS.font.xs }}>{retrying === c.id ? <><Spinner size={10} color={T.textMd}/> Reintentando…</> : "↻ Reintentar orden"}</Btn> },
   ];
 
   const upcomingCols = [
-    { key:"fecha", label:"Fecha", nowrap:true, render: u => <span style={{ color:T.text }}>{fmtDateOnly(u.next_charge_at)}</span> },
+    { key:"fecha", label:"Fecha", nowrap:true, render: u => <span style={{ color:T.text, fontVariantNumeric:"tabular-nums" }}>{fmtDateOnly(u.next_charge_at)}</span> },
     { key:"cliente", label:"Cliente", render: u => <CellStack T={T} main={u.name || u.email} sub={u.name ? u.email : ""}/> },
     { key:"plan", label:"Plan", hideMobile:true, render: u => <span style={{ color:T.textMd }}>{u.plan_title || "—"}</span> },
-    { key:"monto", label:"Monto", align:"right", nowrap:true, render: u => <span style={{ fontWeight:DS.w.bold, fontVariantNumeric:"tabular-nums" }}>{fmtARS(u.amount_ars)}</span> },
+    { key:"monto", label:"Monto", align:"right", nowrap:true, render: u => amountCell(u.amount_ars) },
   ];
 
   const tabs = [
-    { id:"processed", label:"Procesados", count: totals.total || (charges.length || undefined) },
+    { id:"processed", label:"Procesados", count: totals.total || charges.length || undefined },
     { id:"upcoming",  label:"Próximos",   count: upcoming.length },
     { id:"errors",    label:"Con error",  count: errors.length },
   ];
   const first = loading && charges.length === 0;
+  const k = period?.kpis || {};
+  const ser = period?.series || {};
+  const pl = `${days} días`;
+  const ticket = k.cobros?.value ? k.cobrado.value / k.cobros.value : 0;
+  const shown = view === "processed" ? chargesF.length : view === "upcoming" ? upcomingF.length : errorsF.length;
+  const chartTabs = [
+    { id:"cobrado", label:"Cobrado", series:[{ key:"cobrado", label:"Cobrado", color:T.accentSolid, values: ser.cobrado || [], fmt: fmtARS }] },
+    { id:"cobros", label:"Cantidad", series:[{ key:"cobros", label:"Cobros", color:T.blue, values: ser.cobros || [], fmt: fmtN }] },
+  ];
 
   return (
     <div>
-      <PageHeader T={T} title="Cobros" subtitle="Lo que Mercado Pago cobró, lo que viene y lo que falló. Cada cobro OK genera una orden en Shopify."
-        right={<Btn T={T} variant="secondary" size="sm" onClick={loadAll} disabled={loading}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Refrescar</Btn>}/>
+      <PageHeader T={T} title="Cobros" subtitle="Lo que Mercado Pago cobró, lo que viene y lo que falló. Cada cobro OK genera una orden en tu negocio."
+        right={<>
+          <Segmented T={T} options={PERIODS} value={days} onChange={pickDays} ariaLabel="Período"/>
+          <Btn T={T} variant="secondary" size="sm" onClick={loadAll} disabled={loading} style={{ height:34 }}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>
+        </>}/>
 
-      <div className="kpi-grid gh-stagger" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))", gap:DS.sp.md, marginBottom:DS.sp.xl }}>
-        <KPI T={T} compact label="Cobrado este mes" value={fmtARS(thisMonth?.amount)} sub={`${thisMonth?.count || 0} cobros · histórico ${fmtARS(totals.amount_ars)}`} accent color={T.accent} loading={first}/>
-        <KPI T={T} compact label="Próximos 30 días" value={fmtARS(upcomingTotal)} sub={`${upcoming.length} cobro${upcoming.length === 1 ? "" : "s"} programado${upcoming.length === 1 ? "" : "s"}`} color={T.text} loading={first} onClick={() => setView("upcoming")}/>
-        <KPI T={T} compact label="Con error" value={errors.length} sub={errors.length ? "órdenes sin crear en Shopify" : "todo en orden"} color={errors.length ? T.red : T.text} loading={first} onClick={() => setView("errors")}/>
+      <div className="kpi-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 210px), 1fr))", gap:10, marginBottom:10 }}>
+        <KpiCard T={T} hero loading={!period} label="Cobrado" value={fmtARS(k.cobrado?.value)} curr={k.cobrado?.value} prev={k.cobrado?.prev}
+          hint={`Este mes ${fmtARS(thisMonth?.amount)} · vs. los ${pl} anteriores`} spark={ser.cobrado} color={T.accentSolid} valueColor={T.accent}/>
+        <KpiCard T={T} hero loading={!period} label="Cobros" value={fmtN(k.cobros?.value)} curr={k.cobros?.value} prev={k.cobros?.prev}
+          hint={ticket ? `Ticket promedio ${fmtARS(ticket)}` : "Pagos aprobados"} spark={ser.cobros} color={T.blue}/>
+        <KpiCard T={T} hero loading={first} label="Próximos 30 días" value={fmtARS(upcomingTotal)}
+          hint={`${fmtN(upcoming.length)} cobro${upcoming.length === 1 ? "" : "s"} programado${upcoming.length === 1 ? "" : "s"}`} color={T.accentSolid} onClick={() => setView("upcoming")}/>
+        <KpiCard T={T} hero loading={first} label="Con error" value={fmtN(errors.length)} valueColor={errors.length ? T.red : T.text}
+          hint={errors.length ? "Cobrados sin orden creada" : "Todo en orden"} spark={ser.fallidos} color={T.red} onClick={() => setView("errors")}/>
       </div>
 
-      <div style={{ marginBottom:DS.sp.lg }}>
-        <SubTabs T={T} tabs={tabs} active={view} onChange={setView}/>
+      <div style={{ marginBottom:18 }}>
+        <AreaChart T={T} title={`Cobros · últimos ${pl}`} tabs={chartTabs} dates={ser.dates || []} fmtDate={fmtShortDate} height={200}
+          total={(tab) => tab.id === "cobrado" ? fmtARS(k.cobrado?.value) : `${fmtN(k.cobros?.value)} cobros`}/>
+      </div>
+
+      {/* Barra: vista con contadores · búsqueda · conteo */}
+      <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:10 }}>
+        <div style={{ maxWidth:"100%", overflowX:"auto" }}>
+          <Segmented T={T} options={tabs} value={view} onChange={setView} ariaLabel="Vista de cobros"/>
+        </div>
+        <div style={{ position:"relative", flex:"0 1 260px", minWidth:170 }}>
+          <span style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)", display:"flex", pointerEvents:"none" }}><SearchIcon color={T.textSm}/></span>
+          <input type="search" aria-label="Buscar cobros" placeholder="Buscar cliente, pago MP u orden…" value={search} onChange={e => setSearch(e.target.value)}
+            style={{ ...iS, width:"100%", height:34, borderRadius:99, fontSize:DS.font.md, boxSizing:"border-box", padding:"0 12px 0 30px" }}/>
+        </div>
+        <span style={{ marginLeft:"auto", fontSize:DS.font.sm, color:T.textSm, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap" }}>
+          {first ? "cargando…" : `${fmtN(shown)} ${view === "upcoming" ? "programado" : "cobro"}${shown === 1 ? "" : "s"}${q ? ` · "${search.trim()}"` : ""}`}
+        </span>
       </div>
 
       {first ? <Loading T={T}/> : view === "processed" ? (
         charges.length === 0 ? (
           <OnbEmpty section="cobros" icon="💸" title="Todavía no tenés cobros" desc="Aparecen acá cuando Mercado Pago procesa el primer pago de una suscripción, y después cada renovación." tip={TIPS.chargesEmpty}/>
         ) : (
-          <DSTable T={T} columns={processedCols} rows={charges} rowKey={c => c.id} minWidth={820}
+          <DSTable T={T} dense columns={processedCols} rows={chargesF} rowKey={c => c.id} minWidth={820} emptyText="Ningún cobro coincide con la búsqueda."
             footer={<>
-              <span>{charges.length} cobro{charges.length === 1 ? "" : "s"} · {totals.ok} OK · {totals.failed} con error</span>
+              <span>{fmtN(chargesF.length)} cobro{chargesF.length === 1 ? "" : "s"} · {totals.ok} OK · {totals.failed} con error</span>
               {cursor && <Btn T={T} variant="secondary" size="sm" onClick={() => loadProcessed(true)} disabled={loading}>{loading ? <><Spinner size={11} color={T.textMd}/> Cargando…</> : "Cargar más"}</Btn>}
             </>}/>
         )
       ) : view === "upcoming" ? (
         upcoming.length === 0 ? (
           <OnbEmpty section="cobros" icon="📅" title="No hay cobros programados" desc="Cuando tengas suscripciones activas, acá ves qué va a cobrar Mercado Pago en los próximos 30 días, semana por semana."/>
+        ) : weeks.length === 0 ? (
+          <div style={{ padding:"28px 12px", textAlign:"center", color:T.textSm, fontSize:DS.font.base, border:`1px dashed ${T.border}`, borderRadius:12 }}>Ningún cobro programado coincide con la búsqueda.</div>
         ) : (
           <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
             {weeks.map(w => (
@@ -181,10 +250,10 @@ export function ChargesPage({ shop = null }) {
         )
       ) : (
         errors.length === 0 ? (
-          <OnbEmpty section="cobros" icon="✅" title="Sin cobros con error" desc="Si un cobro de MP no logra crear la orden en Shopify, aparece acá con el botón para reintentar."/>
+          <OnbEmpty section="cobros" icon="✅" title="Sin cobros con error" desc="Si un cobro de MP no logra registrar la orden, aparece acá con el botón para reintentar."/>
         ) : (
-          <DSTable T={T} columns={errorCols} rows={errors} rowKey={c => c.id} minWidth={760}
-            footer={<span>{errors.length} cobro{errors.length === 1 ? "" : "s"} con error</span>}/>
+          <DSTable T={T} dense columns={errorCols} rows={errorsF} rowKey={c => c.id} minWidth={760} emptyText="Ningún cobro con error coincide con la búsqueda."
+            footer={<span>{fmtN(errorsF.length)} cobro{errorsF.length === 1 ? "" : "s"} con error</span>}/>
         )
       )}
     </div>

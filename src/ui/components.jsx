@@ -631,7 +631,7 @@ export function PageHeader({T, title, subtitle, right, back, onBack, style={}}) 
         <div style={{fontSize:DS.font["2xl"],fontWeight:DS.w.black,color:T.text,letterSpacing:-0.4,lineHeight:1.2}}>{title}</div>
         {subtitle&&<div style={{fontSize:DS.font.base,color:T.textSm,marginTop:4,lineHeight:1.55,maxWidth:760}}>{subtitle}</div>}
       </div>
-      {right&&<div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",flexShrink:0}}>{right}</div>}
+      {right&&<div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",flexShrink:0,maxWidth:"100%"}}>{right}</div>}
     </div>
   );
 }
