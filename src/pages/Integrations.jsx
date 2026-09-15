@@ -128,6 +128,84 @@ const CopyCode = ({ T, text }) => (
 const A = ({ T, href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color:T.accent, textDecoration:"underline" }}>{children}</a>;
 const S = ({ T, children }) => <strong style={{ color:T.text }}>{children}</strong>;
 
+// ── Mobbex (beta): solo aparece si el servidor tiene MOBBEX_ENABLED=1 (m.mobbex_available).
+// Guarda API Key + Access Token (validados contra Mobbex) y el modo prueba. Nunca los muestra.
+function MobbexRow({ T, m, profile, onChange, open, onToggle }) {
+  const iS = InputStyle(T);
+  const b = btnStyles(T);
+  const [modal, setModal] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [token, setToken] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [test, setTest] = useState(false);
+  const ok = Boolean(m.mobbex_connected);
+  const inUse = profile.paymentProvider === "mobbex" || m.payment_provider === "mobbex";
+  const needKey = !m.mobbex_platform_key;
+  const canSave = !!token.trim() && (!needKey || !!apiKey.trim());
+  const openModal = () => { setToken(""); setApiKey(""); setTest(Boolean(m.mobbex_test)); setModal(true); };
+  const close = () => { if (!busy) setModal(false); };
+  async function save() {
+    if (!canSave) return toast(needKey ? "Pegá la API Key y el Access Token de Mobbex" : "Pegá tu Access Token de Mobbex", "warning");
+    setBusy(true);
+    const d = await apiPost("merchant", { access_token: token.trim(), ...(apiKey.trim() ? { api_key: apiKey.trim() } : {}), test }, { action: "save-mobbex" });
+    setBusy(false);
+    if (d?.error) return toast("Error: " + d.error, "error", 8000);
+    toast(test ? "Mobbex conectado en modo prueba" : "Mobbex conectado", "success");
+    setModal(false); onChange?.();
+  }
+  async function disconnect() {
+    const yes = await appConfirm("Borramos tus claves de Mobbex. Las suscripciones que ya cobrás con Mobbex siguen en tu cuenta de Mobbex, pero no vas a poder pausarlas ni cancelarlas desde acá hasta que vuelvas a conectar.", { title:"¿Desvincular Mobbex?", danger:true, okLabel:"Desvincular" });
+    if (!yes) return;
+    const d = await apiPost("merchant", {}, { action: "disconnect-mobbex" });
+    if (d?.error) toast("Error: " + d.error, "error"); else { toast("Mobbex desvinculado", "warning"); onChange?.(); }
+  }
+  return (
+    <>
+      <Row T={T} id="mobbex" label={<>Mobbex <Pill T={T} c={T.accent} caps>Beta</Pill></>} optional connected={ok} error={ok && Boolean(m.mobbex_last_error)} open={open} onToggle={onToggle}
+        sub={ok ? `${m.mobbex_test ? "Modo prueba · " : ""}${inUse ? "cobra tus suscripciones nuevas" : "conectado · por ahora seguís cobrando con Mercado Pago"}` : "Suscripciones con tarjeta guardada, en pesos. Mobbex cobra solo cada período."}
+        onConnect={openModal} onDisconnect={disconnect}>
+        <div style={{ fontSize:DS.font.md, color:T.textMd, lineHeight:1.6, marginBottom:12 }}>
+          {m.mobbex_test && <>Estás en <S T={T}>modo prueba</S>: los cobros no son reales.<br/></>}
+          {inUse ? "Las suscripciones nuevas se cobran con Mobbex." : <>Para cobrar con Mobbex, elegilo como pasarela en <a href="#/config/negocio" style={{ color:T.accent }}>Configuración → Negocio</a>. Mientras tanto seguís cobrando con Mercado Pago.</>}
+          {m.mobbex_connected_at ? ` Conectado el ${fmtDateShort(m.mobbex_connected_at)}.` : ""}
+        </div>
+        {m.mobbex_last_error && (
+          <Callout T={T} tone="danger" title="Último error de Mobbex" style={{ marginBottom:12 }}>
+            {m.mobbex_last_error}{m.mobbex_last_error_at ? ` · ${fmtDateShort(m.mobbex_last_error_at)}` : ""}
+          </Callout>
+        )}
+        <button type="button" style={b.ghost} onClick={openModal}>Cambiar credenciales</button>
+      </Row>
+      {modal && (
+        <Modal T={T} title={ok ? "Cambiar las credenciales de Mobbex" : "Conectar Mobbex"} busy={busy} onClose={close}
+          sub="Es la cuenta de Mobbex que cobra las suscripciones. Cada cobro entra directo ahí."
+          footer={<>
+            <Btn T={T} variant="secondary" onClick={close} disabled={busy}>Cancelar</Btn>
+            <Btn T={T} variant="solid" onClick={save} disabled={busy || !canSave}>{busy ? <><Spinner size={12}/> Validando…</> : "Conectar"}</Btn>
+          </>}>
+          <Steps T={T} title="Dónde están tus claves">
+            <li>Entrá a tu cuenta de Mobbex con el usuario que va a cobrar.</li>
+            <li>Buscá las credenciales para integrar por API. Mobbex lo explica en <A T={T} href="https://ayuda.mobbex.com/credenciales-para-integracion-a-traves-de-api">esta guía</A>.</li>
+            <li>Copiá {needKey ? <><S T={T}>API Key</S> y <S T={T}>Access Token</S></> : <S T={T}>Access Token</S>} y pegalos acá abajo.</li>
+          </Steps>
+          {needKey && (
+            <Field T={T} label="API Key">
+              <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="Tu API Key de Mobbex" style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} autoFocus disabled={busy}/>
+            </Field>
+          )}
+          <Field T={T} label="Access Token">
+            <input type="password" value={token} onChange={e => setToken(e.target.value)} placeholder="Tu Access Token de Mobbex" style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} autoFocus={!needKey} disabled={busy}/>
+          </Field>
+          <CheckLine T={T} checked={test} onChange={v => setTest(v === true)} style={{ color:T.text, marginTop:4 }}>
+            Modo prueba: los cobros no son reales (para probar antes de vender)
+          </CheckLine>
+          <Hint T={T} style={{ marginTop:12 }}>Las validamos contra tu cuenta de Mobbex y nunca las mostramos de vuelta.</Hint>
+        </Modal>
+      )}
+    </>
+  );
+}
+
 // Resumen del perfil del negocio (se cambia en Configuración → Negocio).
 function ProfileStrip({ T, profile }) {
   const sep = <span aria-hidden="true" style={{ color:T.border }}>·</span>;
@@ -327,7 +405,8 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
             <button type="button" style={b.ghost} onClick={() => { setMpToken(""); setModal("mp"); }}>Cambiar Access Token</button>
           </div>
         </Row>
-        {soonProviders.map(p => <Row key={p.id} T={T} id={p.id} label={p.label} soon sub={p.desc}/>)}
+        {m.mobbex_available && <MobbexRow T={T} m={m} profile={profile} onChange={onChange} open={open === "mobbex"} onToggle={() => toggle("mobbex")}/>}
+        {soonProviders.filter(p => !(p.id === "mobbex" && m.mobbex_available)).map(p => <Row key={p.id} T={T} id={p.id} label={p.label} soon sub={p.desc}/>)}
 
         {/* ── Publicidad ── */}
         <GroupTitle T={T}>Publicidad</GroupTitle>

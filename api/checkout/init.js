@@ -430,7 +430,12 @@ export default async function handler(req, res) {
   // ── PAGAR ───────────────────────────────────────────────────────────────────
   const rlInit = await rateLimit(`init:${merchantId}:${ip}`, { limit: 30, windowSec: 3600 });
   if (!rlInit.ok) return res.status(429).json({ error: "Demasiados intentos. Esperá unos minutos y volvé a intentar." });
-  if (!merchant.mp_access_token) return res.status(400).json({ error: "El comerciante no conectó MP" });
+  // Pasarela alternativa (api/_lib/providers): solo si el merchant tiene payment_provider ≠
+  // mercadopago Y el flag de esa pasarela está prendido. Sin el campo (Lumina) → null, sin cargar nada.
+  const altProvider = (merchant.payment_provider && merchant.payment_provider !== "mercadopago")
+    ? await (await import("../_lib/providers/index.js")).checkoutProviderFor(merchant)
+    : null;
+  if (!altProvider && !merchant.mp_access_token) return res.status(400).json({ error: "El comerciante no conectó MP" });
 
   // VALIDACIÓN ESTRICTA — bloqueamos avance a MP si falta cualquier dato de
   // contacto/dirección. Esto previene que un cliente complete el pago y
@@ -689,6 +694,16 @@ export default async function handler(req, res) {
   const notificationUrl = isLocalhost
     ? undefined
     : `${baseUrl}/api/mp/webhook?mid=${encodeURIComponent(merchantId)}&sid=${encodeURIComponent(subscriberId)}`;
+
+  // Pasarela alternativa: mismo subscriber pending (validación, precio, envío y cupón
+  // de arriba), pero el link de pago lo da el adapter. Para MP no entra nunca.
+  if (altProvider) {
+    const { startProviderCheckout } = await import("../_lib/providers/checkout.js");
+    return startProviderCheckout(altProvider, {
+      res, merchantRef, merchantId, merchant, subRef, subData, plan, pack, finalQty, freqDays, totalPerCharge, portalToken, backUrl, baseUrl,
+      track: (s) => trackCheckoutStarted(merchantId, merchant, subRef, s, existing, { stage: "checkout", plan, blocking: hasBlocking }),
+    });
+  }
 
   // Si reusamos una sub real con el MISMO monto y frecuencia, reusamos también su
   // plan MP (no creamos otro).
