@@ -16,7 +16,7 @@ Entrá a https://vercel.com/dashboard → proyecto **recurrentess** → **Settin
 | Variable | Valor | Para qué |
 |---|---|---|
 | `APP_BASE_URL` | `https://www.recurrentesapp.com` (con www, sin `/` al final) | Links de mails, widget y avisos de Mercado Pago con el dominio nuevo |
-| `ADMIN_EMAILS` | `thiagoacunacontacto123@gmail.com,TU_MAIL_DE_LOGIN_ACTUAL` | Entrás al panel de admin (`#/admin`) y al chequeo de salud |
+| `ADMIN_EMAILS` | `thiagoacunacontacto123@gmail.com` | Entrás al panel de admin (`#/admin`) y al chequeo de salud (con esa cuenta de Google) |
 | `PLATFORM_ALERT_EMAIL` | `thiagoacunacontacto123@gmail.com` | Te llega un mail si un cobro se aprobó pero la orden no se pudo crear |
 
 - Si `APP_BASE_URL` ya existe: tocá los tres puntitos → **Edit** → cambiá el valor → **Save**.
