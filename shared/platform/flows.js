@@ -39,7 +39,7 @@ export const FLOW_VARIABLES = [
   { key:"monto",         label:"Monto por cobro",   sample:"$9.480" },
   { key:"marca",         label:"Tu marca",          sample:"Tu marca" },
   { key:"proximo_cobro", label:"Fecha próximo cobro", sample:"15 de octubre" },
-  { key:"link_portal",   label:"Link del portal",   sample:"https://recurrentess.vercel.app/#/portal" },
+  { key:"link_portal",   label:"Link del portal",   sample:"https://recurrentesapp.com/#/portal" },
   { key:"link_checkout", label:"Link para retomar", sample:"https://tu-tienda.com/products/tu-producto" },
 ];
 

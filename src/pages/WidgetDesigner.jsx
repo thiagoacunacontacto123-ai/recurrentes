@@ -227,7 +227,7 @@ export function BundlePreview({ plan, merchant, minHeight = 200, maxWidth = 440,
 
 // Snippet del widget para la tienda del merchant.
 export function widgetSnippet(merchant) {
-  const base = typeof window !== "undefined" ? window.location.origin : "https://recurrentess.vercel.app";
+  const base = typeof window !== "undefined" ? window.location.origin : "https://recurrentesapp.com";
   return `<script src="${base}/widget.js?merchant=${merchant?.id || "<tu-id>"}" defer></script>`;
 }
 

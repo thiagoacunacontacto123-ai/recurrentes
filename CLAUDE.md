@@ -246,7 +246,8 @@ Recurrentes manda sus propios mails automáticos (Resend, `api/_lib/email.js`); 
 - Validación con bordes rojos + banner inline (no `alert()`)
 
 ### Estado del repo (al cierre 2026-05-31 noche)
-- App deployada a Vercel: `https://recurrentess.vercel.app` (alias canónico)
+- **Dominio propio desde 2026-09-15: `https://recurrentesapp.com`** (Squarespace → Vercel: A `@` + CNAME `www`). `https://recurrentess.vercel.app` sigue vivo y NO se da de baja: webhooks de MP de las suscripciones de Lumina, widget pegado en su tema, links de mails ya enviados y redirect de su app de Shopify apuntan ahí.
+- App deployada a Vercel: `https://recurrentess.vercel.app` (alias original)
 - Sin repo de GitHub aún — pendiente push del user
 - `.env.local` con Firebase + MP_WEBHOOK_SECRET (NO commitear)
 - 11 env vars subidas a Vercel + `APP_BASE_URL`

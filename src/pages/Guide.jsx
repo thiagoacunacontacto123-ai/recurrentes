@@ -46,7 +46,7 @@ export default function GuidePage({ merchant, goTab, embedded = false, initial }
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
   const go = (id) => { setSec(id); try { if (!embedded) window.history.replaceState(null, "", `${window.location.pathname}#/dashboard/guia?s=${id}`); window.scrollTo({ top: 0, behavior: "smooth" }); } catch (_) {} };
-  const origin = typeof window !== "undefined" ? window.location.origin : "https://recurrentess.vercel.app";
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://recurrentesapp.com";
   const mid = merchant?.id || "<tu-id>";
   const ctx = { T, go, goTab, onb, origin, mid, merchant };
 
