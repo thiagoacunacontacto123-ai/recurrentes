@@ -23,13 +23,29 @@ export function setActiveMerchantId(uid, mid) {
   } catch (_) {}
 }
 
+// "Ver como" del super-admin (#/admin → ficha → "Ver como este comercio").
+// sessionStorage: dura solo en esta pestaña. El backend acepta X-Admin-As SOLO
+// si el login está en ADMIN_EMAILS con email verificado, y solo para lecturas.
+const ADMIN_AS_KEY = "rec_admin_as";
+export function getAdminAs() {
+  try { const v = JSON.parse(sessionStorage.getItem(ADMIN_AS_KEY) || "null"); return v && v.id ? v : null; } catch (_) { return null; }
+}
+export function setAdminAs(v) {
+  try {
+    if (v && v.id) sessionStorage.setItem(ADMIN_AS_KEY, JSON.stringify({ id: String(v.id), name: String(v.name || "") }));
+    else sessionStorage.removeItem(ADMIN_AS_KEY);
+  } catch (_) {}
+}
+
 async function authHeaders() {
   const u = auth.currentUser;
   if (!u) return {};
   const token = await u.getIdToken();
   const h = { Authorization: `Bearer ${token}` };
   const mid = getActiveMerchantId(u.uid);
-  if (mid) h["X-Merchant-Id"] = mid;
+  const as = getAdminAs();
+  if (as) h["X-Admin-As"] = as.id;
+  else if (mid) h["X-Merchant-Id"] = mid;
   return h;
 }
 
@@ -38,6 +54,12 @@ async function authHeaders() {
 // evita el loop). Sin esto, un header viejo deja el dashboard en 403 para siempre.
 async function handleResponse(r, sentMid, uid) {
   const d = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
+  // "Ver como" rechazado (ya no es admin o el comercio no existe): salimos del modo.
+  if ((r.status === 403 || r.status === 404) && d?.code === "admin_forbidden" && getAdminAs()) {
+    setAdminAs(null);
+    try { window.location.reload(); } catch (_) {}
+    return d;
+  }
   if (r.status === 403 && d?.code === "merchant_forbidden" && sentMid && uid) {
     setActiveMerchantId(uid, null);
     try {

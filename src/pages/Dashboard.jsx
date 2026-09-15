@@ -23,6 +23,7 @@ import { FlowsPage } from "./Flows.jsx";
 import { OwnerInfoModal } from "./OwnerInfo.jsx";
 import { readPendingSignup, clearPendingSignup } from "../lib/signup.js";
 import { mpOauthReturnToast } from "../lib/mpOauth.js";
+import { AdminPage, AdminViewBanner } from "./Admin.jsx";
 
 // Resuelve un id de tab (nuevo o viejo) a { tab, config?, query? }.
 function resolveTab(id) {
@@ -38,6 +39,7 @@ function tabFromHash() {
   try {
     const h = window.location.hash.replace(/^#\/?/, "").split("?")[0].split("/");
     if (h[0] === "config") return "configuracion";
+    if (h[0] === "admin") return "admin"; // #/admin (super-admin; si no es admin, el guard de navList lo manda a Inicio)
     const r = resolveTab(h[1]);
     if (r.config) { window.history.replaceState(null, "", `${window.location.pathname}#/config/${r.config}${window.location.hash.includes("?") ? "?" + window.location.hash.split("?")[1] : ""}`); return "configuracion"; }
     if (r.query && h[1] !== r.tab) window.history.replaceState(null, "", `${window.location.pathname}#/dashboard/${r.tab}?${r.query}`);
@@ -71,7 +73,7 @@ export default function Dashboard({ user, onLogout }) {
     const q = query || r.query;
     try {
       if (r.config) window.location.hash = `#/config/${r.config}`;
-      else window.history.replaceState(null, "", window.location.pathname + "#/dashboard/" + r.tab + (q ? `?${q}` : ""));
+      else window.history.replaceState(null, "", window.location.pathname + (r.tab === "admin" ? "#/admin" : "#/dashboard/" + r.tab) + (q ? `?${q}` : ""));
     } catch (_) {}
     try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch (_) {}
   }, []);
@@ -83,6 +85,7 @@ export default function Dashboard({ user, onLogout }) {
     const onHash = () => {
       const h = window.location.hash.replace(/^#\/?/, "").split("?")[0].split("/");
       if (h[0] === "config") { setTab("configuracion"); return; }
+      if (h[0] === "admin") { setTab("admin"); return; }
       if (h[0] !== "dashboard") return;
       const r = resolveTab(h[1]);
       const qs = window.location.hash.includes("?") ? "?" + window.location.hash.split("?")[1] : "";
@@ -118,7 +121,8 @@ export default function Dashboard({ user, onLogout }) {
       }
       setMerchant(d?.merchant || null);
       setLoading(false);
-      reloadWorkspace();
+      // "Ver como" (admin): el workspace sería el del admin, no el del comercio.
+      if (!d?.merchant?.admin_view) reloadWorkspace();
     } catch (e) {
       setLoadError(e?.message || "No se pudo cargar tu cuenta");
       setLoading(false);
@@ -236,7 +240,7 @@ export default function Dashboard({ user, onLogout }) {
   const onb = useOnboarding({ merchant, user, goTab });
   const onbCtx = useMemo(() => ({ ...onb, openWizard: () => setWizardOpen(true) }), [onb]);
   useEffect(() => {
-    if (!merchant || !onb.ready || onb.seen) return;
+    if (!merchant || !onb.ready || onb.seen || merchant.admin_view) return;
     if (onb.pending > 0) setWizardOpen(true); else onb.markSeen();
     // eslint-disable-next-line
   }, [merchant?.id, onb.ready]);
@@ -244,11 +248,14 @@ export default function Dashboard({ user, onLogout }) {
   const pendientesSidebar = useMemo(() => onb.pendingSteps.filter(s => !s.locked).map(s => ({ key: s.id, n: s.n, label: s.title, onClick: () => onb.goStep(s) })), [onb.pendingSteps, onb.goStep]);
 
   // Miembros del equipo con secciones limitadas: el menú muestra solo lo habilitado.
+  // "Admin" (adminOnly) solo si GET /api/merchant devolvió is_admin (ADMIN_EMAILS, validado en el server).
+  const isAdmin = merchant?.is_admin === true;
   const navList = useMemo(() => {
     const secs = merchant?.role === "member" && merchant?.member_secciones && Object.keys(merchant.member_secciones).length ? merchant.member_secciones : null;
-    return secs ? NAV.filter(n => n.id === "inicio" || secs[n.id] === true) : NAV;
-  }, [merchant?.role, merchant?.member_secciones]);
-  useEffect(() => { if (!navList.some(n => n.id === tab)) goTab("inicio"); }, [navList, tab, goTab]);
+    const base = secs ? NAV.filter(n => n.id === "inicio" || secs[n.id] === true || n.adminOnly) : NAV;
+    return base.filter(n => !n.adminOnly || isAdmin);
+  }, [merchant?.role, merchant?.member_secciones, isAdmin]);
+  useEffect(() => { if (loading) return; if (!navList.some(n => n.id === tab)) goTab("inicio"); }, [navList, tab, goTab, loading]);
 
   if (unverified) return <><VerifyEmailScreen user={user} onLogout={onLogout} onRetry={reloadMerchant}/><ToastContainer T={T}/></>;
   if (noStore) return <><StoreTransferredScreen user={user} onLogout={onLogout}/><ToastContainer T={T}/></>;
@@ -272,6 +279,7 @@ export default function Dashboard({ user, onLogout }) {
           )}
         </AppTopbar>
 
+        {!loading && merchant?.admin_view && <AdminViewBanner T={T} merchant={merchant}/>}
         {!loading && merchant?.billing && <BillingBanner T={T} billing={merchant.billing} onGo={()=>goConfig("facturacion")}/>}
 
         <PageView pageKey={tab} T={T}>
@@ -304,6 +312,8 @@ export default function Dashboard({ user, onLogout }) {
                 <CustomerPortalPage merchant={merchant} reloadMerchant={reloadMerchant} goTab={goTab}/>
               ) : tab === "analiticas" ? (
                 integrationsReady ? <AnalyticsPage merchant={merchant}/> : needs("Analíticas")
+              ) : tab === "admin" ? (
+                isAdmin ? <AdminPage/> : null
               ) : tab === "configuracion" ? (
                 <SettingsPage T={T} DS={DS} user={user} merchant={merchant} workspace={effectiveWorkspace} reloadMerchant={reloadMerchant} toast={toast} goTab={goTab}/>
               ) : (

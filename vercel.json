@@ -67,7 +67,7 @@
         },
         {
           "key": "Access-Control-Allow-Headers",
-          "value": "Content-Type, Authorization, X-Merchant-Id"
+          "value": "Content-Type, Authorization, X-Merchant-Id, X-Admin-As"
         }
       ]
     }

@@ -18,6 +18,7 @@ const ICON = {
   portal:        "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8zM2 3h4M2 7h3",
   analiticas:    "M18 20V10M12 20V4M6 20v-6M2 20h20",
   flujos:        "M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zM22 6l-10 7L2 6",
+  admin:         "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
 };
 // `section` agrupa el menú como Growith (el Sidebar pinta el título cuando
 // cambia; grupos sin ítems visibles —miembros con permisos— desaparecen solos).
@@ -31,6 +32,7 @@ export const NAV = [
   { id:"flujos",        label:"Flujos de email",    short:"Flujos",   icon:ICON.flujos, section:"Clientes" },
   { id:"portal",        label:"Portal del cliente", short:"Portal",   icon:ICON.portal, section:"Clientes" },
   { id:"analiticas",    label:"Analíticas",         short:"Datos",    icon:ICON.analiticas, section:"Análisis" },
+  { id:"admin",         label:"Admin",              short:"Admin",    icon:ICON.admin, section:"Recurrentes", adminOnly:true }, // solo super-admins (merchant.is_admin)
   { id:"configuracion", label:"Configuración",      short:"Config",   icon:SECTION_ICONS.configuracion, footer:true },
 ];
 
@@ -351,7 +353,7 @@ export function ManageStoreModal({T, store, totalStores, onClose, onSave, onDele
 // cajita "Terminá de configurar" abajo del nav (portada de los quehaceres de
 // vinculación de Growith). Se puede cerrar por tienda.
 export function Sidebar({T, nav=NAV, activeTab, onTab, user, merchant, workspace, onSwitchStore, onCreateStore, onManageStore, collapsed, setCollapsed, darkMode, setDarkMode, onLogout, alerts={}, pendientes=[], onVerPlan}) {
-  const items = nav.map(it=>it.alertKey?{...it,count:alerts[it.alertKey]}:it);
+  const items = nav.filter(it=>!it.adminOnly||merchant?.is_admin).map(it=>it.alertKey?{...it,count:alerts[it.alertKey]}:it);
   const configActive = activeTab==="configuracion";
   const initial = (user?.displayName||user?.email||"?").charAt(0).toUpperCase();
   const W = collapsed ? 64 : 224;
@@ -527,7 +529,7 @@ export function MobileBottomNav({T, nav=NAV, activeTab, onTab, workspace, mercha
   const [open, setOpen] = React.useState(false);
   const primaryIds = ["inicio","suscripciones","cobros","planes"];
   const primary = primaryIds.map(id=>nav.find(n=>n.id===id)).filter(Boolean);
-  const rest = nav.filter(n=>!primaryIds.includes(n.id));
+  const rest = nav.filter(n=>!primaryIds.includes(n.id)&&(!n.adminOnly||merchant?.is_admin));
   const stores = workspace?.stores || [];
   const activeStoreId = workspace?.active_merchant_id || merchant?.id || null;
   const restActive = rest.some(n=>n.id===activeTab);

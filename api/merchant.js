@@ -210,6 +210,10 @@ export default async function handler(req, res) {
         ...mobbexSafeFields(merchant),
         // WhatsApp Cloud API (_lib/whatsapp.js): flags y datos del número, NUNCA el token.
         ...whatsappSafe(merchant),
+        // Super-admin (ADMIN_EMAILS, validado en requireMerchant): habilita #/admin.
+        // admin_view = "ver como" activo (solo lectura).
+        is_admin: ctx.is_admin === true,
+        admin_view: ctx.admin_view === true,
       };
       return res.json({ merchant: safe });
     } catch (e) {
