@@ -23,7 +23,10 @@ export default async function handler(req, res) {
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
   // Multi-tienda: merchantId = tienda activa (header X-Merchant-Id) o el uid del login.
-  const ctx = await requireMerchant(req, res);
+  // Permisos de equipo por sección: el Registro (activity, con mails de clientes)
+  // es de Portal y las Analíticas de la suya. El Inicio (sin action) no cambia.
+  const SECCION_OF = { activity: "portal", analytics: "analiticas" };
+  const ctx = await requireMerchant(req, res, SECCION_OF[String(req.query.action || "")]);
   if (!ctx) return;
   const { merchantId } = ctx;
 

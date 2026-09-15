@@ -280,7 +280,7 @@ export default async function handler(req, res) {
       return res.json({ ok: true, merchant_store_url: storeUrl, ...r });
     } catch (e) {
       console.error("[checkout/sync] error:", e.message);
-      return res.status(500).json({ error: e.message, merchant_store_url: storeUrl });
+      return res.status(500).json({ error: "No pudimos verificar el pago todavía. Probá de nuevo en unos segundos.", merchant_store_url: storeUrl });
     }
   }
 
@@ -293,7 +293,7 @@ export default async function handler(req, res) {
   const ip = clientIp(req);
   // Email normalizado (trim + lowercase) en TODOS los caminos.
   const email = normEmail(customer.email);
-  if (!EMAIL_RE.test(email)) return res.status(400).json({ error: "Email inválido" });
+  if (!EMAIL_RE.test(email) || email.length > 254) return res.status(400).json({ error: "Email inválido" });
 
   // Cantidad capada 1..10 (0 = usar units_per_shipment del plan).
   const qtyReq = Math.max(0, Math.min(10, parseInt(quantity) || 0));
