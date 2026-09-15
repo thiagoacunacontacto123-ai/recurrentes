@@ -19,6 +19,8 @@ import { AnalyticsPage } from "./Analytics.jsx";
 import { RetentionPage } from "./Retention.jsx";
 import { CustomerPortalPage } from "./CustomerPortal.jsx";
 import { FlowsPage } from "./Flows.jsx";
+import { OwnerInfoModal } from "./OwnerInfo.jsx";
+import { readPendingSignup, clearPendingSignup } from "../lib/signup.js";
 
 // Resuelve un id de tab (nuevo o viejo) a { tab, config?, query? }.
 function resolveTab(id) {
@@ -120,6 +122,23 @@ export default function Dashboard({ user, onLogout }) {
   }
 
   useEffect(() => { reloadMerchant(); }, []);
+
+  // Datos del paso 1 del registro (nombre, WhatsApp, email de contacto): se mandan una vez
+  // que hay sesión. Si faltan y no hay nada pendiente, se piden con OwnerInfoModal.
+  const [ownerAsk, setOwnerAsk] = useState(false);
+  useEffect(() => {
+    if (!merchant) return;
+    const pending = readPendingSignup();
+    if (pending && merchant.owner_info_missing) {
+      apiPost("merchant", { owner_name: pending.owner_name, owner_whatsapp: pending.owner_whatsapp, contact_email: pending.contact_email }, { action: "save-owner" })
+        .then(d => { if (d?.ok) { clearPendingSignup(); setMerchant(m => m ? { ...m, owner_info_missing: false, owner_name: d.owner_name, owner_whatsapp: d.owner_whatsapp, contact_email: d.contact_email } : m); } else setOwnerAsk(true); })
+        .catch(() => setOwnerAsk(true));
+    } else {
+      if (pending) clearPendingSignup();
+      setOwnerAsk(!!merchant.owner_info_missing);
+    }
+    // eslint-disable-next-line
+  }, [merchant?.id, merchant?.owner_info_missing]);
 
   // Volvimos de OAuth (MP: ?mp=ok|error · Shopify: ?shopify_ok=1) → aviso + Configuración → Integraciones.
   useEffect(() => {
@@ -299,6 +318,7 @@ export default function Dashboard({ user, onLogout }) {
           <GuidePage merchant={merchant} goTab={(id)=>{ setGuideOpen(false); goTab(id); }} embedded/>
         </Modal>
       )}
+      {ownerAsk && merchant && <OwnerInfoModal T={T} user={user} merchant={merchant} onSaved={(d) => { setOwnerAsk(false); setMerchant(m => m ? { ...m, owner_info_missing: false, owner_name: d.owner_name, owner_whatsapp: d.owner_whatsapp, contact_email: d.contact_email } : m); }}/>}
       <ToastContainer T={T}/>
     </div>
     </OnboardingContext.Provider>

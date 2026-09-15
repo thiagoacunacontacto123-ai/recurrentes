@@ -21,6 +21,14 @@
       "destination": "/api/widget"
     },
     {
+      "source": "/__/auth/:path*",
+      "destination": "https://recurrentes-16fbd.firebaseapp.com/__/auth/:path*"
+    },
+    {
+      "source": "/__/firebase/:path*",
+      "destination": "https://recurrentes-16fbd.firebaseapp.com/__/firebase/:path*"
+    },
+    {
       "source": "/((?!api/|@|src/|node_modules/|.+\\.).*)",
       "destination": "/index.html"
     }

@@ -13,6 +13,7 @@ import { useTheme } from "../ui/theme.js";
 import { InputStyle, BtnSolid, BtnSecondary, Spinner } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
 import Landing from "./Landing.jsx";
+import { savePendingSignup, normalizeWhatsapp, EMAIL_RE } from "../lib/signup.js";
 
 const F = "'Inter',system-ui,sans-serif";
 const googleProvider = new GoogleAuthProvider();
@@ -70,6 +71,9 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [nombre, setNombre] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  // Registro en 2 pasos: "datos" (nombre, WhatsApp, email de contacto) → "acceso" (Google o contraseña).
+  const [step, setStep] = useState("datos");
   const [acepta, setAcepta] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
@@ -77,11 +81,23 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
   const iS = InputStyle(T);
   const isLogin = mode === "login", isRegister = mode === "register", isReset = mode === "reset";
 
-  useEffect(() => { setError(""); setInfo(""); }, [mode]);
+  useEffect(() => { setError(""); setInfo(""); setStep("datos"); }, [mode]);
   // Vuelta de signInWithRedirect (cuando el navegador bloqueó la ventana): si falló, mostramos el error.
   useEffect(() => { getRedirectResult(auth).catch(e => setError(errMsg(e))); }, []);
 
   const changeMode = (m) => { if (setMode) setMode(m); };
+
+  // Paso 1 → 2: los datos quedan en el navegador y el panel los guarda apenas hay sesión
+  // (con Google enseguida; con contraseña, después de verificar el mail).
+  function goAcceso() {
+    const wa = normalizeWhatsapp(whatsapp);
+    if (!nombre.trim()) return setError("Ingresá tu nombre.");
+    if (!wa) return setError("Ingresá tu WhatsApp con código de área (ej: 11 6411 7974).");
+    if (!EMAIL_RE.test(email.trim())) return setError("Ingresá un email de contacto válido.");
+    if (!acepta) return setError("Tenés que aceptar los Términos y la Política de privacidad.");
+    savePendingSignup({ owner_name: nombre.trim(), owner_whatsapp: wa, contact_email: email.trim().toLowerCase() });
+    setError(""); setStep("acceso");
+  }
 
   async function handleGoogle() {
     if (isRegister && !acepta) return setError("Tenés que aceptar los Términos y la Política de privacidad.");
@@ -133,6 +149,35 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
   const label = { display:"block", fontSize:12, fontWeight:600, color:T.textMd, marginBottom:5, textTransform:"uppercase", letterSpacing:0.5 };
   const onFocus = e => e.target.style.borderColor = T.accent, onBlur = e => e.target.style.borderColor = T.inputBorder;
   const linkBtn = { background:"none", border:"none", color:T.accent, fontWeight:600, cursor:"pointer", fontFamily:F, fontSize:13, padding:0 };
+  const stepLabel = { fontSize:11, fontWeight:700, color:T.accent, letterSpacing:0.5, textTransform:"uppercase" };
+  const termsBox = (
+    <label style={{display:"flex",alignItems:"flex-start",gap:9,fontSize:12,color:T.textMd,lineHeight:1.5,marginBottom:16,cursor:"pointer"}}>
+      <input type="checkbox" checked={acepta} onChange={e=>setAcepta(e.target.checked)} style={{marginTop:2,accentColor:T.accentSolid,width:15,height:15,flexShrink:0}}/>
+      <span>Acepto los <a href="#/terminos" target="_blank" rel="noreferrer" style={{color:T.accent}}>Términos y condiciones</a> y la <a href="#/privacidad" target="_blank" rel="noreferrer" style={{color:T.accent}}>Política de privacidad</a>.</span>
+    </label>
+  );
+  const step1 = (
+    <>
+      <div style={{...stepLabel,marginBottom:14}}>Paso 1 de 2 · Tus datos</div>
+      <div style={{marginBottom:12}}>
+        <label style={label}>Nombre</label>
+        <input style={iS} placeholder="Tu nombre" value={nombre} onChange={e=>setNombre(e.target.value)} onFocus={onFocus} onBlur={onBlur} autoComplete="name" autoFocus/>
+      </div>
+      <div style={{marginBottom:12}}>
+        <label style={label}>WhatsApp</label>
+        <input style={iS} placeholder="11 6411 7974" value={whatsapp} onChange={e=>setWhatsapp(e.target.value)} onFocus={onFocus} onBlur={onBlur} autoComplete="tel" inputMode="tel"/>
+        <div style={{fontSize:11,color:T.textSm,marginTop:5,lineHeight:1.45}}>Con código de área, sin el 0 ni el 15. Te escribimos solo si algo falla con tus cobros.</div>
+      </div>
+      <div style={{marginBottom:16}}>
+        <label style={label}>Email de contacto</label>
+        <input style={iS} type="email" placeholder="vos@tunegocio.com" value={email} onChange={e=>setEmail(e.target.value)} onFocus={onFocus} onBlur={onBlur} autoComplete="email" onKeyDown={e=>e.key==="Enter"&&goAcceso()}/>
+      </div>
+      {termsBox}
+      {error && <div style={{background:T.redBg,border:`1.5px solid ${T.red}55`,borderRadius:8,padding:"10px 14px",fontSize:13,color:T.red,marginBottom:14,lineHeight:1.45}}>{error}</div>}
+      <button onClick={goAcceso} style={{...BtnSolid(T),width:"100%",padding:"13px",fontSize:15}}>Continuar →</button>
+      <div style={{textAlign:"center",marginTop:18,fontSize:13,color:T.textMd,lineHeight:1.8}}>¿Ya tenés cuenta? <button onClick={()=>changeMode("login")} style={linkBtn}>Iniciá sesión</button></div>
+    </>
+  );
 
   return (
     <div style={{fontFamily:F,background:T.bg,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"56px 20px 32px",color:T.text}}>
@@ -149,6 +194,13 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
         </div>
 
         <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:26,boxShadow:"0 1px 2px rgba(0,0,0,0.06), 0 12px 40px rgba(0,0,0,0.10)"}}>
+          {isRegister && step === "datos" ? step1 : (<>
+          {isRegister && (
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,background:T.surface,border:`1px solid ${T.borderL}`,borderRadius:10,padding:"10px 12px",marginBottom:16,fontSize:13,color:T.textMd}}>
+              <span style={{minWidth:0,overflow:"hidden",textOverflow:"ellipsis"}}><span style={{...stepLabel,display:"block",marginBottom:2}}>Paso 2 de 2 · Tu acceso</span><strong style={{color:T.text}}>{nombre}</strong> · {email}</span>
+              <button onClick={()=>{ setError(""); setStep("datos"); }} style={{...linkBtn,fontSize:12,flexShrink:0}}>Cambiar</button>
+            </div>
+          )}
           {!isReset && (
             <>
               <button onClick={handleGoogle} disabled={loading} style={{...BtnSecondary(T),width:"100%",justifyContent:"center",padding:"12px",fontSize:14,fontWeight:600,marginBottom:18,background:T.surface,color:T.text}}>
@@ -158,18 +210,12 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
               {isLogin && <div style={{fontSize:11,color:T.textSm,textAlign:"center",margin:"-10px 0 16px",lineHeight:1.5}}>Si es tu primera vez, al continuar con Google aceptás los <a href="#/terminos" target="_blank" rel="noreferrer" style={{color:T.textSm}}>Términos</a> y la <a href="#/privacidad" target="_blank" rel="noreferrer" style={{color:T.textSm}}>Privacidad</a>.</div>}
               <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18}}>
                 <div style={{flex:1,height:1,background:T.border}}/>
-                <span style={{fontSize:12,color:T.textSm}}>o con email</span>
+                <span style={{fontSize:12,color:T.textSm}}>{isRegister ? "o creá una contraseña" : "o con email"}</span>
                 <div style={{flex:1,height:1,background:T.border}}/>
               </div>
             </>
           )}
 
-          {isRegister && (
-            <div style={{marginBottom:12}}>
-              <label style={label}>Nombre</label>
-              <input style={iS} placeholder="Tu nombre" value={nombre} onChange={e=>setNombre(e.target.value)} onFocus={onFocus} onBlur={onBlur} autoComplete="name"/>
-            </div>
-          )}
           <div style={{marginBottom:12}}>
             <label style={label}>Email</label>
             <input style={iS} type="email" placeholder="vos@tutienda.com.ar" value={email} onChange={e=>setEmail(e.target.value)} onFocus={onFocus} onBlur={onBlur} autoComplete="email" onKeyDown={e=>e.key==="Enter"&&isReset&&handleEmail()}/>
@@ -185,13 +231,6 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
               <button type="button" onClick={()=>changeMode("reset")} style={{...linkBtn,fontSize:12,fontWeight:500,color:T.textSm}}>¿Olvidaste tu contraseña?</button>
             </div>
           )}
-          {isRegister && (
-            <label style={{display:"flex",alignItems:"flex-start",gap:9,fontSize:12,color:T.textMd,lineHeight:1.5,marginBottom:16,cursor:"pointer"}}>
-              <input type="checkbox" checked={acepta} onChange={e=>setAcepta(e.target.checked)} style={{marginTop:2,accentColor:T.accentSolid,width:15,height:15,flexShrink:0}}/>
-              <span>Acepto los <a href="#/terminos" target="_blank" rel="noreferrer" style={{color:T.accent}}>Términos y condiciones</a> y la <a href="#/privacidad" target="_blank" rel="noreferrer" style={{color:T.accent}}>Política de privacidad</a>.</span>
-            </label>
-          )}
-
           {error && <div style={{background:T.redBg,border:`1.5px solid ${T.red}55`,borderRadius:8,padding:"10px 14px",fontSize:13,color:T.red,marginBottom:14,lineHeight:1.45}}>{error}</div>}
           {info && <div style={{background:T.accentSolid+"14",border:`1.5px solid ${T.accentSolid}55`,borderRadius:8,padding:"10px 14px",fontSize:13,color:T.accent,marginBottom:14,lineHeight:1.45}}>{info}</div>}
 
@@ -204,6 +243,7 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
             {isRegister && <>¿Ya tenés cuenta? <button onClick={()=>changeMode("login")} style={linkBtn}>Iniciá sesión</button></>}
             {isReset && <><button onClick={()=>changeMode("login")} style={linkBtn}>← Volver a iniciar sesión</button></>}
           </div>
+          </>)}
         </div>
 
         <div style={{textAlign:"center",marginTop:18,fontSize:11,color:T.textSm}}>

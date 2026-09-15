@@ -27,6 +27,7 @@
 //   POST   ?action=disconnect-klaviyo
 //   POST   ?action=klaviyo-test       → manda un "Checkout Started" de prueba al mail del dueño
 //   (save-settings acepta `klaviyo_send_orders`; `abandoned_enabled` / `abandoned_coupons` se ignoran)
+//   POST   ?action=save-owner    { owner_name, owner_whatsapp, contact_email } → datos de contacto del dueño del LOGIN (se piden al registrarse)
 //   POST   ?action=plan-request  { plan: "starter"|"growth"|"pro" } → pide un plan del SaaS (mail al admin)
 //   Flujos de email propios (_lib/flowsApi.js): GET ?action=flows · POST ?action=flow-save | flow-delete | flow-test
 //
@@ -81,6 +82,8 @@ export default async function handler(req, res) {
       const merchant = await getOrCreateMerchant(merchantId, merchantId === uid ? ctx.email : null);
       // Plan del SaaS (trial/beta/starter/growth/pro) + pedidos del mes. Solo dashboard.
       const billing = await billingFor(merchantId, merchant);
+      // Datos de contacto del dueño del LOGIN (doc de perfil merchants/{uid}); se piden al registrarse.
+      const ownerDoc = merchant.id === uid ? merchant : ((await db().collection("merchants").doc(uid).get().catch(() => null))?.data() || {});
       // No devolvemos tokens raw — solo flags de "conectado".
       const safe = {
         id: merchant.id,
@@ -95,6 +98,10 @@ export default async function handler(req, res) {
         store_name: merchant.store_name || "",
         store_color: merchant.store_color || merchant.widget_color || "#10b981",
         store_photo: merchant.store_photo || null,
+        owner_name: ownerDoc.owner_name || "",
+        owner_whatsapp: ownerDoc.owner_whatsapp || "",
+        contact_email: ownerDoc.contact_email || "",
+        owner_info_missing: !ownerDoc.owner_whatsapp,
         owner_uid: merchant.ownerUid || merchant.id,
         member_secciones: ctx.role === "member" ? (ctx.member?.secciones ? cleanSecciones(ctx.member.secciones) : null) : null, // null = acceso total (legacy)
         shopify_shop: merchant.shopify_shop || null,
@@ -213,6 +220,7 @@ export default async function handler(req, res) {
     if (action === "disconnect-mp")        return disconnect(merchantId, "mp", res);
     if (action === "disconnect-shopify")   return disconnect(merchantId, "shopify", res);
     if (action === "plan-request")         return planRequest(ctx, merchantId, req, res);
+    if (action === "save-owner")           return saveOwner(ctx, req, res);
     if (action.startsWith("flow-"))        return flowsApi(ctx, action, req, res);
 
     // Multi-tienda / equipo
@@ -1460,4 +1468,31 @@ async function memberRemove(ctx, req, res) {
   } catch (e) {
     return res.status(e.status || 500).json({ error: e.message });
   }
+}
+
+// ─── POST ?action=save-owner ─────────────────────────────────────────
+// Nombre, WhatsApp y email de contacto del dueño del LOGIN. Van en el doc de perfil
+// (merchants/{uid}), no en la tienda activa: son de la persona, sirven para soporte
+// y avisos. Primero getOrCreateMerchant: si el doc de perfil no existe (miembro de
+// un equipo sin tienda propia) se crea completo y no un doc a medias.
+function normalizeWhatsapp(raw) {
+  let d = String(raw || "").replace(/\D/g, "");
+  if (!d) return null;
+  if (d.startsWith("00")) d = d.slice(2);
+  if (d.length === 10) d = "549" + d;                                   // AR sin país: 11 6411 7974
+  else if (d.length === 11 && d.startsWith("0")) d = "549" + d.slice(1); // 011 6411 7974
+  if (d.length < 10 || d.length > 15) return null;
+  return "+" + d;
+}
+async function saveOwner(ctx, req, res) {
+  const b = req.body || {};
+  const name = String(b.owner_name || "").trim().replace(/\s+/g, " ").slice(0, 60);
+  const wa = normalizeWhatsapp(b.owner_whatsapp);
+  const email = String(b.contact_email || "").trim().toLowerCase().slice(0, 120);
+  if (name.length < 2) return res.status(400).json({ error: "Ingresá tu nombre" });
+  if (!wa) return res.status(400).json({ error: "Ingresá un WhatsApp válido, con código de área" });
+  if (!EMAIL_RE.test(email)) return res.status(400).json({ error: "Ingresá un email de contacto válido" });
+  await getOrCreateMerchant(ctx.uid, ctx.email || null);
+  await db().collection("merchants").doc(ctx.uid).set({ owner_name: name, owner_whatsapp: wa, contact_email: email, owner_info_at: new Date().toISOString() }, { merge: true });
+  return res.json({ ok: true, owner_name: name, owner_whatsapp: wa, contact_email: email });
 }
