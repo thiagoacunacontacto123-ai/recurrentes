@@ -31,6 +31,18 @@ service cloud.firestore {
       }
     }
 
+    // Transferencias de tiendas, perfiles de logins sin tienda principal y
+    // auditoría: solo Admin SDK (api/_lib/transfer.js).
+    match /store_transfers/{id} {
+      allow read, write: if false;
+    }
+    match /profiles/{uid} {
+      allow read, write: if false;
+    }
+    match /audit_log/{id} {
+      allow read, write: if false;
+    }
+
     // Internos (rate limits, tokens temporales): solo Admin SDK.
     match /ratelimits/{key} {
       allow read, write: if false;
