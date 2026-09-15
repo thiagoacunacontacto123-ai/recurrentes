@@ -502,7 +502,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
       {/* ── Modales de conexión ── */}
       {modal === "shopify" && (
         <Modal T={T} title={shopifyOk ? "Reconectar Shopify" : "Conectar Shopify"} busy={busy === "shopify"} onClose={close} maxWidth={envApp ? 560 : 640}
-          sub={envApp ? "Poné tu dominio .myshopify.com, tocá Autorizar y aceptá en Shopify. Listo." : "Creás tu propia app en Shopify (5 minutos, una sola vez) y pegás 2 claves. Te guiamos paso a paso y copiás todo con un botón."}
+          sub={envApp ? "Poné tu dominio .myshopify.com, tocá Autorizar y aceptá en Shopify. Listo." : "Creás tu app en Shopify (3 min) y pegás las 2 claves."}
           footer={<>
             <Btn T={T} variant="secondary" onClick={close} disabled={busy === "shopify"}>Cancelar</Btn>
             <Btn T={T} variant="solid" onClick={connectShopify} disabled={busy === "shopify" || !shopP.ok || (!envApp && !reuseCreds && (!clientId.trim() || !clientSecret.trim()))}>{busy === "shopify" ? <><Spinner size={12}/> Conectando…</> : "Autorizar en Shopify →"}</Btn>
@@ -516,7 +516,6 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
           <Field T={T} label={envApp ? "Tu dominio Shopify" : "1 · Tu dominio Shopify"}>
             <input value={shopRaw} onChange={e => setShopRaw(e.target.value)} placeholder="tu-tienda.myshopify.com" style={iS} autoFocus disabled={busy === "shopify"}/>
           </Field>
-          {!shopRaw.trim() && <Hint T={T}>Es el dominio interno de Shopify: termina en <S T={T}>.myshopify.com</S>. Lo ves en tu admin de Shopify → Configuración → Dominios. Si escribís solo la primera parte, completamos el resto.</Hint>}
           {shopRaw.trim() && (
             <div style={{ fontSize:11, margin:"-4px 0 10px", padding:"6px 10px", borderRadius:6, background:(shopP.ok ? T.green : T.red) + "14", border:`1px solid ${(shopP.ok ? T.green : T.red)}44`, color:T.text }}>
               {shopP.ok ? <>Se va a conectar <S T={T}>{shopP.shop}</S>{shopP.completed && <span style={{ color:T.textSm }}> (completamos el .myshopify.com)</span>}</>
@@ -524,20 +523,24 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
                 : <>Revisá el dominio: solo letras, números y guiones, y termina en .myshopify.com.</>}
             </div>
           )}
+          <div style={{ fontSize:10.5, color:T.textSm, margin:"-4px 0 12px", lineHeight:1.55 }}>
+            Pegá el dominio <S T={T}>completo</S>, incluido el <code style={{ fontFamily:MONO, color:T.accent }}>.myshopify.com</code> (ej: <code style={{ fontFamily:MONO, color:T.accent }}>tu-tienda.myshopify.com</code>). Si escribís solo <code style={{ fontFamily:MONO }}>tu-tienda</code> también sirve: lo completamos nosotros.<br/>
+            <strong style={{ color:T.red }}>NO uses tu dominio propio</strong> (ej: <code style={{ fontFamily:MONO, color:T.red }}>tutienda.com</code> / <code style={{ fontFamily:MONO, color:T.red }}>.com.ar</code>).<br/>
+            ¿Dónde lo encontrás? En tu admin de Shopify → <S T={T}>Configuración → Dominios</S> → el que tiene el sello <S T={T}>"Predeterminado de Shopify"</S> (ese termina en .myshopify.com).
+          </div>
           {!envApp && (
             <>
-              <Field T={T} label="2 · Client ID (ID de cliente)">
-                <input value={clientId} onChange={e => setClientId(e.target.value)} placeholder="b4ca9a62b9e9bf0bd79deba391333d22" style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} disabled={busy === "shopify"}/>
+              <Field T={T} label="2 · Client ID">
+                <input value={clientId} onChange={e => setClientId(e.target.value)} placeholder="8a3b6810ff78..." style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} disabled={busy === "shopify"}/>
               </Field>
-              <Field T={T} label="3 · Client Secret (Secreto)">
-                <input type="password" value={clientSecret} onChange={e => setClientSecret(e.target.value)} placeholder="••••••••••••••••••••••••••••••••" style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} disabled={busy === "shopify"}/>
+              <Field T={T} label="3 · Client Secret">
+                <input type="password" value={clientSecret} onChange={e => setClientSecret(e.target.value)} placeholder="shpss_..." style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} disabled={busy === "shopify"}/>
               </Field>
               {reuseCreds && <Hint T={T} style={{ color:T.green }}>Ya tenemos guardadas las claves de tu app: dejá los campos vacíos para reconectar con las mismas, o pegá nuevas.</Hint>}
               {credsWarn && <Hint T={T} style={{ color:T.red }}>{credsWarn}</Hint>}
-              <Hint T={T}>Las claves quedan guardadas en el servidor y nunca se muestran de vuelta.</Hint>
+              <Hint T={T}>Se usa para autorizar y se guarda cifrado. Nunca se comparte.</Hint>
             </>
           )}
-          <ShopifyTroubleshoot T={T}/>
         </Modal>
       )}
 

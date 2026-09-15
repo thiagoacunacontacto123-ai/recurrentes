@@ -40,19 +40,7 @@ export function CopyRow({ T, text, label = "Copiar" }) {
 // ─── Video tutorial (o recuadro "próximamente" si todavía no hay URL) ──
 export function TutorialVideo({ T, url = SHOPIFY_TUTORIAL_URL, title = "Video paso a paso", caption }) {
   const e = tutorialEmbed(url);
-  if (!e) {
-    return (
-      <div role="note" style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 16px", marginBottom:16, borderRadius:12, border:`1px dashed ${T.border}`, background:T.surface }}>
-        <div aria-hidden="true" style={{ width:44, height:44, borderRadius:"50%", background:T.accentSolid + "1a", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill={T.accent}><path d="M8 5v14l11-7z"/></svg>
-        </div>
-        <div style={{ minWidth:0 }}>
-          <div style={{ fontSize:13, fontWeight:700, color:T.text }}>{title} — próximamente</div>
-          <div style={{ fontSize:11.5, color:T.textSm, marginTop:2, lineHeight:1.5 }}>Mientras tanto seguí los pasos de abajo: son los mismos que vas a ver en el video.</div>
-        </div>
-      </div>
-    );
-  }
+  if (!e) return null;
   return (
     <div style={{ marginBottom:16 }}>
       <div style={{ borderRadius:12, overflow:"hidden", border:`1px solid ${T.border}`, background:"#000" }}>
@@ -62,7 +50,7 @@ export function TutorialVideo({ T, url = SHOPIFY_TUTORIAL_URL, title = "Video pa
             </div>
           : <video src={e.src} controls preload="none" playsInline style={{ width:"100%", display:"block", maxHeight:340, background:"#000" }}>Tu navegador no puede reproducir el video.</video>}
       </div>
-      <div style={{ fontSize:11, color:T.textSm, marginTop:6, textAlign:"center" }}>{caption || "▶ Mirá el video y seguí el detalle escrito abajo"}</div>
+      <div style={{ fontSize:11, color:T.textSm, marginTop:6, textAlign:"center" }}>{caption || "▶ Tutorial paso a paso · abajo el detalle escrito"}</div>
     </div>
   );
 }
@@ -86,46 +74,22 @@ function NumSteps({ T, items }) {
 export function ShopifyConnectSteps({ T, origin, where = "modal" }) {
   const base = origin || currentOrigin();
   const redirect = shopifyRedirectUrl(base);
-  const [why, setWhy] = useState(false);
-  const pasteWhere = where === "modal" ? <>abajo, en los campos <B T={T}>2</B> y <B T={T}>3</B></> : <>en Recurrentes → <B T={T}>Configuración → Integraciones → Shopify</B></>;
-  const small = { fontSize:11.5, color:T.textSm, marginTop:6, lineHeight:1.55 };
-  const items = [
-    <>Entrá a <A T={T} href={SHOPIFY_DEV_DASHBOARD_URL}>dev.shopify.com/dashboard</A> con la <B T={T}>misma cuenta con la que entrás a tu tienda</B> (la dueña). Es gratis y no cambia nada de tu tienda.</>,
-    <>Tocá <En T={T} en="Create app" es="crear app"/>. Si te pregunta cómo empezar, elegí <En T={T} en="Start from Dev Dashboard" es="empezar desde el panel"/>. Ponele de nombre <B T={T}>Recurrentes</B> y tocá <En T={T} en="Create" es="crear"/>.</>,
-    <>Se abre la pantalla de la primera versión de tu app. Si no aparece, andá a <En T={T} en="Versions" es="versiones"/> → <En T={T} en="Create version" es="crear versión"/>. Los pasos 4 y 5 se completan ahí mismo.</>,
-    <>En <En T={T} en="Scopes" es="permisos"/> pegá esta lista completa, tal cual:
-      <CopyRow T={T} text={SHOPIFY_SCOPES_STRING} label="Copiar permisos"/>
-      <button type="button" onClick={() => setWhy(v => !v)} aria-expanded={why}
-        style={{ marginTop:6, padding:0, border:"none", background:"transparent", color:T.accent, fontSize:11.5, fontWeight:600, cursor:"pointer", fontFamily:F }}>{why ? "Ocultar" : "¿Para qué es cada permiso?"} {why ? "▴" : "▾"}</button>
-      {why && (
-        <div style={{ marginTop:6, display:"flex", flexDirection:"column", gap:4 }}>
-          {SHOPIFY_SCOPES.map(s => (
-            <div key={s.id} style={{ display:"flex", gap:8, alignItems:"baseline", flexWrap:"wrap", fontSize:11.5, color:T.textSm, lineHeight:1.45 }}>
-              <Mono T={T}>{s.id}</Mono><span>{s.why}</span>
-            </div>
-          ))}
-          <div style={{ fontSize:11.5, color:T.textSm, lineHeight:1.45 }}>No tocamos stock, precios ni el diseño de tu tienda.</div>
-        </div>
-      )}
-    </>,
-    <>En <En T={T} en="Redirect URLs" es="URLs de redirección"/> pegá exactamente esta:
-      <CopyRow T={T} text={redirect} label="Copiar URL"/>
-      <div style={small}>Tiene que quedar idéntica: con https, sin espacios y sin barra al final.</div>
-      <div style={small}>Si te pide una <En T={T} en="App URL" es="dirección de la app"/>, pegá <Mono T={T}>{base}</Mono>. Si ves tildada la casilla <En T={T} en="Embed app in Shopify admin" es="mostrar la app dentro de Shopify"/>, destildala.</div>
-    </>,
-    <>Arriba a la derecha tocá <En T={T} en="Release" es="publicar la versión"/>. Si te pide un <En T={T} en="Version name" es="nombre de la versión"/>, dejalo vacío (o poné 1) y confirmá con <En T={T} en="Release"/>.
-      <div style={{ ...small, color:T.text, fontWeight:600 }}>Sin este paso Shopify no guarda los permisos ni la URL.</div>
-    </>,
-    <>Andá a <En T={T} en="Settings" es="configuración"/> → <En T={T} en="Credentials" es="credenciales"/>. Copiá el <En T={T} en="Client ID" es="ID de cliente"/> y el <En T={T} en="Secret" es="clave secreta: tocá el ojito para verla"/> y pegalos {pasteWhere}.</>,
-    <>Tocá <B T={T}>Autorizar en Shopify →</B>. Shopify te muestra los permisos de la app: tocá <En T={T} en="Install" es="instalar"/>. Volvés solo a Recurrentes con Shopify conectado.</>,
-  ];
+  const pasteWhere = where === "modal" ? <>pegalos en los campos 2 y 3 de acá abajo</> : <>pegalos en Recurrentes → <B T={T}>Configuración → Integraciones → Shopify</B></>;
   return (
-    <div style={{ padding:"14px 16px", background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:10, marginBottom:16, fontSize:12.5, color:T.textMd, lineHeight:1.6 }}>
-      <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:10, flexWrap:"wrap", marginBottom:4 }}>
-        <div style={{ fontWeight:700, color:T.text, fontSize:13 }}>Crear tu app en Shopify <span style={{ fontWeight:500, color:T.textSm }}>· 5 minutos, una sola vez</span></div>
-      </div>
-      <div style={{ fontSize:11.5, color:T.textSm, marginBottom:12, lineHeight:1.5 }}>Esa pantalla de Shopify está en inglés: te marcamos cada botón en <B T={T}>negrita</B> y entre paréntesis qué significa.</div>
-      <NumSteps T={T} items={items}/>
+    <div style={{ padding:"14px 16px", background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:10, marginBottom:18, fontSize:12, color:T.textMd, lineHeight:1.7 }}>
+      <div style={{ fontWeight:700, color:T.text, marginBottom:8 }}>Crear tu app en Shopify (3 minutos)</div>
+      <ol style={{ margin:0, paddingLeft:18, display:"flex", flexDirection:"column", gap:9 }}>
+        <li>Entrá a <A T={T} href={SHOPIFY_DEV_DASHBOARD_URL}>dev.shopify.com/dashboard</A> → <B T={T}>Create app</B> → nombre <B T={T}>Recurrentes</B>.</li>
+        <li>Entrá a la app → <B T={T}>Versiones → Crear versión</B>. Ahí adentro está todo lo de los pasos 3 y 4.</li>
+        <li>En <B T={T}>Alcances (scopes)</B> pegá TODOS estos de una (van separados por comas):
+          <CopyRow T={T} text={SHOPIFY_SCOPES_STRING}/>
+        </li>
+        <li>En <B T={T}>URL de redireccionamiento</B> pegá exactamente esta:
+          <CopyRow T={T} text={redirect}/>
+        </li>
+        <li><B T={T}>Lanzá la versión:</B> tocá <B T={T}>"Publicar" / "Lanzar"</B> (arriba a la derecha). Aparece un cartel pidiendo el <B T={T}>nombre de la versión</B> → dejalo <B T={T}>en blanco</B> y tocá de nuevo <B T={T}>"Lanzar" / "Avanzar"</B>. Con eso la versión interna de tu app queda lista.</li>
+        <li>Ahora sí, en <B T={T}>Configuración → Credenciales</B> copiá el <B T={T}>Client ID</B> y el <B T={T}>Client Secret</B> (tocá el ojito para verlo) → {pasteWhere}.</li>
+      </ol>
     </div>
   );
 }
