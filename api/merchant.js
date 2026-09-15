@@ -180,6 +180,10 @@ export default async function handler(req, res) {
         business_type: merchant.business_type || null,
         channel: merchant.channel || null,
         payment_provider: merchant.payment_provider || null,
+        // Super-admin (ADMIN_EMAILS, validado en requireMerchant): habilita #/admin.
+        // admin_view = "ver como" activo (solo lectura).
+        is_admin: ctx.is_admin === true,
+        admin_view: ctx.admin_view === true,
       };
       return res.json({ merchant: safe });
     } catch (e) {

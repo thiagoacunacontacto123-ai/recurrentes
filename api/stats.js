@@ -17,9 +17,12 @@
 // (MRR, churn, LTV, próximos cobros, serie mensual, motivos de baja, recupero).
 // Cache 10 min en merchants/{mid}.analytics_cache { at, months, data }.
 import { db, requireMerchant } from "./_lib/firebase.js";
+import { adminHandler } from "./_lib/admin.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
+  // Super-admin (#/admin): GET/POST ?action=admin-* → _lib/admin.js (requireAdmin en cada request).
+  if (String(req.query?.action || "").startsWith("admin-")) return adminHandler(req, res);
   if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
 
   // Multi-tienda: merchantId = tienda activa (header X-Merchant-Id) o el uid del login.

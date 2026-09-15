@@ -4,6 +4,7 @@ import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { trialEndFrom } from "./plans_saas.js";
+import { isAdminToken } from "./adminAuth.js";
 
 let app;
 export function initAdmin() {
@@ -33,7 +34,7 @@ export function db() {
 // email_verified). Responde 401/403 y devuelve null si no pasa.
 // Merchants nuevos (requires_email_verification) necesitan email verificado
 // → 403 code "email_unverified". Los viejos siguen igual.
-async function verifyBearer(req, res) {
+export async function verifyBearer(req, res) {
   initAdmin();
   const auth = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
   if (!auth) {
@@ -152,6 +153,10 @@ export async function resolveMerchantAccess(uid, merchantId, seccion) {
 export async function requireMerchant(req, res, seccion) {
   const decoded = await verifyBearer(req, res);
   if (!decoded) return null;
+  // Super-admin "ver como" (header X-Admin-As: <merchantId>): ver adminViewAs abajo.
+  const asHdr = req.headers["x-admin-as"];
+  const adminAs = String(Array.isArray(asHdr) ? asHdr[0] : (asHdr || "")).trim();
+  if (adminAs) return adminViewAs(req, res, decoded, adminAs);
   const uid = decoded.uid;
   const hdr = req.headers["x-merchant-id"];
   const fromHeader = String(Array.isArray(hdr) ? hdr[0] : (hdr || "")).trim();
@@ -170,7 +175,57 @@ export async function requireMerchant(req, res, seccion) {
     viaOwner: acc.viaOwner === true,
     viaTeam: acc.viaTeam === true,
     member: acc.member || null,
+    is_admin: isAdminToken(decoded), // super-admin (ADMIN_EMAILS + email verificado)
   };
+}
+
+// ─── Super-admin ───────────────────────────────────────────────────────────
+// "Ver como" (X-Admin-As): SOLO admins (ADMIN_EMAILS + email_verified), SOLO
+// lectura (GET/HEAD: cualquier escritura → 403) y con registro en admin_audit
+// (1 por admin + comercio cada 10 min por instancia; el inicio lo registra
+// POST /api/stats?action=admin-view-as). Un no-admin con el header → 403.
+const _viewAsLogged = new Map(); // `${uid}:${merchantId}` -> ms
+async function adminViewAs(req, res, decoded, merchantId) {
+  if (!isAdminToken(decoded)) {
+    console.warn(`[admin] ver-como rechazado: ${decoded.uid} → ${merchantId}`);
+    res.status(403).json({ error: "No tenés permiso para ver otras cuentas.", code: "admin_forbidden" });
+    return null;
+  }
+  const method = String(req.method || "GET").toUpperCase();
+  if (method !== "GET" && method !== "HEAD") {
+    res.status(403).json({ error: "Estás en modo \"ver como\": es solo lectura. Salí para hacer cambios.", code: "admin_read_only" });
+    return null;
+  }
+  const meta = await merchantMeta(merchantId);
+  if (!meta.exists) {
+    res.status(404).json({ error: "Ese comercio no existe.", code: "admin_forbidden" });
+    return null;
+  }
+  const key = `${decoded.uid}:${merchantId}`;
+  if (Date.now() - (_viewAsLogged.get(key) || 0) > 10 * 60000) {
+    _viewAsLogged.set(key, Date.now());
+    if (_viewAsLogged.size > 500) _viewAsLogged.clear();
+    db().collection("admin_audit").add({
+      action: "view_as_request", merchant_id: merchantId, admin_uid: decoded.uid, admin_email: decoded.email || null,
+      detail: { path: String(req.url || "").slice(0, 200) }, at: new Date().toISOString(),
+    }).catch(e => console.warn("[admin] audit:", e.message));
+  }
+  return { uid: decoded.uid, email: decoded.email || null, merchantId, role: "owner", viaOwner: false, viaTeam: false, member: null, is_admin: true, admin_view: true };
+}
+
+/**
+ * Panel de super-admin (/api/stats?action=admin-*): token válido + email en
+ * ADMIN_EMAILS + email_verified. Devuelve { uid, email } o null (ya respondió 401/403).
+ */
+export async function requireAdmin(req, res) {
+  const decoded = await verifyBearer(req, res);
+  if (!decoded) return null;
+  if (!isAdminToken(decoded)) {
+    console.warn(`[admin] acceso rechazado: ${decoded.uid} (${decoded.email || "sin email"})`);
+    res.status(403).json({ error: "Solo para administradores de Recurrentes.", code: "admin_forbidden" });
+    return null;
+  }
+  return { uid: decoded.uid, email: String(decoded.email).toLowerCase() };
 }
 
 // Devuelve el doc del merchant, creándolo si no existe.
