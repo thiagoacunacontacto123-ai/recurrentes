@@ -53,6 +53,7 @@ import { logEmail } from "./_lib/emaillog.js";
 import { planPacks, planPricingMode } from "./_lib/packs.js";
 import { klaviyoEnabled, klaviyoLifecycle, KLAVIYO_METRICS } from "./_lib/klaviyo.js";
 import { emitFlowEvent } from "./_lib/flows.js";
+import { notifyMerchantStatusChange } from "./_lib/merchantAlerts.js";
 import { handleWhatsappWebhook } from "./_lib/whatsappWebhook.js";
 import { waSender } from "./_lib/whatsapp.js";
 import { merchantProfile } from "../shared/platform/profile.js";
@@ -467,6 +468,8 @@ async function handleSub(req, res) {
     }
     // Flujos de email propios (cancelada / pausada / reactivada desde el portal). No-op sin flujos activos.
     await emitFlowEvent(merchantId, merchant, subAction === "cancel" ? "cancelled" : subAction === "pause" ? "paused" : "resumed", subscriberId, { ...sub, ...update }, { key: now });
+    // Aviso al comercio (pausa / baja desde el portal). No-op sin avisos prendidos.
+    await notifyMerchantStatusChange(merchantId, merchant, subscriberId, sub.status, localStatus, { ...sub, status: localStatus });
 
     // Mail de cancelación (best-effort) + log para la actividad del dashboard.
     if (subAction === "cancel" && sub.customer_email) {
@@ -559,5 +562,6 @@ async function handlePauseOffer(req, res) {
     } catch (e) { console.warn("[public/pause-offer] klaviyo falló:", e.message); }
   }
   await emitFlowEvent(merchantId, merchant, "paused", subscriberId, { ...sub, ...update }, { key: nowIso });
+  await notifyMerchantStatusChange(merchantId, merchant, subscriberId, sub.status, "paused", { ...sub, status: "paused" });
   return res.json({ ok: true, status: "paused", resume_at: resumeAt, cycles, frequency_days: freqDays });
 }

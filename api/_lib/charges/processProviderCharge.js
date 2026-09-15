@@ -21,6 +21,7 @@ import { db } from "../firebase.js";
 import { claimCharge } from "../chargeclaim.js";
 import { fulfillCharge, notifyActivation, notifyRenewal, applyPaymentFailed } from "../sync.js";
 import { emitFlowEvent } from "../flows.js";
+import { notifyMerchantStatusChange } from "../merchantAlerts.js";
 
 const nowIso = () => new Date().toISOString();
 const DAY = 86400000;
@@ -92,6 +93,7 @@ export async function processProviderEvent(merchantId, merchant, providerId, ev)
     const upd = { status: "cancelled", provider_status: "cancelled", cancelled_at: nowIso(), cancelled_by: `provider:${providerId}`, resume_at: FieldValue.delete(), updated_at: nowIso() };
     await subRef.update(upd);
     await emitFlowEvent(merchantId, merchant, "cancelled", subscriberId, { ...sub, ...upd, resume_at: null }, { key: `${providerId}:cancel:${ev.providerSubscriptionId || subscriberId}` });
+    await notifyMerchantStatusChange(merchantId, merchant, subscriberId, sub.status, "cancelled", { ...sub, status: "cancelled" });
     return { status: "cancelled", type, subscriberId };
   }
 
@@ -100,6 +102,7 @@ export async function processProviderEvent(merchantId, merchant, providerId, ev)
     const upd = { status: "paused", provider_status: "paused", paused_at: nowIso(), updated_at: nowIso() };
     await subRef.update(upd);
     await emitFlowEvent(merchantId, merchant, "paused", subscriberId, { ...sub, ...upd }, { key: `${providerId}:pause:${date}` });
+    await notifyMerchantStatusChange(merchantId, merchant, subscriberId, sub.status, "paused", { ...sub, status: "paused" });
     return { status: "paused", type, subscriberId };
   }
 

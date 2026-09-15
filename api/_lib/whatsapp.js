@@ -391,7 +391,9 @@ export async function recordPlatformError(err) {
 // ── Uso del mes (se cobra con el plan) ─────────────────────────────
 // Número de Recurrentes: costo = precio de Meta × WHATSAPP_MARKUP. Número propio: se
 // cuenta igual pero a costo 0 (lo paga la tienda a Meta). Increments atómicos.
-export async function recordWaUsage(mid, mode, { now = new Date() } = {}) {
+// { type:"merchant_alert" } → aviso al comercio (merchantAlerts.js): se cobra igual y además
+// se cuenta aparte en wa_alerts_sent / wa_alerts_cost_usd.
+export async function recordWaUsage(mid, mode, { now = new Date(), type = null } = {}) {
   if (!mid || (mode !== "own" && mode !== "platform")) return null;
   const month = waUsageMonth(now);
   const platform = mode === "platform";
@@ -399,15 +401,18 @@ export async function recordWaUsage(mid, mode, { now = new Date() } = {}) {
   const cost = platform ? waChargeUsd(price) : 0;
   const at = now.toISOString();
   const inc = FieldValue.increment;
+  const alert = type === "merchant_alert";
   try {
     await db().collection("merchants").doc(mid).collection("usage").doc(month).set({
       month, wa_sent: inc(1), wa_cost_usd: inc(cost),
       [platform ? "wa_platform_sent" : "wa_own_sent"]: inc(1), updated_at: at,
+      ...(alert ? { wa_alerts_sent: inc(1), wa_alerts_cost_usd: inc(cost) } : {}),
     }, { merge: true });
     if (platform) {
       await db().collection("admin_usage").doc(month).set({
         month, wa_sent: inc(1), wa_cost_usd: inc(cost), wa_meta_cost_usd: inc(price), updated_at: at,
-        merchants: { [mid]: { wa_sent: inc(1), wa_cost_usd: inc(cost), wa_meta_cost_usd: inc(price) } },
+        ...(alert ? { wa_alerts_sent: inc(1) } : {}),
+        merchants: { [mid]: { wa_sent: inc(1), wa_cost_usd: inc(cost), wa_meta_cost_usd: inc(price), ...(alert ? { wa_alerts_sent: inc(1) } : {}) } },
       }, { merge: true });
     }
     return { month, cost };
@@ -418,7 +423,7 @@ export async function recordWaUsage(mid, mode, { now = new Date() } = {}) {
 }
 
 export async function getWaUsage(mid, month = waUsageMonth()) {
-  const empty = { month, wa_sent: 0, wa_cost_usd: 0, wa_platform_sent: 0, wa_own_sent: 0 };
+  const empty = { month, wa_sent: 0, wa_cost_usd: 0, wa_platform_sent: 0, wa_own_sent: 0, wa_alerts_sent: 0 };
   if (!mid) return empty;
   const d = (await db().collection("merchants").doc(mid).collection("usage").doc(month).get()).data() || {};
   return {
@@ -427,6 +432,7 @@ export async function getWaUsage(mid, month = waUsageMonth()) {
     wa_cost_usd: Math.round((Number(d.wa_cost_usd) || 0) * 1e6) / 1e6,
     wa_platform_sent: Number(d.wa_platform_sent) || 0,
     wa_own_sent: Number(d.wa_own_sent) || 0,
+    wa_alerts_sent: Number(d.wa_alerts_sent) || 0,   // avisos al comercio (van incluidos en wa_sent)
   };
 }
 

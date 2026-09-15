@@ -20,6 +20,7 @@ import { fetchWithTimeout } from "./_lib/http.js";
 import { logEmail } from "./_lib/emaillog.js";
 import { klaviyoEnabled, klaviyoLifecycle, KLAVIYO_METRICS } from "./_lib/klaviyo.js";
 import { emitFlowEvent } from "./_lib/flows.js";
+import { notifyMerchantStatusChange } from "./_lib/merchantAlerts.js";
 
 const nowIso = () => new Date().toISOString();
 
@@ -517,6 +518,8 @@ export default async function handler(req, res) {
     }
     // Flujos de email propios (cancelada / pausada / reactivada). No-op sin flujos activos.
     await emitFlowEvent(merchantId, merchant, action === "cancel" ? "cancelled" : action === "pause" ? "paused" : "resumed", String(id), { ...sub, ...localUpdate }, { key: localUpdate.updated_at });
+    // Aviso al comercio (pausa / baja desde el panel). No-op sin avisos prendidos.
+    await notifyMerchantStatusChange(merchantId, merchant, String(id), sub.status, localStatus, { ...sub, status: localStatus });
 
     // Mail de cancelación (best-effort) + log.
     if (action === "cancel" && sub.customer_email) {

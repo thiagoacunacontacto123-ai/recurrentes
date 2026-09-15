@@ -83,6 +83,61 @@ Reglas que respetan los cuatro textos:
 - nada promocional: si Meta ve promoción en una de utilidad, la pasa a Marketing (5 veces más cara);
 - las variables no llevan saltos de línea (el código los limpia).
 
+## Avisos al comercio ("Avisos para vos")
+
+El mismo número de Recurrentes le avisa al **dueño de la tienda** (no al cliente) cuando un cliente se suscribe, pausa, cancela o le rechazan el pago de una renovación. No hace falta que la tienda haya prendido los avisos a clientes.
+
+- **Dónde:** Configuración → Avisos para vos (solo el dueño). `POST /api/merchant?action=alerts-save { enabled, whatsapp, events, email }` · `alerts-test` (10 por día).
+- **Datos (doc de la tienda):** `alerts_whatsapp_enabled`, `alerts_whatsapp` (E.164; vacío = `owner_whatsapp` de la tienda o del login dueño `merchants/{ownerUid}`), `alerts_events { subscribed, paused, cancelled, payment_failed }` (los que faltan cuentan como prendidos), `alerts_email` ("también por mail", prendido por defecto).
+- **Cuándo sale:** alta → `notifyActivation`; pago rechazado → `sendPaymentFailedEmail` (solo al pasar a `payment_failed`, no en cada reintento); pausa / baja → portal, panel, `handlePreapproval` del webhook, `syncSubscriber` y pasarelas alternativas (solo si pasa desde un estado que cobra). Dedup en `merchants/{mid}/alert_log/{evento}:{sid}:{clave}` con `create()` (clave: `first` para el alta, id del pago para el rechazo, día de Argentina para pausa / baja).
+- **Costo cero si está apagado:** sin `alerts_whatsapp_enabled: true` (o sin WhatsApp de Recurrentes ni `RESEND_API_KEY`) no lee ni escribe nada.
+- **Mail de respaldo:** si no hay WhatsApp (env sin cargar, plantilla sin aprobar, error de Meta) sale el mismo texto por mail a `contact_email` (o el mail de la cuenta), con el pie de siempre. Con "también por mail" sale siempre por los dos.
+- **Uso:** cada WhatsApp OK suma en `merchants/{mid}/usage/{AAAA-MM}` como cualquier aviso (precio × 1,10) y además en `wa_alerts_sent` / `wa_alerts_cost_usd`. Registro en `message_log` con `type: "merchant_alert"`.
+
+### Plantillas para aprobar (Utilidad · Español (ARG) `es_AR`)
+
+Pie en las cuatro: `Podés apagar estos avisos desde tu panel de Recurrentes.` Sin encabezado ni botones. Mismo texto que `WA_MERCHANT_TEMPLATES` en `shared/platform/whatsapp.js`.
+
+**`aviso_comercio_alta`**
+```
+🎉 Nueva suscripción en {{1}}: {{2}} se suscribió a {{3}} por {{4}}.
+
+Mirala en tu panel: {{5}}
+
+Es un aviso automático de Recurrentes.
+```
+Ejemplos: LuminaLabs · Ana · Cápsulas LuminaLabs · $9.480 · https://www.recurrentesapp.com/#/dashboard/suscripciones
+
+**`aviso_comercio_pausa`**
+```
+Se pausó una suscripción en {{1}}: la de {{2}} a {{3}}.
+
+Mirala en tu panel: {{4}}
+
+Es un aviso automático de Recurrentes.
+```
+Ejemplos: LuminaLabs · Ana · Cápsulas LuminaLabs · https://www.recurrentesapp.com/#/dashboard/suscripciones
+
+**`aviso_comercio_baja`**
+```
+Se canceló una suscripción en {{1}}: la de {{2}} a {{3}}.
+
+Mirala en tu panel: {{4}}
+
+Es un aviso automático de Recurrentes.
+```
+Ejemplos: LuminaLabs · Ana · Cápsulas LuminaLabs · https://www.recurrentesapp.com/#/dashboard/suscripciones
+
+**`aviso_comercio_pago_rechazado`**
+```
+No se pudo cobrar una renovación en {{1}}: el pago de {{2}} por {{3}} ({{4}}) fue rechazado.
+
+Mirala en tu panel: {{5}}
+
+Es un aviso automático de Recurrentes.
+```
+Ejemplos: LuminaLabs · Ana · Cápsulas LuminaLabs · $9.480 · https://www.recurrentesapp.com/#/dashboard/suscripciones
+
 ## Tareas de Thiago
 
 1. **Verificar el negocio** en Meta Business: https://business.facebook.com/settings/security → Centro de seguridad → Verificación (sube el límite de 250 clientes nuevos por día).
