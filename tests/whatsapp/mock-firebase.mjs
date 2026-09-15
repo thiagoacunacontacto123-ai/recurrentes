@@ -95,5 +95,7 @@ const _db = {
 };
 export function db() { return _db; }
 export async function requireMerchant() { throw new Error("no usar en tests"); }
+// flowsApi solo lo llama para miembros del equipo; estos tests usan al dueño.
+export async function resolveMerchantAccess() { return { ok: true }; }
 
 export function clearMerchantCache() {}
