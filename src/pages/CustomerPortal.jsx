@@ -1,22 +1,29 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { apiGet, apiPost, apiPatch } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
-import { Card, Btn, DSBadge, DSToggle, DSEmpty, Spinner, DSTable, CellStack, PageHeader, CardHeader, SectionTitle, Field, InputStyle, Hint, StatCard, Loading, toast } from "../ui/components.jsx";
+import { Btn, DSBadge, DSToggle, DSEmpty, Spinner, DSTable, CellStack, PageHeader, Field, InputStyle, Hint, Loading, toast } from "../ui/components.jsx";
+import { KpiCard, Segmented, BarList, Panel } from "../ui/charts.jsx";
 import { goPlanesWidget, goConfigSection } from "../lib/onboarding.js";
-import { MONO, fmtDateShort, SurfaceBox, copyText } from "./_shared.jsx";
+import { MONO, fmtDateShort, copyText, hashQuery } from "./_shared.jsx";
+import { merchantProfile } from "../../shared/platform/profile.js";
 
-// ─── Página: Portal del cliente ────────────────────────────────────
-export function CustomerPortalPage({ merchant, reloadMerchant, goTab }) {
-  const T = useT();
-  return (
-    <div>
-      <PageHeader T={T} title="Portal del cliente" subtitle="Lo que tus clientes pueden hacer solos desde el link que reciben por mail: pausar, cancelar, cambiar la dirección. Y los mensajes que les mandamos."/>
-      <ActionsCard T={T} merchant={merchant} reloadMerchant={reloadMerchant}/>
-      <AppearanceCard T={T} merchant={merchant} reloadMerchant={reloadMerchant} goTab={goTab}/>
-      <MessagesCard T={T} merchant={merchant} reloadMerchant={reloadMerchant} goTab={goTab}/>
-    </div>
-  );
-}
+const DAY = 86400000;
+const KLAVIYO = "#8b5cf6";
+const fmtN = (n) => Math.round(Number(n) || 0).toLocaleString("es-AR");
+
+// Secciones (píldoras): #/dashboard/portal?sec=apariencia|mensajes|registro
+// (el alias viejo "actividad" ya apunta a ?sec=registro).
+const SECS = ["acciones", "apariencia", "mensajes", "registro"];
+const readSec = () => { const s = hashQuery().get("sec"); return SECS.includes(s) ? s : "acciones"; };
+
+// Acciones que el cliente puede hacer solo. La dirección solo aplica si el negocio envía algo.
+const portalActions = (profile) => [
+  { key:"allow_pause",   icon:"⏸", title:"Pausar la suscripción", desc:"Salta los próximos cobros y la retoma cuando quiera." },
+  { key:"allow_cancel",  icon:"✕", title:"Cancelar",               desc:"Pasa por el flujo de retención si lo activaste." },
+  ...(profile.caps.shipping ? [{ key:"allow_address", icon:"📍", title:"Cambiar la dirección", desc: profile.caps.orders ? `Se usa en las próximas órdenes de ${profile.channelInfo.label}.` : "Se usa en los próximos envíos." }] : []),
+  { key:"allow_date",    icon:"📅", title:"Cambiar la fecha de cobro", desc:"Adelantar o atrasar el próximo cobro.", soon:true },
+  { key:"allow_skip",    icon:"⏭", title: profile.caps.shipping ? "Saltar un envío" : "Saltar un ciclo", desc:"Se saltea un ciclo sin pausar.", soon:true },
+];
 
 async function saveSettings(body) {
   const r = await apiPatch("merchant", body, { action: "save-settings" });
@@ -24,16 +31,96 @@ async function saveSettings(body) {
   return r;
 }
 
-// ─── (a) Acciones permitidas ───────────────────────────────────────
-const PORTAL_ACTIONS = [
-  { key:"allow_pause",   icon:"⏸", title:"Pausar la suscripción",  desc:"Salta los próximos cobros y la retoma cuando quiera." },
-  { key:"allow_cancel",  icon:"✕", title:"Cancelar",                desc:"Pasa por el flujo de retención si lo activaste." },
-  { key:"allow_address", icon:"📍", title:"Cambiar la dirección",   desc:"Se actualiza en las órdenes futuras de Shopify." },
-  { key:"allow_date",    icon:"📅", title:"Cambiar la fecha de cobro", desc:"Adelantar o atrasar el próximo cobro.", soon:true },
-  { key:"allow_skip",    icon:"⏭", title:"Saltar un envío",         desc:"Se saltea un ciclo sin pausar.", soon:true },
-];
+const SaveBtn = ({ T, dirty, saving, onClick }) => (
+  <>
+    {dirty && <DSBadge T={T} color={T.yellow} size="sm">Cambios sin guardar</DSBadge>}
+    <Btn T={T} variant="solid" size="sm" onClick={onClick} disabled={saving || !dirty}>{saving ? <><Spinner size={11}/> Guardando…</> : "Guardar"}</Btn>
+  </>
+);
 
-function ActionsCard({ T, merchant, reloadMerchant }) {
+// ─── Página: Portal del cliente — estilo Growith: KPIs arriba y las cuatro
+// partes (acciones · apariencia · mensajes · registro) en píldoras.
+export function CustomerPortalPage({ merchant, reloadMerchant, goTab }) {
+  const T = useT();
+  const profile = useMemo(() => merchantProfile(merchant), [merchant]);
+  const [sec, setSec] = useState(readSec);
+  const [activity, setActivity] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  async function loadActivity() {
+    setLoading(true);
+    const d = await apiGet("stats", { action: "activity" }).catch(() => null);
+    setActivity(d && !d.error ? d : {});
+    setLoading(false);
+  }
+  useEffect(() => { loadActivity(); }, []);
+  // Links internos que cambian solo el hash (ej. el alias viejo "actividad" → ?sec=registro) con la página abierta.
+  useEffect(() => {
+    const onHash = () => { if (/^#\/dashboard\/portal/.test(window.location.hash || "")) setSec(readSec()); };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  const goSec = (id) => {
+    setSec(id);
+    try { window.history.replaceState(null, "", `${window.location.pathname}#/dashboard/portal${id === "acciones" ? "" : "?sec=" + id}`); } catch (_) {}
+  };
+
+  // Sin secuencia propia de abandono: esos mails históricos no se muestran.
+  const mails = useMemo(() => (activity?.mails || []).filter(m => m.type !== "abandoned"), [activity]);
+  const sent = useMemo(() => mails.filter(m => m.status !== "error"), [mails]);
+  const mailErrors = mails.length - sent.length;
+  const ks = activity?.klaviyo_summary || {};
+  const klaviyo = Boolean(merchant?.klaviyo_connected);
+  // Mails enviados por día, últimos 30 (para la sparkline).
+  const spark = useMemo(() => {
+    const days = Array(30).fill(0), now = Date.now();
+    for (const m of sent) { const d = Math.floor((now - Date.parse(m.created_at || "")) / DAY); if (d >= 0 && d < 30) days[29 - d]++; }
+    return days;
+  }, [sent]);
+  const sent30 = spark.reduce((a, b) => a + b, 0);
+
+  const saved = merchant?.portal || {};
+  const actions = portalActions(profile).filter(a => !a.soon);
+  const enabled = actions.filter(a => saved[a.key] !== false);
+  const first = loading && !activity;
+
+  const tabs = [
+    { id:"acciones",   label:"Acciones" },
+    { id:"apariencia", label:"Apariencia" },
+    { id:"mensajes",   label:"Mensajes" },
+    { id:"registro",   label:"Registro", count: first ? null : mails.length },
+  ];
+
+  return (
+    <div>
+      <PageHeader T={T} title="Portal del cliente" subtitle="Lo que tus clientes pueden hacer solos desde el link que reciben por mail, cómo se ve, y los mensajes que les mandamos."/>
+
+      <div className="kpi-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 200px), 1fr))", gap:10, marginBottom:16 }}>
+        <KpiCard T={T} label="Acciones habilitadas" value={`${enabled.length} de ${actions.length}`} color={T.accentSolid}
+          hint={enabled.length ? enabled.map(a => a.title.split(" ")[0].toLowerCase()).join(" · ") : "el cliente no puede hacer nada solo"} onClick={() => goSec("acciones")}/>
+        <KpiCard T={T} loading={first} label="Mails enviados · 30 días" value={fmtN(sent30)} spark={spark} color={T.accentSolid}
+          hint={`${fmtN(mails.length)} en el registro`} onClick={() => goSec("registro")}/>
+        <KpiCard T={T} loading={first} label="Eventos a Klaviyo" value={klaviyo ? fmtN(ks.sent) : "—"} color={KLAVIYO}
+          hint={klaviyo ? (ks.error ? `${fmtN(ks.error)} con error` : "todos enviados") : "Klaviyo sin conectar"} onClick={() => goSec("registro")}/>
+        <KpiCard T={T} loading={first} label="Envíos con error" value={fmtN(mailErrors + (Number(ks.error) || 0))} valueColor={mailErrors + (Number(ks.error) || 0) ? T.red : T.text} color={T.red}
+          hint="mails y eventos que no salieron" onClick={() => goSec("registro")}/>
+      </div>
+
+      <div style={{ marginBottom:14, maxWidth:"100%", overflowX:"auto" }}>
+        <Segmented T={T} options={tabs} value={sec} onChange={goSec} ariaLabel="Sección del portal"/>
+      </div>
+
+      {/* Todas quedan montadas (solo se ocultan) para no perder cambios sin guardar al cambiar de píldora. */}
+      <div hidden={sec !== "acciones"}><ActionsSection T={T} merchant={merchant} profile={profile} reloadMerchant={reloadMerchant}/></div>
+      <div hidden={sec !== "apariencia"}><AppearanceSection T={T} merchant={merchant} profile={profile} reloadMerchant={reloadMerchant} goTab={goTab}/></div>
+      <div hidden={sec !== "mensajes"}><MessagesSection T={T} merchant={merchant} reloadMerchant={reloadMerchant} goTab={goTab}/></div>
+      <div hidden={sec !== "registro"}><RegistroSection T={T} merchant={merchant} activity={activity} mails={mails} loading={loading} reload={loadActivity} goTab={goTab}/></div>
+    </div>
+  );
+}
+
+// ─── (a) Acciones permitidas ───────────────────────────────────────
+function ActionsSection({ T, merchant, profile, reloadMerchant }) {
   const saved = merchant?.portal || {};
   const init = () => ({ allow_pause: saved.allow_pause !== false, allow_cancel: saved.allow_cancel !== false, allow_address: saved.allow_address !== false });
   const [v, setV] = useState(init);
@@ -48,15 +135,14 @@ function ActionsCard({ T, merchant, reloadMerchant }) {
     finally { setSaving(false); }
   }
   return (
-    <Card T={T} style={{ marginBottom:DS.sp.lg }}>
-      <CardHeader T={T} icon="🔐" title="Acciones permitidas" sub="Qué puede hacer el cliente por su cuenta. Lo que apagues, lo tiene que pedir por mail."
-        right={<Btn T={T} variant="solid" size="sm" onClick={save} disabled={saving || !dirty}>{saving ? <><Spinner size={11}/> Guardando…</> : "Guardar"}</Btn>}/>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(260px, 1fr))", gap:10 }}>
-        {PORTAL_ACTIONS.map(a => {
+    <Panel T={T} title="Acciones permitidas" sub="Qué puede hacer el cliente por su cuenta. Lo que apagues, lo tiene que pedir por mail."
+      right={<SaveBtn T={T} dirty={dirty} saving={saving} onClick={save}/>}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap:10 }}>
+        {portalActions(profile).map(a => {
           const on = a.soon ? false : v[a.key] !== false;
           return (
-            <div key={a.key} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", border:`1px solid ${on ? T.accent + "55" : T.border}`, borderRadius:DS.r.lg, background: on ? T.accent + "08" : T.surface, opacity: a.soon ? 0.6 : 1 }}>
-              <span style={{ fontSize:18, width:26, textAlign:"center" }}>{a.icon}</span>
+            <div key={a.key} style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 14px", border:`1px solid ${on ? T.accent + "55" : T.border}`, borderRadius:12, background: on ? T.accent + "08" : T.surface, opacity: a.soon ? 0.6 : 1 }}>
+              <span aria-hidden="true" style={{ fontSize:18, width:26, textAlign:"center" }}>{a.icon}</span>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontSize:DS.font.base, fontWeight:DS.w.semibold, color:T.text, display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>{a.title}{a.soon && <DSBadge T={T} color={T.yellow} size="sm">próximamente</DSBadge>}</div>
                 <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:2 }}>{a.desc}</div>
@@ -66,12 +152,12 @@ function ActionsCard({ T, merchant, reloadMerchant }) {
           );
         })}
       </div>
-    </Card>
+    </Panel>
   );
 }
 
 // ─── (b) Apariencia y textos ───────────────────────────────────────
-function AppearanceCard({ T, merchant, reloadMerchant, goTab }) {
+function AppearanceSection({ T, merchant, profile, reloadMerchant, goTab }) {
   const iS = InputStyle(T);
   const [brand, setBrand] = useState(merchant?.email_brand || merchant?.email_brand_effective || "");
   const [welcome, setWelcome] = useState(merchant?.portal_welcome || "");
@@ -80,6 +166,12 @@ function AppearanceCard({ T, merchant, reloadMerchant, goTab }) {
   useEffect(() => { setBrand(merchant?.email_brand || merchant?.email_brand_effective || ""); setWelcome(merchant?.portal_welcome || ""); setDirty(false); }, [merchant?.id, merchant?.email_brand, merchant?.email_brand_effective, merchant?.portal_welcome]);
   const color = merchant?.widget_color || "#10b981";
   const example = `${window.location.origin}/#/portal?token=…`;
+  const portal = merchant?.portal || {};
+  const previewBtns = [
+    profile.caps.shipping && portal.allow_address !== false && "Cambiar dirección",
+    portal.allow_pause !== false && "Pausar",
+    portal.allow_cancel !== false && "Cancelar",
+  ].filter(Boolean).slice(0, 2);
 
   async function save() {
     setSaving(true);
@@ -88,65 +180,68 @@ function AppearanceCard({ T, merchant, reloadMerchant, goTab }) {
     finally { setSaving(false); }
   }
   return (
-    <Card T={T} style={{ marginBottom:DS.sp.lg }}>
-      <CardHeader T={T} icon="🎨" title="Apariencia y textos" sub="El portal usa tu marca y el color del widget."
-        right={<Btn T={T} variant="solid" size="sm" onClick={save} disabled={saving || !dirty}>{saving ? <><Spinner size={11}/> Guardando…</> : "Guardar"}</Btn>}/>
-      <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) minmax(0,1fr)", gap:DS.sp.xl, alignItems:"start" }}>
-        <div>
-          <Field T={T} label="Nombre de marca"><input value={brand} onChange={e => { setBrand(e.target.value); setDirty(true); }} placeholder={merchant?.email_brand_effective || merchant?.store_name || "Mi marca"} maxLength={60} style={iS}/></Field>
-          <Hint T={T}>Aparece en el título del portal y como remitente de los mails.</Hint>
-          <Field T={T} label="Color">
-            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-              <span style={{ width:34, height:34, borderRadius:DS.r.md, background:color, border:`1px solid ${T.border}`, flexShrink:0 }}/>
-              <code style={{ fontFamily:MONO, fontSize:DS.font.md, color:T.text }}>{color}</code>
-              <Btn T={T} variant="secondary" size="sm" onClick={() => goPlanesWidget(goTab)}>Cambiar en Planes → Widget</Btn>
-            </div>
-          </Field>
-          <Hint T={T}>Es el mismo color del widget, para que el portal se vea igual que tu tienda.</Hint>
-          <Field T={T} label="Mensaje de bienvenida">
-            <textarea value={welcome} onChange={e => { setWelcome(e.target.value); setDirty(true); }} maxLength={240} rows={3} placeholder="Ej: ¡Hola! Acá manejás tu suscripción. Cualquier duda escribinos por WhatsApp." style={{ ...iS, resize:"vertical", minHeight:70 }}/>
-          </Field>
-          <Hint T={T}>Se muestra arriba de todo en el portal. Máx. 240 caracteres.</Hint>
-          <Field T={T} label="Link de ejemplo">
-            <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-              <code style={{ ...iS, fontFamily:MONO, fontSize:DS.font.sm, color:T.textMd, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flex:1, display:"block" }}>{example}</code>
-              <Btn T={T} variant="secondary" size="sm" onClick={() => copyText(`${window.location.origin}/#/portal`, "Link copiado")}>Copiar</Btn>
-            </div>
-          </Field>
-          <Hint T={T}>Cada cliente recibe su link con token propio en el mail de activación. También lo copiás desde la ficha de cada suscripción.</Hint>
-        </div>
-        {/* Mini preview */}
-        <div style={{ border:`1px solid ${T.border}`, borderRadius:DS.r.xl, overflow:"hidden", background:T.bg }}>
-          <div style={{ height:6, background:color }}/>
-          <div style={{ padding:16 }}>
-            <div style={{ fontSize:15, fontWeight:800, color:T.text }}>{brand || merchant?.email_brand_effective || merchant?.store_name || "Tu marca"}</div>
-            <div style={{ fontSize:11, color:T.textSm, marginBottom:10 }}>Mi suscripción</div>
-            {(welcome || "").trim() && <div style={{ fontSize:12, color:T.textMd, background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:8, padding:"8px 10px", marginBottom:10, lineHeight:1.5 }}>{welcome}</div>}
-            <div style={{ background:T.card, border:`1px solid ${T.borderL}`, borderRadius:10, padding:"10px 12px", marginBottom:8 }}>
-              <div style={{ fontSize:12, fontWeight:700, color:T.text }}>Producto de ejemplo × 2</div>
-              <div style={{ fontSize:11, color:T.textSm }}>Próximo cobro 15 oct · $12.500 mensual</div>
-            </div>
-            <div style={{ display:"flex", gap:6 }}>
-              <span style={{ flex:1, textAlign:"center", padding:"7px 0", borderRadius:8, background:color, color:"#fff", fontSize:11, fontWeight:700 }}>Cambiar dirección</span>
-              <span style={{ flex:1, textAlign:"center", padding:"7px 0", borderRadius:8, border:`1px solid ${T.border}`, color:T.textMd, fontSize:11, fontWeight:600 }}>Pausar</span>
-            </div>
+    <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"minmax(0,1.2fr) minmax(0,1fr)", gap:DS.sp.lg, alignItems:"start" }}>
+      <Panel T={T} title="Apariencia y textos" sub="El portal usa tu marca y el color del widget." right={<SaveBtn T={T} dirty={dirty} saving={saving} onClick={save}/>}>
+        <Field T={T} label="Nombre de marca"><input value={brand} onChange={e => { setBrand(e.target.value); setDirty(true); }} placeholder={merchant?.email_brand_effective || merchant?.store_name || "Mi marca"} maxLength={60} style={iS}/></Field>
+        <Hint T={T}>Aparece en el título del portal y como remitente de los mails.</Hint>
+        <Field T={T} label="Color">
+          <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+            <span style={{ width:34, height:34, borderRadius:DS.r.md, background:color, border:`1px solid ${T.border}`, flexShrink:0 }}/>
+            <code style={{ fontFamily:MONO, fontSize:DS.font.md, color:T.text }}>{color}</code>
+            {profile.caps.widget && <Btn T={T} variant="secondary" size="sm" onClick={() => goPlanesWidget(goTab)}>Cambiar en Planes → Widget</Btn>}
           </div>
+        </Field>
+        <Hint T={T}>{profile.caps.widget ? "Es el mismo color del widget, para que el portal se vea igual que tu tienda." : "Es el color de tu marca en el checkout y el portal."}</Hint>
+        <Field T={T} label="Mensaje de bienvenida">
+          <textarea value={welcome} onChange={e => { setWelcome(e.target.value); setDirty(true); }} maxLength={240} rows={3} placeholder="Ej: ¡Hola! Acá manejás tu suscripción. Cualquier duda escribinos por WhatsApp." style={{ ...iS, resize:"vertical", minHeight:70 }}/>
+        </Field>
+        <Hint T={T}>Se muestra arriba de todo en el portal. {welcome.length}/240 caracteres.</Hint>
+        <Field T={T} label="Link de ejemplo">
+          <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+            <code style={{ ...iS, fontFamily:MONO, fontSize:DS.font.sm, color:T.textMd, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", flex:1, minWidth:0, display:"block" }}>{example}</code>
+            <Btn T={T} variant="secondary" size="sm" onClick={() => copyText(`${window.location.origin}/#/portal`, "Link copiado")}>Copiar</Btn>
+          </div>
+        </Field>
+        <Hint T={T}>Cada cliente recibe su link con token propio en el mail de activación. También lo copiás desde la ficha de cada suscripción.</Hint>
+      </Panel>
+
+      {/* Vista previa en vivo */}
+      <div style={{ border:`1px solid ${T.border}`, borderRadius:12, overflow:"hidden", background:T.bg }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background:T.surface, borderBottom:`1px solid ${T.borderL}` }}>
+          <span style={{ fontSize:10, color:T.textSm, fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Vista previa · portal</span>
+        </div>
+        <div style={{ height:6, background:color }}/>
+        <div style={{ padding:16 }}>
+          <div style={{ fontSize:15, fontWeight:800, color:T.text }}>{brand || merchant?.email_brand_effective || merchant?.store_name || "Tu marca"}</div>
+          <div style={{ fontSize:11, color:T.textSm, marginBottom:10 }}>Mi suscripción</div>
+          {(welcome || "").trim() && <div style={{ fontSize:12, color:T.textMd, background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:8, padding:"8px 10px", marginBottom:10, lineHeight:1.5, overflowWrap:"anywhere" }}>{welcome}</div>}
+          <div style={{ background:T.card, border:`1px solid ${T.borderL}`, borderRadius:10, padding:"10px 12px", marginBottom:8 }}>
+            <div style={{ fontSize:12, fontWeight:700, color:T.text }}>{profile.caps.shipping ? "Producto de ejemplo × 2" : `Tu ${profile.vocab.item || "plan"}`}</div>
+            <div style={{ fontSize:11, color:T.textSm }}>Próximo cobro 15 oct · $12.500 mensual</div>
+          </div>
+          {previewBtns.length > 0 ? (
+            <div style={{ display:"flex", gap:6 }}>
+              {previewBtns.map((b, i) => (
+                <span key={b} style={{ flex:1, textAlign:"center", padding:"7px 0", borderRadius:8, fontSize:11, fontWeight: i === 0 ? 700 : 600, ...(i === 0 ? { background:color, color:"#fff" } : { border:`1px solid ${T.border}`, color:T.textMd }) }}>{b}</span>
+              ))}
+            </div>
+          ) : <div style={{ fontSize:11, color:T.textSm }}>Sin acciones habilitadas: el cliente solo ve su suscripción.</div>}
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
 
-// ─── (c) Mensajes a tus clientes + Registro ────────────────────────
+// ─── (c) Mensajes a tus clientes ───────────────────────────────────
 const NOTIFS = (klaviyo) => [
-  { key:"activation",     label:"Activación",     desc:"Confirma la suscripción y manda el link del portal.", channel: klaviyo ? "both" : "mail", metric:"Subscription Activated", on:true },
-  { key:"upcoming",       label:"Próximo cobro",  desc:"Aviso unos días antes de la renovación.", channel:"mail", on:false, soon:true },
-  { key:"payment_failed", label:"Pago fallido",   desc:"Pide actualizar la tarjeta desde el portal.", channel: klaviyo ? "both" : "mail", metric:"Subscription Payment Failed", on:true },
-  { key:"cancellation",   label:"Cancelación",    desc:"Confirma la baja.", channel: klaviyo ? "both" : "mail", metric:"Subscription Cancelled", on:true },
-  { key:"invitation",     label:"Invitación",     desc:"Link del portal cuando lo pedís desde la ficha.", channel:"mail", on:true },
+  { key:"activation",     label:"Activación",     desc:"Confirma la suscripción y manda el link del portal.", channel: klaviyo ? "both" : "mail", metric:"Subscription Activated" },
+  { key:"upcoming",       label:"Próximo cobro",  desc:"Aviso unos días antes de la renovación.", channel:"mail", soon:true },
+  { key:"payment_failed", label:"Pago fallido",   desc:"Pide actualizar la tarjeta desde el portal.", channel: klaviyo ? "both" : "mail", metric:"Subscription Payment Failed" },
+  { key:"cancellation",   label:"Cancelación",    desc:"Confirma la baja.", channel: klaviyo ? "both" : "mail", metric:"Subscription Cancelled" },
+  { key:"invitation",     label:"Invitación",     desc:"Link del portal cuando lo pedís desde la ficha.", channel:"mail" },
 ];
 
-function MessagesCard({ T, merchant, reloadMerchant, goTab }) {
+function MessagesSection({ T, merchant, reloadMerchant, goTab }) {
   const iS = InputStyle(T);
   const klaviyo = Boolean(merchant?.klaviyo_connected);
   const [replyTo, setReplyTo] = useState(merchant?.email_reply_to || "");
@@ -183,87 +278,91 @@ function MessagesCard({ T, merchant, reloadMerchant, goTab }) {
   const channelCell = (n) => (
     <span style={{ display:"inline-flex", gap:4, flexWrap:"wrap" }}>
       {(n.channel === "mail" || n.channel === "both") && <DSBadge T={T} color={T.accent} size="sm">Mail de Recurrentes</DSBadge>}
-      {(n.channel === "both") && <DSBadge T={T} color="#8b5cf6" size="sm">Klaviyo</DSBadge>}
+      {n.channel === "both" && <DSBadge T={T} color={KLAVIYO} size="sm">Klaviyo</DSBadge>}
     </span>
   );
 
   return (
-    <Card T={T}>
-      <CardHeader T={T} icon="✉️" title="Mensajes a tus clientes" sub={klaviyo ? "Los mails básicos los manda Recurrentes y además cada evento llega a tu Klaviyo." : "Los mails básicos los manda Recurrentes. Conectá Klaviyo para mandarlos con tu diseño y sumar SMS."}
-        right={!klaviyo && <Btn T={T} variant="secondary" size="sm" onClick={() => goConfigSection(goTab, "integraciones")}>Conectar Klaviyo</Btn>}/>
+    <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
+      <Panel T={T} title="Notificaciones" flush
+        sub={klaviyo ? "Los mails básicos los manda Recurrentes y además cada evento llega a tu Klaviyo." : "Los mails básicos los manda Recurrentes. Conectá Klaviyo para mandarlos con tu diseño y sumar SMS."}
+        right={!klaviyo && <Btn T={T} variant="secondary" size="sm" onClick={() => goConfigSection(goTab, "integraciones")}>Conectar Klaviyo</Btn>}>
+        <DSTable T={T} rows={NOTIFS(klaviyo)} rowKey={n => n.key} dense minWidth={620} style={{ border:"none", borderRadius:0, boxShadow:"none", borderTop:`1px solid ${T.border}` }} columns={[
+          { key:"n", label:"Notificación", render: n => <CellStack T={T} main={<>{n.label}{n.soon && <> <DSBadge T={T} color={T.yellow} size="sm">próximamente</DSBadge></>}</>} sub={n.desc}/> },
+          { key:"c", label:"Canal", render: channelCell },
+          { key:"m", label:"Métrica Klaviyo", hideMobile:true, render: n => n.metric && klaviyo ? <code style={{ fontFamily:MONO, fontSize:DS.font.xs, color:T.textMd }}>{n.metric}</code> : <span style={{ color:T.textSm }}>—</span> },
+          { key:"s", label:"Estado", align:"right", nowrap:true, render: n => n.soon ? <DSBadge T={T} color={T.textSm} size="sm">pronto</DSBadge> : <DSBadge T={T} color={T.green} size="sm">● activa</DSBadge> },
+        ]}/>
+      </Panel>
 
-      <DSTable T={T} rows={NOTIFS(klaviyo)} rowKey={n => n.key} dense minWidth={620} style={{ marginBottom:DS.sp.lg }} columns={[
-        { key:"n", label:"Notificación", render: n => <CellStack T={T} main={<>{n.label}{n.soon && <DSBadge T={T} color={T.yellow} size="sm" >próximamente</DSBadge>}</>} sub={n.desc}/> },
-        { key:"c", label:"Canal", render: channelCell },
-        { key:"m", label:"Métrica Klaviyo", hideMobile:true, render: n => n.metric && klaviyo ? <code style={{ fontFamily:MONO, fontSize:DS.font.xs, color:T.textMd }}>{n.metric}</code> : <span style={{ color:T.textSm }}>—</span> },
-        { key:"s", label:"Estado", align:"right", nowrap:true, render: n => n.soon ? <DSBadge T={T} color={T.textSm} size="sm">pronto</DSBadge> : <DSBadge T={T} color={T.green} size="sm">● activa</DSBadge> },
-      ]}/>
-
-      <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) minmax(0,1fr)", gap:DS.sp.xl, alignItems:"start" }}>
-        <div>
-          <SectionTitle T={T} right={<Btn T={T} variant="solid" size="sm" onClick={save} disabled={saving || !dirty}>{saving ? <><Spinner size={11}/> Guardando…</> : "Guardar"}</Btn>}>Remitente</SectionTitle>
+      <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) minmax(0,1fr)", gap:DS.sp.lg, alignItems:"start" }}>
+        <Panel T={T} title="Remitente" sub="Quién figura en los mails y a dónde llegan las respuestas." right={<SaveBtn T={T} dirty={dirty} saving={saving} onClick={save}/>}>
           <Field T={T} label="Remitente"><div style={{ ...iS, display:"flex", alignItems:"center", color:T.textMd }}>{merchant?.email_from_effective || merchant?.email_brand_effective || "Recurrentes"}</div></Field>
           <Hint T={T}>El nombre es la marca que cargás en Apariencia. Los mails salen desde el dominio de Recurrentes.</Hint>
           <Field T={T} label="Responder a (reply-to)"><input type="email" value={replyTo} onChange={e => { setReplyTo(e.target.value); setDirty(true); }} placeholder={merchant?.email || "hola@mitienda.com"} style={iS}/></Field>
           <Hint T={T}>Cuando el cliente responde el mail, le llega a esta casilla.</Hint>
-        </div>
-        <SurfaceBox T={T} title="Probar">
-          <div style={{ fontSize:DS.font.md, color:T.textMd, lineHeight:1.5, marginBottom:10 }}>Te mandamos el mail de activación de ejemplo a <strong style={{ color:T.text }}>{merchant?.email || "tu cuenta"}</strong>, con tu marca y remitente actuales.</div>
+        </Panel>
+        <Panel T={T} title="Probar" sub={<>Te mandamos el mail de activación de ejemplo a <strong style={{ color:T.text }}>{merchant?.email || "tu cuenta"}</strong>, con tu marca y remitente actuales.</>}>
           <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
             <Btn T={T} variant="primary" size="sm" onClick={testEmail} disabled={!!testing}>{testing === "mail" ? <><Spinner size={11} color={T.accent}/> Enviando…</> : "Enviar mail de prueba a mi cuenta"}</Btn>
             {klaviyo && <Btn T={T} variant="secondary" size="sm" onClick={testKlaviyo} disabled={!!testing}>{testing === "klaviyo" ? <><Spinner size={11} color={T.textMd}/> Enviando…</> : "Probar evento Klaviyo"}</Btn>}
           </div>
-        </SurfaceBox>
+        </Panel>
       </div>
-
-      <div style={{ height:1, background:T.borderL, margin:`${DS.sp.xl}px 0` }}/>
-      <ActivityLog T={T}/>
-    </Card>
+    </div>
   );
 }
 
-// ─── Registro: mails enviados + eventos Klaviyo (GET /api/stats?action=activity) ──
-export function ActivityLog({ T }) {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  async function load() {
-    setLoading(true);
-    const d = await apiGet("stats", { action: "activity" });
-    setData(d && !d.error ? d : {});
-    setLoading(false);
-  }
-  useEffect(() => { load(); }, []);
-
+// ─── (d) Registro: mails enviados + eventos Klaviyo (GET /api/stats?action=activity) ──
+function RegistroSection({ T, merchant, activity, mails, loading, reload, goTab }) {
+  const [type, setType] = useState("all");
+  const klaviyo = Boolean(merchant?.klaviyo_connected);
   const MAIL_LABEL = {
     activation:     { t:"Activación",   c:T.green,  e:"✅" },
-    cancellation:   { t:"Cancelación",  c:T.red,    e:"🚫" },
     payment_failed: { t:"Pago fallido", c:T.yellow, e:"⚠️" },
+    cancellation:   { t:"Cancelación",  c:T.red,    e:"🚫" },
     invitation:     { t:"Invitación",   c:T.blue,   e:"🔗" },
   };
   const mailLabel = (m) => MAIL_LABEL[m.type] || { t: m.type || "Mail", c:T.textMd, e:"📧" };
-  // Sin secuencia propia de abandono: no mostramos esos mails históricos.
-  const mails = (data?.mails || []).filter(m => m.type !== "abandoned");
-  const events = data?.klaviyo_events || [];
-  const ms = data?.mail_summary || {};
-  const ks = data?.klaviyo_summary || {};
-  const dateCol = { key:"fecha", label:"Fecha", nowrap:true, render: r => <span style={{ color:T.textSm, fontSize:DS.font.sm }}>{fmtDateShort(r.created_at)}</span> };
+  const events = activity?.klaviyo_events || [];
+  const ks = activity?.klaviyo_summary || {};
+  const count = (fn) => mails.filter(fn).length;
+  const errors = count(m => m.status === "error");
+  const filters = [
+    { id:"all", label:"Todos", count: mails.length },
+    ...Object.entries(MAIL_LABEL).filter(([k]) => mails.some(m => m.type === k)).map(([k, L]) => ({ id:k, label:L.t, count: count(m => m.type === k) })),
+    ...(errors ? [{ id:"error", label:"Con error", count: errors }] : []),
+  ];
+  const shown = mails.filter(m => type === "all" || (type === "error" ? m.status === "error" : m.type === type));
+  const byType = Object.entries(MAIL_LABEL).map(([k, L]) => ({ key:k, label:`${L.e} ${L.t}`, value: count(m => m.type === k && m.status !== "error") })).filter(r => r.value > 0);
+  const dateCol = { key:"fecha", label:"Fecha", nowrap:true, render: r => <span style={{ color:T.textSm, fontSize:DS.font.sm, fontVariantNumeric:"tabular-nums" }}>{fmtDateShort(r.created_at)}</span> };
 
+  if (loading && !activity) return <Loading T={T}/>;
   return (
-    <div>
-      <SectionTitle T={T} sub="Lo que efectivamente salió: mails de Recurrentes y eventos mandados a Klaviyo (últimos 200)." right={<Btn T={T} variant="secondary" size="sm" onClick={load} disabled={loading}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"}</Btn>}>Registro</SectionTitle>
-      {loading ? <Loading T={T}/> : (
-        <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
-          <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
-            <StatCard T={T} label="Mails enviados" value={(ms.activation || 0) + (ms.payment_failed || 0) + (ms.cancellation || 0) + (ms.invitation || 0)}/>
-            <StatCard T={T} label="Activación" value={ms.activation || 0} color={T.green}/>
-            <StatCard T={T} label="Pago fallido" value={ms.payment_failed || 0} color={T.yellow}/>
-            <StatCard T={T} label="Cancelación" value={ms.cancellation || 0} color={T.red}/>
-            <StatCard T={T} label="Eventos Klaviyo" value={ks.sent || 0} color="#8b5cf6" sub={ks.error ? `${ks.error} con error` : undefined}/>
+    <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
+      <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"minmax(0,1.3fr) minmax(0,1fr)", gap:DS.sp.lg, alignItems:"start" }}>
+        <Panel T={T} title="Mails por tipo" sub="Lo que salió de Recurrentes (últimos 200 del registro)."
+          right={<Btn T={T} variant="secondary" size="sm" onClick={reload} disabled={loading}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>}>
+          <BarList T={T} rows={byType} color={T.accentSolid} empty="Todavía no se envió ningún mail."/>
+        </Panel>
+        <Panel T={T} title="Klaviyo" sub={klaviyo ? "Eventos que le mandamos a tu cuenta para tus flows." : "Conectalo para mandar los mails con tu diseño y sumar SMS."}
+          right={!klaviyo && <Btn T={T} variant="secondary" size="sm" onClick={() => goConfigSection(goTab, "integraciones")}>Conectar</Btn>}>
+          <div style={{ display:"flex", gap:22, flexWrap:"wrap" }}>
+            <div><div style={{ fontSize:10, fontWeight:700, color:T.textSm, textTransform:"uppercase", letterSpacing:0.5 }}>Enviados</div><div style={{ fontSize:22, fontWeight:800, color: klaviyo ? KLAVIYO : T.textSm, fontVariantNumeric:"tabular-nums" }}>{klaviyo ? fmtN(ks.sent) : "—"}</div></div>
+            <div><div style={{ fontSize:10, fontWeight:700, color:T.textSm, textTransform:"uppercase", letterSpacing:0.5 }}>Con error</div><div style={{ fontSize:22, fontWeight:800, color: ks.error ? T.red : T.textSm, fontVariantNumeric:"tabular-nums" }}>{klaviyo ? fmtN(ks.error) : "—"}</div></div>
           </div>
-          {mails.length === 0 ? (
-            <DSEmpty T={T} icon="📭" title="Todavía no se envió ningún mail" subtitle="Aparecen acá a medida que Recurrentes los manda: activación, pago fallido y cancelación."/>
-          ) : (
-            <DSTable T={T} rows={mails} rowKey={m => m.id} minWidth={620} dense columns={[
+        </Panel>
+      </div>
+
+      <Panel T={T} title="Mails enviados" sub="Cada mail que le mandamos a tus clientes." flush>
+        {mails.length === 0 ? (
+          <div style={{ padding:"0 16px 16px" }}><DSEmpty T={T} icon="📭" title="Todavía no se envió ningún mail" subtitle="Aparecen acá a medida que Recurrentes los manda: activación, pago fallido y cancelación."/></div>
+        ) : (
+          <>
+            <div style={{ padding:"0 16px 12px", maxWidth:"100%", overflowX:"auto" }}>
+              <Segmented T={T} options={filters} value={type} onChange={setType} ariaLabel="Filtrar mails por tipo"/>
+            </div>
+            <DSTable T={T} rows={shown} rowKey={m => m.id} minWidth={620} dense style={{ border:"none", borderRadius:0, boxShadow:"none", borderTop:`1px solid ${T.border}` }} emptyText="No hay mails de este tipo." columns={[
               dateCol,
               { key:"tipo", label:"Mail", nowrap:true, render: m => { const L = mailLabel(m); return (
                 <span style={{ display:"inline-flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
@@ -273,18 +372,21 @@ export function ActivityLog({ T }) {
               { key:"cliente", label:"Cliente", render: m => <CellStack T={T} main={m.customer_name || "—"} sub={m.to}/> },
               { key:"producto", label:"Producto", hideMobile:true, render: m => <span style={{ color:T.textSm }}>{m.product_title || "—"}</span> },
             ]}/>
-          )}
-          {events.length > 0 && (
-            <DSTable T={T} rows={events} rowKey={k => k.id} minWidth={620} dense columns={[
-              dateCol,
-              { key:"metrica", label:"Evento Klaviyo", nowrap:true, render: k => <span style={{ fontFamily:MONO, fontSize:DS.font.sm, fontWeight:DS.w.bold, color:T.text }}>{k.metric || "—"}</span> },
-              { key:"email", label:"Cliente", render: k => <CellStack T={T} main={k.email || "—"} sub={k.customer_name || ""}/> },
-              { key:"estado", label:"Estado", align:"right", nowrap:true, render: k => k.status === "error"
-                  ? <span title={k.error || ""}><DSBadge T={T} color={T.red} size="sm">✕ error{k.http_status ? ` ${k.http_status}` : ""}</DSBadge></span>
-                  : <DSBadge T={T} color={T.green} size="sm">✓ enviado</DSBadge> },
-            ]}/>
-          )}
-        </div>
+          </>
+        )}
+      </Panel>
+
+      {events.length > 0 && (
+        <Panel T={T} title="Eventos a Klaviyo" sub="Últimos 200 eventos mandados a tu cuenta." flush>
+          <DSTable T={T} rows={events} rowKey={k => k.id} minWidth={620} dense style={{ border:"none", borderRadius:0, boxShadow:"none", borderTop:`1px solid ${T.border}` }} columns={[
+            dateCol,
+            { key:"metrica", label:"Evento", nowrap:true, render: k => <span style={{ fontFamily:MONO, fontSize:DS.font.sm, fontWeight:DS.w.bold, color:T.text }}>{k.metric || "—"}</span> },
+            { key:"email", label:"Cliente", render: k => <CellStack T={T} main={k.email || "—"} sub={k.customer_name || ""}/> },
+            { key:"estado", label:"Estado", align:"right", nowrap:true, render: k => k.status === "error"
+                ? <span title={k.error || ""}><DSBadge T={T} color={T.red} size="sm">✕ error{k.http_status ? ` ${k.http_status}` : ""}</DSBadge></span>
+                : <DSBadge T={T} color={T.green} size="sm">✓ enviado</DSBadge> },
+          ]}/>
+        </Panel>
       )}
     </div>
   );
