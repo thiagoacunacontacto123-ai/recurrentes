@@ -32,6 +32,10 @@
 //   GET|POST ?action=unsub&t=<token {m,e}>
 //        → baja de mails de marketing (link del footer / List-Unsubscribe one-click).
 //
+//   GET|POST ?action=wa-webhook[&merchant=<id>]
+//        → webhook de WhatsApp Cloud API (verificación de Meta, estados de entrega y
+//          respuestas "BAJA"). Firma X-Hub-Signature-256. Ver _lib/whatsappWebhook.js.
+//
 // Seguridad: las acciones de sub validan un token firmado HMAC (token.js, secreto
 // de config.signingSecret(), sin fallback hardcodeado). Se mantiene la verificación
 // de tokens legacy firmados con MP_WEBHOOK_SECRET (compare timing-safe).
@@ -49,6 +53,7 @@ import { logEmail } from "./_lib/emaillog.js";
 import { planPacks, planPricingMode } from "./_lib/packs.js";
 import { klaviyoEnabled, klaviyoLifecycle, KLAVIYO_METRICS } from "./_lib/klaviyo.js";
 import { emitFlowEvent } from "./_lib/flows.js";
+import { handleWhatsappWebhook } from "./_lib/whatsappWebhook.js";
 import { merchantProfile } from "../shared/platform/profile.js";
 
 // Tokens viejos (portal / back_url de MP ya emitidos) se firmaron con
@@ -113,6 +118,7 @@ export default async function handler(req, res) {
   // Webhook de pasarelas alternativas (Mobbex/Stripe/Whop): ?p=<id>&mid=<merchant>&t=<token>.
   // Mercado Pago sigue en /api/mp/webhook. Carga el código de pasarelas solo para esta acción.
   if (action === "provider-webhook") return (await import("./_lib/providers/webhook.js")).handleProviderWebhook(req, res);
+  if (action === "wa-webhook") return handleWhatsappWebhook(req, res);
   return res.status(400).json({ error: "action debe ser plan | sub | discount | unsub | update-address | pause-offer" });
 }
 

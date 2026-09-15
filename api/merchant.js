@@ -30,6 +30,7 @@
 //   POST   ?action=save-owner    { owner_name, owner_whatsapp, contact_email } → datos de contacto del dueño del LOGIN (se piden al registrarse)
 //   POST   ?action=plan-request  { plan: "starter"|"growth"|"pro" } → pide un plan del SaaS (mail al admin)
 //   Flujos de email propios (_lib/flowsApi.js): GET ?action=flows · POST ?action=flow-save | flow-delete | flow-test
+//   WhatsApp Cloud API (_lib/whatsappApi.js): GET ?action=whatsapp-templates · POST ?action=whatsapp-save | whatsapp-disconnect | whatsapp-test
 //
 //   Multi-tienda (actúan sobre el PERFIL = uid del token, no sobre la tienda activa):
 //   POST   ?action=store-create   { name, color }             → crea merchants/m_xxx
@@ -63,6 +64,8 @@ import { merchantProfile, validateProfilePatch } from "../shared/platform/profil
 import { flowsApi } from "./_lib/flowsApi.js";
 import { mobbexSafeFields, saveMobbex, disconnectMobbex } from "./_lib/providers/merchantActions.js";
 import { startMpOauth, mpOauthConfigured, mpConnectionStatus } from "./_lib/mpOauth.js";
+import { whatsappApi } from "./_lib/whatsappApi.js";
+import { whatsappSafe } from "./_lib/whatsapp.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
@@ -77,6 +80,7 @@ export default async function handler(req, res) {
     if (gAction === "members")   return membersList(ctx, req, res);
     if (gAction === "refresh-shop") return refreshShop(ctx, res);
     if (gAction === "flows") return flowsApi(ctx, "flows", req, res);
+    if (gAction === "whatsapp-templates") return whatsappApi(ctx, gAction, req, res);
     if (gAction && gAction !== "me") return res.status(400).json({ error: "action no reconocida" });
     try {
       // El doc del perfil se crea acá (primer login). Tiendas ajenas/extra ya existen
@@ -196,6 +200,8 @@ export default async function handler(req, res) {
         payment_provider: merchant.payment_provider || null,
         // Mobbex (pasarela alternativa, env MOBBEX_ENABLED): solo flags, nunca las claves.
         ...mobbexSafeFields(merchant),
+        // WhatsApp Cloud API (_lib/whatsapp.js): flags y datos del número, NUNCA el token.
+        ...whatsappSafe(merchant),
       };
       return res.json({ merchant: safe });
     } catch (e) {
@@ -235,6 +241,7 @@ export default async function handler(req, res) {
     if (action === "plan-request")         return planRequest(ctx, merchantId, req, res);
     if (action === "save-owner")           return saveOwner(ctx, req, res);
     if (action.startsWith("flow-"))        return flowsApi(ctx, action, req, res);
+    if (action.startsWith("whatsapp-"))    return whatsappApi(ctx, action, req, res);
 
     // Multi-tienda / equipo
     if (action === "store-create")   return storeCreate(ctx, req, res);
