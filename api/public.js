@@ -54,6 +54,7 @@ import { planPacks, planPricingMode } from "./_lib/packs.js";
 import { klaviyoEnabled, klaviyoLifecycle, KLAVIYO_METRICS } from "./_lib/klaviyo.js";
 import { emitFlowEvent } from "./_lib/flows.js";
 import { handleWhatsappWebhook } from "./_lib/whatsappWebhook.js";
+import { waSender } from "./_lib/whatsapp.js";
 import { merchantProfile } from "../shared/platform/profile.js";
 
 // Tokens viejos (portal / back_url de MP ya emitidos) se firmaron con
@@ -224,6 +225,8 @@ async function handlePlan(req, res) {
         color: /^#[0-9a-fA-F]{6}$/.test(String(m.widget_color || "")) ? m.widget_color : "#10b981",
         shipping_rates: p.caps.shipping && Array.isArray(m.checkout_shipping_rates) ? m.checkout_shipping_rates : [],
         vocab: p.vocab,
+        // Casilla "Quiero que me avisen por WhatsApp": solo si la tienda tiene quién mande.
+        whatsapp_optin: Boolean(waSender(m)),
       };
     }
     return res.json({

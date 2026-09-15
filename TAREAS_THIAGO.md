@@ -137,14 +137,16 @@ Mientras no cargues las variables, en el panel sigue diciendo "Próximamente". C
 
 ---
 
-## Parte 7 — WhatsApp a los clientes (cuando quieras; Meta tarda días en verificar)
+## Parte 7 — WhatsApp desde el número de Recurrentes (cuando quieras; Meta tarda días en verificar)
+Un solo número tuyo manda los avisos de todas las tiendas. Los comerciantes solo prenden un interruptor. Checklist completa y textos exactos en `WHATSAPP.md` → "Tareas de Thiago".
 1. Verificá tu negocio en Meta: https://business.facebook.com/settings/security → "Centro de seguridad" → Verificación.
-2. Creá una app tipo **Empresa** en https://developers.facebook.com/apps/ y sumale el producto **WhatsApp**. Creá la cuenta de WhatsApp Business y agregá un número que **no** esté en la app de WhatsApp de tu celular.
-3. Token que no vence: https://business.facebook.com/settings/system-users → crear usuario **Administrador** → asignarle la app y la cuenta de WhatsApp → **Generar token** con vencimiento "Nunca" y los permisos `whatsapp_business_messaging`, `whatsapp_business_management` y `business_management`.
-4. Cargá un medio de pago en https://business.facebook.com/wa/manage/home/ (Meta cobra cada mensaje, unos centavos de dólar).
-5. Mandá a aprobar las 4 plantillas en https://business.facebook.com/wa/manage/message-templates/ → Crear → **Utilidad** → **Español (ARG)**, con el texto exacto de `WHATSAPP.md`.
-6. En Recurrentes → Integraciones → WhatsApp → Conectar: pegá los dos identificadores y el token.
-7. Webhook: en tu app de Meta → WhatsApp → Configuración → Webhook, pegá la URL y el token que te muestra Integraciones y suscribí el campo **messages**.
+2. Creá una app tipo **Empresa** en https://developers.facebook.com/apps/ y sumale el producto **WhatsApp**. Creá la cuenta de WhatsApp Business (WABA) de Recurrentes.
+3. Número: el más barato es un **chip prepago nuevo** (o un número fijo que reciba llamada de voz) que **no** esté en la app de WhatsApp. Lo agregás en WhatsApp Manager → Números y lo verificás por SMS o llamada.
+4. Token que no vence: https://business.facebook.com/settings/system-users → usuario **Administrador** → asignarle la app y la WABA → **Generar token** con vencimiento "Nunca" y los permisos `whatsapp_business_messaging`, `whatsapp_business_management` y `business_management`.
+5. Medio de pago en https://business.facebook.com/wa/manage/home/ (Meta cobra cada aviso entregado; se lo trasladamos a cada tienda con 10% arriba).
+6. Mandá a aprobar las 4 plantillas en https://business.facebook.com/wa/manage/message-templates/ → Crear → **Utilidad** → **Español (ARG)**, con el texto exacto de `WHATSAPP.md`.
+7. Webhook: en tu app de Meta → WhatsApp → Configuración → Webhook → URL `https://www.recurrentesapp.com/api/public?action=wa-webhook` + el mismo texto que pongas en `WHATSAPP_VERIFY_TOKEN`; suscribí el campo **messages**.
+8. Vercel: `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_WABA_ID`, `WHATSAPP_APP_SECRET`, `WHATSAPP_VERIFY_TOKEN` (y opcional `WHATSAPP_PRICE_USD_UTILITY` con el precio real del CSV de Meta).
 
 ---
 

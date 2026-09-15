@@ -141,38 +141,72 @@ export function sanitizeWhatsappStep(s, allowedKeys, n = 1) {
   return { step: { type: "whatsapp", template, lang, vars } };
 }
 
-// ── Plantillas sugeridas para aprobar en Meta ──────────────────────
+// ── Plantillas de Recurrentes (aprobadas en Meta) ──────────────────
 // Texto exacto a cargar en WhatsApp Manager → Plantillas de mensajes → Crear.
+// Son las que usa el NÚMERO DE RECURRENTES (uno solo, habla por muchas tiendas):
+// por eso TODAS llevan el nombre de la tienda como variable. Las mismas sirven
+// de sugerencia para quien conecta su propio número.
 // Categoría UTILITY (avisos de una suscripción que el cliente ya tiene): son más
-// baratas que las de marketing. Sin variables al principio ni al final del cuerpo.
+// baratas que las de marketing. Sin variables al principio ni al final del cuerpo,
+// y sin dos variables pegadas (Meta las rechaza).
+export const WA_FOOTER = "Respondé BAJA para no recibir más avisos.";
 export const WA_TEMPLATES = [
   {
     name: "aviso_proximo_cobro", category: "UTILITY", lang: "es_AR", trigger: "upcoming_charge",
     title: "Aviso de próximo cobro",
-    body: "Hola {{1}}, te escribimos de {{2}}. El {{3}} se renueva tu suscripción a {{4}} por {{5}}.\n\nSi querés pausarla o cambiar algo, entrá a tu portal: {{6}}\n\nGracias por seguir con nosotros.",
-    footer: "Respondé BAJA si no querés recibir más avisos.",
+    body: "Hola {{1}}, te escribimos de parte de {{2}}: el {{3}} se renueva tu suscripción a {{4}} por {{5}}.\n\nSi querés pausarla o cambiar algo: {{6}}\n\nEs un aviso automático, no hace falta que respondas.",
+    footer: WA_FOOTER,
     vars: { "1": "nombre", "2": "marca", "3": "proximo_cobro", "4": "producto", "5": "monto", "6": "link_portal" },
+    samples: ["Ana", "LuminaLabs", "15 de octubre", "Cápsulas LuminaLabs", "$9.480", "https://www.recurrentesapp.com/#/portal"],
   },
   {
     name: "pago_rechazado", category: "UTILITY", lang: "es_AR", trigger: "payment_failed",
     title: "Pago rechazado",
     body: "Hola {{1}}, no pudimos cobrar la renovación de tu suscripción a {{2}} de {{3}}.\n\nPara no perderla, actualizá tu tarjeta desde tu portal: {{4}}\n\nSi ya lo resolviste, ignorá este mensaje.",
-    footer: "Respondé BAJA si no querés recibir más avisos.",
+    footer: WA_FOOTER,
     vars: { "1": "nombre", "2": "producto", "3": "marca", "4": "link_portal" },
+    samples: ["Ana", "Cápsulas LuminaLabs", "LuminaLabs", "https://www.recurrentesapp.com/#/portal"],
   },
   {
     name: "suscripcion_activa", category: "UTILITY", lang: "es_AR", trigger: "activated",
     title: "Suscripción activa",
     body: "¡Hola {{1}}! Tu suscripción a {{2}} de {{3}} ya está activa. Tu próximo cobro es el {{4}}.\n\nDesde tu portal podés pausarla, cambiar la dirección o cancelarla cuando quieras: {{5}}\n\nGracias por sumarte.",
-    footer: "Respondé BAJA si no querés recibir más avisos.",
+    footer: WA_FOOTER,
     vars: { "1": "nombre", "2": "producto", "3": "marca", "4": "proximo_cobro", "5": "link_portal" },
+    samples: ["Ana", "Cápsulas LuminaLabs", "LuminaLabs", "15 de octubre", "https://www.recurrentesapp.com/#/portal"],
   },
   {
     name: "renovacion_cobrada", category: "UTILITY", lang: "es_AR", trigger: "renewed",
     title: "Renovación cobrada",
-    body: "Hola {{1}}, en {{2}} ya cobramos la renovación de tu suscripción a {{3}} por {{4}}. Tu próximo cobro es el {{5}}.\n\nTu portal, por si necesitás cambiar algo: {{6}}\n\nGracias por seguir con nosotros.",
-    footer: "Respondé BAJA si no querés recibir más avisos.",
+    body: "Hola {{1}}, te escribimos de parte de {{2}}: ya se cobró la renovación de tu suscripción a {{3}} por {{4}}. Tu próximo cobro es el {{5}}.\n\nTu portal, por si necesitás cambiar algo: {{6}}\n\nGracias por seguir con nosotros.",
+    footer: WA_FOOTER,
     vars: { "1": "nombre", "2": "marca", "3": "producto", "4": "monto", "5": "proximo_cobro", "6": "link_portal" },
+    samples: ["Ana", "LuminaLabs", "Cápsulas LuminaLabs", "$9.480", "15 de noviembre", "https://www.recurrentesapp.com/#/portal"],
   },
 ];
 export const WA_TEMPLATE_BY_NAME = Object.fromEntries(WA_TEMPLATES.map(t => [t.name, t]));
+
+// ── Número de Recurrentes ─────────────────────────────────────────
+// ¿El checkout / widget ofrece la casilla "Quiero que me avisen por WhatsApp"?
+// Sí si la tienda tiene su propio número conectado, o si prendió los avisos desde
+// el número de Recurrentes y ese número está configurado (platformAvailable sale
+// del backend: acá no se leen variables de entorno).
+export function waOptinOffered(m, platformAvailable) {
+  if (!m) return false;
+  if (m.whatsapp_phone_number_id && m.whatsapp_access_token) return true;
+  return m.whatsapp_platform_enabled === true && Boolean(platformAvailable);
+}
+
+// Mes de facturación del uso (hora de Argentina): "2026-09".
+export const waUsageMonth = (d = new Date()) => new Date(d.getTime() - 3 * 3600e3).toISOString().slice(0, 7);
+
+// Respuesta automática cuando un cliente le escribe al número de Recurrentes
+// (mensaje de servicio, gratis dentro de las 24 h que abre el cliente).
+export function waAutoReplyText({ store, email } = {}) {
+  const s = String(store || "").trim();
+  const e = String(email || "").trim();
+  const baja = " Si no querés recibir más avisos, respondé BAJA.";
+  if (s && e) return `Hola. Este número solo envía avisos automáticos de ${s}. Para consultas escribí a ${e}.${baja}`;
+  if (s) return `Hola. Este número solo envía avisos automáticos de ${s}. Para consultas, escribile directamente a la tienda.${baja}`;
+  return `Hola. Este número solo envía avisos automáticos de las tiendas que usan Recurrentes. Para consultas, escribile directamente a la tienda donde te suscribiste.${baja}`;
+}

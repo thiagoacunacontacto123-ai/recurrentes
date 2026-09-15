@@ -91,7 +91,7 @@ export default async function handler(req, res) {
     if (gAction === "members")   return membersList(ctx, req, res);
     if (gAction === "refresh-shop") return refreshShop(ctx, res);
     if (gAction === "flows") return flowsApi(ctx, "flows", req, res);
-    if (gAction === "whatsapp-templates") return whatsappApi(ctx, gAction, req, res);
+    if (gAction === "whatsapp-templates" || gAction === "whatsapp-usage") return whatsappApi(ctx, gAction, req, res);
     if (gAction && gAction !== "me") return res.status(400).json({ error: "action no reconocida" });
     try {
       // El doc del perfil se crea acá (primer login). Tiendas ajenas/extra ya existen

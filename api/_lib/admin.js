@@ -40,6 +40,15 @@ import { merchantProfile, CHANNELS, PAYMENT_PROVIDERS, BUSINESS_TYPES } from "..
 import { PRICING_TIERS, TIER_BY_ID, BILLABLE_STATUSES, tierRank } from "../../shared/platform/pricing.js";
 import { buildBilling, activatedTierId, isBeta, PLAN_BY_ID } from "./plans_saas.js";
 import { klaviyoEnabled } from "./klaviyo.js";
+import { waUsageMonth } from "../../shared/platform/whatsapp.js";
+
+// WhatsApp del número de Recurrentes: lo que hay que cobrarle a cada comercio este mes.
+const r6 = (n) => Math.round((Number(n) || 0) * 1e6) / 1e6;
+const waOf = (data, id) => { const x = data?.wa?.merchants?.[id] || {}; return { wa_sent: Number(x.wa_sent) || 0, wa_cost_usd: r6(x.wa_cost_usd) }; };
+const waTotals = (data) => {
+  const w = data?.wa || {};
+  return { month: w.month || waUsageMonth(), sent: Number(w.wa_sent) || 0, cost_usd: r6(w.wa_cost_usd), meta_cost_usd: r6(w.wa_meta_cost_usd), merchants: Object.keys(w.merchants || {}).length };
+};
 
 const DAY_MS = 86400000;
 const AR_OFFSET_MS = 3 * 3600 * 1000;
@@ -154,9 +163,11 @@ export function __resetAdminCache() { _cache = null; }
 
 async function loadAll({ fresh = false, nowMs = Date.now() } = {}) {
   if (!fresh && _cache && nowMs - _cache.at < LIST_CACHE_MS) return _cache;
-  const [mSnap, cSnap] = await Promise.all([
+  const [mSnap, cSnap, waSnap] = await Promise.all([
     db().collection("merchants").select(...LIST_FIELDS).get(),
     statsRef().get(),
+    // WhatsApp desde el número de Recurrentes: uso del mes (1 doc, lo escribe _lib/whatsapp.js).
+    db().collection("admin_usage").doc(waUsageMonth(new Date(nowMs))).get().catch(() => null),
   ]);
   const merchants = mSnap.docs.map(d => ({ id: d.id, ...d.data() }));
   const stats = { ...((cSnap.exists && cSnap.data()?.stats) || {}) };
@@ -172,7 +183,8 @@ async function loadAll({ fresh = false, nowMs = Date.now() } = {}) {
     chunk.forEach((m, k) => { if (out[k]) { stats[m.id] = out[k]; updated[m.id] = out[k]; } });
   }
   try { await saveStats(updated); } catch (e) { console.warn("[admin] cache:", e.message); }
-  _cache = { at: nowMs, merchants, stats, pending: Math.max(0, stale.length - Object.keys(updated).length) };
+  const wa = (waSnap?.exists && waSnap.data()) || {};
+  _cache = { at: nowMs, merchants, stats, pending: Math.max(0, stale.length - Object.keys(updated).length), wa: { month: waUsageMonth(new Date(nowMs)), ...wa } };
   return _cache;
 }
 
@@ -348,6 +360,7 @@ async function overview(query) {
     by_provider: dist("payment_provider", PAYMENT_PROVIDERS),
     by_business_type: dist("business_type", BUSINESS_TYPES),
     by_tier: byTier,
+    whatsapp: waTotals(data),
     saas: { paying: paying.length, usd_month: sum(paying.map(r => TIER_BY_ID[r.plan_activated]?.usd || 0)), beta: rows.filter(r => r.beta).length },
     needs_activation: rows.filter(r => r.needs_activation).sort((a, b) => b.subs - a.subs).map(r => ({
       id: r.id, name: r.name, tier: r.tier, tier_label: TIER_BY_ID[r.tier]?.label || r.tier, tier_usd: TIER_BY_ID[r.tier]?.usd || 0,
@@ -375,7 +388,8 @@ async function merchantsList(query) {
   const slice = rows.slice((page - 1) * limit, page * limit);
   const auth = await authUsers(slice.map(r => r.owner_uid));
   return {
-    rows: slice.map(r => withAuth(r, auth[r.owner_uid])),
+    rows: slice.map(r => ({ ...withAuth(r, auth[r.owner_uid]), ...waOf(data, r.id) })),
+    whatsapp: waTotals(data),
     total: rows.length, page, pages, limit, filter, sort, counts,
     stats_pending: data.pending,
     generated_at: new Date(data.at).toISOString(),
@@ -420,6 +434,12 @@ async function merchantDetail(req, res) {
       shopify_connected_at: m.shopify_connected_at || null,
       mp_connected_at: m.mp_connected_at || null,
       klaviyo_connected_at: m.klaviyo_connected_at || null,
+      // WhatsApp este mes (número de Recurrentes a cobrar + propio a costo 0). 1 lectura.
+      whatsapp_usage: await (async () => {
+        const month = waUsageMonth();
+        const u = (await ref.collection("usage").doc(month).get().catch(() => null))?.data?.() || {};
+        return { month, wa_sent: Number(u.wa_sent) || 0, wa_cost_usd: r6(u.wa_cost_usd), wa_platform_sent: Number(u.wa_platform_sent) || 0, wa_own_sent: Number(u.wa_own_sent) || 0, platform_enabled: m.whatsapp_platform_enabled === true };
+      })(),
       team_count: Array.isArray(m.teamUids) ? m.teamUids.length : 0,
       stores: Array.isArray(m.stores) ? m.stores.map(s => ({ id: s.id, name: s.name || "" })) : [],
       requires_email_verification: m.requires_email_verification === true,

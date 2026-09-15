@@ -607,6 +607,9 @@ export default async function handler(req, res) {
   const eventUrl = await safeEventSourceUrl(merchantId, merchant, req.body.fb?.event_source_url);
   const nowIso = new Date().toISOString();
   const subData = {
+    // WhatsApp: solo si el checkout mostró la casilla (tienda con WhatsApp prendido). Sin el
+    // campo en el body (widget de Lumina) el doc queda exactamente igual que antes.
+    ...(typeof req.body?.whatsapp_optin === "boolean" ? { whatsapp_optin: req.body.whatsapp_optin, whatsapp_optin_at: nowIso } : {}),
     customer_email: email,
     customer_name: customerName.slice(0, 120),
     customer_phone: customerPhone.slice(0, 40),

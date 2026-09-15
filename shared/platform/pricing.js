@@ -47,6 +47,22 @@ export function tierRangeLabel(t) {
   return `${f(t.min)} a ${f(t.max)} suscriptores`;
 }
 
+// ── WhatsApp desde el número de Recurrentes (costo variable) ──────────
+// Meta cobra cada plantilla de UTILIDAD entregada; se la pasamos al comerciante
+// con este recargo y se suma a su plan a fin de mes. Con su propio número paga
+// él directo a Meta (costo 0 para Recurrentes).
+export const WHATSAPP_MARKUP = 1.10;
+// USD por plantilla de utilidad entregada a un número de Argentina. Fuente
+// (consultada 2026-09-15): la tabla oficial de Meta
+// (developers.facebook.com/docs/whatsapp/pricing → "USD rates" CSV, vigente
+// desde 2026-07-01; Argentina bajó utilidad y autenticación el 2025-10-01)
+// solo se descarga en CSV; el valor 0,0120 sale de ominiflow.com/whatsapp-api-pricing/argentina
+// (actualizado 2026-09-12, cita a Meta). NO confirmado contra el CSV: el backend
+// lo pisa con la env WHATSAPP_PRICE_USD_UTILITY.
+export const WHATSAPP_PRICE_USD_UTILITY_DEFAULT = 0.012;
+// Lo que paga el comerciante por aviso (precio de Meta × recargo), a 6 decimales.
+export const waChargeUsd = (priceUsd) => Math.round((Number(priceUsd) || 0) * WHATSAPP_MARKUP * 1e6) / 1e6;
+
 // Incluido en TODOS los planes (el precio solo depende de los suscriptores).
 export const PLAN_FEATURES = [
   "Widget de suscripción en tu página de producto",
