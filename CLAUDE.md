@@ -167,6 +167,7 @@ Todo apagado por env hasta que Thiago configure cada consola (ver `TAREAS_THIAGO
 - **Admin**: `ADMIN_EMAILS` (email verificado), `/api/stats?action=admin-*`, `#/admin`, "ver como" solo lectura con `X-Admin-As` + `admin_audit`.
 - **Transferir tienda**: `_lib/transfer.js` (`/api/merchant?action=transfer-*`, `#/transferir`), `profiles/{uid}` para logins cuya principal se transfirió.
 - **Confiabilidad**: `GET /api/cron?action=health` (CRON_SECRET o admin), heartbeat en `system/cron_heartbeat`, cron `retry-fulfillment` (alerta siempre; reintento solo con `FULFILL_RETRY_ENABLED=1`).
+- **Conciliación con MP**: cron `?action=reconcile-mp` (cada hora, min 17) → `_lib/reconcile.js`. Agrupa tiendas por `mp_user_id` (saltea `archived_at`), lista los preapprovals de la cuenta 1 vez y cruza por id / `mid:sid` / plan ad-hoc: relink, estado según MP (nunca baja `payment_failed`), fantasmas → pending, renovaciones `recurring_payment` de 45 días sin `charges/{id}` → sync/link (máx 20). Resumen en `system/reconcile_last` (health + Admin), auditoría en `merchants/{mid}/reconcile_log`. `RECONCILE_DRY_RUN=1` solo informa.
 - **Seguridad**: `firestore.rules` cierra toda lectura cliente de `merchants/*` (el panel usa el SDK web solo para Auth). Disputas de MP solo actúan si el pago releído las confirma (`_lib/webhookguard.js`).
 
 ## Foco y comunicación (desde 2026-09-14)

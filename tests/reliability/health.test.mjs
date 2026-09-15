@@ -95,6 +95,7 @@ ok(h.crons["sync-all-pending"].stale === true && h.crons["sync-all-pending"].las
 await cronHeartbeat("sync-all-pending", { ok: true, elapsed_ms: 1200 });
 await cronHeartbeat("run-flows", { ok: true });
 await cronHeartbeat("retry-fulfillment", { ok: true });
+await cronHeartbeat("reconcile-mp", { ok: true });
 h = (await call(bearer("tok_admin"))).body;
 ok(Object.values(h.crons).every(c => c.stale === false && c.last_ok_at), "con heartbeat reciente → ningún cron atrasado");
 ok(h.ok === true && h.summary.required_failed.length === 0, "todo en orden → ok=true");

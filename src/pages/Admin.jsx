@@ -295,6 +295,11 @@ function HealthPanel({ T }) {
           </div>
         ))}
         {!fails.length && !warns.length && <div style={{ fontSize:DS.font.sm, color:T.textMd }}>Variables, base de datos y procesos automáticos: todo bien.</div>}
+        <div style={{ fontSize:DS.font.sm, color: h.reconcile && (!h.reconcile.ok || h.reconcile.errors) ? T.yellow : T.textMd, marginTop:6 }}>
+          Conciliación con Mercado Pago: {h.reconcile
+            ? `hace ${h.reconcile.minutes_since ?? "?"} min · ${h.reconcile.corrections} ${h.reconcile.corrections === 1 ? "corrección" : "correcciones"}${h.reconcile.partial ? " · parcial" : ""}${h.reconcile.dry_run ? " · modo prueba" : ""}${h.reconcile.errors ? ` · ${h.reconcile.errors} con error` : ""}`
+            : "todavía no corrió"}
+        </div>
         <button type="button" onClick={() => setOpen(o => !o)} style={{ marginTop:8, background:"none", border:"none", color:T.accentSolid, cursor:"pointer", padding:0, fontSize:DS.font.sm, fontWeight:600 }}>
           {open ? "Ocultar detalle" : "Ver detalle por integración"}
         </button>
