@@ -340,6 +340,19 @@ export async function syncSubscriber(merchantId, subscriberId) {
   const extRef = `${merchantId}:${subscriberId}`;
   let preapprovals = [];
   try {
+    // El preapproval que ya tenemos guardado es la fuente más directa. En algunas
+    // cuentas la búsqueda por external_reference de MP devuelve vacío (suscripciones
+    // viejas del flujo directo, sin plan ad-hoc): sin esto sus renovaciones nunca se
+    // procesaban (INDATROPIC, 31/8–10/9).
+    if (sub.mp_preapproval_id) {
+      try {
+        const own = await mpGetPreapproval(token, sub.mp_preapproval_id);
+        if (own?.id) preapprovals.push(own);
+      } catch (e) {
+        if (isMpAuthError(e)) return failSync("preapproval_get", e);
+        console.warn(`[sync] sub ${subscriberId}: GET preapproval ${sub.mp_preapproval_id} falló (${e.message}); sigo con la búsqueda`);
+      }
+    }
     // Plan actual + plan previo (si el checkout regeneró el plan al cambiar de
     // monto): un preapproval autorizado sobre el plan viejo no puede quedar huérfano.
     const planIds = [sub.mp_preapproval_plan_id, sub.mp_preapproval_plan_id_prev].filter(Boolean);

@@ -209,7 +209,34 @@ async function handlePayment(paymentId, hintMerchantId) {
     console.warn(`[mp-webhook] no encontramos merchant para payment ${paymentId}`);
     return;
   }
-  await processPaymentForMerchant(resolved.merchantId, resolved.merchant, resolved.payment);
+  const target = await pickMerchantForPayment(resolved, docs);
+  if (target.merchantId !== resolved.merchantId) console.log(`[mp-webhook] payment ${paymentId}: es de la tienda ${target.merchantId} (misma cuenta MP que ${resolved.merchantId})`);
+  await processPaymentForMerchant(target.merchantId, target.merchant, resolved.payment);
+}
+
+// Varias tiendas pueden cobrar con la MISMA cuenta de MP (ej. LuminaLabs e INDATROPIC):
+// que un token lea el pago no dice de qué tienda es. 1) Si el external_reference
+// nombra una tienda (mid:sid), es esa. 2) Si la tienda resuelta no tiene al
+// suscriptor, probamos las otras tiendas con el mismo mp_user_id.
+async function pickMerchantForPayment(resolved, docs) {
+  const { payment } = resolved;
+  const extRef = String(payment.external_reference || "");
+  const refMid = extRef.includes(":") ? extRef.split(":")[0] : "";
+  if (refMid && refMid !== resolved.merchantId) {
+    const snap = docs.find(d => d.id === refMid) || await db().collection("merchants").doc(refMid).get().catch(() => null);
+    const data = snap?.exists ? snap.data() : null;
+    if (data?.mp_access_token) return { merchantId: refMid, merchant: data };
+  }
+  if (await resolveSubscriberForPayment(resolved.merchantId, resolved.merchant, payment)) return resolved;
+  const uid = resolved.merchant.mp_user_id;
+  if (uid == null || uid === "") return resolved;
+  for (const d of docs) {
+    if (d.id === resolved.merchantId) continue;
+    const m = d.data();
+    if (!m?.mp_access_token || String(m.mp_user_id) !== String(uid)) continue;
+    if (await resolveSubscriberForPayment(d.id, m, payment)) return { merchantId: d.id, merchant: m };
+  }
+  return resolved;
 }
 
 // Resuelve el subscriber de un pago: external_reference → mp_preapproval_id → preapproval_plan_id.
@@ -386,8 +413,9 @@ async function handlePreapproval(preapprovalId, hintMid) {
     }
 
     if (!subDoc) {
-      console.warn(`[mp-webhook] preapproval ${preapprovalId} sin subscriber (plan=${pre.preapproval_plan_id || "-"} extRef=${pre.external_reference || "-"})`);
-      return;
+      // Otra tienda puede cobrar con la MISMA cuenta de MP: seguimos probando con las demás.
+      console.warn(`[mp-webhook] preapproval ${preapprovalId} sin subscriber en ${m.id} (plan=${pre.preapproval_plan_id || "-"} extRef=${pre.external_reference || "-"})`);
+      continue;
     }
 
     const sd = subDoc.data();
