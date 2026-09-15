@@ -200,6 +200,86 @@ export function waOptinOffered(m, platformAvailable) {
 // Mes de facturación del uso (hora de Argentina): "2026-09".
 export const waUsageMonth = (d = new Date()) => new Date(d.getTime() - 3 * 3600e3).toISOString().slice(0, 7);
 
+// ── Avisos al COMERCIANTE (dueño de la tienda) ─────────────────────
+// Mismo número de Recurrentes, pero el destinatario es el dueño de la tienda: le
+// avisa cuando un cliente se suscribe, pausa, cancela o tiene una renovación
+// rechazada. Plantillas UTILITY aparte de WA_TEMPLATES (esas son para clientes y
+// las usa el editor de flujos). Api: api/_lib/merchantAlerts.js.
+// Configuración en el doc de la tienda:
+//   alerts_whatsapp_enabled (bool) · alerts_whatsapp (E.164; vacío = owner_whatsapp)
+//   alerts_events { subscribed, paused, cancelled, payment_failed } (faltan = true)
+//   alerts_email (bool, falta = true): "también por mail".
+export const ALERTS_PANEL_URL = "https://www.recurrentesapp.com/#/dashboard/suscripciones";
+export const WA_MERCHANT_FOOTER = "Podés apagar estos avisos desde tu panel de Recurrentes.";
+export const ALERT_EVENTS = [
+  { id: "subscribed",     label: "Alguien se suscribe",               template: "aviso_comercio_alta" },
+  { id: "paused",         label: "Alguien pausa su suscripción",      template: "aviso_comercio_pausa" },
+  { id: "cancelled",      label: "Alguien cancela su suscripción",    template: "aviso_comercio_baja" },
+  { id: "payment_failed", label: "Se rechaza el pago de una renovación", template: "aviso_comercio_pago_rechazado" },
+];
+export const ALERT_EVENT_IDS = ALERT_EVENTS.map(e => e.id);
+// vars: qué dato va en cada {{n}}. Claves: marca, nombre (solo el nombre de pila), producto, monto, link_panel.
+export const WA_MERCHANT_TEMPLATES = [
+  {
+    name: "aviso_comercio_alta", event: "subscribed", category: "UTILITY", lang: "es_AR",
+    title: "Nueva suscripción (aviso al comercio)",
+    body: "🎉 Nueva suscripción en {{1}}: {{2}} se suscribió a {{3}} por {{4}}.\n\nMirala en tu panel: {{5}}\n\nEs un aviso automático de Recurrentes.",
+    footer: WA_MERCHANT_FOOTER,
+    vars: { "1": "marca", "2": "nombre", "3": "producto", "4": "monto", "5": "link_panel" },
+    samples: ["LuminaLabs", "Ana", "Cápsulas LuminaLabs", "$9.480", ALERTS_PANEL_URL],
+  },
+  {
+    name: "aviso_comercio_pausa", event: "paused", category: "UTILITY", lang: "es_AR",
+    title: "Suscripción pausada (aviso al comercio)",
+    body: "Se pausó una suscripción en {{1}}: la de {{2}} a {{3}}.\n\nMirala en tu panel: {{4}}\n\nEs un aviso automático de Recurrentes.",
+    footer: WA_MERCHANT_FOOTER,
+    vars: { "1": "marca", "2": "nombre", "3": "producto", "4": "link_panel" },
+    samples: ["LuminaLabs", "Ana", "Cápsulas LuminaLabs", ALERTS_PANEL_URL],
+  },
+  {
+    name: "aviso_comercio_baja", event: "cancelled", category: "UTILITY", lang: "es_AR",
+    title: "Suscripción cancelada (aviso al comercio)",
+    body: "Se canceló una suscripción en {{1}}: la de {{2}} a {{3}}.\n\nMirala en tu panel: {{4}}\n\nEs un aviso automático de Recurrentes.",
+    footer: WA_MERCHANT_FOOTER,
+    vars: { "1": "marca", "2": "nombre", "3": "producto", "4": "link_panel" },
+    samples: ["LuminaLabs", "Ana", "Cápsulas LuminaLabs", ALERTS_PANEL_URL],
+  },
+  {
+    name: "aviso_comercio_pago_rechazado", event: "payment_failed", category: "UTILITY", lang: "es_AR",
+    title: "Renovación rechazada (aviso al comercio)",
+    body: "No se pudo cobrar una renovación en {{1}}: el pago de {{2}} por {{3}} ({{4}}) fue rechazado.\n\nMirala en tu panel: {{5}}\n\nEs un aviso automático de Recurrentes.",
+    footer: WA_MERCHANT_FOOTER,
+    vars: { "1": "marca", "2": "nombre", "3": "producto", "4": "monto", "5": "link_panel" },
+    samples: ["LuminaLabs", "Ana", "Cápsulas LuminaLabs", "$9.480", ALERTS_PANEL_URL],
+  },
+];
+export const WA_MERCHANT_TEMPLATE_BY_EVENT = Object.fromEntries(WA_MERCHANT_TEMPLATES.map(t => [t.event, t]));
+const ALERT_FALLBACK = { marca: "tu tienda", nombre: "un cliente", producto: "tu plan", monto: "el monto del plan", link_panel: ALERTS_PANEL_URL };
+
+// Qué eventos avisa la tienda (los que faltan cuentan como prendidos).
+export function alertEventsOf(m) {
+  const e = m?.alerts_events && typeof m.alerts_events === "object" ? m.alerts_events : {};
+  return Object.fromEntries(ALERT_EVENT_IDS.map(id => [id, e[id] !== false]));
+}
+// "ana maría pérez" → "Ana". Solo el nombre de pila (privacidad y texto corto).
+export function alertFirstName(full) {
+  const w = String(full || "").trim().split(/\s+/)[0] || "";
+  return w ? w.charAt(0).toUpperCase() + w.slice(1) : "";
+}
+// Valores de {{1}}..{{n}} de la plantilla del evento (sin vacíos: Meta los rechaza).
+export function alertParams(event, values) {
+  const t = WA_MERCHANT_TEMPLATE_BY_EVENT[event];
+  if (!t) return [];
+  return Object.keys(t.vars).sort((a, b) => Number(a) - Number(b)).map(n => waParamText(values?.[t.vars[n]], ALERT_FALLBACK[t.vars[n]] || "-"));
+}
+// Texto del aviso con los datos puestos (mail de respaldo y vista previa).
+export function renderMerchantAlert(event, values) {
+  const t = WA_MERCHANT_TEMPLATE_BY_EVENT[event];
+  if (!t) return "";
+  const p = alertParams(event, values);
+  return t.body.replace(/\{\{\s*(\d{1,2})\s*\}\}/g, (m, n) => p[Number(n) - 1] ?? m);
+}
+
 // Respuesta automática cuando un cliente le escribe al número de Recurrentes
 // (mensaje de servicio, gratis dentro de las 24 h que abre el cliente).
 export function waAutoReplyText({ store, email } = {}) {

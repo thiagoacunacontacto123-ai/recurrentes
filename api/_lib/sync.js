@@ -31,6 +31,8 @@ import { klaviyoEnabled, klaviyoLifecycle, klaviyoPlacedOrder, KLAVIYO_METRICS }
 import { merchantProfile, internalFulfillmentId } from "../../shared/platform/profile.js";
 import { emitFlowEvent } from "./flows.js";
 import { sendDigitalDelivery } from "./delivery.js";
+// Avisos al comercio (Configuración → Avisos para vos). Sin avisos prendidos: cero lecturas; nunca lanza.
+import { notifyMerchantWhatsApp, notifyMerchantStatusChange } from "./merchantAlerts.js";
 
 /**
  * Cumple un cobro según el canal del merchant (shared/platform/profile.js).
@@ -199,6 +201,8 @@ export async function notifyActivation(merchantId, merchant, subscriberId, sub, 
   }
   // Flujos de email propios ("Nueva suscripción"). No hace nada si la tienda no tiene flujos activos.
   await emitFlowEvent(merchantId, merchant, "activated", subscriberId, sub, { key: payment?.id || "first" });
+  // Aviso al comercio: nueva suscripción (una por sub, aunque llegue por webhook + sync + link).
+  await notifyMerchantWhatsApp("subscribed", merchantId, merchant, subscriberId, sub, { key: "first", amount });
 }
 
 /**
@@ -223,6 +227,8 @@ export async function notifyRenewal(merchantId, merchant, subscriberId, sub, pay
 export async function sendPaymentFailedEmail(merchantId, merchant, subscriberId, sub, tag = "sync", payment = null) {
   // Flujos de email propios ("Pago rechazado"). No-op sin flujos activos.
   await emitFlowEvent(merchantId, merchant, "payment_failed", subscriberId, sub, { key: sub.last_payment_failed_id || payment?.id || undefined });
+  // Aviso al comercio: solo cuando PASA a pago rechazado (no en cada reintento de MP). `sub` es el de antes del cambio.
+  if (sub.status !== "payment_failed") await notifyMerchantWhatsApp("payment_failed", merchantId, merchant, subscriberId, sub, { key: payment?.id || sub.last_payment_failed_id, amount: payment?.transaction_amount });
   if (klaviyoEnabled(merchant)) {
     try {
       await klaviyoLifecycle(merchant, merchantId, KLAVIYO_METRICS.PAYMENT_FAILED, subscriberId, sub, {
@@ -650,6 +656,8 @@ export async function syncSubscriber(merchantId, subscriberId) {
   updates.last_sync_at = nowIso();
   updates.last_sync_error = null;
   await subRef.update(updates);
+  // Aviso al comercio si MP la pausó / canceló (el portal y el panel avisan por su lado; dedup por día).
+  await notifyMerchantStatusChange(merchantId, merchant, subscriberId, sub.status, updates.status, { ...sub, status: updates.status });
 
   // Mail de pago rechazado — UNA sola vez por payment id (dedup por last_payment_failed_id).
   if (updates.status === "payment_failed" && newFailedPayment) {

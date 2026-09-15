@@ -465,6 +465,25 @@ export async function emailStoreTransferResult({ to, kind, storeName, toEmail, k
   return sendEmail({ from: platformFrom(), to, subject: title, html, tags: { type: accepted ? "store_transfer_accepted" : "store_transfer_declined" } });
 }
 
+// ─── Aviso al COMERCIANTE por mail (Configuración → Avisos para vos, _lib/merchantAlerts.js):
+// alta / pausa / baja / renovación rechazada. Mismo texto que la plantilla de WhatsApp; es el
+// respaldo mientras no hay WhatsApp (o si falla) y la casilla "también por mail".
+const ALERT_SUBJECT = { subscribed: "Nueva suscripción", paused: "Suscripción pausada", cancelled: "Suscripción cancelada", payment_failed: "Pago rechazado de una renovación" };
+export async function emailMerchantAlert({ to, event, text, storeName, customerName, panelUrl, test = false }) {
+  const store = plain(storeName, 60) || "tu tienda";
+  const who = plain(customerName, 40);
+  const title = `${test ? "[Prueba] " : ""}${ALERT_SUBJECT[event] || "Aviso"}${who ? ` de ${who}` : ""} · ${store}`;
+  const body = String(text || "").split(/\n{2,}/).map(p => `<p style="margin:0 0 12px;">${escapeHtml(p).replace(/\n/g, "<br/>")}</p>`).join("");
+  const html = baseTemplate({
+    title, body,
+    ctaLabel: panelUrl ? "Ver en Recurrentes" : undefined,
+    ctaUrl: panelUrl || undefined,
+    brand: "Recurrentes", accent: "#10b981",
+    footerNote: "Te llega porque prendiste los avisos en Configuración → Avisos para vos. Los podés apagar desde ahí.",
+  });
+  return sendEmail({ from: platformFrom(), to, subject: title, html, tags: { type: "merchant_alert", event: event || "na" } });
+}
+
 // ─── Aviso al COMERCIANTE: se cobró pero la orden no se creó (_lib/fulfillretry.js).
 // Uno solo por cobro (el dedup lo hace el que llama). `platform:true` → versión
 // interna para PLATFORM_ALERT_EMAIL, sin datos del cliente.

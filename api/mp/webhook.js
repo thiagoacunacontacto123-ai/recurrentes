@@ -19,6 +19,7 @@ import { disputeConfirmed } from "../_lib/webhookguard.js";
 import {
   syncSubscriber, fulfillCharge, notifyActivation, notifyRenewal, applyPaymentFailed, repriceAfterFirstCharge,
 } from "../_lib/sync.js";
+import { notifyMerchantStatusChange } from "../_lib/merchantAlerts.js";
 
 // Vercel Pro: crear una orden puede llevar varias llamadas a Shopify + MP.
 export const config = { maxDuration: 60 };
@@ -472,6 +473,8 @@ async function handlePreapproval(preapprovalId, hintMid) {
 
     await subDoc.ref.update(upd);
     console.log(`[mp-webhook] preapproval ${preapprovalId} → ${pre.status}`);
+    // Aviso al comercio si MP la pausó / canceló (solo al cambiar de estado; no-op sin avisos prendidos).
+    await notifyMerchantStatusChange(m.id, m.data(), subDoc.ref.id, sd.status, nuevoStatus, { ...sd, status: nuevoStatus });
     // Self-heal oportunista acotado a 1 sub ACTIVA SIN ORDEN reciente (el cron
     // corre cada 2 min y hace el resto; el webhook tiene que responder rápido).
     await healRecentActiveNoOrder(m.id, 1).catch(() => {});

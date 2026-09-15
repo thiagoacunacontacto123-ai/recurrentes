@@ -69,6 +69,7 @@ import { mobbexSafeFields, saveMobbex, disconnectMobbex } from "./_lib/providers
 import { startMpOauth, mpOauthConfigured, mpConnectionStatus } from "./_lib/mpOauth.js";
 import { whatsappApi } from "./_lib/whatsappApi.js";
 import { whatsappSafe } from "./_lib/whatsapp.js";
+import { merchantAlertsApi, alertsSafe } from "./_lib/merchantAlerts.js";
 import { transferApi, publicPending } from "./_lib/transfer.js";
 import { providerFlags, providerConnectAction, PROVIDER_CONNECT_ACTIONS, STRIPE_CALLBACK_ACTION, stripeConnectCallback } from "./_lib/providers/stripeWhopApi.js";
 
@@ -213,6 +214,8 @@ export default async function handler(req, res) {
         ...mobbexSafeFields(merchant),
         // WhatsApp Cloud API (_lib/whatsapp.js): flags y datos del número, NUNCA el token.
         ...whatsappSafe(merchant),
+        // Avisos para el dueño (alta / pausa / baja / pago rechazado) — _lib/merchantAlerts.js.
+        ...alertsSafe(merchant, ownerDoc),
         // Super-admin (ADMIN_EMAILS, validado en requireMerchant): habilita #/admin.
         // admin_view = "ver como" activo (solo lectura).
         is_admin: ctx.is_admin === true,
@@ -269,6 +272,7 @@ export default async function handler(req, res) {
     if (action === "save-owner")           return saveOwner(ctx, req, res);
     if (action.startsWith("flow-"))        return flowsApi(ctx, action, req, res);
     if (action.startsWith("whatsapp-"))    return whatsappApi(ctx, action, req, res);
+    if (action.startsWith("alerts-"))      return merchantAlertsApi(ctx, action, req, res); // avisos para el dueño (solo dueño)
     if (PROVIDER_CONNECT_ACTIONS.has(action)) return providerConnectAction(ctx, action, req, res); // Stripe / Whop (solo dueño)
 
     // Multi-tienda / equipo
