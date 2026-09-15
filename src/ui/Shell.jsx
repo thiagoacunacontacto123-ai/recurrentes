@@ -17,6 +17,7 @@ const ICON = {
   retencion:     "M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z",
   portal:        "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8zM2 3h4M2 7h3",
   analiticas:    "M18 20V10M12 20V4M6 20v-6M2 20h20",
+  flujos:        "M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zM22 6l-10 7L2 6",
 };
 // `section` agrupa el menú como Growith (el Sidebar pinta el título cuando
 // cambia; grupos sin ítems visibles —miembros con permisos— desaparecen solos).
@@ -27,6 +28,7 @@ export const NAV = [
   { id:"cobros",        label:"Cobros",             short:"Cobros",   icon:SECTION_ICONS.cobros, alertKey:"cobros", badge:"red", section:"Ventas" },
   { id:"planes",        label:"Planes",             short:"Planes",   icon:SECTION_ICONS.planes, section:"Catálogo" },
   { id:"retencion",     label:"Retención",          short:"Retener",  icon:ICON.retencion, alertKey:"retencion", badge:"orange", section:"Clientes" },
+  { id:"flujos",        label:"Flujos de email",    short:"Flujos",   icon:ICON.flujos, section:"Clientes" },
   { id:"portal",        label:"Portal del cliente", short:"Portal",   icon:ICON.portal, section:"Clientes" },
   { id:"analiticas",    label:"Analíticas",         short:"Datos",    icon:ICON.analiticas, section:"Análisis" },
   { id:"configuracion", label:"Configuración",      short:"Config",   icon:SECTION_ICONS.configuracion, footer:true },

@@ -19,6 +19,7 @@ import { API_VERSION } from "./_lib/shopify.js";
 import { fetchWithTimeout } from "./_lib/http.js";
 import { logEmail } from "./_lib/emaillog.js";
 import { klaviyoEnabled, klaviyoLifecycle, KLAVIYO_METRICS } from "./_lib/klaviyo.js";
+import { emitFlowEvent } from "./_lib/flows.js";
 
 const nowIso = () => new Date().toISOString();
 
@@ -514,6 +515,8 @@ export default async function handler(req, res) {
         });
       } catch (e) { console.warn("[subscribers] klaviyo falló:", e.message); }
     }
+    // Flujos de email propios (cancelada / pausada / reactivada). No-op sin flujos activos.
+    await emitFlowEvent(merchantId, merchant, action === "cancel" ? "cancelled" : action === "pause" ? "paused" : "resumed", String(id), { ...sub, ...localUpdate }, { key: localUpdate.updated_at });
 
     // Mail de cancelación (best-effort) + log.
     if (action === "cancel" && sub.customer_email) {

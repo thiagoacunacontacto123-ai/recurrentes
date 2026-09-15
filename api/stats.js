@@ -181,7 +181,7 @@ async function activity(merchantId, req, res) {
 
     // ── MAILS ──
     const mails = mailsSnap.docs.map(d => { const m = d.data(); return {
-      id: d.id, type: m.type, step: m.step || null, coupon: m.coupon || null,
+      id: d.id, type: m.type, step: m.step || null, coupon: m.coupon || null, flow_name: m.flow_name || null,
       to: m.to, customer_name: m.customer_name || subMap[m.subscriber_id]?.name || "",
       product_title: m.product_title || subMap[m.subscriber_id]?.product || "",
       status: m.status || "sent", error: m.error || null, created_at: m.created_at || "",

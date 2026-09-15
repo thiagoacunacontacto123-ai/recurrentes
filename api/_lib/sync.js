@@ -28,6 +28,7 @@ import { claimCharge } from "./chargeclaim.js";
 import { appBaseUrl } from "./config.js";
 import { klaviyoEnabled, klaviyoLifecycle, klaviyoPlacedOrder, KLAVIYO_METRICS } from "./klaviyo.js";
 import { merchantProfile, internalFulfillmentId } from "../../shared/platform/profile.js";
+import { emitFlowEvent } from "./flows.js";
 
 /**
  * Cumple un cobro según el canal del merchant (shared/platform/profile.js).
@@ -190,6 +191,8 @@ export async function notifyActivation(merchantId, merchant, subscriberId, sub, 
       await klaviyoPlacedOrder(merchant, merchantId, subscriberId, sub, { payment, orderId: shopifyOrderId, chargeNumber: 1, firstChargeAt, ordersCount });
     } catch (e) { console.warn(`[${tag}] klaviyo activación falló:`, e.message); }
   }
+  // Flujos de email propios ("Nueva suscripción"). No hace nada si la tienda no tiene flujos activos.
+  await emitFlowEvent(merchantId, merchant, "activated", subscriberId, sub, { key: payment?.id || "first" });
 }
 
 /**
@@ -197,6 +200,8 @@ export async function notifyActivation(merchantId, merchant, subscriberId, sub, 
  * Best-effort; idempotente por payment id / order id (unique_id).
  */
 export async function notifyRenewal(merchantId, merchant, subscriberId, sub, payment, tag = "sync", { shopifyOrderId = null } = {}) {
+  // Flujos de email propios ("Renovación cobrada"). No-op sin flujos activos.
+  await emitFlowEvent(merchantId, merchant, "renewed", subscriberId, sub, { key: payment?.id || shopifyOrderId || undefined });
   if (!klaviyoEnabled(merchant)) return;
   try {
     const ordersCount = (sub.shopify_orders || []).length + (shopifyOrderId ? 1 : 0);
@@ -208,6 +213,8 @@ export async function notifyRenewal(merchantId, merchant, subscriberId, sub, pay
 // Email de pago rechazado (una sola vez por payment id: el caller dedupa con last_payment_failed_id)
 // + evento Klaviyo "Subscription Payment Failed".
 export async function sendPaymentFailedEmail(merchantId, merchant, subscriberId, sub, tag = "sync", payment = null) {
+  // Flujos de email propios ("Pago rechazado"). No-op sin flujos activos.
+  await emitFlowEvent(merchantId, merchant, "payment_failed", subscriberId, sub, { key: sub.last_payment_failed_id || payment?.id || undefined });
   if (klaviyoEnabled(merchant)) {
     try {
       await klaviyoLifecycle(merchant, merchantId, KLAVIYO_METRICS.PAYMENT_FAILED, subscriberId, sub, {

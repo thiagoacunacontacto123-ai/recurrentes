@@ -352,3 +352,30 @@ export async function emailPlanRequest({ to, merchantEmail, merchantId, storeNam
   });
   return sendEmail({ from: process.env.EMAIL_FROM || DEFAULT_FROM, replyTo: merchantEmail || undefined, to, subject: title, html, tags: { type: "plan_request", plan } });
 }
+
+// ─── Flujos de email (texto escrito por el comerciante) ─────────────
+// Párrafos separados por línea en blanco; los links sueltos quedan clickeables.
+// Siempre con baja (header one-click + link al pie): son mails de relación/marketing.
+// test=true → prueba desde el editor (va al propio comerciante, sin link de baja).
+export async function emailFlowStep({ to, subject, bodyText, ctaLabel, ctaUrl, merchant, merchantId, test = false, tags }) {
+  const snd = resolveSender({ merchant });
+  const col = /^#[0-9a-fA-F]{3,8}$/.test(String(snd.accent || "")) ? snd.accent : "#10b981";
+  const linkify = (s) => s.replace(/(https?:\/\/[^\s<]+)/g, (u) => `<a href="${u}" style="color:${col};">${u}</a>`);
+  const body = String(bodyText || "").trim().split(/\n{2,}/).filter(Boolean)
+    .map(p => `<p style="margin:0 0 12px;">${linkify(escapeHtml(p.trim())).replace(/\n/g, "<br/>")}</p>`).join("");
+  let unsubUrl = null, headers;
+  if (merchantId && !test) {
+    try {
+      const token = signToken({ m: merchantId, e: String(to || "").trim().toLowerCase() });
+      unsubUrl = `${appBaseUrl()}/api/public?action=unsub&t=${encodeURIComponent(token)}`;
+      headers = { "List-Unsubscribe": `<${unsubUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" };
+    } catch (e) {
+      // Sin secreto de firma no mandamos sin baja (fail closed).
+      console.error("[email] flujo: no se pudo firmar el link de baja:", e.message);
+      return { ok: false, error: `unsub token: ${e.message}` };
+    }
+  }
+  const html = baseTemplate({ brand: snd.brand, accent: snd.accent, title: plain(subject, 150), body, ctaLabel: ctaUrl ? ctaLabel : "", ctaUrl, unsubUrl });
+  return sendEmail({ from: snd.from, replyTo: snd.replyTo, to, subject: plain(subject, 180), html, headers,
+    tags: { type: "flow", ...(tags || {}), ...(merchantId ? { merchant: merchantId } : {}) } });
+}

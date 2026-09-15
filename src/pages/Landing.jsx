@@ -20,7 +20,7 @@ const FLOW_STORES = [
   { n:"Shopify", s:"live" },
   { n:"Tiendanube", s:"soon" },
   { n:"Impultienda", s:"soon" },
-  { n:"Empretienda", s:"radar" },
+  { n:"Link de pago", s:"live" },
   { n:"Desarrollo propio", s:"live" },
 ];
 const FLOW_PAYMENTS = [
@@ -32,9 +32,8 @@ const FLOW_PAYMENTS = [
 const FLOW_ACTIONS = [
   { t:"Cobro aprobado · $ 40.500", s:"live" },
   { t:"Orden #1042 creada en tu negocio", s:"live" },
-  { t:"Klaviyo · Subscription Renewed", s:"live" },
-  { t:"Factura B emitida en ARCA", s:"soon" },
-  { t:"WhatsApp · aviso de tarjeta rechazada", s:"soon" },
+  { t:"Flujo de mails · aviso de próximo cobro", s:"live" },
+  { t:"WhatsApp · le avisa al cliente antes de cada cobro", s:"soon" },
 ];
 const FLOW_STATUS = { live:"Disponible", soon:"Próximamente", radar:"En el radar" };
 const FLOW_ITEM_H = 44;

@@ -167,6 +167,17 @@ Precio por **suscriptores activos** (`status` active o payment_failed), fuente �
 - **Gimnasios** (investigación 2026-09-14, datos de mercado mayormente de blogs de proveedores): GymGestión, GymSmartAccess y LumiaFIT ya cobran con suscripciones MP y cortan el acceso por mora → competencia, sin API pública. Fitco está en AR pero con MP solo cobra pagos únicos (hueco). Wodify tiene API (suspender/reactivar socios) pero no se confirmó uso en AR. Acceso: domina ZKTeco (huella/facial); también QR sin hardware. Integración sugerida: webhook de salida + `GET estado-socio` (al día / moroso, sale de `active`/`payment_failed`) + pase QR en el portal.
 - Prioridad sugerida: 1) app Tiendanube · 2) Mobbex · 3) factura ARCA por cobro · 4) Stripe y Whop para digitales al exterior · 5) avisos por WhatsApp.
 
+## Flujos de email propios (desde 2026-09-15)
+
+Recurrentes manda sus propios mails automáticos (Resend, `api/_lib/email.js`); Klaviyo queda opcional.
+- **Definición compartida**: `shared/platform/flows.js` — disparadores (`checkout_started`, `activated`, `upcoming_charge` con `days_before`, `renewed`, `payment_failed`, `paused`, `resumed`, `cancelled`), variables (`{{nombre}}`, `{{producto}}`, `{{monto}}`, `{{marca}}`, `{{proximo_cobro}}`, `{{link_portal}}`, `{{link_checkout}}`), plantilla inicial por disparador y `sanitizeFlow`.
+- **Datos**: `merchants/{mid}/flows/{id}` { name, trigger, active, steps[{type:"wait",amount,unit}|{type:"email",subject,body,cta,cta_label}], stats } · `merchants/{mid}/flow_runs/{runId}` (copia de los pasos al entrar, `step`, `next_at` solo mientras espera, status waiting/completed/exited/error). runId determinístico → el mismo evento no entra dos veces.
+- **Motor** `api/_lib/flows.js`: `emitFlowEvent` (no lee NADA si `merchant.flows_active_triggers` no incluye el disparador → Lumina sin flujos = cero cambios en el camino del cobro; nunca lanza) y `runFlowsForMerchant` (cron `/api/cron?action=run-flows` cada 5 min). Antes de cada mail relee la suscripción: sale si pagó / recuperó la tarjeta / se reactivó (keep/avoid/goal por disparador), o si se dio de baja (`unsubscribes`). Cada mail lleva List-Unsubscribe + link de baja y queda en `email_log` (type "flow", flow_name).
+- **Enganches**: `sync.js` notifyActivation / notifyRenewal / sendPaymentFailedEmail (cubre webhook + sync), `subscribers.js` (panel), `public.js` (portal + pausa por retención), `checkout/init.js` (lead y Pagar).
+- **API** (sin funciones nuevas): `/api/merchant?action=flows` (GET) · `flow-save` · `flow-delete` · `flow-test` (POST, `_lib/flowsApi.js`); guardar recalcula `flows_active_triggers` / `flows_enabled`.
+- **Panel**: `src/pages/Flows.jsx` (menú Clientes → Flujos de email; permiso de equipo "flujos").
+- Los mails transaccionales de siempre (activación, pago rechazado, cancelación) siguen saliendo aparte.
+
 ## Decisiones de diseño
 
 - **Multi-tenant desde día 1** — la app es SaaS, no para 1 sólo cliente. Cada merchant tiene su scope completo aislado en `merchants/{uid}/*`.

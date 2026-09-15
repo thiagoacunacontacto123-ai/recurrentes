@@ -18,6 +18,7 @@ import { ChargesPage } from "./Charges.jsx";
 import { AnalyticsPage } from "./Analytics.jsx";
 import { RetentionPage } from "./Retention.jsx";
 import { CustomerPortalPage } from "./CustomerPortal.jsx";
+import { FlowsPage } from "./Flows.jsx";
 
 // Resuelve un id de tab (nuevo o viejo) a { tab, config?, query? }.
 function resolveTab(id) {
@@ -273,6 +274,8 @@ export default function Dashboard({ user, onLogout }) {
                 integrationsReady ? <PlansTab merchant={merchant} onMerchantChange={reloadMerchant}/> : needs("Planes")
               ) : tab === "retencion" ? (
                 integrationsReady ? <RetentionPage merchant={merchant} reloadMerchant={reloadMerchant} goTab={goTab}/> : needs("Retención")
+              ) : tab === "flujos" ? (
+                <FlowsPage merchant={merchant}/>
               ) : tab === "portal" ? (
                 <CustomerPortalPage merchant={merchant} reloadMerchant={reloadMerchant} goTab={goTab}/>
               ) : tab === "analiticas" ? (

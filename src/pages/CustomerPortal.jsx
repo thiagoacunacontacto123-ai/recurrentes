@@ -322,8 +322,9 @@ function RegistroSection({ T, merchant, activity, mails, loading, reload, goTab 
     payment_failed: { t:"Pago fallido", c:T.yellow, e:"⚠️" },
     cancellation:   { t:"Cancelación",  c:T.red,    e:"🚫" },
     invitation:     { t:"Invitación",   c:T.blue,   e:"🔗" },
+    flow:           { t:"Flujos",       c:T.accent, e:"🔁" },
   };
-  const mailLabel = (m) => MAIL_LABEL[m.type] || { t: m.type || "Mail", c:T.textMd, e:"📧" };
+  const mailLabel = (m) => m.type === "flow" ? { ...MAIL_LABEL.flow, t: m.flow_name || "Flujo" } : (MAIL_LABEL[m.type] || { t: m.type || "Mail", c:T.textMd, e:"📧" });
   const events = activity?.klaviyo_events || [];
   const ks = activity?.klaviyo_summary || {};
   const count = (fn) => mails.filter(fn).length;

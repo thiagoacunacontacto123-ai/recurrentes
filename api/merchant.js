@@ -28,6 +28,7 @@
 //   POST   ?action=klaviyo-test       → manda un "Checkout Started" de prueba al mail del dueño
 //   (save-settings acepta `klaviyo_send_orders`; `abandoned_enabled` / `abandoned_coupons` se ignoran)
 //   POST   ?action=plan-request  { plan: "starter"|"growth"|"pro" } → pide un plan del SaaS (mail al admin)
+//   Flujos de email propios (_lib/flowsApi.js): GET ?action=flows · POST ?action=flow-save | flow-delete | flow-test
 //
 //   Multi-tienda (actúan sobre el PERFIL = uid del token, no sobre la tienda activa):
 //   POST   ?action=store-create   { name, color }             → crea merchants/m_xxx
@@ -58,6 +59,7 @@ import { appBaseUrl } from "./_lib/config.js";
 import { rateLimit } from "./_lib/ratelimit.js";
 import { klaviyoEnabled, klaviyoValidateKey, klaviyoCheckoutStarted } from "./_lib/klaviyo.js";
 import { merchantProfile, validateProfilePatch } from "../shared/platform/profile.js";
+import { flowsApi } from "./_lib/flowsApi.js";
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
@@ -71,6 +73,7 @@ export default async function handler(req, res) {
     if (gAction === "workspace") return workspace(ctx, req, res);
     if (gAction === "members")   return membersList(ctx, req, res);
     if (gAction === "refresh-shop") return refreshShop(ctx, res);
+    if (gAction === "flows") return flowsApi(ctx, "flows", req, res);
     if (gAction && gAction !== "me") return res.status(400).json({ error: "action no reconocida" });
     try {
       // El doc del perfil se crea acá (primer login). Tiendas ajenas/extra ya existen
@@ -210,6 +213,7 @@ export default async function handler(req, res) {
     if (action === "disconnect-mp")        return disconnect(merchantId, "mp", res);
     if (action === "disconnect-shopify")   return disconnect(merchantId, "shopify", res);
     if (action === "plan-request")         return planRequest(ctx, merchantId, req, res);
+    if (action.startsWith("flow-"))        return flowsApi(ctx, action, req, res);
 
     // Multi-tienda / equipo
     if (action === "store-create")   return storeCreate(ctx, req, res);
@@ -1017,7 +1021,7 @@ async function saveMpToken(merchantId, req, res) {
 //   (subcolecciones) NO está implementada acá (TODO cron).
 // ═══════════════════════════════════════════════════════════════════════════
 
-const SECCIONES = ["inicio", "suscripciones", "cobros", "planes", "retencion", "portal", "analiticas", "configuracion"];
+const SECCIONES = ["inicio", "suscripciones", "cobros", "planes", "retencion", "flujos", "portal", "analiticas", "configuracion"];
 // Secciones viejas (antes de la reestructura 2026-09-14) → nuevas. Los permisos
 // ya guardados con ids viejos se traducen al leer y al escribir.
 export const LEGACY_SECCION = { suscriptores: "suscripciones", carritos: "suscripciones", abandonados: "suscripciones", actividad: "portal", integraciones: "configuracion", plan: "configuracion", guia: "configuracion" };

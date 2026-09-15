@@ -2,7 +2,7 @@
 // actividad del dashboard. Best-effort: nunca tira (si falla, el mail igual salió).
 //
 // Doc: merchants/{uid}/email_log/{autoId}
-//   type: "abandoned" | "activation" | "cancellation" | "payment_failed"
+//   type: "abandoned" | "activation" | "cancellation" | "payment_failed" | "flow" (+ flow_id, flow_name)
 //   subscriber_id, to, customer_name, product_title, step (solo abandoned),
 //   coupon, status ("sent"|"skipped"|"error"), error (detalle, string),
 //   provider_id (id que devuelve Resend), created_at
@@ -25,6 +25,8 @@ export async function logEmail(merchantId, entry) {
       customer_name: entry.customer_name || null,
       product_title: entry.product_title || null,
       step: entry.step || null,
+      flow_id: entry.flow_id || null,
+      flow_name: entry.flow_name || null,
       coupon: entry.coupon || null,
       status: entry.status || "sent",
       error: errStr(entry.error),

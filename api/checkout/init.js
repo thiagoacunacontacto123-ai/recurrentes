@@ -44,6 +44,7 @@ import * as shopifyLib from "../_lib/shopify.js";
 import { resolveCheckoutShippingRates, PLAN_SHIPPING_CODE } from "../widget.js";
 import { isPacksPlan, resolvePack, parsePackIndex, defaultPackIndex } from "../_lib/packs.js";
 import { klaviyoEnabled, klaviyoCheckoutStarted, klaviyoUpsertProfile, checkoutKeyFor, splitName } from "../_lib/klaviyo.js";
+import { emitFlowEvent } from "../_lib/flows.js";
 import { computeRecoverUrl } from "../_lib/abandoned.js";
 import { merchantProfile, hostedCheckoutUrl } from "../../shared/platform/profile.js";
 
@@ -417,6 +418,8 @@ export default async function handler(req, res) {
       }
       // Klaviyo "Checkout Started" (igual que un carrito de Shopify) con el link para retomar.
       await trackCheckoutStarted(merchantId, merchant, ref, data, leadData, { stage: "lead", plan, blocking: hasBlocking });
+      // Flujos de email propios ("Checkout sin pagar"). No-op sin flujos activos.
+      await emitFlowEvent(merchantId, merchant, "checkout_started", ref.id, data, { key: ref.id });
       return res.json(out);
     } catch (e) {
       console.error("[checkout/init] capture error:", e.message);
@@ -781,6 +784,7 @@ export default async function handler(req, res) {
 
   // Klaviyo "Checkout Started" (si no salió ya con el lead: completa el perfil).
   await trackCheckoutStarted(merchantId, merchant, subRef, { ...subData, portal_token: portalToken, mp_init_point: checkoutUrl }, existing, { stage: "checkout", plan, blocking: hasBlocking });
+  await emitFlowEvent(merchantId, merchant, "checkout_started", subRef.id, { ...subData, portal_token: portalToken, mp_init_point: checkoutUrl }, { key: subRef.id });
 
   return res.json({
     ok: true,

@@ -310,7 +310,7 @@ export function DeepDivesSection({ T }) {
     { eyebrow:"Portal del suscriptor", title:"Tus clientes se gestionan solos", text:"Cada suscriptor tiene su link para ver su plan y hacer cambios sin escribirte.",
       points:["Pausar, reactivar o cancelar en dos toques.","Cambiar la dirección de envío antes del próximo cobro.","Un mensaje de bienvenida con la voz de tu marca."], mock:<PortalMock T={T}/> },
     { eyebrow:"Retención", title:"Recuperá pagos rechazados y bajas antes de que pasen", text:"Una parte de las bajas no es porque el cliente se quiera ir: es una tarjeta vencida o un mes complicado.",
-      points:["Aviso automático cuando una tarjeta rebota, con el link para actualizarla.","Oferta de pausa antes de cancelar, y motivos de baja para aprender.","Klaviyo recibe cada evento para tus propios flujos."], mock:<RetentionMock T={T}/> },
+      points:["Aviso automático cuando una tarjeta rebota, con el link para actualizarla.","Oferta de pausa antes de cancelar, y motivos de baja para aprender.","Flujos de mails propios: checkout sin pagar, aviso de cobro, pago rechazado y win-back, con tu marca."], mock:<RetentionMock T={T}/> },
     { eyebrow:"Métricas", title:"Sabé cuánto vas a facturar el mes que viene", text:"El panel te muestra tu negocio recurrente de un vistazo, sin armar reportes.",
       points:["Ingresos recurrentes (MRR), altas, bajas y churn.","Próximos cobros de los siguientes 30 días.","Cobros con error señalados para que los resuelvas."], mock:<MetricsMock T={T}/> },
   ];
@@ -339,7 +339,7 @@ export function ExtrasSection({ T }) {
   const items = [
     ["M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82zM7 7h.01", "Cupones de descuento", "Porcentaje o monto fijo, y descuento solo en el primer cobro."],
     ["M4 4h16v16H4zM4 9h16M9 9v11", "10 diseños de widget", "Con tu color, tus esquinas y tus textos."],
-    ["M22 12h-6l-2 3h-4l-2-3H2", "Checkouts sin pagar a Klaviyo", "Como un carrito abandonado, con el link para retomarlo."],
+    ["M22 12h-6l-2 3h-4l-2-3H2", "Flujos de mails automáticos", "Checkout sin pagar, aviso de próximo cobro, pago rechazado y win-back, salen solos y con tu marca."],
     ["M18 20V10M12 20V4M6 20v-6", "Ventas a Meta", "La primera venta se reporta por la API de Conversiones."],
     ["M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8z", "Equipo con permisos", "Cada persona ve solo las secciones que le habilitás."],
     ["M3 9l1-5h16l1 5M3 9h18v11H3z", "Varios negocios", "Todas tus tiendas en un solo login."],

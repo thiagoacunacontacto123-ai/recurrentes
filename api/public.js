@@ -48,6 +48,7 @@ import { emailSubscriptionCancelled } from "./_lib/email.js";
 import { logEmail } from "./_lib/emaillog.js";
 import { planPacks, planPricingMode } from "./_lib/packs.js";
 import { klaviyoEnabled, klaviyoLifecycle, KLAVIYO_METRICS } from "./_lib/klaviyo.js";
+import { emitFlowEvent } from "./_lib/flows.js";
 import { merchantProfile } from "../shared/platform/profile.js";
 
 // Tokens viejos (portal / back_url de MP ya emitidos) se firmaron con
@@ -441,6 +442,8 @@ async function handleSub(req, res) {
         });
       } catch (e) { console.warn("[public/sub] klaviyo falló:", e.message); }
     }
+    // Flujos de email propios (cancelada / pausada / reactivada desde el portal). No-op sin flujos activos.
+    await emitFlowEvent(merchantId, merchant, subAction === "cancel" ? "cancelled" : subAction === "pause" ? "paused" : "resumed", subscriberId, { ...sub, ...update }, { key: now });
 
     // Mail de cancelación (best-effort) + log para la actividad del dashboard.
     if (subAction === "cancel" && sub.customer_email) {
@@ -531,5 +534,6 @@ async function handlePauseOffer(req, res) {
       });
     } catch (e) { console.warn("[public/pause-offer] klaviyo falló:", e.message); }
   }
+  await emitFlowEvent(merchantId, merchant, "paused", subscriberId, { ...sub, ...update }, { key: nowIso });
   return res.json({ ok: true, status: "paused", resume_at: resumeAt, cycles, frequency_days: freqDays });
 }

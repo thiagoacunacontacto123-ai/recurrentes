@@ -42,6 +42,7 @@ export const TEAM_SECTIONS = [
   { id: "cobros",        label: "Cobros" },
   { id: "planes",        label: "Planes" },
   { id: "retencion",     label: "Retención" },
+  { id: "flujos",        label: "Flujos de email" },
   { id: "portal",        label: "Portal del cliente" },
   { id: "analiticas",    label: "Analíticas" },
   { id: "configuracion", label: "Configuración" },

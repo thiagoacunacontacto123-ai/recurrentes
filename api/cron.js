@@ -10,6 +10,9 @@
 //   5) planes MP huérfanos (> 14 días sin autorizar): solo 1 vez por hora (minuto < 2)
 //   (6, retirado 2026-09-13: los mails de carrito abandonado propios se
 //    reemplazaron por eventos a Klaviyo, ver _lib/klaviyo.js)
+// ?action=run-flows — flujos de email propios (cada 5 min): corridas vencidas de las
+//   tiendas con flujos activos (_lib/flows.js). Aparte del sync: si falla, no lo toca.
+//
 //   7) pausas por oferta de retención con resume_at vencido → status authorized en
 //      MP + active local (best effort, máx 20 por merchant y corrida, 3 intentos)
 // Presupuesto: 240s; si se agota devolvemos parcial. Los merchants rotan por
@@ -23,6 +26,7 @@ import { db } from "./_lib/firebase.js";
 import { syncSubscriber } from "./_lib/sync.js";
 import { isProd } from "./_lib/config.js";
 import { timingSafeEqualStr } from "./_lib/token.js";
+import { runFlowsForMerchant } from "./_lib/flows.js";
 import { mpRefreshToken, mpCancelPreapprovalPlan, mpUpdatePreapproval, mpGetPreapproval, isMpAuthError } from "./_lib/mp.js";
 
 export const config = { maxDuration: 300 };
@@ -63,6 +67,7 @@ export default async function handler(req, res) {
   }
 
   const action = String(req.query.action || "sync-all-pending");
+  if (action === "run-flows") return runFlowsCron(res);
   if (action !== "sync-all-pending") {
     return res.status(400).json({ error: "action no reconocida" });
   }
@@ -336,5 +341,32 @@ export default async function handler(req, res) {
     };
     await db().collection("system").doc("cron_last").set({ ...out, at: nowIso() }, { merge: true }).catch(() => {});
     return res.status(200).json(out);
+  }
+}
+
+// ─── ?action=run-flows ─────────────────────────────────────────────
+// Solo tiendas con flows_enabled (lo mantiene _lib/flowsApi al guardar). Presupuesto
+// 200s; lo que no entra sigue en el próximo tick (las corridas quedan con next_at).
+async function runFlowsCron(res) {
+  const start = Date.now();
+  const deadline = start + 200 * 1000;
+  const tot = { merchants: 0, processed: 0, sent: 0, scheduled: 0, completed: 0, exited: 0, entered: 0, errors: 0 };
+  try {
+    const snap = await db().collection("merchants").where("flows_enabled", "==", true).get();
+    for (const m of snap.docs) {
+      if (Date.now() > deadline) break;
+      tot.merchants += 1;
+      try {
+        const r = await runFlowsForMerchant(m.id, m.data(), { deadline });
+        for (const k of Object.keys(r)) tot[k] = (tot[k] || 0) + r[k];
+      } catch (e) { tot.errors += 1; console.error(`[cron] flows ${m.id}:`, e.message); }
+    }
+    const out = { ok: true, ...tot, elapsed_ms: Date.now() - start };
+    if (tot.processed || tot.entered || tot.errors) console.log("[cron] run-flows:", JSON.stringify(out));
+    return res.json(out);
+  } catch (e) {
+    // Igual que sync-all-pending: nunca 500 (el cron sigue vivo y reintenta).
+    console.error("[cron] run-flows error global:", e.message);
+    return res.status(200).json({ ok: false, error: e.message, ...tot, elapsed_ms: Date.now() - start });
   }
 }
