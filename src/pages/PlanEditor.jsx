@@ -274,7 +274,7 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
       <PageHeader T={T} back="Volver a planes" onBack={onBack} title={isEdit ? "Editar plan" : "Nuevo plan"}
         subtitle={isEdit ? plan.product_title : manual
           ? `Nombre, precio y cada cuántos días se cobra (ej: "${planExample(profile)}"). Al guardar te damos el link para compartir.`
-          : "Convertí un producto Shopify en suscripción recurrente. Lo que cargás se ve a la derecha al instante."}
+          : `Convertí un producto de ${profile.channelInfo.label} en suscripción recurrente. Lo que cargás se ve a la derecha al instante.`}
         right={<><Btn T={T} variant="secondary" onClick={onBack}>Cancelar</Btn>{saveBtn}</>}/>
 
       <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"minmax(0, 1.25fr) minmax(300px, 1fr)", gap:DS.sp.lg, alignItems:"start" }}>
@@ -306,14 +306,14 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
               </Field>
               {shopifyPrice != null && (
                 <Hint T={T}>
-                  Precio en Shopify: <strong style={{ color:T.text }}>{fmtARS(shopifyPrice)}</strong>
+                  Precio en {profile.channelInfo.label}: <strong style={{ color:T.text }}>{fmtARS(shopifyPrice)}</strong>
                   {Math.round(shopifyPrice) !== Math.round(basePrice) && <> · <button type="button" style={linkBtn} onClick={()=>setEditBasePrice(shopifyPrice)}>usar</button></>}
                 </Hint>
               )}
             </>
           ) : (
             <>
-              <Field T={T} label="Producto Shopify" required>
+              <Field T={T} label={`Producto ${profile.channelInfo.label}`} required>
                 <select value={productId} onChange={e=>{setProductId(e.target.value); setVariantId("");}} style={iS}>
                   <option value="">— Elegí —</option>
                   {products.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
@@ -327,7 +327,7 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
                   </select>
                 </Field>
               )}
-              {variant && <Hint T={T}>Precio normal (de Shopify): <strong style={{ color:T.text }}>{fmtARS(basePrice)}</strong>. Es la base de los packs y del descuento.</Hint>}
+              {variant && <Hint T={T}>Precio normal (de {profile.channelInfo.label}): <strong style={{ color:T.text }}>{fmtARS(basePrice)}</strong>. Es la base de los packs y del descuento.</Hint>}
             </>
           )}
 

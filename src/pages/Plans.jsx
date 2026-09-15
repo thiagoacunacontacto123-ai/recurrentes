@@ -86,7 +86,7 @@ export function PlansPage({ merchant, onMerchantChange }) {
     // Las suscripciones activas / con pago fallido dan las métricas por plan (sin tocar el backend).
     const [p, pr, act, fail] = await Promise.all([
       apiGet("plans"),
-      profile.caps.catalog ? apiGet("shopify", { action: "products" }) : Promise.resolve({ products: [] }),
+      profile.caps.catalog ? apiGet("shopify", { action: profile.channel === "tiendanube" ? "tn-products" : "products" }) : Promise.resolve({ products: [] }),
       apiGet("subscribers", { status: "active" }).catch(() => null),
       apiGet("subscribers", { status: "payment_failed" }).catch(() => null),
     ]);

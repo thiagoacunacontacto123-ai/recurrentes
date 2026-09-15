@@ -219,6 +219,17 @@ export default async function handler(req, res) {
         admin_view: ctx.admin_view === true,
         // Stripe / Whop (USD): flags de env + estado de conexión. Nunca claves.
         ...(await providerFlags(merchant)),
+        // Tiendanube (api/_lib/tiendanube.js). `tiendanube_enabled` = existe la app de Partner
+        // (env): habilita el canal en el panel (shared/platform/profile.js channelAvailable).
+        tiendanube_enabled: !!(process.env.TIENDANUBE_APP_ID && process.env.TIENDANUBE_CLIENT_SECRET),
+        tiendanube_store_id: merchant.tiendanube_store_id || null,
+        tiendanube_token: merchant.tiendanube_token ? "•••••" : null,
+        tiendanube_store_name: merchant.tiendanube_store_name || null,
+        tiendanube_store_url: merchant.tiendanube_store_url || null,
+        tiendanube_connected_at: merchant.tiendanube_connected_at || null,
+        tiendanube_script_configured: !!process.env.TIENDANUBE_SCRIPT_ID,
+        tiendanube_script_installed: !!merchant.tiendanube_script_installed_at,
+        tiendanube_script_error: merchant.tiendanube_script_error || null,
       };
       return res.json({ merchant: safe });
     } catch (e) {

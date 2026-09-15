@@ -20,6 +20,7 @@ import { signToken } from "./_lib/token.js";
 import { appBaseUrl } from "./_lib/config.js";
 import { rateLimit, clientIp } from "./_lib/ratelimit.js";
 import { oauthScopes } from "../shared/platform/shopify.js";
+import { tiendanubeApi, tnActionFromPath } from "./_lib/tiendanubeApi.js";
 
 const productsCache = new Map();
 const SHOP_RE = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i;
@@ -28,6 +29,8 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
 
   const action = String(req.query.action || "");
+  // Tiendanube (tn-*): _lib/tiendanubeApi.js. También /api/tiendanube/{callback,webhooks} (vercel.json).
+  if (action.startsWith("tn-") || (!action && tnActionFromPath(req.url))) return tiendanubeApi(action || tnActionFromPath(req.url), req, res);
   if (action === "oauth-start") return handleOauthStart(req, res);
   if (action === "products")    return handleProducts(req, res);
   if (action === "save-creds")  return handleSaveCreds(req, res);

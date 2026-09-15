@@ -32,6 +32,14 @@
       "destination": "https://recurrentes-16fbd.firebaseapp.com/__/firebase/:path*"
     },
     {
+      "source": "/api/tiendanube/callback",
+      "destination": "/api/shopify?action=tn-callback"
+    },
+    {
+      "source": "/api/tiendanube/webhooks",
+      "destination": "/api/shopify?action=tn-webhooks"
+    },
+    {
       "source": "/((?!api/|@|src/|node_modules/|.+\\.).*)",
       "destination": "/index.html"
     }

@@ -81,12 +81,25 @@ export function buildBundlePayload(plan, merchant) {
   };
 }
 
+// Tiendanube: id de tienda → merchant conectado (el más reciente con token). "" si no hay.
+async function merchantIdForTiendanubeStore(storeId) {
+  if (!/^\d{1,15}$/.test(storeId)) return "";
+  try {
+    const { db } = await import("./_lib/firebase.js");
+    const q = await db().collection("merchants").where("tiendanube_store_id", "==", storeId).limit(5).get();
+    const withToken = q.docs.filter(d => d.data().tiendanube_token);
+    return (withToken[0] || q.docs[0])?.id || "";
+  } catch (_) { return ""; }
+}
+
 export default async function handler(req, res) {
   res.setHeader("Content-Type", "application/javascript; charset=utf-8");
   res.setHeader("Cache-Control", "public, max-age=300");
   res.setHeader("Access-Control-Allow-Origin", "*");
 
-  const merchantId = String(req.query.merchant || "");
+  let merchantId = String(req.query.merchant || "");
+  // Tiendanube: el loader (public/tiendanube-loader.js) puede mandar solo el id de la tienda.
+  if (!merchantId && req.query.tn_store) merchantId = await merchantIdForTiendanubeStore(String(req.query.tn_store));
   const apiBase = (process.env.APP_BASE_URL || "").replace(/\/+$/, "");
   // Selector(es) CSS extra a ocultar en modo suscripción — para tiendas con un
   // buy box CUSTOM (bundles/quantity-breaks propios) que el widget no reconoce
@@ -217,6 +230,43 @@ export default async function handler(req, res) {
   var DEBUG = ${process.env.NODE_ENV !== "production" ? "true" : "false"};
   var log = function(){ if (DEBUG) console.log.apply(console, ["[Recurrentes]"].concat([].slice.call(arguments))); };
 
+  // ─── Tiendanube (Nuvemshop) ───────────────────────────────────
+  // La tienda expone window.LS (LS.store; en la página de producto LS.product y
+  // LS.variants). Solo aplica si NO hay Shopify en la página: en Shopify todo
+  // lo de abajo queda apagado y la detección de siempre no cambia.
+  var IS_TN = !window.Shopify && !window.ShopifyAnalytics && !!(window.LS && window.LS.store);
+  function tnProductId() {
+    try { return IS_TN && window.LS.product && window.LS.product.id ? String(window.LS.product.id) : null; } catch(e) { return null; }
+  }
+  function tnVariants() {
+    try { var v = window.LS.variants; if (typeof v === "string") v = JSON.parse(v); return Array.isArray(v) ? v : []; } catch(e) { return []; }
+  }
+  // Variante elegida: única → esa; si no, comparamos los selects variation[N] del tema
+  // con option0..2 de LS.variants. Sin match → null (el plan se busca por producto).
+  function tnVariantId(form) {
+    var list = tnVariants();
+    if (list.length === 1 && list[0] && list[0].id) return String(list[0].id);
+    try {
+      var sels = form ? form.querySelectorAll('select[name^="variation"]') : [];
+      var vals = [];
+      for (var i = 0; i < sels.length; i++) vals.push(String(sels[i].value));
+      if (!vals.length) return null;
+      for (var j = 0; j < list.length; j++) {
+        var v = list[j], match = true;
+        for (var k = 0; k < vals.length; k++) if (String(v["option" + k] == null ? "" : v["option" + k]) !== vals[k]) { match = false; break; }
+        if (match && v.id) return String(v.id);
+      }
+    } catch(e) {}
+    return null;
+  }
+  function tnProductForm() {
+    return document.querySelector('form.js-product-form, form#product_form, form[action*="/comprar"]');
+  }
+  // Suscribirse en Tiendanube: checkout de Recurrentes (#/checkout) con plan + cantidad.
+  function tnCheckoutUrl(plan, qty) {
+    return API_BASE + "/#/checkout?merchant=" + encodeURIComponent(MERCHANT_ID) + "&plan=" + encodeURIComponent(plan.id) + "&qty=" + (parseInt(qty, 10) || 1);
+  }
+
   // ─── Detección del cliente logueado en Shopify ────────────────
   // Si el shopper tiene cuenta en la tienda y está logueado, podemos
   // sacar su email + nombre de varias fuentes que distintos themes exponen.
@@ -246,6 +296,8 @@ export default async function handler(req, res) {
   // ─── Detección de producto + variante actual ──────────────────
 
   function detectProductId() {
+    var tnId = tnProductId(); // null fuera de Tiendanube
+    if (tnId) return tnId;
     try {
       if (window.ShopifyAnalytics && ShopifyAnalytics.meta && ShopifyAnalytics.meta.product) {
         return String(ShopifyAnalytics.meta.product.id);
@@ -263,6 +315,7 @@ export default async function handler(req, res) {
   }
 
   function detectVariantId(form) {
+    if (IS_TN) return tnVariantId(form);
     // 1) input hidden 'id' dentro del form de Add to cart (estándar Shopify)
     if (form) {
       var idInput = form.querySelector('input[name="id"], select[name="id"]');
@@ -285,6 +338,7 @@ export default async function handler(req, res) {
   // ─── DOM ──────────────────────────────────────────────────────
 
   function findProductForm() {
+    if (IS_TN) return tnProductForm();
     return document.querySelector('form[action*="/cart/add"]');
   }
 
@@ -800,7 +854,8 @@ export default async function handler(req, res) {
     // de producto del listado tienen data-product-id y form de "add to cart",
     // y el script las confunde con la página del producto.
     var isProductPage = /\\/products\\//.test(window.location.pathname) ||
-      (window.ShopifyAnalytics && ShopifyAnalytics.meta && ShopifyAnalytics.meta.page && ShopifyAnalytics.meta.page.pageType === "product");
+      (window.ShopifyAnalytics && ShopifyAnalytics.meta && ShopifyAnalytics.meta.page && ShopifyAnalytics.meta.page.pageType === "product") ||
+      !!tnProductId(); // Tiendanube: /productos/… con LS.product
     if (!isProductPage) { log("No es página de producto, widget no carga"); return; }
 
     var productId = detectProductId();
@@ -1055,6 +1110,8 @@ export default async function handler(req, res) {
           // CP de Shopify y va a MP. Igual que Puentify (/pages/suscripcion-form).
           var qEl = subPanel.querySelector("#rec-qty");
           var q = parseInt(qEl ? qEl.value : (subPanel.dataset.qty || 1)) || 1;
+          // Tiendanube no tiene la página de checkout on-store: va al checkout de Recurrentes.
+          if (IS_TN) { window.location.href = tnCheckoutUrl(plan, q); return; }
           var u = window.location.origin + CHECKOUT_PAGE_PATH +
             "?product=" + encodeURIComponent(plan.shopify_product_id) +
             "&variant=" + encodeURIComponent(plan.shopify_variant_id || variantId || "") +

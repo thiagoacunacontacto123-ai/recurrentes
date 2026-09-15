@@ -8,7 +8,7 @@ import { MpTokenTip } from "./Onboarding.jsx";
 import { WidgetThemeCard } from "./OperationalSettings.jsx";
 import { MONO, fmtDateShort } from "./_shared.jsx";
 import { MP_RECONNECT_COPY, MP_LAST_ERROR_COPY } from "../lib/mpOauth.js";
-import { CHANNELS, PAYMENT_PROVIDERS, merchantProfile } from "../../shared/platform/profile.js";
+import { CHANNELS, PAYMENT_PROVIDERS, merchantProfile, channelAvailable } from "../../shared/platform/profile.js";
 import { ShopifyConnectSteps, ShopifyTroubleshoot, ShopifyScopeNotice, TutorialVideo, shopifyCredsWarning } from "./ShopifyConnect.jsx";
 import { WhatsAppRow } from "./WhatsAppIntegration.jsx";
 import { UsdProviderRows } from "./UsdProviders.jsx";
@@ -270,6 +270,64 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
     if (d?.error) toast("Error: " + d.error, "error"); else { toast("Shopify desvinculado", "warning"); setOpen(null); onChange?.(); }
   }
 
+  // ── Tiendanube (se habilita cuando existe la app de Partner o si ya está conectada) ──
+  const tnEnabled = channelAvailable("tiendanube", m);
+  const tnOk = Boolean(m.tiendanube_token);
+  const [tnUrl, setTnUrl] = useState("");
+  const openTn = () => { setTnUrl(m.tiendanube_store_url || ""); setModal("tiendanube"); };
+  async function connectTiendanube() {
+    setBusy("tiendanube");
+    const d = await apiGet("shopify", { action: "tn-oauth-start", store_url: tnUrl.trim() });
+    if (!d?.url) { setBusy(""); return toast("Error: " + (d?.error || "no se pudo iniciar la autorización"), "error", 6000); }
+    window.location.href = d.url;
+  }
+  async function disconnectTiendanube() {
+    const ok = await appConfirm("Se borra el acceso a tu tienda y sacamos el widget. Las suscripciones siguen cobrándose en Mercado Pago, pero no se van a crear órdenes hasta que vuelvas a conectar.", { title:"¿Desvincular Tiendanube?", danger:true, okLabel:"Desvincular" });
+    if (!ok) return;
+    const d = await apiPost("shopify", {}, { action: "tn-disconnect" });
+    if (d?.error) toast("Error: " + d.error, "error"); else { toast("Tiendanube desvinculada", "warning"); setOpen(null); onChange?.(); }
+  }
+  async function installTnScript() {
+    setBusy("tn-script");
+    const d = await apiPost("shopify", {}, { action: "tn-install-script" });
+    setBusy("");
+    if (d?.error) return toast("Error: " + d.error, "error", 7000);
+    toast("Listo: el widget ya se carga en tus páginas de producto", "success"); onChange?.();
+  }
+  async function switchToTiendanube() {
+    const body = { channel: "tiendanube" };
+    setBusy("tn-channel");
+    let d = await apiPatch("merchant", body, { action: "save-settings" });
+    if (d?.code === "confirm_channel_change") {
+      setBusy("");
+      const ok = await appConfirm(d.error, { title:"¿Pasar de Shopify a Tiendanube?", danger:true, okLabel:"Sí, cambiar" });
+      if (!ok) return;
+      setBusy("tn-channel");
+      d = await apiPatch("merchant", { ...body, confirm_channel_change: true }, { action: "save-settings" });
+    }
+    setBusy("");
+    if (d?.error) return toast("Error: " + d.error, "error", 7000);
+    toast("Listo: cada cobro va a crear una orden en Tiendanube", "success"); onChange?.();
+  }
+  // Vuelta de la autorización (?tiendanube=ok|error) o instalación desde la tienda de apps (?tn_claim=).
+  const tnReturnDone = React.useRef(false);
+  useEffect(() => {
+    if (tnReturnDone.current) return;
+    const q = new URLSearchParams(window.location.hash.split("?")[1] || "");
+    const res = q.get("tiendanube"), claim = q.get("tn_claim");
+    if (!res && !claim) return;
+    tnReturnDone.current = true;
+    const clean = () => { try { window.history.replaceState(null, "", window.location.pathname + "#/config/integraciones"); } catch (_) {} };
+    if (res === "ok") { clean(); toast("Tiendanube conectada", "success"); onChange?.(); return; }
+    if (res === "error") { clean(); toast("No se pudo conectar Tiendanube: " + (q.get("msg") || "error desconocido"), "error", 8000); return; }
+    apiPost("shopify", { claim }, { action: "tn-claim" }).then(d => {
+      clean();
+      if (d?.error) toast("No se pudo conectar Tiendanube: " + d.error, "error", 8000);
+      else { toast(`Tiendanube conectada${d.store_name ? ` (${d.store_name})` : ""}`, "success"); onChange?.(); }
+    });
+    // eslint-disable-next-line
+  }, []);
+
   // ── Mercado Pago ──
   const [mpToken, setMpToken] = useState("");
   const [mpPaste, setMpPaste] = useState(false);   // pegar el token (alternativa a la conexión automática)
@@ -362,11 +420,39 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
   ];
 
   // Lo que viene (visible, no elegible).
-  const soonChannels = Object.values(CHANNELS).filter(c => c.status !== "available" && c.id !== profile.channel && c.types.includes(profile.businessType));
+  const soonChannels = Object.values(CHANNELS).filter(c => !channelAvailable(c.id, m) && c.id !== profile.channel && c.types.includes(profile.businessType));
+  // Tiendanube habilitada pero no es el canal elegido: fila opcional para conectarla.
+  const tnOptional = tnEnabled && profile.channel !== "tiendanube" && CHANNELS.tiendanube.types.includes(profile.businessType);
   const soonProviders = Object.values(PAYMENT_PROVIDERS).filter(p => p.status !== "available" && !(p.id === "stripe" && m.stripe_enabled) && !(p.id === "whop" && m.whop_enabled));
-  const reqTotal = profile.channel === "shopify" ? 2 : 1;
-  const reqOk = (profile.channel === "shopify" ? Number(shopifyOk) : 0) + Number(mpOk);
+  const storeRequired = profile.channel === "shopify" || profile.channel === "tiendanube";
+  const reqTotal = storeRequired ? 2 : 1;
+  const reqOk = (storeRequired ? Number(profile.connected.channel) : 0) + Number(mpOk);
   const code = (t) => <code style={{ fontFamily:MONO, fontSize:DS.font.sm, color:T.text }}>{t}</code>;
+  // Fila de Tiendanube: necesaria si es el canal elegido; opcional si solo está habilitada.
+  const tnRow = (required) => (
+    <Row T={T} id="tiendanube" label="Tiendanube" required={required} optional={!required} connected={tnOk} open={open === "tiendanube"} onToggle={() => toggle("tiendanube")}
+      sub={tnOk ? `${m.tiendanube_store_name || m.tiendanube_store_url || "Tienda conectada"} · lee tus productos y crea una orden con cada cobro` : "Para leer tus productos, mostrar el widget en tu tienda y crear una orden con cada cobro."}
+      onConnect={openTn} onDisconnect={disconnectTiendanube}>
+      <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", marginBottom:12 }}>
+        <span style={{ fontSize:DS.font.md, color:T.textMd }}>Tienda: {code(m.tiendanube_store_url || m.tiendanube_store_id || "—")}</span>
+        <button type="button" style={b.ghost} onClick={openTn}>Reconectar</button>
+      </div>
+      {m.tiendanube_script_installed
+        ? <Hint T={T} style={{ marginBottom:0 }}>El widget de suscripción ya se carga solo en tus páginas de producto. No tenés que pegar código.</Hint>
+        : m.tiendanube_script_configured
+          ? <Callout T={T} tone="warning" title="El widget todavía no está en tu tienda" style={{ marginBottom:0 }}
+              right={<button type="button" style={b.ghost} onClick={installTnScript} disabled={busy === "tn-script"}>{busy === "tn-script" ? "Instalando…" : "Instalar widget"}</button>}>
+              {m.tiendanube_script_error ? `Tiendanube respondió: ${m.tiendanube_script_error}` : "Tocá Instalar widget para que aparezca en tus páginas de producto."}
+            </Callout>
+          : <Hint T={T} style={{ marginBottom:0 }}>Muy pronto el widget se va a instalar solo en tus páginas de producto.</Hint>}
+      {profile.channel !== "tiendanube" && (
+        <Callout T={T} tone="info" style={{ marginTop:12, marginBottom:0 }}
+          right={<button type="button" style={b.solid} onClick={switchToTiendanube} disabled={busy === "tn-channel"}>{busy === "tn-channel" ? "Cambiando…" : "Usar Tiendanube como mi tienda"}</button>}>
+          Hoy tus cobros {profile.channelInfo.orders ? `crean órdenes en ${profile.channelInfo.label}` : "quedan registrados en Recurrentes"}. Si vendés con Tiendanube, cambiala acá: cada cobro va a crear una orden en tu tienda.
+        </Callout>
+      )}
+    </Row>
+  );
 
   return (
     <div>
@@ -397,11 +483,12 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
             <div style={{ height:1, background:T.borderL, margin:"0 0 14px" }}/>
             <WidgetThemeCard merchant={m} onChange={onChange} bare/>
           </Row>
-        ) : (
+        ) : profile.channel === "tiendanube" ? tnRow(true) : (
           <Row T={T} id="link" label={profile.channelInfo.label} ready
             sub="Vendés con links de suscripción a un checkout de Recurrentes. No hace falta conectar ninguna tienda."
             action={<a href="#/dashboard/planes" style={{ ...b.ghost, textDecoration:"none", display:"inline-block" }}>Ver mis links</a>}/>
         )}
+        {tnOptional && tnRow(false)}
         {soonChannels.map(c => <Row key={c.id} T={T} id={c.id} label={c.label} soon sub={c.desc}/>)}
 
         {/* ── Pasarelas ── */}
@@ -528,6 +615,25 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
             </>
           )}
           <ShopifyTroubleshoot T={T}/>
+        </Modal>
+      )}
+
+      {modal === "tiendanube" && (
+        <Modal T={T} title={tnOk ? "Reconectar Tiendanube" : "Conectar Tiendanube"} busy={busy === "tiendanube"} onClose={close}
+          sub="Poné la dirección de tu tienda, tocá Autorizar y aceptá en Tiendanube. Listo."
+          footer={<>
+            <Btn T={T} variant="secondary" onClick={close} disabled={busy === "tiendanube"}>Cancelar</Btn>
+            <Btn T={T} variant="solid" onClick={connectTiendanube} disabled={busy === "tiendanube"}>{busy === "tiendanube" ? <><Spinner size={12}/> Abriendo Tiendanube…</> : "Autorizar en Tiendanube →"}</Btn>
+          </>}>
+          <Steps T={T} title="Cómo es">
+            <li>Entrá con la cuenta dueña de la tienda (si no estás adentro, Tiendanube te la pide).</li>
+            <li>Tocá <S T={T}>Autorizar</S>: Tiendanube te muestra lo que pedimos (ver productos, crear órdenes y mostrar el widget).</li>
+            <li>Aceptá y volvés acá conectado. El widget aparece solo en tus páginas de producto.</li>
+          </Steps>
+          <Field T={T} label="Dirección de tu tienda">
+            <input value={tnUrl} onChange={e => setTnUrl(e.target.value)} placeholder="tutienda.mitiendanube.com" style={iS} autoFocus disabled={busy === "tiendanube"}/>
+          </Field>
+          <Hint T={T}>Si tenés dominio propio (tutienda.com.ar) también sirve. Si la dejás vacía, Tiendanube te pide elegir la tienda.</Hint>
         </Modal>
       )}
 
