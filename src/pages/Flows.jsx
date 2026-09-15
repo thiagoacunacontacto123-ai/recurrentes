@@ -88,8 +88,8 @@ export function FlowsPage({ merchant }) {
   const active = flows.filter(f => f.active).length;
   const used = new Set(flows.map(f => f.trigger));
   const ideas = FLOW_TRIGGERS.filter(t => !used.has(t.id));
-  // WhatsApp: sugerencia lista solo si la tienda lo tiene conectado.
-  const waOn = Boolean(merchant?.whatsapp_connected);
+  // WhatsApp: sugerencia lista solo si la tienda tiene quién mande (número propio o de Recurrentes).
+  const waOn = Boolean(merchant?.whatsapp_connected || merchant?.whatsapp_sender);
   const hasWaFlow = flows.some(f => (f.steps || []).some(s => s.type === "whatsapp"));
 
   return (
@@ -115,7 +115,7 @@ export function FlowsPage({ merchant }) {
       </div>
       {!waOn && (
         <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, margin:"-8px 0 16px" }}>
-          ¿Querés avisar también por WhatsApp? <a href="#/config/integraciones" style={{ color:T.accent, fontWeight:700, textDecoration:"none" }}>Conectá WhatsApp en Integraciones →</a>
+          ¿Querés avisar también por WhatsApp? <a href="#/config/integraciones" style={{ color:T.accent, fontWeight:700, textDecoration:"none" }}>Prendé los avisos en Integraciones → WhatsApp →</a>
         </div>
       )}
 
@@ -247,8 +247,8 @@ function FlowEditor({ T, merchant, initial, onBack }) {
   const steps = draft.steps || [];
   const selected = steps.find(s => s.id === sel && s.type === "email") || null;
   const emailNo = (id) => steps.filter(s => s.type === "email").findIndex(s => s.id === id) + 1;
-  // WhatsApp: pasos y plantillas de la cuenta de WhatsApp Business (null = sin cargar).
-  const waOn = Boolean(merchant?.whatsapp_connected);
+  // WhatsApp: pasos y plantillas (de la WABA propia o las de Recurrentes; null = sin cargar).
+  const waOn = Boolean(merchant?.whatsapp_connected || merchant?.whatsapp_sender);
   const selWa = steps.find(s => s.id === sel && s.type === "whatsapp") || null;
   const waNo = (id) => steps.filter(s => s.type === "whatsapp").findIndex(s => s.id === id) + 1;
   const [waTpls, setWaTpls] = useState(null);
@@ -394,7 +394,7 @@ function FlowEditor({ T, merchant, initial, onBack }) {
               {s.type === "whatsapp" ? (
                 <WaStepCard T={T} step={s} no={waNo(s.id)} first={i === 0} last={i === steps.length - 1} open={sel === s.id}
                   onToggle={() => setSel(sel === s.id ? null : s.id)} onChange={(patch) => updStep(s.id, patch)} onMove={(dir) => move(i, dir)} onRemove={() => removeStep(s.id)}
-                  templates={waTpls} connected={waOn} testing={testing === s.id} onTest={() => testWa(s)}/>
+                  templates={waTpls} connected={waOn} platform={merchant?.whatsapp_sender === "platform"} testing={testing === s.id} onTest={() => testWa(s)}/>
               ) : s.type === "wait" ? (
                 <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", border:`1px solid ${T.border}`, borderRadius:12, padding:"10px 12px", marginBottom:6, background:T.surface }}>
                   <span style={{ fontSize:DS.font.md, fontWeight:700, color:T.text }}>Esperar</span>
@@ -468,8 +468,8 @@ function FlowEditor({ T, merchant, initial, onBack }) {
             Los cambios aplican a quienes entren al flujo después de guardar. Pausar el flujo corta los mails pendientes.
           </div>
           {!waOn && (steps.some(s => s.type === "whatsapp")
-            ? <Callout T={T} tone="warning" title="WhatsApp no está conectado" style={{ marginTop:12 }}>Los pasos de WhatsApp de este flujo se saltean hasta que lo conectes en <a href="#/config/integraciones" style={{ color:T.accent, fontWeight:700 }}>Integraciones</a>.</Callout>
-            : <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, marginTop:10 }}>¿Querés sumar avisos por WhatsApp? <a href="#/config/integraciones" style={{ color:T.accent, fontWeight:700, textDecoration:"none" }}>Conectá WhatsApp en Integraciones →</a></div>)}
+            ? <Callout T={T} tone="warning" title="Los avisos por WhatsApp están apagados" style={{ marginTop:12 }}>Los pasos de WhatsApp de este flujo se saltean hasta que los prendas en <a href="#/config/integraciones" style={{ color:T.accent, fontWeight:700 }}>Integraciones → WhatsApp</a>.</Callout>
+            : <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, marginTop:10 }}>¿Querés sumar avisos por WhatsApp? <a href="#/config/integraciones" style={{ color:T.accent, fontWeight:700, textDecoration:"none" }}>Prendelos en Integraciones → WhatsApp →</a></div>)}
         </div>
       </div>
     </div>

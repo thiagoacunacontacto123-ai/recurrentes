@@ -17,6 +17,7 @@ import { PRICING_TIERS, TIER_BY_ID } from "../../shared/platform/pricing.js";
 const F = "'Inter',system-ui,sans-serif";
 const fmtN = (n) => Math.round(Number(n) || 0).toLocaleString("es-AR");
 const fmtUsd = (n) => "US$ " + Math.round(Number(n) || 0).toLocaleString("es-AR");
+const fmtUsd2 = (n) => "US$ " + (Number(n) || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtDM = (key) => { const p = String(key || "").split("-"); return p.length === 3 ? `${Number(p[2])}/${Number(p[1])}` : String(key || ""); };
 const ago = (iso) => (iso ? fmtAgo(iso) : "—");
 const sum = (a = []) => a.reduce((t, n) => t + (Number(n) || 0), 0);
@@ -145,6 +146,7 @@ export function AdminPage() {
     { key:"subs", label:"Suscr.", align:"right", nowrap:true, render: r => <span style={{ fontWeight:700, fontVariantNumeric:"tabular-nums" }}>{fmtN(r.subs)}</span> },
     { key:"mrr", label:"MRR", align:"right", nowrap:true, render: r => <span style={{ fontVariantNumeric:"tabular-nums", color: r.mrr ? T.text : T.textSm }}>{fmtARS(r.mrr)}</span> },
     { key:"plan", label:"Plan", nowrap:true, render: r => <PlanBadge T={T} r={r}/> },
+    { key:"wa", label:"WhatsApp mes", align:"right", nowrap:true, hideMobile:true, render: r => r.wa_sent ? <CellStack T={T} main={fmtUsd2(r.wa_cost_usd)} sub={`${fmtN(r.wa_sent)} avisos`}/> : <span style={{ color:T.textSm }}>—</span> },
     { key:"alta", label:"Alta", nowrap:true, hideMobile:true, render: r => <span title={r.created_at ? fmtDateTime(r.created_at) : ""} style={{ color:T.textMd, fontSize:DS.font.sm }}>{r.created_at ? fmtDateOnly(r.created_at) : "—"}</span> },
     { key:"act", label:"Últ. actividad", nowrap:true, hideMobile:true, render: r => <span title={r.last_activity_at ? fmtDateTime(r.last_activity_at) : ""} style={{ color:T.textSm, fontSize:DS.font.sm }}>{ago(r.last_activity_at)}</span> },
   ];
@@ -177,6 +179,8 @@ export function AdminPage() {
         <KpiCard T={T} loading={!ov} label="Pagan Recurrentes" value={fmtN(o.saas?.paying)} hint={`${fmtUsd(o.saas?.usd_month)} por mes`} color={T.green} onClick={() => goFilter("pagan")}/>
         <KpiCard T={T} loading={!ov} label="Beta" value={fmtN(o.saas?.beta)} hint="cuentas viejas, sin cargo" color={T.blue} onClick={() => goFilter("beta")}/>
         <KpiCard T={T} loading={!ov} label="A activar plan" value={fmtN(needs.length)} valueColor={needs.length ? T.yellow : T.text} hint="les toca un plan pago" color={T.yellow} onClick={() => goFilter("activar")}/>
+        <KpiCard T={T} loading={!ov} label="WhatsApp este mes" value={fmtUsd2(o.whatsapp?.cost_usd)} color={T.green}
+          hint={`${fmtN(o.whatsapp?.sent)} avisos en ${fmtN(o.whatsapp?.merchants)} comercio${o.whatsapp?.merchants === 1 ? "" : "s"} · a cobrar (Meta: ${fmtUsd2(o.whatsapp?.meta_cost_usd)})`}/>
       </div>
 
       <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:8 }}>
@@ -451,6 +455,10 @@ function MerchantPanel({ id, onClose, onChanged }) {
                   <Mini T={T} label="MRR" value={fmtARS(m.mrr)} sub={m.active != null ? `${fmtN(m.active)} activas` : ""}/>
                   <Mini T={T} label="Cobros 30 días" value={m.ch30_count != null ? fmtN(m.ch30_count) : "—"} sub={m.ch30_amount != null ? fmtARS(m.ch30_amount) : ""}/>
                   <Mini T={T} label="Último cobro" value={m.last_charge_at ? fmtDateOnly(m.last_charge_at) : "—"} sub={m.last_charge_at ? ago(m.last_charge_at) : "sin cobros"}/>
+                  {m.whatsapp_usage && (m.whatsapp_usage.wa_sent > 0 || m.whatsapp_usage.platform_enabled) && (
+                    <Mini T={T} label="WhatsApp este mes" value={fmtUsd2(m.whatsapp_usage.wa_cost_usd)}
+                      sub={`${fmtN(m.whatsapp_usage.wa_platform_sent)} desde Recurrentes${m.whatsapp_usage.wa_own_sent ? ` · ${fmtN(m.whatsapp_usage.wa_own_sent)} con su número` : ""} · a cobrar`}/>
+                  )}
                 </div>
                 {s?.at && <div style={{ fontSize:10.5, color:T.textSm, marginTop:6 }}>Calculado {ago(s.at)}.</div>}
               </Section>

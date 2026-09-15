@@ -3,6 +3,7 @@ import { apiPost } from "../lib/api.js";
 import { DS as DS_ } from "../ui/theme.js";
 import { Card, BtnSolid, Badge, Callout, toast } from "../ui/components.jsx";
 import { PRICING_TIERS, TIER_BY_ID, FREE_SUBSCRIBERS, PLAN_FEATURES, tierRangeLabel } from "../../shared/platform/pricing.js";
+import { WhatsAppUsageLine } from "./WhatsAppIntegration.jsx";
 
 // Planes del SaaS (lo que paga el comerciante). Tramos y precios en
 // shared/platform/pricing.js: el precio sale de los SUSCRIPTORES ACTIVOS, los
@@ -142,6 +143,11 @@ export function PlanPage({ T, DS = DS_, merchant, reloadMerchant }) {
   return (
     <div style={{ fontFamily: F, maxWidth: 980 }}>
       <StatusCard T={T} billing={billing} loadingId={loadingId} onActivate={choose}/>
+      {merchant?.whatsapp_sender && (
+        <Card T={T} padding="md" style={{ marginBottom: 16 }}>
+          <WhatsAppUsageLine T={T} merchant={merchant}/>
+        </Card>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", margin: "8px 0 14px" }}>
         <span style={{ fontSize: 15, fontWeight: 800, color: T.text, letterSpacing: -0.3 }}>Pagás según tus suscriptores activos</span>
         <span style={{ fontSize: 12, color: T.textSm }}>Los primeros {FREE_SUBSCRIBERS} son gratis · en dólares · sin contrato</span>

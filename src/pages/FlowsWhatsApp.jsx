@@ -13,7 +13,7 @@ const F = "'Inter',system-ui,sans-serif";
 const MONO = "ui-monospace,Menlo,monospace";
 export const WA_GREEN = "#25D366";
 
-export function WaStepCard({ T, step, no, first, last, open, onToggle, onChange, onMove, onRemove, templates, connected, testing, onTest }) {
+export function WaStepCard({ T, step, no, first, last, open, onToggle, onChange, onMove, onRemove, templates, connected, platform, testing, onTest }) {
   const iS = InputStyle(T);
   const label = { fontSize:10, fontWeight:700, color:T.textSm, textTransform:"uppercase", letterSpacing:0.6 };
   const ctrl = (disabled) => ({ width:26, height:26, borderRadius:7, border:`1px solid ${T.border}`, background:"transparent", color:T.textSm, cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.35 : 1, fontSize:11, fontFamily:F, padding:0 });
@@ -52,7 +52,8 @@ export function WaStepCard({ T, step, no, first, last, open, onToggle, onChange,
       </div>
       {open && (
         <div style={{ padding:"2px 12px 12px", borderTop:`1px solid ${T.borderL}` }}>
-          {!connected && <Callout T={T} tone="warning" style={{ margin:"10px 0" }}>WhatsApp no está conectado: este paso se saltea. <a href="#/config/integraciones" style={{ color:T.accent, fontWeight:700 }}>Conectalo en Integraciones</a>.</Callout>}
+          {!connected && <Callout T={T} tone="warning" style={{ margin:"10px 0" }}>Los avisos por WhatsApp están apagados: este paso se saltea. <a href="#/config/integraciones" style={{ color:T.accent, fontWeight:700 }}>Prendelos en Integraciones → WhatsApp</a>.</Callout>}
+          {connected && platform && <Hint T={T} style={{ margin:"10px 0" }}>Sale desde el número de Recurrentes, a nombre de tu tienda. Las plantillas son fijas: los datos de cada {"{{n}}"} los completa Recurrentes.</Hint>}
           {connected && templates === null && <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:DS.font.sm, color:T.textSm, margin:"10px 0" }}><Spinner size={11} color={T.textMd}/> Cargando tus plantillas de WhatsApp…</div>}
           {approved.length > 0 && (
             <Field T={T} label="Plantilla aprobada">

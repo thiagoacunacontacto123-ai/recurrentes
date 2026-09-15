@@ -154,6 +154,13 @@ export default async function handler(req, res) {
       checkoutShippingRates = resolveCheckoutShippingRates(m);
     }
   } catch (_) {}
+  // WhatsApp: casilla "Quiero que me avisen por WhatsApp" SOLO si la tienda tiene quién mande
+  // (número propio o número de Recurrentes prendido). Sin esos campos (Lumina) no se importa
+  // nada y el JS servido queda idéntico byte a byte.
+  let waOptin = false;
+  if (merchantDoc && (merchantDoc.whatsapp_platform_enabled === true || merchantDoc.whatsapp_phone_number_id)) {
+    try { const { waSender } = await import("./_lib/whatsapp.js"); waOptin = Boolean(waSender(merchantDoc)); } catch (_) {}
+  }
 
   // ─── Calcular paleta derivada del color del merchant (server-side) ─────
   // Reemplazan los verdes hardcodeados originales del widget. Así se ve
@@ -202,7 +209,7 @@ export default async function handler(req, res) {
     // Cache corta para el checkout: así un deploy nuevo (ej. cambios de captura de
     // carrito) se propaga en ≤60s a la storefront, en vez de quedar 5 min viejo.
     res.setHeader("Cache-Control", "public, max-age=60");
-    return res.send(buildCheckoutEmbed({ merchantId, apiBase, color: widgetColor, shippingRates: checkoutShippingRates }));
+    return res.send(buildCheckoutEmbed({ merchantId, apiBase, color: widgetColor, shippingRates: checkoutShippingRates, waOptin }));
   }
 
   const COL_DARK = shade(widgetColor, -35);           // gradient end (botones)
@@ -491,7 +498,7 @@ export default async function handler(req, res) {
         <input id="rec-email" type="email" placeholder="Email" style="' + inputStyle + '"/>\
         <input id="rec-phone" type="tel" placeholder="Teléfono" style="' + inputStyle + '"/>\
         <input id="rec-zip" type="text" placeholder="Código postal" style="' + inputStyle + '"/>\
-      </div>\
+      </div>${waOptin ? waOptinHtml(COL, "rec") : ""}\
       <input id="rec-taxid" type="text" inputmode="numeric" placeholder="DNI o CUIL / CUIT (solo números)" style="' + inputStyle + ';width:100%;margin-bottom:8px;"/>\
       <input id="rec-address" type="text" placeholder="Dirección de envío (calle + número)" style="' + inputStyle + ';width:100%;margin-bottom:8px;"/>\
       <input id="rec-address2" type="text" placeholder="Piso / departamento (opcional)" style="' + inputStyle + ';width:100%;margin-bottom:8px;"/>\
@@ -809,7 +816,7 @@ export default async function handler(req, res) {
         merchant_id: MERCHANT_ID,
         plan_id: plan.id,
         quantity: qty,
-        fb: fbData,
+        fb: fbData,${waOptin ? waOptinBodyJs("rec") : ""}
         customer: { email: email, name: name, phone: phone, tax_id: taxid },
         shipping_address: {
           address1: address1,
@@ -1186,7 +1193,25 @@ export default async function handler(req, res) {
 // Como corre en el dominio de la tienda, usa /cart/shipping_rates.json para
 // traer los envíos REALES por CP (los mismos del checkout normal) y termina en MP.
 // ─────────────────────────────────────────────────────────────────────────
-function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates }) {
+// ── WhatsApp: casilla de opt-in (solo si la tienda tiene WhatsApp prendido) ──
+// Fragmentos que se INSERTAN en el JS servido; con waOptin=false no se inserta nada.
+// Sin comillas simples ni barras: van dentro de strings '…' del JS del widget.
+export const WA_OPTIN_LABEL = "Quiero que me avisen por WhatsApp antes de cada cobro";
+export function waOptinHtml(color, prefix) {
+  const c = /^#[0-9a-fA-F]{6}$/.test(String(color || "")) ? color : "#10b981";
+  return `<label id="${prefix}-wa-optin-row" style="display:flex;align-items:flex-start;gap:8px;font-size:13px;color:#374151;margin:10px 0 12px;cursor:pointer;line-height:1.4;"><input id="${prefix}-wa-optin" type="checkbox" checked style="width:18px;height:18px;margin:1px 0 0;flex-shrink:0;accent-color:${c};"/><span>${WA_OPTIN_LABEL}</span></label>`;
+}
+export const waOptinBodyJs = (prefix) => ` whatsapp_optin: (function(){ var c = document.getElementById("${prefix}-wa-optin"); return c ? !!c.checked : true; })(),`;
+// Exactamente lo que se inserta en cada vista (lo usan los tests para comprobar que,
+// sacando estos fragmentos, el JS es el mismo que sin WhatsApp).
+export function waOptinSnippets(color) {
+  return {
+    product: [waOptinHtml(color, "rec"), waOptinBodyJs("rec")],
+    checkout: [` + '${waOptinHtml(color, "rc")}'`, waOptinBodyJs("rc")],
+  };
+}
+
+function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates, waOptin = false }) {
   return `(function(){
   "use strict";
   var MERCHANT_ID = ${JSON.stringify(merchantId)};
@@ -1515,7 +1540,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates }) {
         discount_code: (RC_DISC.code || undefined),
         recovery_token: (RC_DISC.rc && RC_TOKEN) ? RC_TOKEN : undefined,
         rc_hp_9: val("rc-website"),
-        fb: fbData(),
+        fb: fbData(),${waOptin ? waOptinBodyJs("rc") : ""}
         customer: { email: email, name: name, phone: phone, tax_id: val("rc-tax") },
         shipping_address: {
           address1: val("rc-addr"), address2: val("rc-addr2"), city: val("rc-city"),
@@ -1549,7 +1574,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates }) {
           // Honeypot anti-bots: oculto, sin tab, sin autocompletar. Si viene lleno, el server lo ignora.
           + '<div style="position:absolute;left:-9999px;top:-9999px;height:0;overflow:hidden;" aria-hidden="true"><input id="rc-website" name="rc_hp_9" type="text" tabindex="-1" autocomplete="off" style="display:none;"/></div>'
           + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;"><div><label style="' + lbl + '">Nombre</label><input id="rc-name" style="' + inp + '" placeholder="Juan"/>' + eslot("rc-name") + '</div><div><label style="' + lbl + '">Apellido</label><input id="rc-last" style="' + inp + '" placeholder="Pérez"/>' + eslot("rc-last") + '</div></div>'
-          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"><div><label style="' + lbl + '">Teléfono</label><input id="rc-phone" style="' + inp + '" placeholder="11 2345 6789"/>' + eslot("rc-phone") + '</div><div><label style="' + lbl + '">DNI / CUIL</label><input id="rc-tax" style="' + inp + '" placeholder="20123456789"/>' + eslot("rc-tax") + '</div></div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"><div><label style="' + lbl + '">Teléfono</label><input id="rc-phone" style="' + inp + '" placeholder="11 2345 6789"/>' + eslot("rc-phone") + '</div><div><label style="' + lbl + '">DNI / CUIL</label><input id="rc-tax" style="' + inp + '" placeholder="20123456789"/>' + eslot("rc-tax") + '</div></div>'${waOptin ? ` + '${waOptinHtml(color, "rc")}'` : ""}
         + '</div>'
         + '<div style="' + card + '"><h3 style="' + h + '">Entrega</h3>'
           + '<div style="margin-bottom:12px;"><label style="' + lbl + '">País / Región</label><input value="Argentina" disabled style="' + inp + 'background:#f4f4f5;color:#555;"/></div>'

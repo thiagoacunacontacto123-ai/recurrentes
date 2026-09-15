@@ -1,30 +1,45 @@
 // WhatsApp Business Cloud API (oficial de Meta) — envío de plantillas a clientes finales.
 //
-//   sendTemplate({ merchant, to, template, lang, components })
-//     POST https://graph.facebook.com/{v}/{phone-number-id}/messages con el token del
-//     comerciante. Fuera de la ventana de 24 h solo se pueden mandar PLANTILLAS
-//     aprobadas por Meta; los avisos de Recurrentes siempre van como plantilla.
-//     → { ok:true, id (wamid), wa_id } | { ok:false, skipped?, reason?, code, error, retryable, reconnect }
-//   waValidateCredentials({ phone_number_id, waba_id, token }) — llamadas de solo lectura
-//     (datos del número + números de la WABA) para validar antes de guardar.
-//   waListTemplates(merchant) — plantillas de la WABA (para el editor de flujos).
-//   runWhatsappFlowStep(...) — lo usa el motor de flujos (api/_lib/flows.js).
+// DOS FORMAS DE MANDAR (waSender):
+//   1) Número propio del comerciante (avanzado): whatsapp_phone_number_id + whatsapp_access_token
+//      en su doc. Paga él directo a Meta.
+//   2) Número de Recurrentes (por defecto): el comerciante solo prende "Avisos por WhatsApp"
+//      (merchant.whatsapp_platform_enabled === true) y las env WHATSAPP_PHONE_NUMBER_ID +
+//      WHATSAPP_ACCESS_TOKEN están cargadas. Solo plantillas de Recurrentes (WA_TEMPLATES,
+//      llevan el nombre de la tienda). El costo de Meta × WHATSAPP_MARKUP se suma a su plan.
+//   Prioridad: número propio > número de Recurrentes > no se manda nada.
 //
-// Conexión por comerciante (merchant doc, nunca se devuelve el token):
-//   whatsapp_phone_number_id, whatsapp_waba_id, whatsapp_access_token (token permanente
-//   de un usuario del sistema), whatsapp_app_secret? (firma del webhook si usa su propia
-//   app de Meta), whatsapp_verify_token, whatsapp_display_phone, whatsapp_verified_name,
-//   whatsapp_quality, whatsapp_connected_at, whatsapp_last_error(_at).
+//   sendTemplate({ merchant | sender, to, template, lang, components })
+//     POST https://graph.facebook.com/{v}/{phone-number-id}/messages. Fuera de la ventana de
+//     24 h solo se pueden mandar PLANTILLAS aprobadas por Meta.
+//     → { ok:true, id (wamid), wa_id, mode } | { ok:false, skipped?, reason?, code, error, retryable, reconnect }
+//   waValidateCredentials({ phone_number_id, waba_id, token }) — llamadas de solo lectura.
+//   waListTemplates(merchant) — plantillas de la WABA propia (para el editor de flujos).
+//   runWhatsappFlowStep(...) — lo usa el motor de flujos (api/_lib/flows.js).
+//   recordWaUsage(mid, mode) — uso del mes (merchants/{mid}/usage/{YYYY-MM} + admin_usage/{YYYY-MM}).
+//
+// Conexión propia (merchant doc, nunca se devuelve el token):
+//   whatsapp_phone_number_id, whatsapp_waba_id, whatsapp_access_token, whatsapp_app_secret?,
+//   whatsapp_verify_token, whatsapp_display_phone, whatsapp_verified_name, whatsapp_quality,
+//   whatsapp_connected_at, whatsapp_last_error(_at).
+// Número de Recurrentes (merchant doc): whatsapp_platform_enabled, whatsapp_platform_optin_at.
 // Registro: merchants/{mid}/message_log/{sha(wamid) | auto}  (canal "whatsapp"; ver logWaMessage)
 // Bajas:    merchants/{mid}/wa_optouts/{sha256(E.164)}      (respondió BAJA, o sub.whatsapp_optout)
+//           wa_platform_optouts/{sha256(E.164)}              (respondió BAJA al número de Recurrentes)
+// Índices del número de Recurrentes (solo Admin SDK):
+//   wa_platform_msgs/{sha(wamid)} { mid }        → el webhook sabe de qué tienda es cada estado
+//   wa_contacts/{sha256(E.164)} { merchants:{mid:iso}, last_autoreply_at } → a quién le escribimos
 //
 // NUNCA loguear tokens: los errores se guardan ya mapeados y pasados por scrub().
 import crypto from "node:crypto";
+import { FieldValue } from "firebase-admin/firestore";
 import { db } from "./firebase.js";
 import { sha256hex, timingSafeEqualStr } from "./token.js";
 import {
   normalizePhoneAR, maskPhone, templateParams, WA_DEFAULT_LANG, WA_TEMPLATE_NAME_RE, WA_LANG_RE,
+  WA_TEMPLATE_BY_NAME, waUsageMonth,
 } from "../../shared/platform/whatsapp.js";
+import { WHATSAPP_PRICE_USD_UTILITY_DEFAULT, WHATSAPP_MARKUP, waChargeUsd } from "../../shared/platform/pricing.js";
 
 const GRAPH = "https://graph.facebook.com";
 // v25.0 (vigente hasta 2028-07). WHATSAPP_GRAPH_VERSION permite subirla sin deploy de código.
@@ -36,9 +51,36 @@ export const graphVersion = () => {
 
 export const whatsappEnabled = (m) => Boolean(m && m.whatsapp_phone_number_id && m.whatsapp_access_token);
 
-// Campos para GET /api/merchant (sin token ni app secret).
+// ── Número de Recurrentes (env) ────────────────────────────────────
+export function platformWaConfig() {
+  const pid = String(process.env.WHATSAPP_PHONE_NUMBER_ID || "").trim();
+  const token = String(process.env.WHATSAPP_ACCESS_TOKEN || "").trim();
+  if (!/^\d{5,25}$/.test(pid) || token.length < 20) return null;
+  return { phone_number_id: pid, token, waba_id: String(process.env.WHATSAPP_WABA_ID || "").trim() || null };
+}
+export const platformWaAvailable = () => Boolean(platformWaConfig());
+export const isPlatformPhoneId = (pid) => { const c = platformWaConfig(); return Boolean(c && pid && String(pid) === c.phone_number_id); };
+
+// Quién manda por esta tienda: número propio > número de Recurrentes > nadie (null).
+export function waSender(m) {
+  if (whatsappEnabled(m)) return { mode: "own", phone_number_id: String(m.whatsapp_phone_number_id), token: m.whatsapp_access_token };
+  if (m && m.whatsapp_platform_enabled === true) {
+    const c = platformWaConfig();
+    if (c) return { mode: "platform", phone_number_id: c.phone_number_id, token: c.token, waba_id: c.waba_id };
+  }
+  return null;
+}
+
+// Precio de Meta por plantilla de utilidad (USD). Env WHATSAPP_PRICE_USD_UTILITY lo pisa.
+export function waPriceUsd() {
+  const n = Number(String(process.env.WHATSAPP_PRICE_USD_UTILITY || "").trim().replace(",", "."));
+  return Number.isFinite(n) && n > 0 && n < 1 ? n : WHATSAPP_PRICE_USD_UTILITY_DEFAULT;
+}
+
+// Campos para GET /api/merchant (sin token ni app secret, ni datos del número de Recurrentes).
 export function whatsappSafe(m) {
   const on = whatsappEnabled(m);
+  const price = waPriceUsd();
   return {
     whatsapp_connected: on,
     whatsapp_phone_number_id: on ? (m.whatsapp_phone_number_id || null) : null,
@@ -53,6 +95,14 @@ export function whatsappSafe(m) {
     whatsapp_optin_confirmed_at: on ? (m.whatsapp_optin_confirmed_at || null) : null,
     whatsapp_last_error: on ? (m.whatsapp_last_error || null) : null,
     whatsapp_last_error_at: on ? (m.whatsapp_last_error_at || null) : null,
+    // Número de Recurrentes: solo booleanos + precio (nunca el id ni el token de la env).
+    whatsapp_platform_available: platformWaAvailable(),
+    whatsapp_platform_enabled: m?.whatsapp_platform_enabled === true,
+    whatsapp_platform_optin_at: m?.whatsapp_platform_optin_at || null,
+    whatsapp_sender: waSender(m)?.mode || null,            // "own" | "platform" | null
+    whatsapp_price_usd: price,                              // lo que cobra Meta por aviso
+    whatsapp_charge_usd: waChargeUsd(price),                // lo que paga la tienda (× WHATSAPP_MARKUP)
+    whatsapp_markup: WHATSAPP_MARKUP,
   };
 }
 
@@ -159,24 +209,42 @@ export function buildTemplatePayload({ to, template, lang = WA_DEFAULT_LANG, com
   };
 }
 
-export async function sendTemplate({ merchant, to, template, lang = WA_DEFAULT_LANG, components = [], timeoutMs = 8000 } = {}) {
-  if (!whatsappEnabled(merchant)) return { ok: false, skipped: true, reason: "not_connected", error: "WhatsApp no está conectado" };
+export async function sendTemplate({ merchant, sender, to, template, lang = WA_DEFAULT_LANG, components = [], timeoutMs = 8000 } = {}) {
+  const s = sender || waSender(merchant);
+  if (!s) return { ok: false, skipped: true, reason: "not_connected", error: "WhatsApp no está conectado" };
   const e164 = normalizePhoneAR(to);
   if (!e164) return { ok: false, skipped: true, reason: "no_phone", error: "El cliente no tiene un teléfono válido" };
   const name = String(template || "").trim();
   if (!WA_TEMPLATE_NAME_RE.test(name)) return { ok: false, code: "template", error: "Nombre de plantilla inválido" };
   const code = WA_LANG_RE.test(String(lang || "")) ? lang : WA_DEFAULT_LANG;
   const payload = buildTemplatePayload({ to: e164.slice(1), template: name, lang: code, components });
-  const r = await graph(`${encodeURIComponent(merchant.whatsapp_phone_number_id)}/messages`, {
-    token: merchant.whatsapp_access_token, method: "POST", body: payload, timeoutMs,
+  const r = await graph(`${encodeURIComponent(s.phone_number_id)}/messages`, {
+    token: s.token, method: "POST", body: payload, timeoutMs,
   });
   if (r.ok) {
     const m = r.data?.messages?.[0] || {};
-    return { ok: true, id: m.id || null, message_status: m.message_status || null, wa_id: r.data?.contacts?.[0]?.wa_id || null, to: e164 };
+    return { ok: true, id: m.id || null, message_status: m.message_status || null, wa_id: r.data?.contacts?.[0]?.wa_id || null, to: e164, mode: s.mode };
   }
   const err = mapWaError(r.status, r.data);
-  console.warn(`[whatsapp] envío ${name} → ${maskPhone(e164)}: ${err.code} ${err.detail || err.error}`);
-  return { ...err, to: e164 };
+  console.warn(`[whatsapp] envío ${name} (${s.mode}) → ${maskPhone(e164)}: ${err.code} ${err.detail || err.error}`);
+  return { ...err, to: e164, mode: s.mode };
+}
+
+// Texto libre desde el número de Recurrentes (solo dentro de las 24 h que abre el cliente
+// al escribir: es un mensaje de servicio, gratis). Lo usa la respuesta automática del webhook.
+export async function sendPlatformText({ to, body, timeoutMs = 8000 } = {}) {
+  const c = platformWaConfig();
+  if (!c) return { ok: false, skipped: true, reason: "not_connected" };
+  const e164 = normalizePhoneAR(to);
+  if (!e164) return { ok: false, skipped: true, reason: "no_phone" };
+  const r = await graph(`${encodeURIComponent(c.phone_number_id)}/messages`, {
+    token: c.token, method: "POST", timeoutMs,
+    body: { messaging_product: "whatsapp", recipient_type: "individual", to: e164.slice(1), type: "text", text: { preview_url: false, body: String(body || "").slice(0, 4096) } },
+  });
+  if (r.ok) return { ok: true, id: r.data?.messages?.[0]?.id || null, to: e164 };
+  const err = mapWaError(r.status, r.data);
+  console.warn(`[whatsapp] respuesta automática → ${maskPhone(e164)}: ${err.code} ${err.detail || err.error}`);
+  return err;
 }
 
 // ── Validación de credenciales (solo lectura) ──────────────────────
@@ -235,18 +303,31 @@ export async function waListTemplates(merchant) {
 
 // ── Bajas (opt-out) ────────────────────────────────────────────────
 const optoutsCol = (mid) => db().collection("merchants").doc(mid).collection("wa_optouts");
-const phoneKey = (e164) => sha256hex(String(e164 || "").replace(/\D/g, ""));
+export const phoneKey = (e164) => sha256hex(String(e164 || "").replace(/\D/g, ""));
 
-export async function isWhatsappOptedOut(mid, e164, sub) {
+// { platform:true } → además mira la baja global del número de Recurrentes.
+export async function isWhatsappOptedOut(mid, e164, sub, { platform = false } = {}) {
   if (sub?.whatsapp_optout === true || sub?.whatsapp_optin === false) return true;
   if (!mid || !e164) return false;
-  try { return (await optoutsCol(mid).doc(phoneKey(e164)).get()).exists; }
-  catch (_) { return false; }
+  try {
+    if ((await optoutsCol(mid).doc(phoneKey(e164)).get()).exists) return true;
+    if (platform && (await db().collection("wa_platform_optouts").doc(phoneKey(e164)).get()).exists) return true;
+    return false;
+  } catch (_) { return false; }
 }
 
 export async function setWhatsappOptOut(mid, e164, { optout = true, reason = "respuesta" } = {}) {
   if (!mid || !e164) return false;
   const ref = optoutsCol(mid).doc(phoneKey(e164));
+  if (optout) await ref.set({ phone_masked: maskPhone(e164), reason, created_at: new Date().toISOString() }, { merge: true });
+  else await ref.delete();
+  return true;
+}
+
+// Baja global del número de Recurrentes (el cliente respondió BAJA a ese número).
+export async function setPlatformOptOut(e164, { optout = true, reason = "respondió baja" } = {}) {
+  if (!e164) return false;
+  const ref = db().collection("wa_platform_optouts").doc(phoneKey(e164));
   if (optout) await ref.set({ phone_masked: maskPhone(e164), reason, created_at: new Date().toISOString() }, { merge: true });
   else await ref.delete();
   return true;
@@ -265,6 +346,7 @@ export async function logWaMessage(mid, entry) {
     await ref.set({
       channel: "whatsapp",
       type: entry.type || "other",                 // "flow" | "test"
+      sender: entry.sender || null,                // "own" | "platform"
       flow_id: entry.flow_id || null,
       flow_name: entry.flow_name || null,
       step: entry.step || null,
@@ -290,6 +372,7 @@ export async function logWaMessage(mid, entry) {
 }
 
 // Si Meta dice que hay que reconectar, lo dejamos a la vista en Integraciones.
+// Solo para el número PROPIO: un error del número de Recurrentes no es culpa de la tienda.
 export async function recordWaError(mid, merchant, err) {
   if (!mid) return;
   try {
@@ -298,33 +381,119 @@ export async function recordWaError(mid, merchant, err) {
     else if (!err && merchant?.whatsapp_last_error) await ref.set({ whatsapp_last_error: null, whatsapp_last_error_at: null }, { merge: true });
   } catch (_) {}
 }
+// Error del número de Recurrentes (token vencido, número bloqueado…): para Thiago.
+export async function recordPlatformError(err) {
+  if (!err || !err.reconnect) return;
+  try { await db().collection("system").doc("whatsapp_platform").set({ last_error: scrub(err.error), last_error_code: err.code ?? null, last_error_at: new Date().toISOString() }, { merge: true }); }
+  catch (_) {}
+}
+
+// ── Uso del mes (se cobra con el plan) ─────────────────────────────
+// Número de Recurrentes: costo = precio de Meta × WHATSAPP_MARKUP. Número propio: se
+// cuenta igual pero a costo 0 (lo paga la tienda a Meta). Increments atómicos.
+export async function recordWaUsage(mid, mode, { now = new Date() } = {}) {
+  if (!mid || (mode !== "own" && mode !== "platform")) return null;
+  const month = waUsageMonth(now);
+  const platform = mode === "platform";
+  const price = platform ? waPriceUsd() : 0;
+  const cost = platform ? waChargeUsd(price) : 0;
+  const at = now.toISOString();
+  const inc = FieldValue.increment;
+  try {
+    await db().collection("merchants").doc(mid).collection("usage").doc(month).set({
+      month, wa_sent: inc(1), wa_cost_usd: inc(cost),
+      [platform ? "wa_platform_sent" : "wa_own_sent"]: inc(1), updated_at: at,
+    }, { merge: true });
+    if (platform) {
+      await db().collection("admin_usage").doc(month).set({
+        month, wa_sent: inc(1), wa_cost_usd: inc(cost), wa_meta_cost_usd: inc(price), updated_at: at,
+        merchants: { [mid]: { wa_sent: inc(1), wa_cost_usd: inc(cost), wa_meta_cost_usd: inc(price) } },
+      }, { merge: true });
+    }
+    return { month, cost };
+  } catch (e) {
+    console.warn(`[whatsapp] uso ${mid}:`, e.message);
+    return null;
+  }
+}
+
+export async function getWaUsage(mid, month = waUsageMonth()) {
+  const empty = { month, wa_sent: 0, wa_cost_usd: 0, wa_platform_sent: 0, wa_own_sent: 0 };
+  if (!mid) return empty;
+  const d = (await db().collection("merchants").doc(mid).collection("usage").doc(month).get()).data() || {};
+  return {
+    month,
+    wa_sent: Number(d.wa_sent) || 0,
+    wa_cost_usd: Math.round((Number(d.wa_cost_usd) || 0) * 1e6) / 1e6,
+    wa_platform_sent: Number(d.wa_platform_sent) || 0,
+    wa_own_sent: Number(d.wa_own_sent) || 0,
+  };
+}
+
+// Número de Recurrentes: recordar a quién le escribimos por qué tienda (el webhook
+// resuelve con esto los estados de entrega, las bajas y la respuesta automática).
+export async function rememberPlatformContact(mid, e164, wamid) {
+  if (!mid || !e164) return;
+  const at = new Date().toISOString();
+  try {
+    await db().collection("wa_contacts").doc(phoneKey(e164)).set({ phone_masked: maskPhone(e164), merchants: { [mid]: at }, last_mid: mid, last_sent_at: at }, { merge: true });
+    if (wamid) await db().collection("wa_platform_msgs").doc(messageLogId(wamid)).set({ mid, created_at: at });
+  } catch (e) { console.warn(`[whatsapp] contacto ${mid}:`, e.message); }
+}
+
+// Plantilla que efectivamente sale. Número de Recurrentes: solo plantillas de Recurrentes y
+// con SU mapeo de variables (así el nombre de la tienda va siempre); número propio: la del paso.
+export function resolveStepTemplate(sender, step) {
+  if (sender?.mode === "platform") {
+    const t = WA_TEMPLATE_BY_NAME[String(step?.template || "").trim().toLowerCase()];
+    return t ? { template: t.name, lang: t.lang, vars: t.vars } : null;
+  }
+  return { template: step?.template, lang: step?.lang, vars: step?.vars || {} };
+}
+
+// Después de un envío: uso del mes, índices del número de Recurrentes y errores.
+export async function afterWaSend(mid, merchant, sender, phone, r) {
+  if (r?.ok) {
+    await recordWaUsage(mid, sender.mode);
+    if (sender.mode === "platform") await rememberPlatformContact(mid, phone, r.id);
+  }
+  if (sender.mode === "own") await recordWaError(mid, merchant, r?.ok ? null : r);
+  else if (!r?.ok) await recordPlatformError(r);
+}
 
 // ── Paso de flujo ──────────────────────────────────────────────────
-// Manda la plantilla del paso si: WhatsApp conectado + teléfono válido + sin baja.
-// Nunca lanza. → { ok } | { skipped, reason } | { ok:false, error }
+// Manda la plantilla del paso si: hay quien mande (número propio o de Recurrentes) +
+// teléfono válido + sin baja. Sin quien mande: CERO lecturas. Nunca lanza.
+// → { ok } | { skipped, reason } | { ok:false, error }
 export async function runWhatsappFlowStep({ mid, merchant, sub, subscriberId, step, vars, flowId, flowName, stepNo }) {
   try {
-    if (!whatsappEnabled(merchant)) return { ok: false, skipped: true, reason: "not_connected" };
+    const sender = waSender(merchant);
+    if (!sender) return { ok: false, skipped: true, reason: "not_connected" };
     const phone = normalizePhoneAR(sub?.customer_phone || sub?.shipping_address?.phone);
+    const tpl = resolveStepTemplate(sender, step);
     const base = {
-      type: "flow", flow_id: flowId, flow_name: flowName, step: stepNo, subscriber_id: subscriberId,
+      type: "flow", sender: sender.mode, flow_id: flowId, flow_name: flowName, step: stepNo, subscriber_id: subscriberId,
       customer_name: sub?.customer_name, product_title: sub?.plan_snapshot?.product_title,
-      template: step?.template, lang: step?.lang,
+      template: tpl?.template || step?.template, lang: tpl?.lang || step?.lang,
     };
+    if (!tpl) {
+      await logWaMessage(mid, { ...base, status: "skipped", reason: "Esa plantilla no está disponible en el número de Recurrentes" });
+      return { ok: false, skipped: true, reason: "template_not_platform" };
+    }
     if (!phone) {
       await logWaMessage(mid, { ...base, status: "skipped", reason: "Sin teléfono" });
       return { ok: false, skipped: true, reason: "no_phone" };
     }
-    if (await isWhatsappOptedOut(mid, phone, sub)) {
+    if (await isWhatsappOptedOut(mid, phone, sub, { platform: sender.mode === "platform" })) {
       await logWaMessage(mid, { ...base, to: phone, status: "skipped", reason: "Se dio de baja de WhatsApp" });
       return { ok: false, skipped: true, reason: "optout" };
     }
-    const params = templateParams(step?.vars || {}, vars || {});
-    const r = await sendTemplate({ merchant, to: phone, template: step.template, lang: step.lang, components: bodyComponents(params) });
+    const params = templateParams(tpl.vars, vars || {});
+    const r = await sendTemplate({ sender, to: phone, template: tpl.template, lang: tpl.lang, components: bodyComponents(params) });
     await logWaMessage(mid, {
       ...base, to: phone, status: r.ok ? "sent" : "error", error: r.ok ? null : r.error, error_code: r.ok ? null : r.code, provider_id: r.ok ? r.id : null,
     });
-    await recordWaError(mid, merchant, r.ok ? null : r);
+    await afterWaSend(mid, merchant, sender, phone, r);
     return r;
   } catch (e) {
     console.warn(`[whatsapp] paso de flujo ${mid}/${subscriberId}:`, scrub(e.message));
