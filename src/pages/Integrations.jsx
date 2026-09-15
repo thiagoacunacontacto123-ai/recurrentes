@@ -517,7 +517,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
           </div>
           <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
             {m.mp_oauth_available && <button type="button" style={mpReconnect ? b.solid : b.ghost} onClick={() => openMp(false)}>{mpOauth || mpReconnect ? "Reconectar con Mercado Pago" : "Pasar a conexión automática"}</button>}
-            <button type="button" style={b.ghost} onClick={() => openMp(true)}>{mpOauth ? "Pegar un Access Token" : "Cambiar Access Token"}</button>
+            {!mpOauth && <button type="button" style={b.ghost} onClick={() => openMp(true)}>Cambiar Access Token</button>}
           </div>
         </Row>
         {m.mobbex_available && <MobbexRow T={T} m={m} profile={profile} onChange={onChange} open={open === "mobbex"} onToggle={() => toggle("mobbex")}/>}

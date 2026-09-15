@@ -53,7 +53,7 @@ Entrá a https://www.recurrentesapp.com/#/admin con tu cuenta de Google `thiagoa
 
 ---
 
-## Parte 2 — Mercado Pago en 1 clic (≈20 min)
+## ✅ Parte 2 — Mercado Pago en 1 clic (HECHO y probado el 15-sept)
 El comerciante toca **"Conectar con Mercado Pago"**, autoriza y vuelve conectado. Ya no tiene que pegar ningún token.
 
 1. Entrá a https://www.mercadopago.com.ar/developers/panel/app → **Crear aplicación**.
