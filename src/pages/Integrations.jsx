@@ -233,12 +233,11 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
   const shopifyOk = Boolean(m.shopify_token);
   const mpOk = Boolean(m.mp_access_token);
   const metaOk = Boolean(m.meta_connected);
-  const klaviyoOk = Boolean(m.klaviyo_connected);
   // Con app única de Recurrentes (SHOPIFY_API_KEY en env) no hace falta app propia.
   const envApp = Boolean(m.shopify_env_app);
 
   const [open, setOpen] = useState(null);          // fila con "Ajustes" desplegado
-  const [modal, setModal] = useState(null);        // "shopify" | "mp" | "meta" | "klaviyo"
+  const [modal, setModal] = useState(null);        // "shopify" | "mp" | "meta"
   const [busy, setBusy] = useState("");
   const toggle = (id) => setOpen(o => o === id ? null : id);
   const close = () => { if (!busy) setModal(null); };
@@ -377,47 +376,6 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
     if (d?.error) toast("Error: " + d.error, "error"); else { toast("Meta desvinculado", "warning"); setOpen(null); onChange?.(); }
   }
 
-  // ── Klaviyo: recupero de checkouts + eventos de suscripción ──
-  const [klaviyoKey, setKlaviyoKey] = useState("");
-  async function connectKlaviyo() {
-    const key = klaviyoKey.trim();
-    if (!key.startsWith("pk_")) return toast("Tiene que ser una Private API Key (empieza con pk_)", "warning");
-    setBusy("klaviyo");
-    const d = await apiPost("merchant", { api_key: key }, { action: "save-klaviyo" });
-    setBusy("");
-    if (d?.error) return toast("Error: " + d.error, "error", 8000);
-    setKlaviyoKey(""); setModal(null);
-    toast(`Klaviyo conectado${d.klaviyo_org ? ` (${d.klaviyo_org})` : ""}`, "success");
-    onChange?.();
-  }
-  async function testKlaviyo() {
-    setBusy("klaviyo-test");
-    const d = await apiPost("merchant", {}, { action: "klaviyo-test" });
-    setBusy("");
-    if (d?.error) return toast("Error: " + d.error, "error", 8000);
-    toast(`Evento "Checkout Started" de prueba enviado a ${d.to}. Buscalo en Klaviyo → Profiles → tu mail (puede tardar 1 min).`, "success", 9000);
-  }
-  async function disconnectKlaviyo() {
-    const ok = await appConfirm("Dejamos de mandar eventos a Klaviyo. Tus flujos y perfiles allá quedan como están.", { title:"¿Desvincular Klaviyo?", danger:true, okLabel:"Desvincular" });
-    if (!ok) return;
-    const d = await apiPost("merchant", {}, { action: "disconnect-klaviyo" });
-    if (d?.error) toast("Error: " + d.error, "error"); else { toast("Klaviyo desvinculado", "warning"); setOpen(null); onChange?.(); }
-  }
-  async function toggleKlaviyoOrders(v) {
-    const d = await apiPatch("merchant", { klaviyo_send_orders: v === true }, { action: "save-settings" });
-    if (d?.error) return toast("Error: " + d.error, "error", 6000);
-    toast(v ? 'Vamos a mandar también "Placed Order" en cada cobro' : '"Placed Order" desactivado (lo manda Shopify)', "success");
-    onChange?.();
-  }
-  const KLAVIYO_EVENTS = [
-    ["Checkout Started", "dejó el mail o tocó Pagar · igual que un carrito de Shopify, con CheckoutURL para retomar"],
-    ["Subscription Activated", "primer cobro aprobado y orden creada"],
-    ["Subscription Renewed", "cada cobro siguiente"],
-    ["Subscription Payment Failed", "renovación rechazada (trae portal_url para actualizar la tarjeta)"],
-    ["Subscription Paused", "pausó desde el portal o vos desde el panel"],
-    ["Subscription Resumed", "reactivó la suscripción"],
-    ["Subscription Cancelled", "canceló la suscripción"],
-  ];
 
   // Lo que viene (visible, no elegible).
   const soonChannels = Object.values(CHANNELS).filter(c => !channelAvailable(c.id, m) && c.id !== profile.channel && c.types.includes(profile.businessType));
@@ -533,41 +491,6 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
             Mandamos a Meta la <S T={T}>primera venta</S> de cada suscripción por la API de Conversiones (del lado del servidor). <S T={T}>Las renovaciones no se reportan</S>, así no inflás la atribución de tus campañas.
           </div>
           <button type="button" style={b.ghost} onClick={openMeta}>Cambiar credenciales</button>
-        </Row>
-
-        {/* ── Emails y marketing ── */}
-        <GroupTitle T={T}>Emails y marketing</GroupTitle>
-        <Row T={T} id="klaviyo" label="Klaviyo" optional connected={klaviyoOk} error={klaviyoOk && Boolean(m.klaviyo_last_error)} open={open === "klaviyo"} onToggle={() => toggle("klaviyo")}
-          sub={klaviyoOk ? `${m.klaviyo_org || "Cuenta conectada"} · recibe los checkouts sin pagar y los eventos de cada suscripción` : "Mandá a tu Klaviyo los checkouts sin pagar y cada evento de suscripción para tus flows."}
-          onConnect={() => { setKlaviyoKey(""); setModal("klaviyo"); }} onDisconnect={disconnectKlaviyo}>
-          {m.klaviyo_last_error && (
-            <Callout T={T} tone="danger" title="Último error de Klaviyo" style={{ marginBottom:12 }}>
-              {m.klaviyo_last_error}{m.klaviyo_last_error_at ? ` · ${fmtDateShort(m.klaviyo_last_error_at)}` : ""}. Si la clave fue revocada, cargá una nueva.
-            </Callout>
-          )}
-          <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
-            <button type="button" style={b.ghost} onClick={testKlaviyo} disabled={!!busy}>{busy === "klaviyo-test" ? "Enviando…" : "Probar evento"}</button>
-            <button type="button" style={b.ghost} onClick={() => { setKlaviyoKey(""); setModal("klaviyo"); }}>Cambiar clave</button>
-            {m.klaviyo_connected_at && <span style={{ fontSize:DS.font.sm, color:T.textSm }}>Conectado el {fmtDateShort(m.klaviyo_connected_at)}</span>}
-          </div>
-          <CheckLine T={T} checked={Boolean(m.klaviyo_send_orders)} onChange={toggleKlaviyoOrders} style={{ color:T.text, marginTop:14 }}>
-            Mi Klaviyo NO está conectado a Shopify: enviar también "Placed Order" en cada cobro
-          </CheckLine>
-          <Callout T={T} tone="warning" title="Una vez, 2 minutos" style={{ marginTop:14 }}>
-            Klaviyo separa las métricas por integración: <S T={T}>"Checkout Started" de Shopify</S> y <S T={T}>"Checkout Started" de Recurrentes (API)</S> son distintas. Para que tu flujo de abandono también atienda los checkouts de suscripción, clonalo con "Checkout Started" (API) como disparador, o sumale una segunda entrada.
-          </Callout>
-          <div style={{ fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:0.9, color:T.textSm, margin:"16px 0 8px" }}>Eventos que enviamos · usalos como disparador</div>
-          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-            {KLAVIYO_EVENTS.map(([name, desc]) => (
-              <div key={name} style={{ display:"flex", gap:10, alignItems:"baseline", flexWrap:"wrap", fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5 }}>
-                <code style={{ fontFamily:MONO, fontSize:DS.font.sm, fontWeight:DS.w.bold, color:T.text, background:T.bg, border:`1px solid ${T.borderL}`, borderRadius:6, padding:"1px 7px", whiteSpace:"nowrap" }}>{name}</code>
-                <span>{desc}</span>
-              </div>
-            ))}
-          </div>
-          <Hint T={T} style={{ marginTop:12, marginBottom:0 }}>
-            En cada evento también actualizamos el perfil con <code style={{ fontFamily:MONO }}>recurrentes_status</code>, <code style={{ fontFamily:MONO }}>recurrentes_plan</code>, <code style={{ fontFamily:MONO }}>recurrentes_next_charge_at</code> y más, para segmentar campañas.
-          </Hint>
         </Row>
 
         {/* ── Mensajes (WhatsApp Cloud API, WhatsAppIntegration.jsx) ── */}
@@ -702,24 +625,6 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
         </Modal>
       )}
 
-      {modal === "klaviyo" && (
-        <Modal T={T} title={klaviyoOk ? "Cambiar la clave de Klaviyo" : "Conectar Klaviyo"} busy={busy === "klaviyo"} onClose={close}
-          sub="Mandamos a tu Klaviyo los checkouts sin pagar y cada evento de suscripción, para que armes tus flows."
-          footer={<>
-            <Btn T={T} variant="secondary" onClick={close} disabled={busy === "klaviyo"}>Cancelar</Btn>
-            <Btn T={T} variant="solid" onClick={connectKlaviyo} disabled={busy === "klaviyo" || !klaviyoKey.trim().startsWith("pk_")}>{busy === "klaviyo" ? <><Spinner size={12}/> Validando…</> : "Conectar"}</Btn>
-          </>}>
-          <Steps T={T} title="Crear la clave (1 minuto)">
-            <li>En Klaviyo andá a <A T={T} href="https://www.klaviyo.com/settings/account/api-keys">Configuración → API keys</A> → <S T={T}>Create Private API Key</S>.</li>
-            <li>Dale permisos <S T={T}>Accounts: Read</S>, <S T={T}>Events: Write</S> y <S T={T}>Profiles: Write</S>.</li>
-            <li>Copiala (empieza con pk_) y pegala acá abajo.</li>
-          </Steps>
-          <Field T={T} label="Private API Key">
-            <input type="password" value={klaviyoKey} onChange={e => setKlaviyoKey(e.target.value)} placeholder="pk_…" style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} autoFocus disabled={busy === "klaviyo"}/>
-          </Field>
-          <Hint T={T}>La validamos contra tu cuenta y nunca la mostramos de vuelta.</Hint>
-        </Modal>
-      )}
     </div>
   );
 }

@@ -64,7 +64,6 @@ export function HomeTab({ merchant, onGo, onGoConfig, onOpenGuide }) {
     title: profile.caps.orders ? `${errorsCount} cobro${errorsCount === 1 ? "" : "s"} sin orden en ${profile.channelInfo.label}` : `${errorsCount} cobro${errorsCount === 1 ? "" : "s"} con error`,
     desc: profile.caps.orders ? "Se cobró pero la orden no se creó. Reintentala desde Cobros." : "Se cobró pero no se pudo registrar. Reintentalo desde Cobros.",
     cta:"Ver", go: () => onGo?.("cobros", "view=errors") });
-  if (merchant && !merchant.klaviyo_connected && (totals.active || 0) > 0) alerts.push({ tone:"info", title:"Klaviyo sin conectar", desc:"Recuperá checkouts sin pagar y mandá los mails con tu marca.", cta:"Configurar", go: () => onGoConfig?.("integraciones") });
 
   const tabs = useMemo(() => [
     { id:"cobrado", label:"Cobrado", series:[{ key:"cobrado", label:"Cobrado", color:T.accentSolid, values: ser.cobrado || [], fmt: fmtARS }] },

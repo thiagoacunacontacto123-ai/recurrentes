@@ -103,8 +103,6 @@ export function computeSteps({ merchant, user, plansCount }) {
   const ratesOk = Array.isArray(m.checkout_shipping_rates) && m.checkout_shipping_rates.length > 0;
   // El dominio sale de Shopify (store_domain_effective) o se carga a mano (store_domain).
   const settingsOk = p.channel === "shopify" ? Boolean(m.store_domain_effective || m.store_domain) && ratesOk : ratesOk;
-  const klaviyoOk = Boolean(m.klaviyo_connected || m.klaviyo_api_key || m.klaviyo_public_key);
-  const klaviyoLater = readFlag(klaviyoLaterKey(mid));
   const lockedMsg = p.missing.length ? `Primero conectá ${p.missing.join(" y ")}.` : "";
 
   const steps = [];
@@ -174,12 +172,6 @@ export function computeSteps({ merchant, user, plansCount }) {
       needs: p.channel === "shopify" ? ["El dominio público (ej: www.mitienda.com)","Nombre y precio de cada opción de envío (hasta 6)"] : ["Nombre y precio de cada opción de envío (hasta 6)"],
       tab:"configuracion", configSec:"checkout", guideSec:"tienda", cta: "Configurar envíos" });
   }
-
-  steps.push({ id:"klaviyo", done:klaviyoOk || klaviyoLater, optional:true, later:klaviyoLater && !klaviyoOk, manual:true, manualLabel:"Más tarde", manualKey:klaviyoLaterKey(mid), title:"Conectar Klaviyo (opcional)",
-    short:"Para recuperar checkouts sin pagar y mandar los mails con tu marca.",
-    why:"Recurrentes manda a Klaviyo los eventos de suscripción (checkout iniciado, activada, cancelada, pago fallido). Con eso armás flows de recupero y de retención. Si no usás Klaviyo, los mails básicos los manda Recurrentes.",
-    needs:["Una cuenta de Klaviyo (plan gratis alcanza)","Su API key privada (Settings → API keys)"],
-    tab:"configuracion", configSec:"integraciones", guideSec:"klaviyo", cta:"Conectar Klaviyo" });
 
   return steps.map((s, i) => ({ ...s, n: i + 1 }));
 }

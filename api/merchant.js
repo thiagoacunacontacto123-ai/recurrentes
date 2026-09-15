@@ -253,9 +253,8 @@ export default async function handler(req, res) {
     if (action === "save-mobbex")          return saveMobbex(merchantId, req, res);
     if (action === "disconnect-mobbex")    return disconnectMobbex(merchantId, res);
     if (action === "save-mp-token")        return saveMpToken(merchantId, req, res);
-    if (action === "save-klaviyo")         return saveKlaviyo(merchantId, req, res);
+    if (action === "save-klaviyo" || action === "klaviyo-test") return res.status(410).json({ error: "Klaviyo ya no está disponible: los mails los manda Recurrentes (Flujos de email)." });
     if (action === "disconnect-klaviyo")   return disconnectKlaviyo(merchantId, res);
-    if (action === "klaviyo-test")         return klaviyoTest(merchantId, req, res);
     if (action === "save-widget-settings") return saveWidgetSettings(merchantId, req, res);
     if (action === "save-settings")        return saveSettings(merchantId, req, res);
     if (action === "import-shipping-rates") return importShippingRates(merchantId, req, res);

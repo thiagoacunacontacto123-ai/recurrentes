@@ -64,12 +64,12 @@ export default function OnboardingWizard({ T: Tp, DS: DSp, merchant, onb, onClos
     { id:"plan",     nombre:"Planes con packs",         desc:"Elegís un producto de tu Shopify, cada cuántos días se cobra, el descuento y los packs (x1, x2, x3) con su precio." },
     { id:"snippet",  nombre:"Widget en tu tienda",      desc:"Una línea de código y el selector de suscripción aparece en la página de producto, con el diseño que elijas." },
     { id:"mp",       nombre:"Cobros automáticos",       desc:"El cliente paga en Mercado Pago. MP cobra solo cada período y Recurrentes crea la orden en Shopify para que despaches." },
-    { id:"klaviyo",  nombre:"Recupero y mails",         desc:"Los checkouts sin pagar y los eventos de cada suscripción llegan a tu Klaviyo, para recuperarlos con tu marca y tus flows." },
+    { id:"klaviyo",  nombre:"Recupero y mails",         desc:"Mails automáticos con tu marca: checkouts sin pagar, pago rechazado, aviso de próximo cobro y más, desde Flujos de email." },
   ] : [
     { id:"plan",     nombre:"Tus planes",               desc:`Cargás cada plan acá (ej: "${planExample(profile)}"): precio y cada cuántos días se cobra. No hace falta tienda.` },
     { id:"link",     nombre:"Link de suscripción",      desc:"Cada plan tiene su link. Lo compartís por Instagram, WhatsApp, tu web o un QR en el mostrador." },
     { id:"mp",       nombre:"Cobros automáticos",       desc:`Tu cliente paga una vez con ${profile.providerInfo.label} y después se cobra solo cada período. Cada cobro queda registrado en el panel.` },
-    { id:"klaviyo",  nombre:"Avisos y retención",       desc:`Mails de activación y de pago fallido, un portal para que tus ${profile.vocab.customers} pausen o cancelen solos, y eventos a Klaviyo si lo usás.` },
+    { id:"klaviyo",  nombre:"Avisos y retención",       desc:`Mails de activación y de pago fallido, un portal para que tus ${profile.vocab.customers} pausen o cancelen solos, y flujos de email con tu marca.` },
   ];
   // Bienvenida: Shopify (histórico) · negocio sin tienda ya elegido · todavía sin elegir.
   const welcome = profile.caps.widget && (profile.explicit || merchant?.shopify_token) ? {
@@ -79,7 +79,7 @@ export default function OnboardingWizard({ T: Tp, DS: DSp, merchant, onb, onClos
       "Cobros recurrentes en tu propia cuenta de MP, sin intermediarios",
       "Una orden en Shopify por cada cobro, con envío y dirección",
       "Widget con packs (x1, x2, x3) y 10 diseños para tu página de producto",
-      "Checkouts sin pagar enviados a tu Klaviyo para recuperarlos",
+      "Mails automáticos para recuperar checkouts sin pagar",
     ],
   } : profile.explicit ? {
     h: <>Cobros recurrentes para tu negocio,<br/>sin tienda online</>,
@@ -88,7 +88,7 @@ export default function OnboardingWizard({ T: Tp, DS: DSp, merchant, onb, onClos
       `Cobros recurrentes en tu propia cuenta de ${profile.providerInfo.label}, sin intermediarios`,
       "Un link de suscripción por plan: Instagram, WhatsApp, tu web o un QR",
       `Portal para que tus ${profile.vocab.customers} pausen o cancelen solos`,
-      "Avisos automáticos de pago fallido y eventos a Klaviyo",
+      "Avisos automáticos de pago fallido y flujos de email",
     ],
   } : {
     h: <>Cobros recurrentes<br/>para cualquier negocio</>,

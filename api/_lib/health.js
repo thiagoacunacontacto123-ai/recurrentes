@@ -38,7 +38,6 @@ export const ENV_GROUPS = [
   { id: "mercadopago_oauth", label: "Mercado Pago (conexión OAuth)", required: false, vars: ["MP_APP_ID", "MP_CLIENT_SECRET", "MP_REDIRECT_URI"] },
   { id: "shopify", label: "Shopify (app)", required: false, vars: ["SHOPIFY_API_KEY", "SHOPIFY_API_SECRET", "SHOPIFY_SCOPES", "SHOPIFY_REDIRECT_URI"] },
   { id: "email", label: "Email (Resend)", required: false, vars: ["RESEND_API_KEY", "EMAIL_FROM"] },
-  { id: "klaviyo", label: "Klaviyo", required: false, vars: [], prefix: "KLAVIYO_", note: "La clave de Klaviyo es de cada tienda (se carga en el panel)." },
   { id: "tiendanube", label: "Tiendanube", required: false, vars: ["TIENDANUBE_APP_ID", "TIENDANUBE_CLIENT_SECRET"], prefix: "TIENDANUBE_" },
   { id: "mobbex", label: "Mobbex", required: false, vars: [], prefix: "MOBBEX_" },
   { id: "stripe", label: "Stripe", required: false, vars: [], prefix: "STRIPE_" },

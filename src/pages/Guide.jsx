@@ -25,7 +25,6 @@ export const GUIDE_SECTIONS = [
   { id:"snippet", label:"Pegar el snippet" },
   { id:"probar",  label:"Probar" },
   { id:"tienda",  label:"Tienda y envíos" },
-  { id:"klaviyo", label:"Klaviyo" },
   { id:"faq",     label:"Preguntas" },
 ];
 
@@ -53,7 +52,7 @@ export default function GuidePage({ merchant, goTab, embedded = false, initial }
 
   const Body = ({
     inicio: SecInicio, shopify: SecShopify, mp: SecMp, planes: SecPlanes, diseno: SecDiseno,
-    snippet: SecSnippet, probar: SecProbar, tienda: SecTienda, klaviyo: SecKlaviyo, faq: SecFaq,
+    snippet: SecSnippet, probar: SecProbar, tienda: SecTienda, faq: SecFaq,
   })[sec] || SecInicio;
 
   return (
@@ -355,32 +354,6 @@ function SecTienda({ T, onb, goTab }) {
       ]}/>
       <Callout T={T} tone="info">Si hay envíos del checkout, el cliente elige entre esos en todos los planes. Si no cargaste ninguno, cada plan usa su <B T={T}>envío por defecto</B> (se edita en Planes → Editar → Envío). Si tu Shopify usa tarifas dinámicas de un correo, no hay nada para importar: cargalas a mano.</Callout>
     </Sec>
-  );
-}
-
-function SecKlaviyo({ T, onb, goTab }) {
-  return (
-    <>
-      <Sec T={T} title="Klaviyo: recupero de carritos y mails con tu marca" sub="Opcional. Recurrentes no manda mails de carrito abandonado por su cuenta: cada checkout de suscripción llega a tu Klaviyo como un evento y la secuencia la armás allá, con tu diseño."
-        right={<><StepStatus T={T} onb={onb} id="klaviyo"/><Btn T={T} variant="primary" size="sm" onClick={() => goConfigSection(goTab, "integraciones")}>Ir a Integraciones →</Btn></>}>
-        <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, margin:"4px 0 6px" }}>Cómo se recupera un carrito</div>
-        <Steps T={T} items={[
-          <>El cliente toca <B T={T}>Suscribirme</B>, deja su mail o toca Pagar, pero no termina el pago en MP.</>,
-          <>En ese momento Klaviyo recibe <Code T={T}>Checkout Started</Code> (igual que un carrito de Shopify) con el <B T={T}>CheckoutURL</B> para retomar con todo cargado. Lo ves también en <B T={T}>Suscripciones</B> como pendiente de pago.</>,
-          <>Tu flow de carrito abandonado de Klaviyo manda los mails que vos diseñes. Si el cliente paga, la orden entra a Shopify como <Code T={T}>Placed Order</Code> y el flow se corta solo.</>,
-        ]}/>
-        <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, margin:"14px 0 6px" }}>Conectar Klaviyo</div>
-        <Steps T={T} items={[
-          <>En Klaviyo: <B T={T}>Settings → API keys → Create Private API Key</B>, con permisos <B T={T}>Accounts: Read</B>, <B T={T}>Events: Write</B> y <B T={T}>Profiles: Write</B>.<Crumb T={T} path="Klaviyo › Settings › API keys › Create Private API Key"/></>,
-          <>Copiá la clave (empieza con <Code T={T}>pk_</Code>) y pegala en Recurrentes → <B T={T}>Configuración → Integraciones → Klaviyo</B>.</>,
-          <>Recurrentes empieza a mandar eventos por cliente: <Code T={T}>Checkout Started</Code>, <Code T={T}>Subscription Activated</Code>, <Code T={T}>Subscription Renewed</Code>, <Code T={T}>Subscription Payment Failed</Code>, <Code T={T}>Subscription Paused</Code>, <Code T={T}>Subscription Resumed</Code> y <Code T={T}>Subscription Cancelled</Code>, con producto, pack, monto y link al portal.</>,
-          <>En Klaviyo, cloná tu flow de abandono y ponéle como disparador <Code T={T}>Checkout Started</Code> <B T={T}>(API)</B>: Klaviyo separa esa métrica de la de Shopify. Ídem para <Code T={T}>Subscription Payment Failed</Code> (aviso para actualizar la tarjeta).</>,
-        ]}/>
-        {onb && !onb.steps?.find(s => s.id === "klaviyo")?.done && (
-          <div style={{ marginTop:12 }}><Btn T={T} variant="secondary" size="sm" onClick={() => onb.setManual(onb.steps.find(s => s.id === "klaviyo"), true)}>No uso Klaviyo · marcar "más tarde"</Btn></div>
-        )}
-      </Sec>
-    </>
   );
 }
 

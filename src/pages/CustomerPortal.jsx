@@ -8,7 +8,6 @@ import { MONO, fmtDateShort, copyText, hashQuery } from "./_shared.jsx";
 import { merchantProfile } from "../../shared/platform/profile.js";
 
 const DAY = 86400000;
-const KLAVIYO = "#8b5cf6";
 const fmtN = (n) => Math.round(Number(n) || 0).toLocaleString("es-AR");
 
 // Secciones (píldoras): #/dashboard/portal?sec=apariencia|mensajes|registro
@@ -69,8 +68,6 @@ export function CustomerPortalPage({ merchant, reloadMerchant, goTab }) {
   const mails = useMemo(() => (activity?.mails || []).filter(m => m.type !== "abandoned"), [activity]);
   const sent = useMemo(() => mails.filter(m => m.status !== "error"), [mails]);
   const mailErrors = mails.length - sent.length;
-  const ks = activity?.klaviyo_summary || {};
-  const klaviyo = Boolean(merchant?.klaviyo_connected);
   // Mails enviados por día, últimos 30 (para la sparkline).
   const spark = useMemo(() => {
     const days = Array(30).fill(0), now = Date.now();
@@ -100,10 +97,8 @@ export function CustomerPortalPage({ merchant, reloadMerchant, goTab }) {
           hint={enabled.length ? enabled.map(a => a.title.split(" ")[0].toLowerCase()).join(" · ") : "el cliente no puede hacer nada solo"} onClick={() => goSec("acciones")}/>
         <KpiCard T={T} loading={first} label="Mails enviados · 30 días" value={fmtN(sent30)} spark={spark} color={T.accentSolid}
           hint={`${fmtN(mails.length)} en el registro`} onClick={() => goSec("registro")}/>
-        <KpiCard T={T} loading={first} label="Eventos a Klaviyo" value={klaviyo ? fmtN(ks.sent) : "—"} color={KLAVIYO}
-          hint={klaviyo ? (ks.error ? `${fmtN(ks.error)} con error` : "todos enviados") : "Klaviyo sin conectar"} onClick={() => goSec("registro")}/>
-        <KpiCard T={T} loading={first} label="Envíos con error" value={fmtN(mailErrors + (Number(ks.error) || 0))} valueColor={mailErrors + (Number(ks.error) || 0) ? T.red : T.text} color={T.red}
-          hint="mails y eventos que no salieron" onClick={() => goSec("registro")}/>
+        <KpiCard T={T} loading={first} label="Envíos con error" value={fmtN(mailErrors)} valueColor={mailErrors ? T.red : T.text} color={T.red}
+          hint="mails que no salieron" onClick={() => goSec("registro")}/>
       </div>
 
       <div style={{ marginBottom:14, maxWidth:"100%", overflowX:"auto" }}>
@@ -233,17 +228,16 @@ function AppearanceSection({ T, merchant, profile, reloadMerchant, goTab }) {
 }
 
 // ─── (c) Mensajes a tus clientes ───────────────────────────────────
-const NOTIFS = (klaviyo) => [
-  { key:"activation",     label:"Activación",     desc:"Confirma la suscripción y manda el link del portal.", channel: klaviyo ? "both" : "mail", metric:"Subscription Activated" },
+const NOTIFS = () => [
+  { key:"activation",     label:"Activación",     desc:"Confirma la suscripción y manda el link del portal.", channel:"mail" },
   { key:"upcoming",       label:"Próximo cobro",  desc:"Aviso unos días antes de la renovación.", channel:"mail", soon:true },
-  { key:"payment_failed", label:"Pago fallido",   desc:"Pide actualizar la tarjeta desde el portal.", channel: klaviyo ? "both" : "mail", metric:"Subscription Payment Failed" },
-  { key:"cancellation",   label:"Cancelación",    desc:"Confirma la baja.", channel: klaviyo ? "both" : "mail", metric:"Subscription Cancelled" },
+  { key:"payment_failed", label:"Pago fallido",   desc:"Pide actualizar la tarjeta desde el portal.", channel:"mail" },
+  { key:"cancellation",   label:"Cancelación",    desc:"Confirma la baja.", channel:"mail" },
   { key:"invitation",     label:"Invitación",     desc:"Link del portal cuando lo pedís desde la ficha.", channel:"mail" },
 ];
 
 function MessagesSection({ T, merchant, reloadMerchant, goTab }) {
   const iS = InputStyle(T);
-  const klaviyo = Boolean(merchant?.klaviyo_connected);
   const [replyTo, setReplyTo] = useState(merchant?.email_reply_to || "");
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -265,32 +259,21 @@ function MessagesSection({ T, merchant, reloadMerchant, goTab }) {
     } catch (e) { toast("No se pudo enviar: " + e.message, "error", 6000); }
     finally { setTesting(null); }
   }
-  async function testKlaviyo() {
-    setTesting("klaviyo");
-    try {
-      const r = await apiPost("merchant", {}, { action: "klaviyo-test" });
-      if (r?.error) throw new Error(r.error);
-      toast("Evento de prueba enviado a Klaviyo (Checkout Started)", "success", 5000);
-    } catch (e) { toast("Klaviyo: " + e.message, "error", 6000); }
-    finally { setTesting(null); }
-  }
 
   const channelCell = (n) => (
     <span style={{ display:"inline-flex", gap:4, flexWrap:"wrap" }}>
       {(n.channel === "mail" || n.channel === "both") && <DSBadge T={T} color={T.accent} size="sm">Mail de Recurrentes</DSBadge>}
-      {n.channel === "both" && <DSBadge T={T} color={KLAVIYO} size="sm">Klaviyo</DSBadge>}
     </span>
   );
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
       <Panel T={T} title="Notificaciones" flush
-        sub={klaviyo ? "Los mails básicos los manda Recurrentes y además cada evento llega a tu Klaviyo." : "Los mails básicos los manda Recurrentes. Conectá Klaviyo para mandarlos con tu diseño y sumar SMS."}
-        right={!klaviyo && <Btn T={T} variant="secondary" size="sm" onClick={() => goConfigSection(goTab, "integraciones")}>Conectar Klaviyo</Btn>}>
-        <DSTable T={T} rows={NOTIFS(klaviyo)} rowKey={n => n.key} dense minWidth={620} style={{ border:"none", borderRadius:0, boxShadow:"none", borderTop:`1px solid ${T.border}` }} columns={[
+        sub="Los mails básicos los manda Recurrentes con tu marca. Para recordatorios y recupero, usá Flujos de email."
+        right={<Btn T={T} variant="secondary" size="sm" onClick={() => goTab?.("flujos")}>Ir a Flujos de email</Btn>}>
+        <DSTable T={T} rows={NOTIFS()} rowKey={n => n.key} dense minWidth={620} style={{ border:"none", borderRadius:0, boxShadow:"none", borderTop:`1px solid ${T.border}` }} columns={[
           { key:"n", label:"Notificación", render: n => <CellStack T={T} main={<>{n.label}{n.soon && <> <DSBadge T={T} color={T.yellow} size="sm">próximamente</DSBadge></>}</>} sub={n.desc}/> },
           { key:"c", label:"Canal", render: channelCell },
-          { key:"m", label:"Métrica Klaviyo", hideMobile:true, render: n => n.metric && klaviyo ? <code style={{ fontFamily:MONO, fontSize:DS.font.xs, color:T.textMd }}>{n.metric}</code> : <span style={{ color:T.textSm }}>—</span> },
           { key:"s", label:"Estado", align:"right", nowrap:true, render: n => n.soon ? <DSBadge T={T} color={T.textSm} size="sm">pronto</DSBadge> : <DSBadge T={T} color={T.green} size="sm">● activa</DSBadge> },
         ]}/>
       </Panel>
@@ -305,7 +288,6 @@ function MessagesSection({ T, merchant, reloadMerchant, goTab }) {
         <Panel T={T} title="Probar" sub={<>Te mandamos el mail de activación de ejemplo a <strong style={{ color:T.text }}>{merchant?.email || "tu cuenta"}</strong>, con tu marca y remitente actuales.</>}>
           <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
             <Btn T={T} variant="primary" size="sm" onClick={testEmail} disabled={!!testing}>{testing === "mail" ? <><Spinner size={11} color={T.accent}/> Enviando…</> : "Enviar mail de prueba a mi cuenta"}</Btn>
-            {klaviyo && <Btn T={T} variant="secondary" size="sm" onClick={testKlaviyo} disabled={!!testing}>{testing === "klaviyo" ? <><Spinner size={11} color={T.textMd}/> Enviando…</> : "Probar evento Klaviyo"}</Btn>}
           </div>
         </Panel>
       </div>
@@ -313,10 +295,9 @@ function MessagesSection({ T, merchant, reloadMerchant, goTab }) {
   );
 }
 
-// ─── (d) Registro: mails enviados + eventos Klaviyo (GET /api/stats?action=activity) ──
+// ─── (d) Registro: mails enviados (GET /api/stats?action=activity) ──
 function RegistroSection({ T, merchant, activity, mails, loading, reload, goTab }) {
   const [type, setType] = useState("all");
-  const klaviyo = Boolean(merchant?.klaviyo_connected);
   const MAIL_LABEL = {
     activation:     { t:"Activación",   c:T.green,  e:"✅" },
     payment_failed: { t:"Pago fallido", c:T.yellow, e:"⚠️" },
@@ -326,8 +307,6 @@ function RegistroSection({ T, merchant, activity, mails, loading, reload, goTab 
     delivery:       { t:"Entrega digital", c:T.blue, e:"📚" },
   };
   const mailLabel = (m) => m.type === "flow" ? { ...MAIL_LABEL.flow, t: m.flow_name || "Flujo" } : (MAIL_LABEL[m.type] || { t: m.type || "Mail", c:T.textMd, e:"📧" });
-  const events = activity?.klaviyo_events || [];
-  const ks = activity?.klaviyo_summary || {};
   const count = (fn) => mails.filter(fn).length;
   const errors = count(m => m.status === "error");
   const filters = [
@@ -342,17 +321,10 @@ function RegistroSection({ T, merchant, activity, mails, loading, reload, goTab 
   if (loading && !activity) return <Loading T={T}/>;
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
-      <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"minmax(0,1.3fr) minmax(0,1fr)", gap:DS.sp.lg, alignItems:"start" }}>
+      <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr)", gap:DS.sp.lg, alignItems:"start" }}>
         <Panel T={T} title="Mails por tipo" sub="Lo que salió de Recurrentes (últimos 200 del registro)."
           right={<Btn T={T} variant="secondary" size="sm" onClick={reload} disabled={loading}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>}>
           <BarList T={T} rows={byType} color={T.accentSolid} empty="Todavía no se envió ningún mail."/>
-        </Panel>
-        <Panel T={T} title="Klaviyo" sub={klaviyo ? "Eventos que le mandamos a tu cuenta para tus flows." : "Conectalo para mandar los mails con tu diseño y sumar SMS."}
-          right={!klaviyo && <Btn T={T} variant="secondary" size="sm" onClick={() => goConfigSection(goTab, "integraciones")}>Conectar</Btn>}>
-          <div style={{ display:"flex", gap:22, flexWrap:"wrap" }}>
-            <div><div style={{ fontSize:10, fontWeight:700, color:T.textSm, textTransform:"uppercase", letterSpacing:0.5 }}>Enviados</div><div style={{ fontSize:22, fontWeight:800, color: klaviyo ? KLAVIYO : T.textSm, fontVariantNumeric:"tabular-nums" }}>{klaviyo ? fmtN(ks.sent) : "—"}</div></div>
-            <div><div style={{ fontSize:10, fontWeight:700, color:T.textSm, textTransform:"uppercase", letterSpacing:0.5 }}>Con error</div><div style={{ fontSize:22, fontWeight:800, color: ks.error ? T.red : T.textSm, fontVariantNumeric:"tabular-nums" }}>{klaviyo ? fmtN(ks.error) : "—"}</div></div>
-          </div>
         </Panel>
       </div>
 
@@ -378,18 +350,6 @@ function RegistroSection({ T, merchant, activity, mails, loading, reload, goTab 
         )}
       </Panel>
 
-      {events.length > 0 && (
-        <Panel T={T} title="Eventos a Klaviyo" sub="Últimos 200 eventos mandados a tu cuenta." flush>
-          <DSTable T={T} rows={events} rowKey={k => k.id} minWidth={620} dense style={{ border:"none", borderRadius:0, boxShadow:"none", borderTop:`1px solid ${T.border}` }} columns={[
-            dateCol,
-            { key:"metrica", label:"Evento", nowrap:true, render: k => <span style={{ fontFamily:MONO, fontSize:DS.font.sm, fontWeight:DS.w.bold, color:T.text }}>{k.metric || "—"}</span> },
-            { key:"email", label:"Cliente", render: k => <CellStack T={T} main={k.email || "—"} sub={k.customer_name || ""}/> },
-            { key:"estado", label:"Estado", align:"right", nowrap:true, render: k => k.status === "error"
-                ? <span title={k.error || ""}><DSBadge T={T} color={T.red} size="sm">✕ error{k.http_status ? ` ${k.http_status}` : ""}</DSBadge></span>
-                : <DSBadge T={T} color={T.green} size="sm">✓ enviado</DSBadge> },
-          ]}/>
-        </Panel>
-      )}
     </div>
   );
 }

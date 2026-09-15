@@ -50,7 +50,7 @@ function PlanBadge({ T, r }) {
 }
 
 function ConnPills({ T, c = {} }) {
-  const items = [["Shopify", c.shopify], ["MP", c.mp], ["Klaviyo", c.klaviyo], ["Flujos", c.flows]];
+  const items = [["Shopify", c.shopify], ["MP", c.mp], ["Flujos", c.flows]];
   return (
     <span style={{ display:"inline-flex", gap:4, flexWrap:"wrap" }}>
       {items.map(([l, on]) => (

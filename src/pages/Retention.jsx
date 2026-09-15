@@ -277,16 +277,13 @@ function CancelPreview({ T, enabled, reasons, offerPause, pauseCycles, discount,
 // ─── (b) Pagos fallidos ────────────────────────────────────────────
 function FailedSection({ T, merchant, profile, failed, loading, reload, goTab }) {
   const [busy, setBusy] = useState(null);
-  const klaviyo = Boolean(merchant?.klaviyo_connected);
   const run = (s, action) => performSubAction(s, action, { setBusy: (id) => setBusy(id ? s.id : null), refresh: reload });
   const failedAt = (s) => s.last_payment_failed_at || s.payment_failed_at || s.updated_at;
   const afterCharge = profile.caps.orders ? `se crea la orden en ${profile.channelInfo.label}` : "se registra el cobro";
   const steps = [
     <><strong style={{ color:T.text }}>Mercado Pago reintenta solo</strong> el cobro varias veces durante los días siguientes (hasta ~4 intentos). No hace falta que hagas nada.</>,
     <>Al primer rechazo, la suscripción pasa a <StatusBadge status="payment_failed"/> y <strong style={{ color:T.text }}>le mandamos un mail al cliente</strong> con el link del portal para actualizar la tarjeta.</>,
-    klaviyo
-      ? <>También disparamos el evento <code style={{ color:T.text }}>Subscription Payment Failed</code> en tu Klaviyo (trae <code>portal_url</code>) para que sigas con tu flow.</>
-      : <>Si conectás Klaviyo, además disparamos el evento <code style={{ color:T.text }}>Subscription Payment Failed</code> para que armes tu propio flow (mail + SMS).</>,
+    <>Si activás el flujo <strong style={{ color:T.text }}>Pago rechazado</strong> en Flujos de email, le mandamos más recordatorios con tu marca hasta que actualice la tarjeta.</>,
     <>Cuando MP logra cobrar, la suscripción vuelve a activa sola y {afterCharge}. Si pasan los reintentos sin éxito, MP la cancela.</>,
   ];
 
@@ -319,7 +316,7 @@ function FailedSection({ T, merchant, profile, failed, loading, reload, goTab })
             </li>
           ))}
         </ol>
-        {!klaviyo && <Callout T={T} tone="info" style={{ marginTop:14 }} right={<Btn T={T} variant="secondary" size="sm" onClick={() => goConfigSection(goTab, "integraciones")}>Configurar Klaviyo</Btn>}>Con Klaviyo podés mandar recordatorios con tu marca y por SMS.</Callout>}
+        <Callout T={T} tone="info" style={{ marginTop:14 }} right={<Btn T={T} variant="secondary" size="sm" onClick={() => goTab?.("flujos")}>Ir a Flujos de email</Btn>}>Armá recordatorios automáticos con tu marca desde Flujos de email.</Callout>
       </Panel>
     </div>
   );
@@ -327,7 +324,6 @@ function FailedSection({ T, merchant, profile, failed, loading, reload, goTab })
 
 // ─── (c) Checkouts sin pagar ───────────────────────────────────────
 function UnpaidSection({ T, merchant, profile, count, loading, goTab }) {
-  const klaviyo = Boolean(merchant?.klaviyo_connected);
   const whenPaid = profile.caps.orders ? `la orden entra a ${profile.channelInfo.label}` : "el cobro queda registrado";
   const openUnpaid = () => { goTab?.("suscripciones"); setTimeout(() => { try { window.location.hash = "#/dashboard/suscripciones?status=unpaid"; } catch (_) {} }, 0); };
   return (
@@ -339,9 +335,9 @@ function UnpaidSection({ T, merchant, profile, count, loading, goTab }) {
           <div style={{ fontSize:28, fontWeight:800, color: count ? T.yellow : T.text, letterSpacing:-1, fontVariantNumeric:"tabular-nums" }}>{loading && count == null ? "…" : count == null ? "—" : fmtN(count)}</div>
           <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:4 }}>{count ? "para recuperar" : "nada pendiente"}</div>
         </div>
-        <Callout T={T} tone={klaviyo ? "success" : "info"} title={klaviyo ? "Klaviyo conectado: recibe “Checkout Started”" : "Recuperalos con Klaviyo"}
-          right={<Btn T={T} variant={klaviyo ? "secondary" : "solid"} size="sm" onClick={() => goConfigSection(goTab, "integraciones")}>{klaviyo ? "Ver integración" : "Configurar Klaviyo"}</Btn>}>
-          Cada checkout de suscripción se manda a Klaviyo como <strong style={{ color:T.text }}>Checkout Started</strong> con el link para retomar. Usalo como disparador de tu flow de carrito abandonado; cuando paga, {whenPaid} y el flow se corta solo.
+        <Callout T={T} tone="info" title="Recuperalos con un flujo de email"
+          right={<Btn T={T} variant="solid" size="sm" onClick={() => goTab?.("flujos")}>Ir a Flujos de email</Btn>}>
+          Activá el flujo <strong style={{ color:T.text }}>Checkout sin pagar</strong>: le mandamos al cliente mails con el link para retomar su suscripción justo donde la dejó. Cuando paga, {whenPaid} y el flujo se corta solo.
         </Callout>
       </div>
     </Panel>

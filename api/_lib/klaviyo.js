@@ -67,8 +67,10 @@ const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const round2 = (n) => Math.round(num(n) * 100) / 100;
 
-export function klaviyoEnabled(merchant) {
-  return !!(merchant && typeof merchant.klaviyo_api_key === "string" && merchant.klaviyo_api_key.trim());
+// Klaviyo retirado (Thiago, 2026-09-15): los mails los manda Recurrentes (Resend + Flujos
+// de email). Interruptor único: todos los envíos a Klaviyo quedan como no-op.
+export function klaviyoEnabled(merchant) { // eslint-disable-line no-unused-vars
+  return false;
 }
 
 function headersFor(key) {

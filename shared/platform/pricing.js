@@ -54,7 +54,7 @@ export const PLAN_FEATURES = [
   "Una orden en tu negocio por cada cobro",
   "Portal para que tus clientes pausen o cancelen",
   "Avisos de pago fallido y ofertas de retención",
-  "Klaviyo y Meta Conversions API",
+  "Flujos de email y Meta Conversions API",
   "Varios negocios y equipo con permisos",
   "Soporte por WhatsApp",
 ];

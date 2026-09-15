@@ -66,7 +66,7 @@ const user = (uid, email) => __users.set(uid, {
 });
 user("lumina", "lumina@x.com"); user("newbie", "newbie@x.com"); user("payer", "payer@x.com"); user("old", "old@x.com");
 
-// Lumina: cuenta vieja (beta por fecha), Shopify + MP + Klaviyo + flujos.
+// Lumina: cuenta vieja (beta por fecha), Shopify + MP + flujos (tiene una clave vieja de Klaviyo: retirado, cuenta como no conectado).
 put("merchants/lumina", { email: "lumina@x.com", store_name: "LuminaLabs", owner_name: "Lucía", owner_whatsapp: "11 5555-4444", contact_email: "hola@lumina.com", created_at: "2026-06-01T12:00:00.000Z", plan: "free", shopify_shop: "lumina.myshopify.com", shopify_token: "shpat_SECRET", mp_access_token: "APP_USR-SECRET", klaviyo_api_key: "pk_SECRET", flows_enabled: true, billing_cache: { subs: 4, at: ago(0, 2) } });
 sub("lumina", "s1", { status: "active", plan_snapshot: { total_per_charge_ars: 10000, frequency_days: 30 } });   // 10.000
 sub("lumina", "s2", { status: "active", plan_snapshot: { total_per_charge_ars: 5000, frequency_days: 15 } });    // 10.000
@@ -155,7 +155,7 @@ put("merchants/old", { email: "old@x.com", created_at: ago(35), plan: "free" });
   ok(l.total === 5 && l.rows[0].id === "newbie", "orden por defecto: más nuevos primero", l.rows.map(r => r.id));
   const lum = l.rows.find(r => r.id === "lumina");
   ok(lum.whatsapp_url === "https://wa.me/5491155554444" && lum.contact_email === "hola@lumina.com" && lum.owner_name === "Lucía", "WhatsApp como link wa.me + contacto", lum);
-  ok(lum.login_email === "lumina@x.com" && lum.last_seen_at && lum.connections.shopify && lum.connections.mp && lum.connections.klaviyo && lum.connections.flows, "login, último acceso y conexiones", lum);
+  ok(lum.login_email === "lumina@x.com" && lum.last_seen_at && lum.connections.shopify && lum.connections.mp && lum.connections.klaviyo === false && lum.connections.flows, "login, último acceso y conexiones", lum);
   ok(lum.subs === 4 && lum.mrr === 24000 && lum.beta === true && lum.plan_label === "Beta", "números y plan de la fila", lum);
   ok(l.rows.find(r => r.id === "m_extra")?.email === "payer@x.com", "tienda extra muestra el email del dueño");
   ok(!JSON.stringify(l).includes("SECRET"), "la lista no expone tokens");

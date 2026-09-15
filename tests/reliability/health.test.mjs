@@ -78,7 +78,7 @@ ok(Object.values(b.env).every(g => allBool(g.vars)), "cada grupo de env tiene so
 ok(b.env.core.configured && b.env.firebase.configured && b.env.firebase.private_key_format_ok, "core + firebase configurados, clave con formato válido");
 ok(b.env.tiendanube.configured && b.env.tiendanube.vars.TIENDANUBE_CLIENT_SECRET === true, "Tiendanube detectado");
 ok(b.env.mobbex.vars.MOBBEX_API_KEY === true && b.env.stripe.vars.STRIPE_SECRET_KEY === true && b.env.whop.configured && b.env.whatsapp.configured, "Mobbex/Stripe/Whop/WhatsApp por prefijo (solo nombres)");
-ok(b.env.klaviyo.configured === false && b.env.mercadopago_oauth.configured === false, "Klaviyo (sin env) y MP OAuth incompleto (falta MP_REDIRECT_URI) → false");
+ok(!b.env.klaviyo && b.env.mercadopago_oauth.configured === false, "Klaviyo retirado (sin grupo) y MP OAuth incompleto (falta MP_REDIRECT_URI) → false");
 ok(b.env.flags.vars.FULFILL_RETRY_ENABLED === false && b.fulfillment.retry_enabled === false, "reintento de órdenes apagado por defecto");
 ok(b.firestore.reachable === true, "Firestore alcanzable");
 
