@@ -18,15 +18,18 @@ const ICON = {
   portal:        "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2M12 11a4 4 0 100-8 4 4 0 000 8zM2 3h4M2 7h3",
   analiticas:    "M18 20V10M12 20V4M6 20v-6M2 20h20",
 };
+// `section` agrupa el menú como Growith (el Sidebar pinta el título cuando
+// cambia; grupos sin ítems visibles —miembros con permisos— desaparecen solos).
+// `footer`: no va en la lista; vive como botón abajo (Configuración).
 export const NAV = [
   { id:"inicio",        label:"Inicio",             short:"Inicio",   icon:SECTION_ICONS.inicio, alertKey:"onboarding", badge:"accent" },
-  { id:"suscripciones", label:"Suscripciones",      short:"Suscrip.", icon:ICON.suscripciones, alertKey:"suscripciones" },
-  { id:"cobros",        label:"Cobros",             short:"Cobros",   icon:SECTION_ICONS.cobros, alertKey:"cobros", badge:"red" },
-  { id:"planes",        label:"Planes",             short:"Planes",   icon:SECTION_ICONS.planes },
-  { id:"retencion",     label:"Retención",          short:"Retener",  icon:ICON.retencion, alertKey:"retencion", badge:"orange" },
-  { id:"portal",        label:"Portal del cliente", short:"Portal",   icon:ICON.portal },
-  { id:"analiticas",    label:"Analíticas",         short:"Datos",    icon:ICON.analiticas },
-  { id:"configuracion", label:"Configuración",      short:"Config",   icon:SECTION_ICONS.configuracion },
+  { id:"suscripciones", label:"Suscripciones",      short:"Suscrip.", icon:ICON.suscripciones, alertKey:"suscripciones", section:"Ventas" },
+  { id:"cobros",        label:"Cobros",             short:"Cobros",   icon:SECTION_ICONS.cobros, alertKey:"cobros", badge:"red", section:"Ventas" },
+  { id:"planes",        label:"Planes",             short:"Planes",   icon:SECTION_ICONS.planes, section:"Catálogo" },
+  { id:"retencion",     label:"Retención",          short:"Retener",  icon:ICON.retencion, alertKey:"retencion", badge:"orange", section:"Clientes" },
+  { id:"portal",        label:"Portal del cliente", short:"Portal",   icon:ICON.portal, section:"Clientes" },
+  { id:"analiticas",    label:"Analíticas",         short:"Datos",    icon:ICON.analiticas, section:"Análisis" },
+  { id:"configuracion", label:"Configuración",      short:"Config",   icon:SECTION_ICONS.configuracion, footer:true },
 ];
 
 // Tabs viejos → destino nuevo. Dashboard.jsx los usa para redirigir hashes y
@@ -347,6 +350,7 @@ export function ManageStoreModal({T, store, totalStores, onClose, onSave, onDele
 // vinculación de Growith). Se puede cerrar por tienda.
 export function Sidebar({T, nav=NAV, activeTab, onTab, user, merchant, workspace, onSwitchStore, onCreateStore, onManageStore, collapsed, setCollapsed, darkMode, setDarkMode, onLogout, alerts={}, pendientes=[], onVerPlan}) {
   const items = nav.map(it=>it.alertKey?{...it,count:alerts[it.alertKey]}:it);
+  const configActive = activeTab==="configuracion";
   const initial = (user?.displayName||user?.email||"?").charAt(0).toUpperCase();
   const W = collapsed ? 64 : 224;
   const stores = workspace?.stores || [];
@@ -407,17 +411,18 @@ export function Sidebar({T, nav=NAV, activeTab, onTab, user, merchant, workspace
       )}
 
       {/* Nav */}
-      <nav style={{flex:1,padding:DS.sp.sm,display:"flex",flexDirection:"column",gap:2,overflowY:"auto"}}>
-        {items.map((item,i)=>{
-          if(item.group) {
-            if(collapsed) return null;
-            return (
-              <div key={item.group+i} style={{padding:"10px 12px 3px",fontSize:DS.font.xs,fontWeight:DS.w.bold,color:T.textSm,letterSpacing:0.7,textTransform:"uppercase",opacity:0.55,userSelect:"none"}}>
-                {item.group}
-              </div>
-            );
-          }
-          return <NavBtn key={item.id} item={item}/>;
+      <nav aria-label="Secciones" style={{flex:1,padding:DS.sp.sm,display:"flex",flexDirection:"column",gap:2,overflowY:"auto"}}>
+        {items.filter(it=>!it.footer).map((item,i,list)=>{
+          // Título de grupo cuando cambia `section` (colapsado: una línea fina).
+          const head = item.section && item.section!==list[i-1]?.section;
+          return (
+            <React.Fragment key={item.id}>
+              {head && (collapsed
+                ? <div aria-hidden="true" style={{height:1,background:T.border,margin:"8px 12px"}}/>
+                : <div style={{padding:"12px 12px 3px",fontSize:DS.font.xs,fontWeight:DS.w.bold,color:T.textSm,letterSpacing:0.7,textTransform:"uppercase",opacity:0.55,userSelect:"none"}}>{item.section}</div>)}
+              <NavBtn item={item}/>
+            </React.Fragment>
+          );
         })}
       </nav>
 
@@ -463,21 +468,23 @@ export function Sidebar({T, nav=NAV, activeTab, onTab, user, merchant, workspace
               <div style={{fontSize:DS.font.xs,color:T.textSm,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{role==="member"?"Miembro del equipo":(merchant?.billing?.plan_label||"Beta")}</div>
             </div>
           </button>
-            <button onClick={()=>onTab("configuracion")} title="Configuración" aria-label="Configuración" style={{width:32,height:32,flexShrink:0,background:"transparent",border:`1px solid ${T.border}`,borderRadius:DS.r.md,color:T.textMd,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></button>
           </div>
         )}
+        {/* Fila estilo Growith: ⚙ Configuración (resaltado si estás ahí) · tema · salir */}
         <div style={{display:"flex",flexDirection:collapsed?"column":"row",gap:4}}>
-          {collapsed&&<button onClick={()=>onTab("configuracion")} title="Configuración" aria-label="Configuración" style={{width:32,height:32,flexShrink:0,background:"transparent",border:`1px solid ${T.border}`,borderRadius:DS.r.md,color:T.textMd,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",padding:0}}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg></button>}
-          <button onClick={()=>setDarkMode(!darkMode)} title={darkMode?"Modo claro":"Modo oscuro"} style={{flex:collapsed?undefined:1,background:"transparent",border:`1px solid ${T.border}`,borderRadius:DS.r.md,color:T.textMd,cursor:"pointer",padding:"6px 8px",display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:DS.font.sm,fontFamily:F}}>
+          <button onClick={()=>onTab("configuracion")} title="Configuración" aria-label="Configuración" aria-current={configActive?"page":undefined}
+            style={{flex:collapsed?undefined:1,minWidth:0,height:32,background:configActive?T.accentSolid+"20":"transparent",border:`1px solid ${configActive?T.accentSolid+"55":T.border}`,borderRadius:DS.r.md,color:configActive?T.accent:T.textMd,cursor:"pointer",padding:"0 8px",display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:DS.font.sm,fontWeight:configActive?DS.w.semibold:DS.w.medium,fontFamily:F}}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            {!collapsed&&<span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>Configuración</span>}
+          </button>
+          <button onClick={()=>setDarkMode(!darkMode)} title={darkMode?"Modo claro":"Modo oscuro"} aria-label={darkMode?"Modo claro":"Modo oscuro"} style={{width:collapsed?undefined:32,height:32,flexShrink:0,background:"transparent",border:`1px solid ${T.border}`,borderRadius:DS.r.md,color:T.textMd,cursor:"pointer",padding:0,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:F}}>
             {darkMode
               ?<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
               :<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
             }
-            {!collapsed&&(darkMode?"Claro":"Oscuro")}
           </button>
-          <button onClick={onLogout} title="Cerrar sesión" style={{flex:collapsed?undefined:1,background:"transparent",border:`1px solid ${T.border}`,borderRadius:DS.r.md,color:T.textMd,cursor:"pointer",padding:"6px 8px",display:"flex",alignItems:"center",justifyContent:"center",gap:6,fontSize:DS.font.sm,fontFamily:F}}>
+          <button onClick={onLogout} title="Cerrar sesión" aria-label="Cerrar sesión" style={{width:collapsed?undefined:32,height:32,flexShrink:0,background:"transparent",border:`1px solid ${T.border}`,borderRadius:DS.r.md,color:T.textMd,cursor:"pointer",padding:0,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:F}}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
-            {!collapsed&&"Salir"}
           </button>
         </div>
       </div>
