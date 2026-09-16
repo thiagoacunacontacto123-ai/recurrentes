@@ -43,8 +43,9 @@ export default function StoreStep2Modal({ merchant, channel = "shopify", onDone 
     setChecking(true);
     try {
       for (let i = 0; i < 4; i++) {
-        const d = await apiGet("merchant");
-        const at = d?.widget_last_seen_at || "";
+        const r = await apiGet("merchant");
+        const d = r?.merchant || r || {};   // GET /api/merchant responde { merchant: {...} }
+        const at = d.widget_last_seen_at || "";
         if (at && at > openedAt.current) { setSeen({ at, host: d.widget_last_seen_host || "" }); return; }
         if (i < 3) await new Promise(r => setTimeout(r, 3000));
       }
