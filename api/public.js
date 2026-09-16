@@ -659,7 +659,7 @@ async function handleWidgetSeen(req, res) {
     if (snap.exists) {
       const d = snap.data() || {};
       const last = Date.parse(d.widget_last_seen_at || "") || 0;
-      if (Date.now() - last > 10 * 60 * 1000 || (host && d.widget_last_seen_host !== host)) {
+      if (Date.now() - last > 60 * 1000 || (host && d.widget_last_seen_host !== host)) {
         await ref.update({ widget_last_seen_at: new Date().toISOString(), widget_last_seen_host: host || null });
       }
     }

@@ -243,8 +243,9 @@ export default async function handler(req, res) {
   // el panel verifica solo la instalación (Paso 2 después de conectar Shopify).
   try {
     var seenKey = "rec_seen_" + MERCHANT_ID;
-    if (!sessionStorage.getItem(seenKey)) {
-      sessionStorage.setItem(seenKey, "1");
+    var lastSeen = parseInt(sessionStorage.getItem(seenKey) || "0", 10) || 0;
+    if (Date.now() - lastSeen > 2 * 60 * 1000) {
+      sessionStorage.setItem(seenKey, String(Date.now()));
       new Image().src = API_BASE + "/api/public?action=widget-seen&merchant=" + encodeURIComponent(MERCHANT_ID) + "&host=" + encodeURIComponent(location.hostname) + "&_=" + Date.now();
     }
   } catch (e) {}

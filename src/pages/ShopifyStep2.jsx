@@ -30,9 +30,8 @@ export default function StoreStep2Modal({ merchant, channel = "shopify", onDone 
   const m = merchant || {};
   const tn = channel === "tiendanube";
   const snippet = widgetSnippet(m);
-  // Vale cualquier carga del widget desde que se conectó la tienda (si el aviso llegó
-  // entre la conexión y la apertura de este paso, también cuenta).
-  const openedAt = useRef(m.shopify_connected_at || m.tiendanube_connected_at || new Date(Date.now() - 10 * 60 * 1000).toISOString());
+  // Vale cualquier carga del widget en la última hora (reconectar la tienda no lo invalida).
+  const openedAt = useRef(new Date(Date.now() - 60 * 60 * 1000).toISOString());
   const niceHost = (h) => !h ? "tu tienda" : /shopifypreview\.com$/.test(h) ? "la vista previa de tu tema" : h;
   const [seen, setSeen] = useState(null);       // { at, host } cuando el widget cargó después de abrir este paso
   const [checking, setChecking] = useState(false);
