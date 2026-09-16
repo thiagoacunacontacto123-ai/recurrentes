@@ -294,7 +294,7 @@ export default function Checkout() {
 
   return (
     <div style={st.page} className="rc-checkout">
-      <style>{`@media(max-width:760px){ .rc-wrap{grid-template-columns:1fr!important;} .rc-summary{order:-1;} } @media(max-width:420px){ .rc-row2{grid-template-columns:1fr!important;} }
+      <style>{`@keyframes rc-spin{to{transform:rotate(360deg)}} @media(max-width:760px){ .rc-wrap{grid-template-columns:1fr!important;} .rc-summary{order:-1;} } @media(max-width:420px){ .rc-row2{grid-template-columns:1fr!important;} }
         /* Autocompletado de Chrome: que no pise el fondo blanco ni el color del texto. */
         .rc-checkout input:-webkit-autofill, .rc-checkout select:-webkit-autofill, .rc-checkout input:-webkit-autofill:focus {
           -webkit-text-fill-color:#1a1a1a; -webkit-box-shadow:0 0 0 1000px #fff inset; box-shadow:0 0 0 1000px #fff inset; caret-color:#1a1a1a; transition:background-color 9999s ease-out;
@@ -343,7 +343,7 @@ export default function Checkout() {
           {askAddress && (
             <div style={st.card}>
               <h3 style={st.h}>Envío</h3>
-              {ratesLoading ? <div style={{ fontSize: 13, color: "#888" }}>Buscando métodos de envío…</div> : (
+              {ratesLoading ? <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "#888" }}><span aria-hidden="true" style={{ width: 16, height: 16, border: "2px solid #e3e3e5", borderTopColor: accent, borderRadius: "50%", display: "inline-block", flexShrink: 0, animation: "rc-spin .7s linear infinite" }}/>Buscando métodos de envío…</div> : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {rates.map((rt, i) => (
                     <label key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", border: `1.5px solid ${i === rateIdx ? accent : "#e0e0e2"}`, borderRadius: 10, cursor: "pointer", background: i === rateIdx ? accent + "0d" : "#fff" }}>
