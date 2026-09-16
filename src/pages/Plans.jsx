@@ -318,7 +318,7 @@ export function PlansPage({ merchant, onMerchantChange }) {
                       {manualPlan
                         ? <Btn T={T} variant="secondary" size="sm" onClick={()=>setLinkFor(p)} style={{ flex:1, justifyContent:"center" }}>🔗 Link</Btn>
                         : esTiendanube
-                          ? <BotonBloqueTn T={T} plan={p} onDone={load}/>
+                          ? <BotonBloqueTn T={T} plan={p} onDone={loadAll}/>
                           : <Btn T={T} variant="secondary" size="sm" onClick={()=>setEmbedFor(p)} style={{ flex:1, justifyContent:"center" }}>&lt;/&gt; Snippet</Btn>}
                     </div>
                   </article>
