@@ -59,12 +59,12 @@ export default function StoreStep2Modal({ merchant, channel = "shopify", onDone 
   return (
     <Modal T={T} open onClose={() => toast(tn ? "Terminá este paso para seguir: así sabés cómo aparece la suscripción en tu tienda." : "Terminá este paso para seguir: sin el widget en la tienda, la suscripción no se ve.", "warning", 4000)}
       width={860} title={tn ? "Tiendanube conectada ✓ · Paso 2 de 2: así aparece la suscripción en tu tienda" : "Shopify conectado ✓ · Paso 2 de 2: poné el widget en tu tienda"}
-      subtitle={tn ? "No hay que pegar ningún código. Leé cómo funciona, abrí un producto de tu tienda y tocá “Ya lo hice”." : "Una sola línea en theme.liquid, una sola vez para toda la tienda. Cuando la pegues, abrí un producto y tocá “Ya lo hice”."}
+      subtitle={tn ? "No hay que pegar ningún código. Leé cómo funciona, abrí un producto de tu tienda y tocá “Ya lo hice”." : "Una sola línea en theme.liquid, una sola vez para toda la tienda. Cuando la pegues y guardes, tocá “Ya lo hice”."}
       footer={
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           {!seen && failed >= 2
             ? <button type="button" onClick={() => { toast("Quedó pendiente: lo verificamos cuando abras un producto de tu tienda.", "info", 5000); onDone(); }} style={{ background: "transparent", border: "none", color: T.textSm, fontSize: DS.font.sm, cursor: "pointer", textDecoration: "underline", fontFamily: "inherit" }}>Lo verifico más tarde</button>
-            : <span style={{ fontSize: DS.font.sm, color: T.textSm }}>{seen ? "Todo listo." : "Cuando termines los 4 pasos, tocá “Ya lo hice”."}</span>}
+            : <span style={{ fontSize: DS.font.sm, color: T.textSm }}>{seen ? "Todo listo." : "Cuando termines los 3 pasos, tocá “Ya lo hice”."}</span>}
           <div style={{ display: "flex", gap: 8 }}>
             {!seen && <Btn T={T} variant="solid" disabled={checking} onClick={verify}>{checking ? "Revisando tu tienda…" : "Ya lo hice ✓"}</Btn>}
             <Btn T={T} variant={seen ? "solid" : "secondary"} disabled={!seen} onClick={onDone}>Terminar → crear mi primer plan</Btn>
@@ -84,8 +84,7 @@ export default function StoreStep2Modal({ merchant, channel = "shopify", onDone 
           <div style={step}>{num(1)}<div>Copiá tu snippet:<div style={{ marginTop: 8 }}><CopyLine T={T} text={snippet}/></div></div></div>
           <div style={step}>{num(2)}<div>En Shopify: <B T={T}>Tienda online → Temas</B>. En tu tema activo tocá los <B T={T}>tres puntos (⋯) → Editar código</B>.</div></div>
           <div style={step}>{num(3)}<div>En la carpeta <B T={T}>Layout</B> abrí <B T={T}>theme.liquid</B>. Buscá <code style={{ fontFamily: "ui-monospace, Menlo, monospace", background: T.bg, border: `1px solid ${T.border}`, borderRadius: 5, padding: "1px 5px", color: T.text }}>&lt;/body&gt;</code> (Cmd/Ctrl + F), pegá la línea <B T={T}>justo arriba</B> y tocá <B T={T}>Guardar</B>. Una sola vez: vale para todos los productos, ahora y los que agregues después.</div></div>
-          <div style={step}>{num(4)}<div><B T={T}>Abrí cualquier producto de tu tienda</B> en otra pestaña y volvé acá a tocar “Ya lo hice”. No hace falta tener un plan todavía: el widget se muestra solo en los productos que tengan plan activo.</div></div>
-          <div style={{ fontSize: DS.font.sm, color: T.textSm, lineHeight: 1.5, paddingLeft: 32 }}>¿No querés tocar código? Alternativa: en <B T={T}>Personalizar → plantilla de producto → + Agregar bloque → Liquid personalizado</B> pegás la misma línea (hay que repetirlo en cada plantilla de producto que use tu tema).</div>
+
         </>)}
 
         {seen ? (
