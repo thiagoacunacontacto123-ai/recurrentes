@@ -11,6 +11,27 @@
 Seguimiento sugerido: si en **7 días** no contestan, insistir. Tiendanube por el mismo hilo;
 Shopify pidiendo el estado del ticket en el chat del Partner Dashboard.
 
+## Tiendanube: lo que exige la homologación (verificado 2026-09-15 en dev.tiendanube.com)
+
+Cuatro artefactos obligatorios:
+1. Diagrama de secuencia (app ↔ API, flujos de autenticación).
+2. Video demo: instalación, registro, login, reinstalación y todas las funciones del diagrama.
+3. Cuenta demo pre-activada (sin pasos de suscripción pendientes).
+4. **NubeSDK**: "A partir del 5 de junio de 2026, la app debe ser desarrollada utilizando el
+   NubeSDK" — aplica a TODAS las solicitudes nuevas, no solo a scripts de checkout.
+   Hoy el widget es un `.js` plano subido por el portal de Scripts: sirve para las tiendas
+   que conectan, NO para aprobar la app en la tienda de aplicaciones.
+
+Si no contestan en 5 días a un pedido del equipo de homologación, sacan la app de la cola.
+
+Ficha ("Datos de publicación"): descripción corta máx. 64 caracteres; descripción larga por
+secciones (qué es, cómo funciona, funciones, beneficios, planes y precios, integración,
+soporte); ícono 600×600; banners 1600×800; formas de cobro (gratis / pago único / mensual);
+app handle + URL + contacto; FAQ según categoría; idiomas/regiones.
+
+Orden sugerido: respuesta de Tiendanube sobre facturación → decisión sobre NubeSDK → recién
+entonces la ficha (si hay que portar el widget, cambia el "cómo funciona").
+
 Datos reales para no exagerar nada:
 - Recurrentes: SaaS argentino de suscripciones con cobro recurrente en Mercado Pago.
 - Hoy: 1 tienda real en producción (LuminaLabs, Shopify) con 32 suscripciones activas desde junio 2026, y una app de Tiendanube (ID 42443) recién aprobada para desarrollo.
