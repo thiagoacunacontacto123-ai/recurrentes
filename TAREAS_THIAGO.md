@@ -127,8 +127,7 @@ Mientras no cargues las variables, en el panel sigue diciendo "Próximamente". C
    - `https://www.recurrentesapp.com/api/tiendanube/webhooks?topic=customers-redact`
    - `https://www.recurrentesapp.com/api/tiendanube/webhooks?topic=customers-data-request`
 5. **Scripts → Crear script**: subí el archivo `tiendanube-loader.js` (te lo dejé en Descargas), con ubicación **Store**, **instalación automática apagada** (así el script recibe el id de la cuenta por tienda) y NubeSDK apagado. Anotá el número del script.
-   - **Evento: `onfirstinteraction`.** Tiendanube pide aprobación previa para `onload`: el selector aparece apenas el visitante hace scroll o toca algo, en vez de al instante.
-   - [ ] Pedí la aprobación de `onload` por mail a **api@nuvemshop.com.br** (te pasé el texto por el chat). Cuando la den, editás el script y cambiás el evento.
+   - **Evento: `onfirstinteraction`** (decisión de Thiago, 15-sept: alcanza de sobra). `onload` necesita aprobación previa de Tiendanube por mail y no vale la pena: con onfirstinteraction el selector aparece apenas el visitante baja o toca algo.
 6. Vercel → Environment Variables:
    - `TIENDANUBE_APP_ID` = el ID de la app
    - `TIENDANUBE_CLIENT_SECRET` = el secret
