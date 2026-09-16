@@ -63,14 +63,14 @@ export default function Dashboard({ user, onLogout }) {
   const [manageStoreId, setManageStoreId] = useState(null);
   const [wizardOpen, setWizardOpen] = useState(false);
   // Paso 2 obligatorio después de conectar Shopify: pegar el snippet y verificarlo.
-  const [step2Channel, setStep2Channel] = useState(null); // "shopify" | "tiendanube" | null
+  const [step2Channel, setStep2Channel] = useState(null); // "shopify" | null (Tiendanube no tiene paso 2: el widget se carga solo)
   const setShopifyStep2 = (on) => setStep2Channel(on ? "shopify" : null);
   // Tiendanube vuelve del OAuth a Integraciones, que nos manda a #/dashboard/planes?store_step2=tiendanube.
   useEffect(() => {
     const check = () => {
       const q = new URLSearchParams((window.location.hash || "").split("?")[1] || "");
       const ch = q.get("store_step2");
-      if (ch === "tiendanube" || ch === "shopify") {
+      if (ch === "shopify") {
         try { window.history.replaceState(null, "", window.location.pathname + "#/dashboard/planes"); } catch (_) {}
         setTab("planes");
         setStep2Channel(ch);
