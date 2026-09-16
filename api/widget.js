@@ -211,6 +211,20 @@ export default async function handler(req, res) {
     // Cache corta para el checkout: así un deploy nuevo (ej. cambios de captura de
     // carrito) se propaga en ≤60s a la storefront, en vez de quedar 5 min viejo.
     res.setHeader("Cache-Control", "public, max-age=60");
+    // Un solo checkout (16-sept): la página on-store ya no muestra el formulario;
+    // manda al checkout de Recurrentes con los mismos parámetros (merchant, product,
+    // variant, qty, freq_days, base, sub_off, code…). Cubre a Lumina (su tema arma la
+    // URL a /pages/suscripcion-form) y a cualquier página vieja con el embed pegado.
+    // ?legacy=1 sirve el embed viejo, por si hay que compararlo.
+    if (String(req.query.legacy || "") !== "1") {
+      return res.send(`(function(){
+  try {
+    var q = new URLSearchParams(window.location.search);
+    if (!q.get("merchant")) q.set("merchant", ${JSON.stringify(merchantId)});
+    window.location.replace(${JSON.stringify(apiBase)} + "/#/checkout?" + q.toString());
+  } catch (e) { window.location.href = ${JSON.stringify(apiBase)} + "/#/checkout?merchant=" + ${JSON.stringify(encodeURIComponent(merchantId))}; }
+})();`);
+    }
     return res.send(buildCheckoutEmbed({ merchantId, apiBase, color: widgetColor, shippingRates: checkoutShippingRates, waOptin, liveQuotes: liveShippingQuotes }));
   }
 

@@ -56,6 +56,12 @@ export default function Checkout() {
   const freqParam = Math.max(0, parseInt(p.get("freq_days")) || 0);
   const codeParam = (p.get("code") || "").trim().toUpperCase();
   const rcParam = p.get("rc") || "";
+  // Modelo bundle del tema (Lumina y páginas viejas): variante exacta, precio del
+  // pack (`base`, total por qty) y descuento de suscripción (`sub_off`). El server
+  // los vuelve a validar contra el precio de la tienda.
+  const variantParam = p.get("variant") || "";
+  const baseParam = Math.max(0, Math.round(parseFloat(p.get("base")) || 0));
+  const subOffParam = Math.max(0, Math.min(90, parseFloat(p.get("sub_off")) || 0));
   const packIdx = packParam == null || packParam === "" ? null : Math.max(0, parseInt(packParam, 10) || 0);
   const img = p.get("img") || "";
   const titleOverride = p.get("title") || "";
@@ -97,6 +103,7 @@ export default function Checkout() {
       try {
         const q = new URLSearchParams({ action: "plan", merchant, checkout: "1" });
         if (planParam) q.set("plan", planParam); else q.set("product", product);
+        if (variantParam) q.set("variant", variantParam);
         const r = await fetch(`/api/public?${q.toString()}`);
         const d = await r.json();
         if (!ok) return;
@@ -107,7 +114,7 @@ export default function Checkout() {
       finally { if (ok) setLoading(false); }
     })();
     return () => { ok = false; };
-  }, [merchant, product, planParam, packIdx]);
+  }, [merchant, product, planParam, packIdx, variantParam]);
 
   // Sin `checkout` (backend viejo) → comportamiento histórico: pide todo.
   const askAddress = cfg ? cfg.ask_address !== false : true;
@@ -124,7 +131,7 @@ export default function Checkout() {
   const tiers = Array.isArray(plan?.qty_discount_tiers) ? plan.qty_discount_tiers : [];
   let qtyDiscountPct = 0;
   for (const t of tiers) if (qty >= (t.min_qty || 0)) qtyDiscountPct = t.discount_pct || 0;
-  const subtotal = pack ? pack.priceSub : Math.round(unitPrice * qty * (1 - qtyDiscountPct / 100));
+  const subtotal = pack ? pack.priceSub : baseParam > 0 ? Math.round(baseParam * (1 - subOffParam / 100)) : Math.round(unitPrice * qty * (1 - qtyDiscountPct / 100));
 
   // Envío por defecto del plan (si no hay otros métodos).
   const planShippingFree = (plan?.free_shipping_from_ars || 0) > 0 && subtotal >= (plan?.free_shipping_from_ars || 0);
@@ -218,6 +225,7 @@ export default function Checkout() {
         quantity: qty,
         ...(pack ? { pack_index: pack.idx } : {}),
         ...(!pack && freqParam ? { frequency_days: freqParam } : {}),
+        ...(!pack && baseParam > 0 ? { base_price: baseParam, sub_discount: subOffParam } : {}),
         ...(discount?.code ? { discount_code: discount.code } : {}),
         ...(discount?.viaRecovery && rcParam ? { recovery_token: rcParam } : {}),
         customer: { email: email.trim(), name: name.trim(), phone: phone.trim(), tax_id: taxid.trim() },

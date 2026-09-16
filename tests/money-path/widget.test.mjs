@@ -31,8 +31,17 @@ test("(h) widget del producto: JavaScript válido con el API base y el merchant 
   assert.equal(W.router.calls.length, 0, "servir el widget no llama a ninguna API externa");
 });
 
-test("(h) checkout on-store (?view=checkout): JS válido, mismo API base y tarifas legacy de Lumina", async () => {
+test("(h) checkout on-store (?view=checkout): redirige al checkout de Recurrentes con los mismos parámetros", async () => {
   const res = await invoke(widget, { method: "GET", query: { merchant: MID, view: "checkout" } });
+  assert.equal(res.statusCode, 200);
+  assert.ok(res.body.includes(`${JSON.stringify(APP)} + "/#/checkout?"`), "manda al checkout alojado en APP_BASE_URL");
+  assert.ok(res.body.includes("window.location.search"), "conserva merchant/product/variant/qty/base/sub_off de la URL");
+  assert.ok(!res.body.includes("var SHIPPING_RATES"), "ya no sirve el formulario on-store");
+  assert.ok(compiles(res.body));
+});
+
+test("(h) checkout on-store legacy (?view=checkout&legacy=1): JS válido, mismo API base y tarifas legacy de Lumina", async () => {
+  const res = await invoke(widget, { method: "GET", query: { merchant: MID, view: "checkout", legacy: "1" } });
   assert.equal(res.statusCode, 200);
   const js = res.body;
   assert.ok(js.includes(`var API_BASE = ${JSON.stringify(APP)};`));

@@ -21,7 +21,8 @@ beforeEach(() => { W = createWorld(); setPlatformEnv(false); });
 afterEach(() => { setPlatformEnv(false); W.router.assertClean(); });
 
 const get = async (query) => (await invoke(widget, { method: "GET", query })).body;
-const views = { product: { merchant: MID }, checkout: { merchant: MID, view: "checkout" } };
+// El on-store sin legacy=1 es solo un redirect al checkout alojado (sin casilla ni formulario).
+const views = { product: { merchant: MID }, checkout: { merchant: MID, view: "checkout", legacy: "1" } };
 const strip = (js, parts) => parts.reduce((s, p) => s.split(p).join(""), js);
 
 test("widget de Lumina: sin WhatsApp prendido el JS no cambia (aunque el número de Recurrentes esté configurado)", async () => {
