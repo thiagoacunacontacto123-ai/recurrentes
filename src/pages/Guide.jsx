@@ -289,7 +289,7 @@ function SecSnippet({ T, onb, goTab, origin, mid, canal }) {
   if (canal === "tiendanube") return <SnippetTiendanube T={T} onb={onb} snippet={snippet}/>;
   return (
     <>
-      <Sec T={T} title="Pegar el snippet en tu tienda" sub="Una línea de código, una sola vez. Elegí la forma que te resulte más cómoda: como bloque Custom Liquid (sin tocar código) o en templates/product.json (editor de código)."
+      <Sec T={T} title="Pegar el snippet en tu tienda" sub="Una línea de código, una sola vez, en theme.liquid: vale para toda la tienda, como hacemos con las tiendas que vinculamos nosotros. Si preferís no tocar código, está la alternativa por bloque."
         right={<><StepStatus T={T} onb={onb} id="snippet"/>{onb && !onb.steps?.find(s => s.id === "snippet")?.done && <Btn T={T} variant="success" size="sm" onClick={() => onb.setManual(onb.steps.find(s => s.id === "snippet"), true)}>Ya lo pegué ✓</Btn>}</>}>
         <P T={T}>Tu snippet (también lo copiás desde <B T={T}>Configuración → Integraciones → Shopify → Ajustes</B>):</P>
         <CodeBlock T={T} code={snippet} label="Copiar snippet"/>
