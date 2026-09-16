@@ -241,9 +241,36 @@ export default async function handler(req, res) {
   // La tienda expone window.LS (LS.store; en la página de producto LS.product y
   // LS.variants). Solo aplica si NO hay Shopify en la página: en Shopify todo
   // lo de abajo queda apagado y la detección de siempre no cambia.
-  var IS_TN = !window.Shopify && !window.ShopifyAnalytics && !!(window.LS && window.LS.store);
+  // Los temas viejos exponen LS; los nuevos (morelia y compañía) pueden no hacerlo,
+  // así que también valen la bandera del loader y el dominio de la tienda.
+  var IS_TN = !window.Shopify && !window.ShopifyAnalytics && (
+    !!(window.LS && window.LS.store) ||
+    window.__RECURRENTES_TN === true ||
+    /(^|\\.)(mitiendanube\\.com|nuvemshop\\.com\\.br|tiendanube\\.com)$/.test(window.location.hostname)
+  );
   function tnProductId() {
-    try { return IS_TN && window.LS.product && window.LS.product.id ? String(window.LS.product.id) : null; } catch(e) { return null; }
+    if (!IS_TN) return null;
+    try { if (window.LS && window.LS.product && window.LS.product.id) return String(window.LS.product.id); } catch(e) {}
+    // El loader ya resolvió el id (meta / JSON-LD / data-attribute) antes de traernos.
+    try { if (window.__RECURRENTES_TN_PRODUCT) return String(window.__RECURRENTES_TN_PRODUCT); } catch(e) {}
+    try {
+      var m = document.querySelector('meta[property="product:id"], meta[property="og:product_id"]');
+      if (m && m.content) return String(m.content);
+    } catch(e) {}
+    try {
+      var nodes = document.querySelectorAll('script[type="application/ld+json"]');
+      for (var i = 0; i < nodes.length; i++) {
+        var data; try { data = JSON.parse(nodes[i].textContent || "null"); } catch(e) { continue; }
+        var list = Array.isArray(data) ? data : (data && data["@graph"] ? data["@graph"] : [data]);
+        for (var j = 0; j < list.length; j++) {
+          var it = list[j];
+          if (!it || String(it["@type"] || "") !== "Product") continue;
+          var id = it.productID || it.sku || (it.offers && it.offers.sku) || "";
+          if (id) return String(id);
+        }
+      }
+    } catch(e) {}
+    return null;
   }
   function tnVariants() {
     try { var v = window.LS.variants; if (typeof v === "string") v = JSON.parse(v); return Array.isArray(v) ? v : []; } catch(e) { return []; }
@@ -267,7 +294,10 @@ export default async function handler(req, res) {
     return null;
   }
   function tnProductForm() {
-    return document.querySelector('form.js-product-form, form#product_form, form[action*="/comprar"]');
+    return document.querySelector(
+      'form.js-product-form, form#product_form, form[action*="/comprar"], ' +
+      'form[action*="/carrito"], form[data-store="product-form"], form[data-component="product-form"]'
+    );
   }
   // Suscribirse en Tiendanube: checkout de Recurrentes (#/checkout) con plan + cantidad.
   function tnCheckoutUrl(plan, qty) {
@@ -862,7 +892,8 @@ export default async function handler(req, res) {
     // y el script las confunde con la página del producto.
     var isProductPage = /\\/products\\//.test(window.location.pathname) ||
       (window.ShopifyAnalytics && ShopifyAnalytics.meta && ShopifyAnalytics.meta.page && ShopifyAnalytics.meta.page.pageType === "product") ||
-      !!tnProductId(); // Tiendanube: /productos/… con LS.product
+      !!tnProductId() ||
+      (IS_TN && /\\/productos\\//.test(window.location.pathname)); // Tiendanube
     if (!isProductPage) { log("No es página de producto, widget no carga"); return; }
 
     var productId = detectProductId();
