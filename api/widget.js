@@ -293,6 +293,24 @@ export default async function handler(req, res) {
     } catch(e) {}
     return null;
   }
+  // Handle del producto desde la URL: /productos/<handle>/ — lo único que
+  // TODOS los temas de Tiendanube tienen igual. Con esto el backend nos dice el
+  // id y la variante, así el widget no depende de LS.product ni del tema.
+  function tnHandleFromUrl() {
+    try {
+      var m = String(window.location.pathname).match(/\\/productos\\/([^\\/?#]+)/i);
+      return m ? decodeURIComponent(m[1]) : "";
+    } catch(e) { return ""; }
+  }
+  function tnResolveProduct() {
+    var handle = tnHandleFromUrl();
+    if (!handle) return Promise.resolve(null);
+    var url = API_BASE + "/api/public?action=tn-product&merchant=" + encodeURIComponent(MERCHANT_ID) + "&handle=" + encodeURIComponent(handle);
+    return fetch(url).then(function(r){ return r.json(); })
+      .then(function(d){ return d && d.product ? d.product : null; })
+      .catch(function(){ return null; });
+  }
+
   function tnProductForm() {
     return document.querySelector(
       'form.js-product-form, form#product_form, form[action*="/comprar"], ' +
@@ -897,9 +915,25 @@ export default async function handler(req, res) {
     if (!isProductPage) { log("No es página de producto, widget no carga"); return; }
 
     var productId = detectProductId();
-    if (!productId) { log("No se detectó productId — widget no carga"); return; }
     var form = findProductForm();
     var variantId = form ? detectVariantId(form) : null;
+
+    // Tiendanube: si el tema no expuso el producto, lo resolvemos por el handle
+    // de la URL contra el catálogo de la tienda y volvemos a entrar. Un solo
+    // reintento, para que un handle sin match no deje el widget en bucle.
+    if (!productId && IS_TN && !init._tnRetry) {
+      init._tnRetry = true;
+      log("Tiendanube: el tema no expone el producto, lo busco por el handle de la URL");
+      tnResolveProduct().then(function (p) {
+        if (!p || !p.id) { log("El handle de la URL no matcheó ningún producto"); return; }
+        window.__RECURRENTES_TN_PRODUCT = p.id;
+        if (p.variant_id) window.__RECURRENTES_TN_VARIANT = p.variant_id;
+        init();
+      });
+      return;
+    }
+    if (!productId) { log("No se detectó productId — widget no carga"); return; }
+    if (!variantId && IS_TN && window.__RECURRENTES_TN_VARIANT) variantId = String(window.__RECURRENTES_TN_VARIANT);
 
     // Mount point custom: si el theme tiene <div id="recurrentes-mount"></div>
     // en algún lugar específico (ej dentro de un bundle Liquid custom),
@@ -912,6 +946,16 @@ export default async function handler(req, res) {
     var hideAnchor = null;
     if (HIDE_SELECTOR) {
       try { hideAnchor = document.querySelector(HIDE_SELECTOR.split(",")[0].trim()); } catch(e){}
+    }
+    // En Tiendanube los temas nuevos no siempre tienen un <form> reconocible.
+    // Antes de rendirnos, buscamos un ancla razonable del bloque de compra.
+    if (!mountPoint && !form && !hideAnchor && IS_TN) {
+      var sel = ['[data-store="product-info"]', ".js-product-detail", ".product-info",
+                 '[data-component="product-info"]', "main h1", "h1"];
+      for (var i = 0; i < sel.length; i++) {
+        try { hideAnchor = document.querySelector(sel[i]); } catch(e) {}
+        if (hideAnchor) { log("Tiendanube: monto sobre " + sel[i]); break; }
+      }
     }
     if (!mountPoint && !form && !hideAnchor) {
       log("No hay mount point ni form/cart/add ni hide anchor. Widget no se monta.");

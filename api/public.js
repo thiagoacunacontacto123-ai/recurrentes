@@ -112,6 +112,7 @@ export default async function handler(req, res) {
 
   const action = String(req.query.action || "");
   if (action === "plan") return handlePlan(req, res);
+  if (action === "tn-product") return handleTnProduct(req, res);
   if (action === "sub")  return handleSub(req, res);
   if (action === "discount") return handleDiscount(req, res);
   if (action === "unsub") return handleUnsub(req, res);
@@ -177,6 +178,38 @@ async function handleDiscount(req, res) {
 }
 
 // ─── action=plan ───────────────────────────────────────────────
+// ─── action=tn-product ─────────────────────────────────────────────────────
+// PÚBLICO. Resuelve el handle de la URL de un producto de Tiendanube a su id y
+// su primera variante, consultando el catálogo de la tienda.
+//
+// Por qué existe: los temas nuevos de Tiendanube (morelia y compañía) no siempre
+// exponen `LS.product`, así que el widget no puede saber en qué producto está. El
+// handle sí está siempre, en la propia URL (`/productos/<handle>/`). Con esto el
+// widget funciona en cualquier tema sin depender de sus variables internas.
+async function handleTnProduct(req, res) {
+  const merchantId = String(req.query.merchant || "");
+  const handle = String(req.query.handle || "").trim().toLowerCase().slice(0, 200);
+  if (!merchantId || !handle) return res.status(400).json({ error: "Faltan merchant o handle" });
+  // Una llamada por visita a un producto: límite generoso pero acotado.
+  const rl = await rateLimit(`tnprod:${merchantId}:${clientIp(req)}`, { limit: 120, windowSec: 3600 });
+  if (!rl.ok) return res.status(429).json({ product: null, error: "Demasiadas consultas" });
+  try {
+    const snap = await db().collection("merchants").doc(merchantId).get();
+    const m = snap.exists ? snap.data() : null;
+    if (!m?.tiendanube_token || !m?.tiendanube_store_id) return res.json({ product: null });
+    const { tnListProducts } = await import("./_lib/tiendanube.js");
+    const products = await tnListProducts(m.tiendanube_store_id, m.tiendanube_token, { maxPages: 5 });
+    const hit = (products || []).find(p => String(p.handle || "").toLowerCase() === handle);
+    if (!hit) return res.json({ product: null });
+    const variant = Array.isArray(hit.variants) && hit.variants[0] ? String(hit.variants[0].id) : null;
+    res.setHeader("Cache-Control", "public, max-age=300");
+    return res.json({ product: { id: String(hit.id), variant_id: variant, title: hit.title || "" } });
+  } catch (e) {
+    console.warn(`[public/tn-product] ${merchantId}:`, e.message);
+    return res.json({ product: null });
+  }
+}
+
 async function handlePlan(req, res) {
   const merchantId = String(req.query.merchant || "");
   const productId = String(req.query.product || "");
