@@ -125,6 +125,9 @@ export default async function handler(req, res) {
         shopify_shop: merchant.shopify_shop || null,
         shopify_token: merchant.shopify_token ? "•••••" : null,
         shopify_connected_at: merchant.shopify_connected_at || null,
+        // Última vez que widget.js cargó en la tienda (beacon) → verificación de la instalación.
+        widget_last_seen_at: merchant.widget_last_seen_at || null,
+        widget_last_seen_host: merchant.widget_last_seen_host || null,
         shopify_has_own_app: !!(merchant.shopify_client_id && merchant.shopify_client_secret),
         shopify_env_app: !!(process.env.SHOPIFY_API_KEY && process.env.SHOPIFY_API_SECRET),
         shopify_scope: merchant.shopify_scope || null,   // permisos que dio Shopify (no es secreto): el panel sugiere reconectar si falta alguno

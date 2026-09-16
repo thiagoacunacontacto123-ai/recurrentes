@@ -132,6 +132,11 @@ export function WidgetThemeCard({ merchant, onChange, bare = false }) {
       <div style={{ marginBottom:14 }}>
         <div style={label}>Snippet para tu tema (una sola vez)</div>
         <CopyRow T={T} text={widgetSnippet(m)} label="Copiar"/>
+        <div style={{ fontSize:DS.font.sm, color: m.widget_last_seen_at ? T.green : T.textSm, marginTop:8 }}>
+          {m.widget_last_seen_at
+            ? <>✓ El widget carga en tu tienda{m.widget_last_seen_host ? <> (<code style={{ fontFamily:MONO }}>{m.widget_last_seen_host}</code>)</> : null}. Última vez: {new Date(m.widget_last_seen_at).toLocaleString("es-AR", { dateStyle:"short", timeStyle:"short" })}.</>
+            : <>Todavía no vimos el widget en tu tienda. Pegá el snippet y abrí un producto: acá aparece el tilde.</>}
+        </div>
         <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:6, lineHeight:1.5 }}>
           Online Store → Themes → Personalizar → plantilla de producto → bloque <strong style={{ color:T.text }}>Liquid personalizado</strong>. El widget aparece solo en los productos con plan activo. Paso a paso en Configuración → Ayuda.
         </div>

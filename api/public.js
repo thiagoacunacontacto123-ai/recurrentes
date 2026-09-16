@@ -112,6 +112,7 @@ export default async function handler(req, res) {
 
   const action = String(req.query.action || "");
   if (action === "plan") return handlePlan(req, res);
+  if (action === "widget-seen") return handleWidgetSeen(req, res);
   if (action === "tn-product") return handleTnProduct(req, res);
   if (action === "sub")  return handleSub(req, res);
   if (action === "discount") return handleDiscount(req, res);
@@ -640,4 +641,28 @@ async function handlePauseOffer(req, res) {
   await emitFlowEvent(merchantId, merchant, "paused", subscriberId, { ...sub, ...update }, { key: nowIso });
   await notifyMerchantStatusChange(merchantId, merchant, subscriberId, sub.status, "paused", { ...sub, status: "paused" });
   return res.json({ ok: true, status: "paused", resume_at: resumeAt, cycles, frequency_days: freqDays });
+}
+
+
+// ─── widget-seen: el widget avisa que cargó en la tienda ─────────────
+// GET ?action=widget-seen&merchant=&host= (lo dispara widget.js como <img>, sin
+// CORS). Escribe widget_last_seen_at/host como máximo cada 10 min (1 lectura por
+// aviso; el widget ya lo manda 1 vez por sesión). Siempre 204: nunca rompe la tienda.
+async function handleWidgetSeen(req, res) {
+  res.setHeader("Cache-Control", "no-store");
+  const merchantId = String(req.query.merchant || "").trim();
+  const host = String(req.query.host || "").trim().toLowerCase().slice(0, 120);
+  if (!/^[A-Za-z0-9_-]{6,80}$/.test(merchantId)) return res.status(204).end();
+  try {
+    const ref = db().collection("merchants").doc(merchantId);
+    const snap = await ref.get();
+    if (snap.exists) {
+      const d = snap.data() || {};
+      const last = Date.parse(d.widget_last_seen_at || "") || 0;
+      if (Date.now() - last > 10 * 60 * 1000 || (host && d.widget_last_seen_host !== host)) {
+        await ref.update({ widget_last_seen_at: new Date().toISOString(), widget_last_seen_host: host || null });
+      }
+    }
+  } catch (e) { console.warn("[public/widget-seen]", e.message); }
+  return res.status(204).end();
 }

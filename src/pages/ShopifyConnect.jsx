@@ -16,6 +16,7 @@ const F = "'Inter',system-ui,sans-serif";
 const currentOrigin = () => { try { return window.location.origin; } catch (_) { return "https://www.recurrentesapp.com"; } };
 
 const B = ({ T, children }) => <strong style={{ color:T.text }}>{children}</strong>;
+const Code = ({ T, children }) => <code style={{ fontFamily:"ui-monospace, SFMono-Regular, Menlo, monospace", fontSize:11, background:T.bg, border:`1px solid ${T.border}`, borderRadius:5, padding:"1px 5px", color:T.text }}>{children}</code>;
 const A = ({ T, href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" style={{ color:T.accent, fontWeight:DS.w.semibold, textDecoration:"underline" }}>{children}</a>;
 const Mono = ({ T, children }) => <code style={{ fontFamily:MONO, fontSize:11, background:T.bg, border:`1px solid ${T.borderL}`, borderRadius:4, padding:"1px 5px", color:T.text, wordBreak:"break-all" }}>{children}</code>;
 // Botón de Shopify en inglés + qué significa.
@@ -80,14 +81,18 @@ export function ShopifyConnectSteps({ T, origin, where = "modal" }) {
       <div style={{ fontWeight:700, color:T.text, marginBottom:8 }}>Crear tu app en Shopify (3 minutos)</div>
       <ol style={{ margin:0, paddingLeft:18, display:"flex", flexDirection:"column", gap:9 }}>
         <li>Entrá a <A T={T} href={SHOPIFY_DEV_DASHBOARD_URL}>dev.shopify.com/dashboard</A> → <B T={T}>Create app</B> → nombre <B T={T}>Recurrentes</B>.</li>
-        <li>Entrá a la app → <B T={T}>Versiones → Crear versión</B>. Ahí adentro está todo lo de los pasos 3 y 4.</li>
+        <li>Entrá a la app → <B T={T}>Versiones → Crear versión</B>. Ahí adentro está todo lo de los pasos 3 y 4.
+          <div style={{ marginTop:6, padding:"8px 10px", background:T.yellowBg || "rgba(245,158,11,0.10)", border:`1px solid ${(T.yellow || "#f59e0b")}55`, borderRadius:8, color:T.text }}>
+            ⚠️ Vas a ver <B T={T}>muchos más campos</B> (App URL con <Code T={T}>example.com</Code>, opciones de embed, webhooks, etc.). <B T={T}>Ignoralos todos y dejalos como están.</B> Solo se tocan dos cosas: <B T={T}>Alcances</B> y <B T={T}>URL de redireccionamiento</B>.
+          </div>
+        </li>
         <li>En <B T={T}>Alcances (scopes)</B> pegá TODOS estos de una (van separados por comas):
           <CopyRow T={T} text={SHOPIFY_SCOPES_STRING}/>
         </li>
         <li>En <B T={T}>URL de redireccionamiento</B> pegá exactamente esta:
           <CopyRow T={T} text={redirect}/>
         </li>
-        <li><B T={T}>Lanzá la versión:</B> tocá <B T={T}>"Publicar" / "Lanzar"</B> (arriba a la derecha). Aparece un cartel pidiendo el <B T={T}>nombre de la versión</B> → dejalo <B T={T}>en blanco</B> y tocá de nuevo <B T={T}>"Lanzar" / "Avanzar"</B>. Con eso la versión interna de tu app queda lista.</li>
+        <li><B T={T}>Lanzá la versión:</B> tocá <B T={T}>"Publicar" / "Lanzar"</B> (arriba a la derecha). Aparece un cartel pidiendo el <B T={T}>nombre de la versión</B> → dejalo <B T={T}>en blanco</B> y tocá de nuevo <B T={T}>"Lanzar" / "Avanzar"</B>. Con eso la versión interna de tu app queda lista. Si más adelante cambiás algo (un alcance, la URL), hay que volver a tocar <B T={T}>"Publicar" / "Relanzar"</B>: en Shopify los cambios no valen hasta que publicás la versión.</li>
         <li>Ahora sí, en <B T={T}>Configuración → Credenciales</B> copiá el <B T={T}>Client ID</B> y el <B T={T}>Client Secret</B> (tocá el ojito para verlo) → {pasteWhere}.</li>
       </ol>
     </div>

@@ -239,6 +239,15 @@ export default async function handler(req, res) {
   "use strict";
   var MERCHANT_ID = ${JSON.stringify(merchantId)};
   var API_BASE = ${JSON.stringify(apiBase)};
+  // Aviso "el widget cargó en la tienda" (1 vez por sesión del visitante). Con esto
+  // el panel verifica solo la instalación (Paso 2 después de conectar Shopify).
+  try {
+    var seenKey = "rec_seen_" + MERCHANT_ID;
+    if (!sessionStorage.getItem(seenKey)) {
+      sessionStorage.setItem(seenKey, "1");
+      new Image().src = API_BASE + "/api/public?action=widget-seen&merchant=" + encodeURIComponent(MERCHANT_ID) + "&host=" + encodeURIComponent(location.hostname) + "&_=" + Date.now();
+    }
+  } catch (e) {}
   var HIDE_SELECTOR = ${JSON.stringify(hideSelector)};
   var MODE_ORDER = ${JSON.stringify(widgetModeOrder)};
   var MODE_DEFAULT = ${JSON.stringify(widgetModeDefault)};

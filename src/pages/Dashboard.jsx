@@ -24,6 +24,7 @@ import { OwnerInfoModal } from "./OwnerInfo.jsx";
 import { readPendingSignup, clearPendingSignup } from "../lib/signup.js";
 import { mpOauthReturnToast } from "../lib/mpOauth.js";
 import { AdminPage, AdminViewBanner } from "./Admin.jsx";
+import ShopifyStep2Modal from "./ShopifyStep2.jsx";
 
 // Resuelve un id de tab (nuevo o viejo) a { tab, config?, query? }.
 function resolveTab(id) {
@@ -61,6 +62,8 @@ export default function Dashboard({ user, onLogout }) {
   const [newStoreOpen, setNewStoreOpen] = useState(false);
   const [manageStoreId, setManageStoreId] = useState(null);
   const [wizardOpen, setWizardOpen] = useState(false);
+  // Paso 2 obligatorio después de conectar Shopify: pegar el snippet y verificarlo.
+  const [shopifyStep2, setShopifyStep2] = useState(false);
   const [guideOpen, setGuideOpen] = useState(false);
 
   useEffect(() => { try { localStorage.setItem("rec_sidebar_collapsed", collapsed ? "1" : "0"); } catch (_) {} }, [collapsed]);
@@ -156,9 +159,16 @@ export default function Dashboard({ user, onLogout }) {
     if (!mp && !shopifyOk) return;
     const mpToast = mpOauthReturnToast(q); // textos en src/lib/mpOauth.js
     if (mpToast) toast(mpToast.text, mpToast.tone, mpToast.ms);
-    else if (shopifyOk) toast("Shopify conectado", "success");
-    window.history.replaceState(null, "", window.location.pathname + "#/config/integraciones");
-    setTab("configuracion");
+    else if (shopifyOk) toast("Shopify conectado · falta el paso 2", "success");
+    if (shopifyOk) {
+      // No lo soltamos en Integraciones: Paso 2 (snippet) sí o sí.
+      window.history.replaceState(null, "", window.location.pathname + "#/dashboard/planes");
+      setTab("planes");
+      setShopifyStep2(true);
+    } else {
+      window.history.replaceState(null, "", window.location.pathname + "#/config/integraciones");
+      setTab("configuracion");
+    }
     reloadMerchant();
   }, []);
 
@@ -170,8 +180,9 @@ export default function Dashboard({ user, onLogout }) {
     if (!pending) return;
     apiPost("shopify/claim-pending", { state: pending }).then(d => {
       if (d?.ok) {
-        window.history.replaceState(null, "", window.location.pathname + "#/config/integraciones");
-        setTab("configuracion");
+        window.history.replaceState(null, "", window.location.pathname + "#/dashboard/planes");
+        setTab("planes");
+        setShopifyStep2(true);
         reloadMerchant();
       } else if (d?.error) {
         toast("Error conectando Shopify: " + d.error, "error", 7000);
@@ -268,6 +279,7 @@ export default function Dashboard({ user, onLogout }) {
   return (
     <OnboardingContext.Provider value={onbCtx}>
     <div style={{minHeight:"100vh",display:"flex",background:T.bg,color:T.text,fontFamily:"'Inter',system-ui,sans-serif"}}>
+      {shopifyStep2 && merchant && <ShopifyStep2Modal merchant={merchant} onDone={() => { setShopifyStep2(false); reloadMerchant(); goTab("planes"); }}/>}
       {wizardOpen && merchant && <OnboardingWizard T={T} DS={DS} merchant={merchant} onb={onb} goTab={goTab} onClose={closeWizard} onMerchantChange={reloadMerchant}/>}
       <Sidebar {...shellProps} collapsed={collapsed} setCollapsed={setCollapsed}/>
 
