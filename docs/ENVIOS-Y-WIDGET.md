@@ -153,3 +153,16 @@ Codear el PATCH a ciegas es cómo se llegó al bug de Shopify.
 Zippin o el que sea gratis de probar), hacer una compra por el checkout normal, y
 leer su fulfillment order. Con ese ejemplo real, el PATCH se escribe en una hora y
 con tests, igual que el de Shopify.
+
+
+---
+
+## ✅ Verificado con Envialo (16-sept, tarde)
+
+Suscripción real en Lumina (otra cuenta de MP) eligiendo un punto de retiro. La orden
+#3048 salió con `code: envialo:andreani:andreani_pickup:ship:12683` y `source: Envialo`,
+idéntica a una del checkout nativo, y **Envialo la reconoció con la sucursal correcta**.
+`carrier_identifier` va vacío (lo genera Shopify, la API no lo deja setear) y no hizo falta.
+
+Desde entonces la cotización en vivo está **prendida por defecto** para toda tienda Shopify
+(`shipping_live_quotes !== false`); se apaga por tienda en Integraciones → Shopify → Ajustes.

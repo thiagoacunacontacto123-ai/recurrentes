@@ -194,7 +194,7 @@ export default async function handler(req, res) {
         email_from_effective: effectiveFrom(merchant),
         store_domain_effective: effectiveStoreDomain(merchant),
         checkout_shipping_rates: Array.isArray(merchant.checkout_shipping_rates) ? merchant.checkout_shipping_rates : [],
-        shipping_live_quotes: merchant.shipping_live_quotes === true,
+        shipping_live_quotes: merchant.shipping_live_quotes !== false,
         store_domain: merchant.store_domain || "",
         store_domain_source: merchant.store_domain_source === "manual" || merchant.store_domain_source === "shopify" ? merchant.store_domain_source : (merchant.store_domain ? "manual" : null),
         // Retención al cancelar (portal): motivos + oferta de pausa. Defaults si no configuró.
@@ -713,7 +713,7 @@ async function saveSettings(merchantId, req, res) {
   // Cotización en vivo con la app de envíos de la tienda (Envialo, Andreani…).
   // APAGADO por defecto: cambia lo que ve el comprador, así que cada comerciante
   // lo prende recién cuando probó que su proveedor procesa nuestras órdenes.
-  if ("shipping_live_quotes" in b) out.shipping_live_quotes = b.shipping_live_quotes === true;
+  if ("shipping_live_quotes" in b) out.shipping_live_quotes = b.shipping_live_quotes !== false;
   if ("checkout_shipping_rates" in b) {
     if (!Array.isArray(b.checkout_shipping_rates)) return bad("checkout_shipping_rates debe ser un array");
     if (b.checkout_shipping_rates.length > 6) return bad("Máximo 6 tarifas de envío");

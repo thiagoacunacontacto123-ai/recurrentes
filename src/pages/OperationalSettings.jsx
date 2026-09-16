@@ -140,14 +140,14 @@ export function WidgetThemeCard({ merchant, onChange, bare = false }) {
           cliente ve los mismos métodos y precios que en una venta normal y la orden le
           llega al carrier con su código. Apagado = envío por defecto del plan. Se
           prende acá y no en Descuentos porque es parte de la conexión con la tienda. */}
-      <div style={{ marginBottom:14, padding:"10px 12px", border:`1px solid ${m.shipping_live_quotes ? T.accentSolid + "55" : T.border}`, borderRadius:DS.r.lg, background:T.surface, display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+      <div style={{ marginBottom:14, padding:"10px 12px", border:`1px solid ${(m.shipping_live_quotes !== false) ? T.accentSolid + "55" : T.border}`, borderRadius:DS.r.lg, background:T.surface, display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
         <div style={{ minWidth:0 }}>
-          <div style={{ fontSize:DS.font.md, fontWeight:700, color:T.text }}>Envíos: los mismos que en tu tienda {m.shipping_live_quotes && <DSBadge T={T} color={T.accentSolid} size="sm" style={{ marginLeft:6 }}>Activo</DSBadge>}</div>
+          <div style={{ fontSize:DS.font.md, fontWeight:700, color:T.text }}>Envíos: los mismos que en tu tienda {(m.shipping_live_quotes !== false) && <DSBadge T={T} color={T.accentSolid} size="sm" style={{ marginLeft:6 }}>Activo</DSBadge>}</div>
           <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:2, lineHeight:1.5 }}>El cliente elige entre los métodos y sucursales de tu proveedor de envíos, al precio del momento, y la orden le llega igual que una venta suelta. <strong style={{ color:T.text }}>Probalo con una suscripción tuya antes de dejarlo prendido.</strong></div>
         </div>
-        <Btn T={T} variant={m.shipping_live_quotes ? "secondary" : "primary"} size="sm" disabled={busy}
-          onClick={async () => { setBusy(true); await saveSettings({ shipping_live_quotes: !m.shipping_live_quotes }, m.shipping_live_quotes ? "Volvimos al envío por defecto del plan" : "El checkout ya cotiza con tu proveedor de envíos", onChange); setBusy(false); }}>
-          {m.shipping_live_quotes ? "Desactivar" : "Activar"}
+        <Btn T={T} variant={(m.shipping_live_quotes !== false) ? "secondary" : "primary"} size="sm" disabled={busy}
+          onClick={async () => { setBusy(true); await saveSettings({ shipping_live_quotes: !(m.shipping_live_quotes !== false) }, (m.shipping_live_quotes !== false) ? "Volvimos al envío por defecto del plan" : "El checkout ya cotiza con tu proveedor de envíos", onChange); setBusy(false); }}>
+          {(m.shipping_live_quotes !== false) ? "Desactivar" : "Activar"}
         </Btn>
       </div>
       {!open ? (

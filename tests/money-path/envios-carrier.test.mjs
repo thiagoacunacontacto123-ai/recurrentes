@@ -162,8 +162,8 @@ test("sin carrier (tarifa manual del comerciante) no se manda source", async () 
 });
 
 // ─── El interruptor: apagado, nada cambia ───────────────────────────────────
-test("(e) sin shipping_live_quotes NO se cotiza: cero llamadas a Shopify y envío del plan", async () => {
-  W = createWorld();   // default: el flag no está
+test("(e) con shipping_live_quotes en false NO se cotiza: cero llamadas a Shopify y envío del plan", async () => {
+  W = createWorld({ merchant: luminaMerchant({ shipping_live_quotes: false }) });   // apagado a mano por la tienda
   const res = await post({ shipping_method: { name: SUCURSAL.title, code: SUCURSAL.code, price: 0 } });
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   assert.equal(W.router.find({ path: /graphql/ }).length, 0, "no le preguntamos a Shopify si el comerciante no lo habilitó");

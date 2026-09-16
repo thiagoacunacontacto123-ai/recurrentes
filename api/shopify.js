@@ -82,7 +82,7 @@ async function handleShippingRates(req, res) {
     // APAGADO por defecto — cotizar en vivo cambia lo que ve el comprador y hay
     // que probarlo con la app de envíos de cada tienda antes de confiarle ventas
     // reales. Sin el flag, el comportamiento es el de siempre (tarifas propias).
-    const liveQuotes = m.shipping_live_quotes === true;
+    const liveQuotes = m.shipping_live_quotes !== false; // prendido por defecto desde el 16-sept (Envialo verificado); se apaga por tienda
     const variant = String(req.query.variant || "").trim();
     const carrier = (liveQuotes && variant)
       ? await shQuoteShippingRates(m.shopify_shop, m.shopify_token, {

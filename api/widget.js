@@ -153,7 +153,7 @@ export default async function handler(req, res) {
       if (m.widget_checkout_flow === "inline") checkoutFlow = "inline";
       if (typeof m.widget_checkout_page_path === "string" && m.widget_checkout_page_path.trim()) checkoutPagePath = m.widget_checkout_page_path.trim();
       checkoutShippingRates = resolveCheckoutShippingRates(m);
-      liveShippingQuotes = m.shipping_live_quotes === true;
+      liveShippingQuotes = m.shipping_live_quotes !== false; // prendido por defecto; se apaga por tienda
     }
   } catch (_) {}
   // WhatsApp: casilla "Quiero que me avisen por WhatsApp" SOLO si la tienda tiene quién mande

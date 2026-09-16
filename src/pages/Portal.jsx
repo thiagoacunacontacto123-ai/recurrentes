@@ -315,7 +315,7 @@ function AddressForm({ sub, token, onSaved }) {
 
   return (
     <div style={{marginTop:12,display:"grid",gap:8}}>
-      <div style={{fontSize:13,lineHeight:1.5,color:"var(--text-md)",background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 12px"}}>
+      <div role="alert" style={{fontSize:13,lineHeight:1.5,color:"var(--red)",background:"rgba(248,113,113,0.10)",border:"1px solid var(--red)",borderRadius:10,padding:"10px 12px",fontWeight:600}}>
         La dirección nueva se usa <strong>a partir de tu próximo envío</strong>. Si querés cambiar un pedido que ya se hizo, escribile a la marca: puede que ya esté en camino.
       </div>
       <input value={f.address1} onChange={set("address1")} placeholder="Calle y número *" style={inp}/>
