@@ -489,7 +489,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
         {/* ── Publicidad ── */}
         <GroupTitle T={T}>Publicidad</GroupTitle>
         <Row T={T} id="meta" label="Meta Ads" optional connected={metaOk} open={open === "meta"} onToggle={() => toggle("meta")}
-          sub={metaOk ? `Pixel ${m.meta_pixel_id} · reporta la primera venta de cada suscripción` : "Reportá a Meta la primera venta de cada suscripción para que tus campañas la cuenten."}
+          sub={metaOk ? `Pixel ${m.meta_pixel_id} · le avisa a Meta cada primera venta de suscripción` : "Solo si hacés publicidad en Facebook o Instagram: que tus campañas cuenten las suscripciones como ventas."}
           onConnect={openMeta} onDisconnect={disconnectMeta}>
           <div style={{ fontSize:DS.font.md, color:T.textMd, lineHeight:1.6, marginBottom:12 }}>
             Mandamos a Meta la <S T={T}>primera venta</S> de cada suscripción por la API de Conversiones (del lado del servidor). <S T={T}>Las renovaciones no se reportan</S>, así no inflás la atribución de tus campañas.
@@ -614,21 +614,26 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
 
       {modal === "meta" && (
         <Modal T={T} title={metaOk ? "Cambiar credenciales de Meta" : "Conectar Meta Ads"} busy={busy === "meta"} onClose={close}
-          sub="Para reportar la primera venta de cada suscripción a tus campañas (API de Conversiones)."
+          sub="Solo si hacés publicidad en Facebook o Instagram. Si no, no hace falta."
           footer={<>
             <Btn T={T} variant="secondary" onClick={close} disabled={busy === "meta"}>Cancelar</Btn>
             <Btn T={T} variant="solid" onClick={saveMeta} disabled={busy === "meta" || !pixel.trim() || !capi.trim()}>{busy === "meta" ? <><Spinner size={12}/> Conectando…</> : "Conectar"}</Btn>
           </>}>
-          <Steps T={T} title="Qué necesitás de tu Meta Business">
-            <li><S T={T}>Pixel ID</S>: Administrador de eventos → tu pixel → arriba, <S T={T}>Copiar identificador</S>.</li>
-            <li><S T={T}>Token de la API de Conversiones</S>: en el mismo pixel → Configuración → API de conversiones → <S T={T}>Generar token de acceso</S>.</li>
+          <div style={{ fontSize:DS.font.md, color:T.textMd, lineHeight:1.65, marginBottom:14, padding:"12px 14px", background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:10 }}>
+            <div style={{ fontWeight:700, color:T.text, marginBottom:4 }}>Para qué sirve</div>
+            Las suscripciones se pagan en el checkout de Recurrentes, no en tu tienda, así que <S T={T}>tu pixel de Meta no las ve</S>. Con esto, cada vez que alguien se suscribe por primera vez le avisamos a Meta que hubo una compra, con su monto, y tus campañas la cuentan como venta. Las renovaciones no se mandan, para no inflar los resultados.
+          </div>
+          <Steps T={T} title="Dos datos, los dos salen del Administrador de eventos de Meta">
+            <li><S T={T}>1 · Pixel ID</S>. Entrá a <a href="https://business.facebook.com/events_manager2" target="_blank" rel="noopener noreferrer" style={{ color:T.accent, fontWeight:700 }}>business.facebook.com/events_manager2</a> → en la columna izquierda tocá tu pixel (“Orígenes de datos”). Debajo del nombre hay un <S T={T}>número largo de 15 o 16 dígitos</S>: ese es el Pixel ID. Copialo y pegalo abajo.</li>
+            <li><S T={T}>2 · Token de la API de Conversiones</S>. Con el mismo pixel abierto, tocá la pestaña <S T={T}>Configuración</S> → bajá hasta la sección <S T={T}>API de conversiones</S> → <S T={T}>Generar token de acceso</S>. Te da un texto muy largo que empieza con <S T={T}>EAA</S>. Copialo entero (Meta lo muestra una sola vez; si lo perdés, generás otro).</li>
           </Steps>
-          <Field T={T} label="Pixel ID (solo números)">
-            <input value={pixel} onChange={e => setPixel(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="1234567890" style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} autoFocus disabled={busy === "meta"}/>
+          <Field T={T} label="Pixel ID (el número largo)">
+            <input value={pixel} onChange={e => setPixel(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Ej.: 1234567890123456" style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} autoFocus disabled={busy === "meta"}/>
           </Field>
-          <Field T={T} label="Token de la API de Conversiones">
+          <Field T={T} label="Token de la API de Conversiones (empieza con EAA)">
             <input type="password" value={capi} onChange={e => setCapi(e.target.value)} placeholder="EAAG…" style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} disabled={busy === "meta"}/>
           </Field>
+          <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, marginTop:4 }}>El token queda guardado solo en Recurrentes y se usa únicamente para avisarle a Meta las compras. Podés desconectarlo cuando quieras.</div>
         </Modal>
       )}
 
