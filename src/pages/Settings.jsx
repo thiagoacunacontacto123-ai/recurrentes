@@ -40,7 +40,6 @@ export const CFG_SECS = ["cuenta", "negocio", "tiendas", "equipo", "avisos", "in
 const CFG_ALIASES = { operacion: "avanzado", widget: "__planes_widget__", tienda: "checkout" };
 
 export const TEAM_SECTIONS = [
-  { id: "inicio",        label: "Inicio" },
   { id: "suscripciones", label: "Suscripciones" },
   { id: "cobros",        label: "Cobros" },
   { id: "planes",        label: "Planes" },

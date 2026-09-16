@@ -29,7 +29,7 @@ import { AdminPage, AdminViewBanner } from "./Admin.jsx";
 function resolveTab(id) {
   if (NAV.some(n => n.id === id)) return { tab: id };
   const a = TAB_ALIASES[id];
-  if (!a) return { tab: "inicio" };
+  if (!a) return { tab: "analiticas" };
   if (a.config) return { tab: "configuracion", config: a.config };
   return { tab: a.tab, query: a.query };
 }
@@ -44,7 +44,7 @@ function tabFromHash() {
     if (r.config) { window.history.replaceState(null, "", `${window.location.pathname}#/config/${r.config}${window.location.hash.includes("?") ? "?" + window.location.hash.split("?")[1] : ""}`); return "configuracion"; }
     if (r.query && h[1] !== r.tab) window.history.replaceState(null, "", `${window.location.pathname}#/dashboard/${r.tab}?${r.query}`);
     return r.tab;
-  } catch (_) { return "inicio"; }
+  } catch (_) { return "analiticas"; }
 }
 
 // Dashboard del comerciante — shell (sidebar + switcher de tiendas + topbar)
@@ -252,16 +252,16 @@ export default function Dashboard({ user, onLogout }) {
   const isAdmin = merchant?.is_admin === true;
   const navList = useMemo(() => {
     const secs = merchant?.role === "member" && merchant?.member_secciones && Object.keys(merchant.member_secciones).length ? merchant.member_secciones : null;
-    const base = secs ? NAV.filter(n => n.id === "inicio" || secs[n.id] === true || n.adminOnly) : NAV;
+    const base = secs ? NAV.filter(n => n.id === "analiticas" || secs[n.id] === true || n.adminOnly) : NAV;
     return base.filter(n => !n.adminOnly || isAdmin);
   }, [merchant?.role, merchant?.member_secciones, isAdmin]);
-  useEffect(() => { if (loading) return; if (!navList.some(n => n.id === tab)) goTab("inicio"); }, [navList, tab, goTab, loading]);
+  useEffect(() => { if (loading) return; if (!navList.some(n => n.id === tab)) goTab("analiticas"); }, [navList, tab, goTab, loading]);
 
   if (unverified) return <><VerifyEmailScreen user={user} onLogout={onLogout} onRetry={reloadMerchant}/><ToastContainer T={T}/></>;
   if (noStore) return <><StoreTransferredScreen user={user} onLogout={onLogout}/><ToastContainer T={T}/></>;
 
   const navItem = NAV.find(n => n.id === tab) || NAV[0];
-  const shellProps = { T, nav: navList, activeTab: tab, onTab: goTab, user, merchant, workspace: effectiveWorkspace, onSwitchStore: switchStore, onCreateStore: () => setNewStoreOpen(true), onManageStore: (id) => setManageStoreId(id), darkMode, setDarkMode, onLogout, alerts: { onboarding: onb.ready ? onb.pending : 0 }, pendientes: pendientesSidebar, onVerPlan: () => goTab("inicio") };
+  const shellProps = { T, nav: navList, activeTab: tab, onTab: goTab, user, merchant, workspace: effectiveWorkspace, onSwitchStore: switchStore, onCreateStore: () => setNewStoreOpen(true), onManageStore: (id) => setManageStoreId(id), darkMode, setDarkMode, onLogout, alerts: { onboarding: onb.ready ? onb.pending : 0 }, pendientes: pendientesSidebar, onVerPlan: () => goTab("analiticas") };
   const needs = (title) => <NeedsIntegrations title={title} missing={profile.missing} onGo={() => goConfig("integraciones")}/>;
 
   return (
@@ -296,8 +296,6 @@ export default function Dashboard({ user, onLogout }) {
                     <button onClick={()=>{setActiveMerchantId(user?.uid,null);window.location.reload();}} style={{background:"transparent",color:T.textMd,border:`1px solid ${T.border}`,borderRadius:10,padding:"10px 16px",fontWeight:600,cursor:"pointer"}}>Volver a mi tienda principal</button>
                   </div>
                 </div>
-              ) : tab === "inicio" ? (
-                <HomeTab merchant={merchant} onGo={goTab} onGoConfig={goConfig} onOpenGuide={()=>setWizardOpen(true)}/>
               ) : tab === "suscripciones" ? (
                 integrationsReady ? <SubscriptionsPage devMode={devMode} shop={shop}/> : needs("Suscripciones")
               ) : tab === "cobros" ? (
@@ -311,7 +309,9 @@ export default function Dashboard({ user, onLogout }) {
               ) : tab === "portal" ? (
                 <CustomerPortalPage merchant={merchant} reloadMerchant={reloadMerchant} goTab={goTab}/>
               ) : tab === "analiticas" ? (
-                integrationsReady ? <AnalyticsPage merchant={merchant}/> : needs("Analíticas")
+                // Pantalla de entrada. Con la tienda conectada, los datos; si todavía
+                // falta conectar algo, la puesta en marcha (el viejo Inicio).
+                integrationsReady ? <AnalyticsPage merchant={merchant}/> : <HomeTab merchant={merchant} onGo={goTab} onGoConfig={goConfig} onOpenGuide={()=>setWizardOpen(true)}/>
               ) : tab === "admin" ? (
                 isAdmin ? <AdminPage/> : null
               ) : tab === "configuracion" ? (

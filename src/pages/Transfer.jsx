@@ -204,7 +204,7 @@ export function TransferAcceptPage({ user, authReady }) {
   }
   function irAlPanel() {
     if (done?.merchant_id && user?.uid) setActiveMerchantId(user.uid, done.merchant_id);
-    window.location.hash = "#/dashboard/inicio";
+    window.location.hash = "#/dashboard/analiticas";
   }
 
   // Login / registro acá mismo (vuelve solo a esta pantalla al entrar).
@@ -231,7 +231,7 @@ export function TransferAcceptPage({ user, authReady }) {
   );
   const H = ({ children }) => <div style={{ fontSize: 19, fontWeight: 800, color: T.text, letterSpacing: -0.3, marginBottom: 8, lineHeight: 1.3 }}>{children}</div>;
   const P = ({ children, style }) => <div style={{ fontSize: 13.5, color: T.textMd, lineHeight: 1.6, ...style }}>{children}</div>;
-  const home = <div style={{ marginTop: 18 }}><Btn T={T} variant="secondary" onClick={() => { window.location.hash = user ? "#/dashboard/inicio" : "#/"; }}>{user ? "Ir a mi panel" : "Ir a Recurrentes"}</Btn></div>;
+  const home = <div style={{ marginTop: 18 }}><Btn T={T} variant="secondary" onClick={() => { window.location.hash = user ? "#/dashboard/analiticas" : "#/"; }}>{user ? "Ir a mi panel" : "Ir a Recurrentes"}</Btn></div>;
 
   if (!authReady || !info) return card(<div style={{ display: "flex", gap: 8, alignItems: "center", color: T.textSm }}><Spinner size={14} color={T.accent} /> Cargando la transferencia…</div>);
   if (done?.kind === "accepted") return card(<>

@@ -20,6 +20,8 @@ export default function Portal() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.split("?")[1] || window.location.search.slice(1));
     const t = params.get("token");
+    const demo = params.get("demo");
+    if (demo) { setToken("demo:" + demo); load("demo:" + demo); return; }
     if (!t) {
       setErr("Falta el token de acceso. Revisá el link que recibiste por email.");
       setLoading(false);
@@ -33,7 +35,8 @@ export default function Portal() {
     if (!silent) setLoading(true);
     setErr("");
     try {
-      const r = await fetch(`/api/public?action=sub&token=${encodeURIComponent(t)}`);
+      const isDemo = String(t).startsWith("demo:");
+      const r = await fetch(isDemo ? `/api/public?action=sub&demo=${encodeURIComponent(t.slice(5))}` : `/api/public?action=sub&token=${encodeURIComponent(t)}`);
       const d = await r.json();
       if (d.error) {
         setErr(d.error);
@@ -47,7 +50,10 @@ export default function Portal() {
     }
   }
 
+  const isDemo = String(token || "").startsWith("demo:");
+  const demoStop = () => { toast("Es una vista previa: acá tu cliente haría esta acción de verdad. Nada se guarda.", "info", 5000); };
   async function doAction(action) {
+    if (isDemo) return demoStop();
     if (action === "cancel" && data?.retention?.enabled !== false) { setCancelOpen(true); return; }
     // Sin envío (servicios, digitales) no hablamos de "envíos".
     const withShipping = data?.business ? data.business.shipping !== false : true;
@@ -85,6 +91,7 @@ export default function Portal() {
   }
 
   async function cancelWithReason({ reason_code, reason, comment }) {
+    if (isDemo) return demoStop();
     setBusyAction("cancel");
     try {
       const r = await fetch(`/api/public?action=sub&token=${encodeURIComponent(token)}`, {
@@ -101,6 +108,7 @@ export default function Portal() {
   }
 
   async function pauseInstead(cycles) {
+    if (isDemo) return demoStop();
     setBusyAction("pause");
     try {
       const r = await fetch(`/api/public?action=pause-offer&token=${encodeURIComponent(token)}`, {
@@ -282,6 +290,7 @@ function AddressForm({ sub, token, onSaved }) {
   const set = (k) => (e) => setF(prev => ({ ...prev, [k]: e.target.value }));
 
   async function save() {
+    if (String(token || "").startsWith("demo:")) return toast("Es una vista previa: acá tu cliente guardaría su dirección nueva. Nada se guarda.", "info", 5000);
     if (!f.address1.trim()) return toast("Falta la dirección (calle y número)", "warning");
     if (!f.city.trim()) return toast("Falta la ciudad", "warning");
     if (!f.province) return toast("Falta la provincia", "warning");

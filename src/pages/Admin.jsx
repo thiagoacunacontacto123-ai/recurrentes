@@ -411,7 +411,7 @@ function MerchantPanel({ id, onClose, onChanged }) {
     const r = await apiPost("stats", { merchant_id: id }, { action: "admin-view-as" });
     if (!r || r.error) { toast(r?.error || "No se pudo entrar", "error"); return; }
     setAdminAs({ id, name: r.merchant?.name || m.name });
-    window.location.hash = "#/dashboard/inicio";
+    window.location.hash = "#/dashboard/analiticas";
     window.location.reload();
   }
 

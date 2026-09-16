@@ -64,7 +64,7 @@ const statsRef = () => db().collection("admin_cache").doc("merchant_stats");
 // saber si está conectado: nunca salen en la respuesta.
 const LIST_FIELDS = [
   "email", "store_name", "shop_name", "shopify_shop", "owner_name", "owner_whatsapp", "contact_email",
-  "created_at", "is_store", "ownerUid", "deleted", "teamUids",
+  "created_at", "is_store", "ownerUid", "deleted", "teamUids", "archived_at",
   "plan", "plan_activated", "plan_activated_at", "plan_requested", "plan_requested_at",
   "billing_cache", "business_type", "channel", "payment_provider",
   "shopify_token", "mp_access_token", "mp_email", "klaviyo_api_key", "flows_enabled", "flows_active_triggers",
@@ -294,8 +294,12 @@ const liveRows = (data) => {
 async function overview(query) {
   const nowMs = Date.now();
   const data = await loadAll({ fresh: query.fresh === "1", nowMs });
-  const rows = liveRows(data);
-  const accounts = data.merchants.filter(m => m.deleted !== true && m.is_store !== true);
+  // Tiendas archivadas (ej. INDATROPIC: sigue cobrando en MP pero Recurrentes la
+  // ignora) no cuentan en ningún agregado: inflaban "suscripciones activas" y el
+  // MRR total con números de una tienda muerta.
+  const archived = new Set(data.merchants.filter(m => m.archived_at).map(m => m.id));
+  const rows = liveRows(data).filter(r => !archived.has(r.id));
+  const accounts = data.merchants.filter(m => m.deleted !== true && m.is_store !== true && !m.archived_at);
 
   // Altas por día (hora AR, 90 días). Solo logins: las tiendas extra no son altas.
   const keys = dayKeys(90, nowMs);

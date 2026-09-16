@@ -24,14 +24,14 @@ const ICON = {
 // cambia; grupos sin ítems visibles —miembros con permisos— desaparecen solos).
 // `footer`: no va en la lista; vive como botón abajo (Configuración).
 export const NAV = [
-  { id:"inicio",        label:"Inicio",             short:"Inicio",   icon:SECTION_ICONS.inicio, alertKey:"onboarding", badge:"accent" },
   { id:"suscripciones", label:"Suscripciones",      short:"Suscrip.", icon:ICON.suscripciones, alertKey:"suscripciones", section:"Ventas" },
   { id:"cobros",        label:"Cobros",             short:"Cobros",   icon:SECTION_ICONS.cobros, alertKey:"cobros", badge:"red", section:"Ventas" },
   { id:"planes",        label:"Planes",             short:"Planes",   icon:SECTION_ICONS.planes, section:"Catálogo" },
   { id:"retencion",     label:"Retención",          short:"Retener",  icon:ICON.retencion, alertKey:"retencion", badge:"orange", section:"Clientes" },
   { id:"flujos",        label:"Flujos de email",    short:"Flujos",   icon:ICON.flujos, section:"Clientes" },
   { id:"portal",        label:"Portal del cliente", short:"Portal",   icon:ICON.portal, section:"Clientes" },
-  { id:"analiticas",    label:"Analíticas",         short:"Datos",    icon:ICON.analiticas, section:"Análisis" },
+  // Analíticas es la pantalla de entrada: los KPIs del viejo Inicio viven acá.
+  { id:"analiticas",    label:"Analíticas",         short:"Datos",    icon:ICON.analiticas, alertKey:"onboarding", badge:"accent", section:"Análisis" },
   { id:"admin",         label:"Admin",              short:"Admin",    icon:ICON.admin, section:"Recurrentes", adminOnly:true }, // solo super-admins (merchant.is_admin)
   { id:"configuracion", label:"Configuración",      short:"Config",   icon:SECTION_ICONS.configuracion, footer:true },
 ];
@@ -40,6 +40,7 @@ export const NAV = [
 // llamadas a goTab("suscriptores") que sigan vivas en otros archivos.
 //   { tab } → tab del NAV · { config } → sección de Configuración
 export const TAB_ALIASES = {
+  inicio:        { tab:"analiticas" },
   suscriptores:  { tab:"suscripciones" },
   carritos:      { tab:"suscripciones", query:"status=unpaid" },
   abandonados:   { tab:"suscripciones", query:"status=unpaid" },

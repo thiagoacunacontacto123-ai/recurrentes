@@ -343,7 +343,50 @@ async function handleUpdateAddress(req, res) {
 }
 
 // ─── action=sub ────────────────────────────────────────────────
+// Vista previa del portal para el comerciante: GET ?action=sub&demo=<merchantId>
+// devuelve una suscripción de ejemplo con la marca, el color, los textos y las
+// acciones habilitadas de esa tienda. Solo lectura: no hay token, así que ninguna
+// acción (pausar, cancelar, dirección) puede ejecutarse contra esto.
+async function handleSubDemo(req, res) {
+  const merchantId = String(req.query.demo || "").trim();
+  if (!merchantId) return res.status(400).json({ error: "Falta demo" });
+  const mSnap = await db().collection("merchants").doc(merchantId).get();
+  if (!mSnap.exists) return res.status(404).json({ error: "Tienda no encontrada" });
+  const merchant = mSnap.data();
+  const p = merchantProfile(merchant || {});
+  const next = new Date(Date.now() + 12 * 86400000).toISOString();
+  const withShipping = p.caps.shipping;
+  res.setHeader("Cache-Control", "no-store");
+  return res.json({
+    demo: true,
+    sub: {
+      id: "demo", status: "active",
+      customer_email: "cliente@ejemplo.com", customer_name: "Ana Pérez", customer_phone: "11 5555-1234",
+      plan_snapshot: { product_title: withShipping ? "Producto de ejemplo" : `Tu ${p.vocab.item || "plan"}`, units_per_shipment: 2, frequency_days: 30, total_per_charge_ars: 12500, subscription_price_ars: 12500, shipping_price_ars: 0, shipping_method_name: "Envío a domicilio" },
+      shipping_address: withShipping ? { address1: "Av. Siempreviva 742", address2: "3° B", city: "San Justo", province: "Buenos Aires", zip: "1754", phone: "11 5555-1234" } : null,
+      quantity: 2, next_charge_at: next, last_charge_at: new Date(Date.now() - 18 * 86400000).toISOString(),
+      created_at: new Date(Date.now() - 48 * 86400000).toISOString(), shopify_orders_count: 2,
+      shopify_order_status_url: null, resume_at: null, cancel_reason_code: null,
+    },
+    charges: [
+      { id: "demo-2", amount_ars: 12500, status: "approved", created_at: new Date(Date.now() - 18 * 86400000).toISOString() },
+      { id: "demo-1", amount_ars: 12500, status: "approved", created_at: new Date(Date.now() - 48 * 86400000).toISOString() },
+    ],
+    merchant_store_url: merchantStoreUrl(merchant),
+    merchant_brand: merchant.email_brand || merchant.store_name || merchant.shop_name || merchant.displayName || null,
+    retention: retentionFor(merchant),
+    portal: {
+      allow_pause: merchant?.portal?.allow_pause !== false,
+      allow_cancel: merchant?.portal?.allow_cancel !== false,
+      allow_address: merchant?.portal?.allow_address !== false,
+    },
+    portal_welcome: merchant?.portal_welcome || "",
+    business: { type: p.businessType, channel: p.channel, shipping: p.caps.shipping, provider_label: p.providerInfo.label, vocab: p.vocab },
+  });
+}
+
 async function handleSub(req, res) {
+  if (req.method === "GET" && req.query.demo) return handleSubDemo(req, res);
   const token = req.query.token || req.body?.token;
   const payload = verifyPortalToken(String(token || ""));
   if (!payload) return res.status(403).json({ error: "Token inválido o expirado" });
