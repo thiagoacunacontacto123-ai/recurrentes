@@ -138,7 +138,7 @@ export function WidgetThemeCard({ merchant, onChange, bare = false }) {
             : <>Todavía no vimos el widget en tu tienda. Pegá el snippet y abrí un producto: acá aparece el tilde.</>}
         </div>
         <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:6, lineHeight:1.5 }}>
-          Online Store → Themes → Personalizar → plantilla de producto → bloque <strong style={{ color:T.text }}>Liquid personalizado</strong>. El widget aparece solo en los productos con plan activo. Paso a paso en Configuración → Ayuda.
+          Tienda online → Temas → ⋯ → Editar código → <code style={{ fontFamily:MONO }}>layout/theme.liquid</code>, pegalo justo arriba de <code style={{ fontFamily:MONO }}>&lt;/body&gt;</code>. Una sola vez para toda la tienda; el widget aparece solo en los productos con plan activo. Paso a paso en Configuración → Ayuda.
         </div>
       </div>
       {/* Envíos: el checkout SIEMPRE cotiza con el proveedor de envíos de la tienda

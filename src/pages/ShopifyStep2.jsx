@@ -33,7 +33,11 @@ export default function StoreStep2Modal({ merchant, channel = "shopify", onDone 
   // Vale cualquier carga del widget en la última hora (reconectar la tienda no lo invalida).
   const openedAt = useRef(new Date(Date.now() - 60 * 60 * 1000).toISOString());
   const niceHost = (h) => !h ? "tu tienda" : /shopifypreview\.com$/.test(h) ? "la vista previa de tu tema" : h;
-  const [seen, setSeen] = useState(null);       // { at, host } cuando el widget cargó después de abrir este paso
+  // Si el widget ya se vio en la última hora (el merchant ya lo trae), arrancamos en verde.
+  const [seen, setSeen] = useState(() => {
+    const at = m.widget_last_seen_at || "";
+    return at && Date.now() - Date.parse(at) < 60 * 60 * 1000 ? { at, host: m.widget_last_seen_host || "" } : null;
+  });
   const [checking, setChecking] = useState(false);
   const [failed, setFailed] = useState(0);      // intentos de "Ya lo hice" sin ver el widget
 
@@ -54,6 +58,10 @@ export default function StoreStep2Modal({ merchant, channel = "shopify", onDone 
     finally { setChecking(false); }
   }
 
+  useEffect(() => {
+    const at = m.widget_last_seen_at || "";
+    if (!seen && at && Date.now() - Date.parse(at) < 60 * 60 * 1000) setSeen({ at, host: m.widget_last_seen_host || "" });
+  }, [m.widget_last_seen_at, m.widget_last_seen_host, seen]);
   useEffect(() => { if (seen) { writeFlag(widgetKey(m.id), true); toast("¡El widget ya carga en tu tienda!", "success"); } }, [seen, m.id]);
 
   const step = { display: "flex", gap: 10, alignItems: "flex-start", fontSize: DS.font.base, color: T.textMd, lineHeight: 1.6 };
