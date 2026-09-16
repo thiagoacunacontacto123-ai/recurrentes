@@ -358,7 +358,6 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
   const [source, setSource] = useState(m.widget_source || (hasCustomDev ? "custom" : "templates"));
   useEffect(() => { if (m.widget_source) setSource(m.widget_source); }, [m.widget_source]);
   const customDev = source === "custom";
-  const externallyLinked = customDev;
   async function pickSource(id) {
     if (id === source) return;
     setSource(id);
@@ -386,11 +385,10 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
           options={[{ id:"templates", label:"Usar widgets prediseñados" }, { id:"custom", label:"Usar desarrollo a medida" }]}/>
         <span style={{...small}}>{customDev ? (hasCustomDev ? "Tu tienda usa un selector desarrollado a medida." : "Pedinos la cotización por WhatsApp y lo dejamos vinculado en tu tienda.") : "¿Querés un selector a medida para tu tienda? Elegí “desarrollo” y te cotizamos por WhatsApp."}</span>
       </div>
-      {externallyLinked && (
-        <Callout T={T} tone="info" style={{marginBottom:14}} right={<WhatsAppBtn merchant={m} size="sm"/>}>
-          {hasCustomDev ? "Tu tienda está vinculada de manera externa por los desarrolladores. El selector que ves en tu producto es un desarrollo a medida; cualquier cambio pedilo por WhatsApp." : "Desarrollo a medida: escribinos por WhatsApp y te pasamos la cotización. Mientras, tu tienda sigue mostrando el widget prediseñado."}
-        </Callout>
-      )}
+      {customDev ? (
+        /* ── Desarrollo a medida: SOLO lo desarrollado para esta tienda ── */
+        <CustomDevView T={T} merchant={m} plans={activePlans} hasCustomDev={hasCustomDev}/>
+      ) : (<>
 
       {/* ── Vista previa + personalización ─────────────────────────── */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))",gap:16,alignItems:"start"}}>
@@ -508,6 +506,59 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
       </div>
 
       <DevHelpCard merchant={m} context="widget"/>
+      </>)}
+    </div>
+  );
+}
+
+// ─── Vista "Desarrollo a medida" ──────────────────────────────────
+// Nada de prediseñados acá: si la tienda tiene un desarrollo (Lumina), lo que le
+// hicimos y cómo pedir cambios; si no, solo el WhatsApp para cotizarlo.
+function CustomDevView({ T, merchant, plans = [], hasCustomDev }) {
+  const m = merchant || {};
+  const store = String(m.store_domain || m.shopify_shop || "").replace(/^https?:\/\//, "");
+  const storeUrl = store ? `https://${store}` : "";
+  const sectionH = { fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, marginBottom:6, letterSpacing:-0.2 };
+  const small = { fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5 };
+  if (!hasCustomDev) {
+    return (
+      <Card T={T} style={{borderColor:"#25D36655",background:`linear-gradient(135deg, ${T.card}, ${T.greenBg})`}}>
+        <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
+          <div style={{width:44,height:44,borderRadius:DS.r.lg,background:"#25D36622",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>🛠️</div>
+          <div style={{flex:1,minWidth:220}}>
+            <div style={sectionH}>Todavía no tenés un desarrollo a medida</div>
+            <div style={small}>Te diseñamos y vinculamos un selector de suscripción exclusivo para tu tienda, con tu marca y tus packs. Escribinos y te pasamos la cotización.</div>
+          </div>
+          <a href={quoteWhatsAppUrl(m)} target="_blank" rel="noopener noreferrer" className="gh-clickable"
+            style={{display:"inline-flex",alignItems:"center",gap:7,background:"#25D366",color:"#fff",border:"1px solid #1ebe5d",borderRadius:DS.r.md,padding:"10px 16px",fontSize:DS.font.base,fontWeight:DS.w.semibold,textDecoration:"none",whiteSpace:"nowrap",boxShadow:"0 4px 14px rgba(37,211,102,0.30)"}}>
+            {WA_ICON}Pedir cotización por WhatsApp
+          </a>
+        </div>
+      </Card>
+    );
+  }
+  return (
+    <div style={{display:"grid",gap:16}}>
+      <Callout T={T} tone="info" right={<WhatsAppBtn merchant={m} size="sm">Pedir un cambio</WhatsAppBtn>}>
+        Tu tienda usa un selector desarrollado a medida y vinculado por nuestros desarrolladores. Cualquier cambio (textos, packs, colores, comportamiento) pedilo por WhatsApp y lo hacemos nosotros.
+      </Callout>
+      <Card T={T}>
+        <div style={sectionH}>Tu desarrollo</div>
+        <div style={{...small,marginBottom:12}}>Está activo en las páginas de producto de estos planes{storeUrl ? <> · <a href={storeUrl} target="_blank" rel="noopener noreferrer" style={{color:T.accent,fontWeight:DS.w.semibold}}>ver tu tienda →</a></> : null}</div>
+        <div style={{display:"grid",gap:8}}>
+          {plans.length === 0 && <div style={small}>Todavía no hay planes activos.</div>}
+          {plans.map(p => (
+            <div key={p.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",border:`1px solid ${T.border}`,borderRadius:DS.r.md,background:T.bg}}>
+              {p.product_image ? <img src={p.product_image} alt="" style={{width:40,height:40,borderRadius:8,objectFit:"cover",flexShrink:0}}/> : <div style={{width:40,height:40,borderRadius:8,background:T.border,flexShrink:0}}/>}
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:DS.font.base,fontWeight:DS.w.semibold,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.product_title || p.item_name || "Plan"}</div>
+                <div style={small}>Cada {p.frequency_days || 30} días{Array.isArray(p.packs) && p.packs.length ? ` · ${p.packs.length} packs` : ""}</div>
+              </div>
+              <span style={{fontSize:10,fontWeight:700,color:"#fff",background:T.accentSolid,padding:"3px 8px",borderRadius:6,letterSpacing:0.3}}>A MEDIDA</span>
+            </div>
+          ))}
+        </div>
+      </Card>
     </div>
   );
 }
