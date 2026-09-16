@@ -249,7 +249,10 @@ function v01(c) {
     S + " .rc-price{text-align:right;display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}" +
     S + " .rc-price b{font-size:18px;font-weight:900;white-space:nowrap}" +
     S + " .rc-price s{font-size:12px;color:#a3a3a3;margin-top:2px;white-space:nowrap}" +
-    S + " .rc-modes{margin-top:16px;display:flex;flex-direction:column;gap:8px}" +
+    // margin-bottom acá y no solo en el botón: hay temas (morelia en Tiendanube)
+    // que resetean los márgenes de <button> con !important y el CTA quedaba pegado
+    // a la última tarjeta de modo. El margen de un <div> nuestro no lo tocan.
+    S + " .rc-modes{margin-top:16px;margin-bottom:14px;display:flex;flex-direction:column;gap:8px}" +
     S + " .rc-mode{display:grid;grid-template-columns:30px minmax(0,1fr) auto;align-items:center;gap:0 12px;width:100%;padding:12px 14px;text-align:left;border:2px dashed #d4d4d4;border-radius:var(--rc-r);background:#fff;transition:border-color .2s,background .2s}" +
     S + " .rc-mode:hover{border-color:var(--rc-a-l3)}" +
     S + " .rc-mode.is-on{border-style:solid;border-color:var(--rc-a);background:var(--rc-a-l1)}" +
@@ -262,7 +265,7 @@ function v01(c) {
     S + " .rc-mode-txt small{font-size:12px;color:#666;font-weight:600;line-height:1.35}" +
     S + " .rc-mode-price{font-size:15px;font-weight:900;white-space:nowrap}" +
     S + " .rc-mode.is-on .rc-mode-price{color:var(--rc-a-t)}" +
-    S + " .rc-cta{margin-top:14px;padding:17px 14px;font-size:17px}" +
+    S + " .rc-cta{margin-top:14px !important;padding:17px 14px;font-size:17px}" +
     S + " .rc-trust{justify-content:center;margin-top:14px}" +
     "@container (max-width:379px){" +
       S + " .rc-pack{grid-template-columns:20px 38px minmax(0,1fr) auto;gap:0 8px;padding:12px 10px}" +
