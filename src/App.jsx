@@ -8,7 +8,7 @@ import Dashboard from "./pages/Dashboard.jsx";
 import Portal from "./pages/Portal.jsx";
 import CheckoutSuccess from "./pages/CheckoutSuccess.jsx";
 import Checkout from "./pages/Checkout.jsx";
-import LegalPage from "./pages/Legal.jsx";
+import LegalPage, { SoportePage } from "./pages/Legal.jsx";
 import { TransferAcceptPage } from "./pages/Transfer.jsx";
 
 // Routing simple hash-based.
@@ -17,6 +17,7 @@ import { TransferAcceptPage } from "./pages/Transfer.jsx";
 //   #/checkout?...               → Checkout de suscripción
 //   #/checkout-success?sub=...   → Pantalla de gracias post-MP
 //   #/terminos · #/privacidad    → páginas legales
+//   #/soporte                    → soporte público (lo pide la ficha de Tiendanube)
 // Rutas privadas:
 //   sin user → PublicSite (Landing · #/login · #/registro · #/recuperar)
 //   con user → Dashboard (#/dashboard/<tab>)
@@ -45,6 +46,7 @@ export default function App() {
   if (route === "checkout-success") return <CheckoutSuccess/>;
   if (route === "terminos") return <LegalPage kind="terminos" T={readStoredDark() ? DARK : LIGHT}/>;
   if (route === "privacidad") return <LegalPage kind="privacidad" T={readStoredDark() ? DARK : LIGHT}/>;
+  if (route === "soporte") return <SoportePage T={readStoredDark() ? DARK : LIGHT}/>;
   // Aceptar una tienda transferida: anda con o sin sesión (maneja el login adentro).
   if (route === "transferir") return <TransferAcceptPage user={user} authReady={authReady}/>;
 
@@ -69,6 +71,7 @@ function parseRoute() {
   if (path === "checkout-success") return "checkout-success";
   if (path === "terminos") return "terminos";
   if (path === "privacidad") return "privacidad";
+  if (path === "soporte") return "soporte";
   if (path === "transferir") return "transferir";
   return "default";
 }

@@ -39,15 +39,15 @@ function useStyles(Tp) {
   };
 }
 
-function Frame({ T, title, children }) {
+function Frame({ T, title, children, sub, draft = true }) {
   const s = useStyles(T);
   return (
     <div style={s.page}>
       <div style={s.wrap}>
         <a href="#/" style={s.back}>← Volver a Recurrentes</a>
         <h1 style={s.h1}>{title}</h1>
-        <div style={s.sub}>Recurrentes — última actualización: {ULTIMA_ACTUALIZACION}</div>
-        <div style={s.draft}>Borrador — versión beta, sujeto a revisión legal</div>
+        <div style={s.sub}>{sub || `Recurrentes — última actualización: ${ULTIMA_ACTUALIZACION}`}</div>
+        {draft && <div style={s.draft}>Borrador — versión beta, sujeto a revisión legal</div>}
         {children}
         <div style={s.foot}>
           <a href="#/terminos" style={s.a}>Términos y condiciones</a>
@@ -233,6 +233,61 @@ export function PrivacidadPage({ T }) {
 
       <h2 style={s.h2}>12. Contacto</h2>
       <p style={s.p}>{EMAIL_CONTACTO}</p>
+    </Frame>
+  );
+}
+
+// ─── Soporte ────────────────────────────────────────────────────
+// Página pública: la URL de soporte es obligatoria en la ficha de la tienda de
+// aplicaciones de Tiendanube y la abren los revisores, así que no puede estar
+// detrás del login como la sección Ayuda del panel.
+export function SoportePage({ T }) {
+  const s = useStyles(T);
+  const S = ({ children }) => <strong style={s.strong}>{children}</strong>;
+  return (
+    <Frame T={T} title="Soporte" sub="Te contestamos en días hábiles, de 9 a 18 (hora de Argentina), en español." draft={false}>
+      <div style={s.box}>
+        Escribinos a <a href={`mailto:${EMAIL_CONTACTO}`} style={s.a}>{EMAIL_CONTACTO}</a>. Si el problema
+        es urgente y tiene que ver con un cobro, ponelo en el asunto y lo miramos primero.
+      </div>
+
+      <h2 style={s.h2}>Qué contarnos para resolverlo rápido</h2>
+      <ul style={s.p}>
+        <li>El dominio de tu tienda.</li>
+        <li>Qué esperabas que pasara y qué pasó.</li>
+        <li>Si es sobre una suscripción o un cobro puntual, el email del cliente o el número de la orden.</li>
+        <li>Una captura, si es algo que se ve en pantalla.</li>
+      </ul>
+
+      <h2 style={s.h2}>Respuestas rápidas</h2>
+      <p style={s.p}>
+        <S>La orden de una renovación figura como pago offline.</S> Es correcto: el dinero entró por
+        Mercado Pago, no por el checkout de tu tienda. La orden igual queda como paga.
+      </p>
+      <p style={s.p}>
+        <S>Un cobro falló.</S> Marcamos la suscripción como pago rechazado, le avisamos al cliente por
+        mail para que actualice la tarjeta y reintentamos. Lo ves en el panel, en Suscripciones.
+      </p>
+      <p style={s.p}>
+        <S>Mi cliente quiere pausar o cancelar.</S> Puede hacerlo solo desde el portal del cliente, con
+        el link que recibe en los mails. Vos también podés hacerlo desde el panel.
+      </p>
+      <p style={s.p}>
+        <S>No aparece el selector de suscripción en el producto.</S> Revisá que el plan esté activo y
+        que sea el producto correcto. En Tiendanube el widget carga cuando el visitante interactúa con
+        la página (un clic o un scroll), no al abrirla.
+      </p>
+      <p style={s.p}>
+        <S>Quiero cambiar de plataforma.</S> Cada cuenta trabaja con una sola tienda conectada.
+        Desvinculá la actual en Integraciones y vas a poder conectar la otra.
+      </p>
+
+      <h2 style={s.h2}>Bajas y datos</h2>
+      <p style={s.p}>
+        Si querés eliminar tu cuenta o pedir la baja de tus datos, escribinos a{" "}
+        <a href={`mailto:${EMAIL_CONTACTO}`} style={s.a}>{EMAIL_CONTACTO}</a> o hacelo desde
+        Configuración → Cuenta. El detalle está en la <a href="#/privacidad" style={s.a}>Política de privacidad</a>.
+      </p>
     </Frame>
   );
 }
