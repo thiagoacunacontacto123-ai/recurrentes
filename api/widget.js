@@ -132,7 +132,7 @@ export default async function handler(req, res) {
   // Tarifas de envío del checkout (editables por el merchant). Sólo name/price/eta/code.
   // [] = sin lista → el embed ofrece el envío del plan (code PLAN).
   let checkoutShippingRates = [];
-  let liveShippingQuotes = false; // Configuración → Shopify → Ajustes: cotizar con el proveedor de envíos
+  let liveShippingQuotes = false; // true con tienda conectada: cotiza con el proveedor de envíos de la tienda
   // Doc crudo del merchant (widget_variant, widget_texts, etc. los lee buildBundleVM).
   let merchantDoc = null;
   try {
@@ -153,7 +153,7 @@ export default async function handler(req, res) {
       if (m.widget_checkout_flow === "inline") checkoutFlow = "inline";
       if (typeof m.widget_checkout_page_path === "string" && m.widget_checkout_page_path.trim()) checkoutPagePath = m.widget_checkout_page_path.trim();
       checkoutShippingRates = resolveCheckoutShippingRates(m);
-      liveShippingQuotes = m.shipping_live_quotes !== false; // prendido por defecto; se apaga por tienda
+      liveShippingQuotes = true; // siempre en vivo, sin interruptor: cada venta igual a una venta común
     }
   } catch (_) {}
   // WhatsApp: casilla "Quiero que me avisen por WhatsApp" SOLO si la tienda tiene quién mande

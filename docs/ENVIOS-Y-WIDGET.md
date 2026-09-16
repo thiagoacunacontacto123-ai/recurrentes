@@ -164,5 +164,6 @@ Suscripción real en Lumina (otra cuenta de MP) eligiendo un punto de retiro. La
 idéntica a una del checkout nativo, y **Envialo la reconoció con la sucursal correcta**.
 `carrier_identifier` va vacío (lo genera Shopify, la API no lo deja setear) y no hizo falta.
 
-Desde entonces la cotización en vivo está **prendida por defecto** para toda tienda Shopify
-(`shipping_live_quotes !== false`); se apaga por tienda en Integraciones → Shopify → Ajustes.
+Desde entonces la cotización en vivo está **siempre prendida** para toda tienda Shopify. No hay
+interruptor a propósito (Thiago: "conecta y se deja así, cada venta igual a una venta común").
+El campo `shipping_live_quotes` que quedó en Lumina se ignora.
