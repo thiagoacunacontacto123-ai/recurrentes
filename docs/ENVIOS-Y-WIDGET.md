@@ -18,6 +18,14 @@ mini-carrito (`form[action*="/carrito"]` en los selectores) y el id del producto
 dependía de `LS.product`; ahora se resuelve también por el handle de la URL
 (`/api/public?action=tn-product`).
 
+**Modo packs (16-sept, probado en la demo):** el selector de packs corre en Tiendanube
+igual que en Shopify. En suscripción, el pack va al checkout de Recurrentes con
+`&pack=<idx>`; en compra única se esconde nuestro CTA y vuelve el "Agregar al carrito"
+nativo del tema con la cantidad del pack cargada en su input (mini-carrito con 3
+unidades, verificado). El precio y el selector de cantidad del tema se ocultan en
+modo packs. Selectores: hooks para apps de Tiendanube (`data-store="product-buy-button"`,
+`data-store="product-price-<id>"`, `data-component="product.quantity"`) + clases js-*.
+
 **Plan B que queda vigente:** el bloque HTML en la descripción del producto
 (Planes → "Poner en la tienda"). Sin JavaScript, funciona en cualquier tema y plan.
 Cuando el widget JS monta, lo esconde solo. Sirve para tiendas donde la inyección
