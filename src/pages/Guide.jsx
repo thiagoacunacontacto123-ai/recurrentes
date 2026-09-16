@@ -23,6 +23,7 @@ export const GUIDE_SECTIONS = [
   { id:"planes",  label:"Planes y packs" },
   { id:"diseno",  label:"Widget" },
   { id:"snippet", label:"Pegar el snippet" },
+  { id:"pagina",  label:"La página del checkout" },
   { id:"probar",  label:"Probar" },
   { id:"tienda",  label:"Tienda y envíos" },
   { id:"faq",     label:"Preguntas" },
@@ -52,7 +53,7 @@ export default function GuidePage({ merchant, goTab, embedded = false, initial }
 
   const Body = ({
     inicio: SecInicio, shopify: SecShopify, mp: SecMp, planes: SecPlanes, diseno: SecDiseno,
-    snippet: SecSnippet, probar: SecProbar, tienda: SecTienda, faq: SecFaq,
+    snippet: SecSnippet, pagina: SecPagina, probar: SecProbar, tienda: SecTienda, faq: SecFaq,
   })[sec] || SecInicio;
 
   return (
@@ -314,6 +315,78 @@ function SecSnippet({ T, onb, goTab, origin, mid }) {
           <>Abrí en tu tienda un producto <B T={T}>que tenga plan activo</B> en Recurrentes.</>,
           <>Debajo (o arriba) del botón de compra tenés que ver el selector <B T={T}>Suscripción / Compra única</B> con tus packs.</>,
           <>Si no aparece: revisá que el plan esté activo, que el snippet esté en la plantilla de producto correcta (algunos themes usan varias) y recargá sin caché (Ctrl/Cmd + Shift + R).</>,
+        ]}/>
+      </Sec>
+    </>
+  );
+}
+
+function SecPagina({ T, onb, goTab, origin, mid }) {
+  const path = "/pages/suscripcion-form";
+  return (
+    <>
+      <Sec T={T} title="La página del checkout" sub="Una página de tu tienda donde el cliente completa sus datos y elige el envío. El widget lo manda ahí al tocar Suscribirme."
+        right={<Btn T={T} variant="primary" size="sm" onClick={() => goConfigSection(goTab, "avanzado")}>Ir a Avanzado →</Btn>}>
+        <Callout T={T} tone="info" title="¿Por qué hace falta una página?">
+          El checkout de Shopify no soporta pagos recurrentes con Mercado Pago. Así que el cliente completa
+          sus datos en esta página de tu tienda —con tu diseño y tu dominio— y desde ahí va a Mercado Pago a
+          autorizar el cobro. Se crea una sola vez y sirve para todos tus planes.
+        </Callout>
+
+        <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, margin:"16px 0 6px" }}>1 · Creá la página</div>
+        <Steps T={T} items={[
+          <>En Shopify: <B T={T}>Online Store → Pages → Add page</B>.<Crumb T={T} path="Shopify › Online Store › Pages › Add page"/></>,
+          <>Título: <B T={T}>Suscripción</B>. Eso genera el handle <Code T={T}>suscripcion</Code> y la URL <Code T={T}>{path}</Code>. Si Shopify te pone otro handle, corregilo abajo en <B T={T}>Search engine listing → Edit</B>.</>,
+          <>Contenido: <B T={T}>dejalo vacío</B>. El formulario lo pinta Recurrentes.</>,
+          <>En <B T={T}>Theme template</B>, dejá <Code T={T}>page</Code> por ahora. Si tu theme tiene una plantilla de página sin barra lateral ni comentarios, elegí esa.</>,
+          <>Tocá <B T={T}>Save</B>.</>,
+        ]}/>
+
+        <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, margin:"16px 0 6px" }}>2 · Dejala limpia</div>
+        <P T={T}>Acá está la parte que más se pasa por alto: la página hereda todo lo que tu theme le pone alrededor,
+          y eso distrae justo cuando el cliente está por pagar. En <B T={T}>Personalizar</B>, con la página de
+          Suscripción abierta en el selector de plantillas, saca o oculta:</P>
+        <Steps T={T} items={[
+          <>El <B T={T}>título de la página</B> (suele ser un bloque de la sección principal): el formulario ya tiene su propio encabezado.</>,
+          <>Los <B T={T}>anuncios y barras promocionales</B> de arriba, si tenés. Un "3 cuotas sin interés" en una página de suscripción confunde.</>,
+          <>Los bloques de <B T={T}>productos recomendados</B>, "también te puede gustar" y newsletter: acá solo sacan al cliente del pago.</>,
+          <>El <B T={T}>buscador y el menú grande</B>, si tu theme te deja. Dejá el logo, que ancla la confianza.</>,
+          <>Los <B T={T}>comentarios</B>, si la plantilla de página los trae.</>,
+        ]}/>
+        <Callout T={T} tone="warning" title="Lo que NO hay que sacar">
+          Dejá el <B T={T}>logo</B>, el <B T={T}>pie con tus datos de contacto</B> y los links a tus <B T={T}>políticas</B> (devoluciones, privacidad).
+          Es una página donde alguien está por dejar sus datos y autorizar un débito automático: si parece despojada
+          o ajena a tu tienda, abandona. La idea es quitar distracciones, no quitar confianza.
+        </Callout>
+
+        <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, margin:"16px 0 6px" }}>3 · Pegá el mismo snippet</div>
+        <P T={T}>Sí, el mismo de la página de producto. El script detecta dónde está: en un producto pinta el selector, y en esta página pinta el formulario.</P>
+        <CodeBlock T={T} code={`<script src="${origin}/widget.js?merchant=${mid}" defer></script>`} label="Copiar snippet"/>
+        <Steps T={T} items={[
+          <>En <B T={T}>Personalizar</B>, con la página de Suscripción abierta, agregá un bloque <B T={T}>Liquid personalizado</B> dentro de la sección principal.</>,
+          <>Pegá el snippet y <B T={T}>Guardar</B>.</>,
+        ]}/>
+
+        <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, margin:"16px 0 6px" }}>4 · Decile a Recurrentes dónde está</div>
+        <Steps T={T} items={[
+          <>En Recurrentes: <B T={T}>Configuración → Avanzado</B>.<Crumb T={T} path="Recurrentes › Configuración › Avanzado"/></>,
+          <>En <B T={T}>ruta de la página del checkout</B> poné <Code T={T}>{path}</Code> — o la ruta real, si tu handle quedó distinto.
+            <Screen T={T} title="Recurrentes › Configuración › Avanzado" rows={[{ label:"Ruta de la página", value:path, mono:true, hl:true }]}/>
+          </>,
+          <>Guardá. Desde ahí, el botón <B T={T}>Suscribirme</B> del widget lleva a esa página.</>,
+        ]}/>
+        <Callout T={T} tone="warning" title="Si la ruta no coincide">
+          Es el error más común: la página existe pero con otro handle
+          (<Code T={T}>/pages/suscripcion-form</Code> vs <Code T={T}>/pages/suscripcion</Code>) y el botón lleva a un 404.
+          Abrí la página en tu tienda, copiá la URL del navegador y pegá exactamente esa ruta.
+        </Callout>
+      </Sec>
+
+      <Sec T={T} title="Cómo saber si quedó bien">
+        <Steps T={T} items={[
+          <>Abrí <Code T={T}>tu-tienda.com{path}</Code> directo en el navegador: tenés que ver el formulario, no una página en blanco.</>,
+          <>Si ves la página vacía, el snippet no está en ESA página (fijate que lo pegaste con la plantilla de la página abierta, no con la de producto).</>,
+          <>Entrá a un producto con plan activo, tocá <B T={T}>Suscribirme</B> y confirmá que caiga en esta página con el producto y el precio correctos.</>,
         ]}/>
       </Sec>
     </>
