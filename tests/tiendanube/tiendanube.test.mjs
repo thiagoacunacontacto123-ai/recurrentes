@@ -314,5 +314,53 @@ section("fulfillCharge tiendanube + idempotencia");
   ok(callsTo("GET", /myshopify\.com/).length === 0, "ni siquiera llama a Shopify cuando está bloqueado");
 }
 
+// ─── Envío en el fulfillment order ──────────────────────────────────────────
+// El envío NO entra por POST /orders (Tiendanube lo descarta): va por PATCH al
+// fulfillment order. Contrato verificado contra la API real.
+section("envío en el fulfillment order");
+{
+  const sh = tn.buildFulfillmentShipping({
+    option_name: 'Andreani Estándar "Envío a domicilio"',
+    option_code: "andreani_home", option_reference: "10012",
+    carrier_name: "Envíopack", shipping_price: 2900,
+  });
+  ok(sh.type === "ship", "tipo ship cuando hay domicilio");
+  ok(sh.carrier.code === "any", "carrier.code cae a 'any' (enum cerrado de Tiendanube)");
+  ok(typeof sh.carrier.carrier_id === "string" && sh.carrier.carrier_id.length > 0, "carrier_id siempre string no vacío (la API lo exige)");
+  ok(sh.carrier.name === "Envíopack", "el nombre del proveedor va en carrier.name, no en code");
+  ok(sh.option.code === "andreani_home" && sh.option.reference === "10012", "el código y la referencia del servicio viajan enteros");
+  ok(sh.consumer_cost.value === 2900, "el costo al cliente se manda acá (POST /orders lo descarta)");
+
+  const inventado = tn.buildFulfillmentShipping({ option_code: "x", carrier_code: "andreani" });
+  ok(inventado.carrier.code === "any", "un code fuera del enum se normaliza a 'any' en vez de que la API tire 422");
+  const retiro = tn.buildFulfillmentShipping({ option_code: "pickup", pickup: true });
+  ok(retiro.type === "pickup", "retiro en sucursal se marca como pickup");
+}
+
+{
+  // El PATCH es best-effort: si falla, la orden ya está paga y no se toca.
+  routes = [
+    route("GET", /\/orders\/555\?aggregates=fulfillment_orders$/, { body: { fulfillment_orders: [{ id: "FO1" }] } }),
+    route("PATCH", /\/orders\/555\/fulfillment-orders\/FO1$/, { status: 500, body: { message: "boom" } }),
+  ];
+  const r = await tn.tnSetFulfillmentShipping("9002", "tok", 555, { type: "ship" });
+  ok(r.ok === false && /boom|500/.test(r.error || ""), "si el PATCH falla devuelve el error en vez de lanzar");
+
+  routes = [
+    route("GET", /\/orders\/556\?aggregates=fulfillment_orders$/, { body: { fulfillment_orders: [] } }),
+  ];
+  const sinFo = await tn.tnSetFulfillmentShipping("9002", "tok", 556, { type: "ship" });
+  ok(sinFo.ok === false && /fulfillment/.test(sinFo.error || ""), "orden sin fulfillment order: error claro, sin PATCH a ciegas");
+
+  routes = [
+    route("GET", /\/orders\/557\?aggregates=fulfillment_orders$/, { body: { fulfillment_orders: [{ id: "FO9" }] } }),
+    route("PATCH", /\/orders\/557\/fulfillment-orders\/FO9$/, { body: { id: "FO9" } }),
+  ];
+  const bien = await tn.tnSetFulfillmentShipping("9002", "tok", 557, { type: "ship", option: { code: "andreani_home" } });
+  ok(bien.ok === true && bien.fulfillment_order_id === "FO9", "camino feliz: devuelve el id del fulfillment order");
+  const patch = callsTo("PATCH", /fulfillment-orders/).at(-1);
+  ok(patch?.body?.shipping?.option?.code === "andreani_home", "el PATCH manda el envío dentro de `shipping`");
+}
+
 console.log(fails ? `\n${fails} FALLARON` : "\nTodo OK");
 process.exit(fails ? 1 : 0);

@@ -413,6 +413,58 @@ const STOCK_RE = /stock|inventor|estoque|sin existencias|out of/i;
 /**
  * Crea la orden PAGA. Devuelve { id, number, reused? }. LANZA si Tiendanube la rechaza.
  */
+// ─── Envío en la orden: el fulfillment order ────────────────────────────────
+// Tiendanube guarda el envío en una entidad aparte (Fulfillment Order), NO en la
+// orden: `POST /orders` acepta `shipping_option` (un nombre) y descarta el resto
+// — verificado contra la API: ni el código del servicio ni el costo quedan.
+// Lo que la app de envíos necesita ver vive en `shipping.option.code` /
+// `.reference` y en `shipping.carrier`, y eso solo se puede escribir por PATCH.
+//
+// Contrato descubierto probando la API (no está documentado):
+//  · `shipping.carrier` tiene que ser un objeto no vacío CON `carrier_id` string.
+//  · `shipping.carrier.code` es un enum: custom | api | locale | international |
+//    native | default | draft | fallback | any.
+//  · con `code: "api"` valida el carrier_id contra los instalados → "Carrier not
+//    found"; con `code: "any"` acepta el que le pases y guarda todo.
+//  · `consumer_cost` sí persiste por acá (por `POST /orders` no).
+const TN_CARRIER_CODES = new Set(["custom", "api", "locale", "international", "native", "default", "draft", "fallback", "any"]);
+
+export function buildFulfillmentShipping({ option_name, option_code, option_reference, carrier_id, carrier_code, carrier_name, shipping_price = 0, pickup = false } = {}) {
+  const code = TN_CARRIER_CODES.has(String(carrier_code || "").trim()) ? String(carrier_code).trim() : "any";
+  const shipping = {
+    type: pickup ? "pickup" : "ship",
+    carrier: {
+      carrier_id: String(carrier_id || "recurrentes").slice(0, 64),
+      code,
+      ...(carrier_name ? { name: String(carrier_name).slice(0, 100) } : {}),
+    },
+    option: {
+      ...(option_name ? { name: String(option_name).slice(0, 250) } : {}),
+      code: String(option_code || "").slice(0, 100),
+      ...(option_reference ? { reference: String(option_reference).slice(0, 100) } : {}),
+    },
+    consumer_cost: { value: r2(shipping_price), currency: "ARS" },
+  };
+  return shipping;
+}
+
+/**
+ * Completa el envío de una orden recién creada. Best-effort: si falla, la orden
+ * ya existe y está paga (el cobro se hizo), así que NUNCA lanza — devuelve el
+ * error para que quien llama lo registre y avise.
+ */
+export async function tnSetFulfillmentShipping(storeId, token, orderId, shipping) {
+  try {
+    const { data } = await call(storeId, token, "GET", `/orders/${orderId}?aggregates=fulfillment_orders`);
+    const fo = (data?.fulfillment_orders || [])[0];
+    if (!fo?.id) return { ok: false, error: "la orden no tiene fulfillment order" };
+    await call(storeId, token, "PATCH", `/orders/${orderId}/fulfillment-orders/${fo.id}`, { shipping }, { retry5xx: false });
+    return { ok: true, fulfillment_order_id: fo.id };
+  } catch (e) {
+    return { ok: false, error: String(e.message).slice(0, 300) };
+  }
+}
+
 export async function tnCreatePaidOrder(storeId, token, sub, params) {
   if (params.mp_payment_id && !params.simulated) {
     const prev = await tnFindOrderByPaymentId(storeId, token, params.mp_payment_id, sub?.customer_email);
@@ -473,6 +525,30 @@ export async function createTiendanubeOrderForSub(merchant, subscriberId, sub, {
         simulated: extra?.simulated === true,
       });
       out.shopifyOrderId = order.id;
+
+      // El envío no entra por `POST /orders`: se completa acá, sobre el
+      // fulfillment order, para que la app de envíos del comerciante vea el
+      // servicio, la referencia y el costo igual que en una venta del checkout.
+      // Best-effort: la orden ya está paga, así que un fallo acá se registra y
+      // se avisa, pero nunca deshace ni bloquea el cobro.
+      const snap = sub.plan_snapshot || {};
+      if (!order.reused && (snap.shipping_method_code || snap.shipping_method_name)) {
+        const ship = buildFulfillmentShipping({
+          option_name: snap.shipping_method_name || "Envío a domicilio",
+          option_code: snap.shipping_method_code || "",
+          option_reference: snap.shipping_method_reference || "",
+          carrier_id: snap.shipping_carrier_id || "recurrentes",
+          carrier_code: snap.shipping_carrier_code || "any",
+          carrier_name: snap.shipping_method_source || "",
+          shipping_price: snap.shipping_price_ars ?? 0,
+          pickup: String(snap.shipping_pickup_type || "") === "pickup",
+        });
+        const r = await tnSetFulfillmentShipping(merchant.tiendanube_store_id, merchant.tiendanube_token, order.id, ship);
+        if (!r.ok) {
+          out.shippingWarning = r.error;
+          console.warn(`[${tag}] orden ${order.id} creada pero no pude completar el envío sub=${subscriberId}: ${r.error}`);
+        }
+      }
     } catch (e) {
       out.shopifyError = e.message;
       console.error(`[${tag}] error creando orden Tiendanube sub=${subscriberId}:`, e.message);
