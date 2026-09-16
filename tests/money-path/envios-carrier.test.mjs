@@ -6,7 +6,7 @@
 import "../helpers/register.mjs";
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { createWorld, loadApi, MID, PLAN_ID, VARIANT_ID, ADDRESS, SHOP, SHOP_TOKEN } from "../helpers/world.mjs";
+import { createWorld, loadApi, luminaMerchant, MID, PLAN_ID, VARIANT_ID, ADDRESS, SHOP, SHOP_TOKEN } from "../helpers/world.mjs";
 import { invoke } from "../helpers/http.mjs";
 import { rawGet } from "../helpers/fake-firestore.mjs";
 
@@ -14,7 +14,9 @@ const { default: init } = await loadApi("api/checkout/init.js");
 const { decodeRateHandle, shQuoteShippingRates } = await loadApi("api/_lib/shopify.js");
 
 let W;
-beforeEach(() => { W = createWorld(); });
+// `shipping_live_quotes` prendido: es lo que hace un comerciante que ya probó su
+// app de envíos. Apagado (el default) hay un test aparte más abajo.
+beforeEach(() => { W = createWorld({ merchant: luminaMerchant({ shipping_live_quotes: true }) }); });
 afterEach(() => { W.router.assertClean(); });
 
 // Igual que lo que devuelve Shopify de verdad: el handle es un JWT cuyo payload
@@ -157,4 +159,15 @@ test("sin carrier (tarifa manual del comerciante) no se manda source", async () 
   const enviada = W.shopify.orderPosts.at(-1).order.shipping_lines[0];
   assert.equal(enviada.source, undefined);
   assert.equal(enviada.code, "ANDREANI-PRIO");
+});
+
+// ─── El interruptor: apagado, nada cambia ───────────────────────────────────
+test("(e) sin shipping_live_quotes NO se cotiza: cero llamadas a Shopify y envío del plan", async () => {
+  W = createWorld();   // default: el flag no está
+  const res = await post({ shipping_method: { name: SUCURSAL.title, code: SUCURSAL.code, price: 0 } });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.equal(W.router.find({ path: /graphql/ }).length, 0, "no le preguntamos a Shopify si el comerciante no lo habilitó");
+  const sub = rawGet(`merchants/${MID}/subscribers/${res.body.subscriber_id}`);
+  assert.equal(sub.plan_snapshot.shipping_method_source, "");
+  assert.equal(sub.plan_snapshot.shipping_method_code, "");
 });

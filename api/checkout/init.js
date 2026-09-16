@@ -545,7 +545,9 @@ export default async function handler(req, res) {
     // comerciante, un nombre o nada. Solo recotizamos en el primer caso, así las
     // tiendas sin app de envíos no pagan una llamada extra a Shopify.
     const looksCarrier = wantCode.includes(":");
-    const puedeCotizar = !!(merchant.shopify_shop && merchant.shopify_token && plan.shopify_variant_id);
+    // Mismo interruptor que el endpoint de tarifas: sin `shipping_live_quotes` no
+    // cotizamos nada y el envío se resuelve como siempre. Ver api/shopify.js.
+    const puedeCotizar = !!(merchant.shipping_live_quotes === true && merchant.shopify_shop && merchant.shopify_token && plan.shopify_variant_id);
 
     // 1) Opción de una app de envíos: RE-COTIZAMOS contra Shopify y usamos su
     //    precio, nunca el que mandó el navegador. Así la orden sale con el `code`

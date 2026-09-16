@@ -161,6 +161,16 @@ function ShippingRatesCard({ T, m, isOwner, onChange, profile }) {
   useEffect(() => { setRates(Array.isArray(m.checkout_shipping_rates) ? m.checkout_shipping_rates : []); }, [m.checkout_shipping_rates]);
   const norm = (rs) => JSON.stringify(rs.map(r => [String(r.name || "").trim(), parseInt(r.price, 10) || 0, r.code || ""]));
   const dirty = norm(rates) !== norm(savedRates);
+  const liveQuotes = m.shipping_live_quotes === true;
+
+  async function toggleLiveQuotes(on) {
+    setBusy("live");
+    const d = await apiPatch("merchant", { shipping_live_quotes: on }, { action: "save-settings" });
+    setBusy("");
+    if (d?.error) return toast("Error: " + d.error, "error", 6000);
+    toast(on ? "Ahora el checkout cotiza con tu proveedor de envíos" : "Volvimos a tus tarifas fijas", "success");
+    onChange?.();
+  }
 
   async function fetchFromShopify() {
     setBusy("fetch");
@@ -205,6 +215,29 @@ function ShippingRatesCard({ T, m, isOwner, onChange, profile }) {
         {isOwner && fromShopify && <Btn T={T} variant="secondary" size="sm" onClick={fetchFromShopify} disabled={!shopifyOk || !!busy} title={shopifyOk ? "" : "Conectá Shopify primero"}>{busy === "fetch" ? <><Spinner size={12} color={T.textMd}/> Leyendo…</> : "⬇ Importar de Shopify"}</Btn>}
         {rates.length < MAX_RATES && <Btn T={T} variant="secondary" size="sm" onClick={()=>setRates(rs=>[...rs,{name:"",price:0,code:""}])} type="button">+ Agregar</Btn>}
       </>}>
+
+      {isOwner && fromShopify && shopifyOk && (
+        <div style={{ marginBottom:14, background:T.surface, border:`1px solid ${liveQuotes ? T.accentSolid + "55" : T.border}`, borderRadius:DS.r.lg, padding:"12px 14px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:DS.font.md, fontWeight:DS.w.bold, color:T.text }}>
+                Cotizar con tu proveedor de envíos
+                {liveQuotes && <DSBadge T={T} color={T.accentSolid} size="sm" style={{ marginLeft:8 }}>Activo</DSBadge>}
+              </div>
+              <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:2, lineHeight:1.5 }}>
+                Tu cliente ve los mismos métodos y sucursales que en el checkout de Shopify, con el precio del momento,
+                y la orden le llega a tu app de envíos igual que una venta suelta. Se suman a las tarifas fijas de abajo.
+                <br/><strong>Probalo con una suscripción tuya antes de dejarlo prendido</strong>: tiene que aparecer en tu
+                proveedor lista para despachar.
+              </div>
+            </div>
+            <Btn T={T} variant={liveQuotes ? "secondary" : "primary"} size="sm" disabled={!!busy}
+              onClick={() => toggleLiveQuotes(!liveQuotes)}>
+              {busy === "live" ? <><Spinner size={12} color={T.textMd}/> Guardando…</> : (liveQuotes ? "Desactivar" : "Activar")}
+            </Btn>
+          </div>
+        </div>
+      )}
 
       {imported && (
         <div className="gh-accordion" style={{ marginBottom:14, background:T.surface, border:`1px solid ${T.accentSolid}55`, borderRadius:DS.r.lg, padding:"12px 14px" }}>

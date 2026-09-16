@@ -70,31 +70,44 @@ async function handleShippingRates(req, res) {
     const snap = await db().collection("merchants").doc(merchantId).get();
     const m = snap.exists ? snap.data() : null;
     if (!m?.shopify_token || !m?.shopify_shop) return res.json({ rates: [] });
-    // 1) Cotización REAL: si vino la variante y un destino, le pedimos a Shopify
-    //    que cotice como en su propio checkout. Eso trae las opciones de las apps
-    //    de envío (Envialo, Andreani…) con su `code` y `source`, que son los que
-    //    necesita la app para despachar. `shipping_zones.json` NO las tiene.
-    let rates = [];
+    // El comprador tiene que ver TODO lo que vería en el checkout de la tienda:
+    // las opciones que cotiza la app de envíos del comerciante (con sucursales) y
+    // también las que él armó a mano (retiro en local, envío propio, moto…).
+    //
+    // 1) Cotización REAL: con variante y destino, le pedimos a Shopify que cotice
+    //    como en su propio checkout. Eso invoca a la app de envíos y devuelve sus
+    //    opciones con el `code` y el `source` que después necesita la orden.
+    //    `shipping_zones.json` no las tiene: solo trae las manuales.
+    // Interruptor por tienda: `shipping_live_quotes` (Configuración → Checkout).
+    // APAGADO por defecto — cotizar en vivo cambia lo que ve el comprador y hay
+    // que probarlo con la app de envíos de cada tienda antes de confiarle ventas
+    // reales. Sin el flag, el comportamiento es el de siempre (tarifas propias).
+    const liveQuotes = m.shipping_live_quotes === true;
     const variant = String(req.query.variant || "").trim();
-    if (variant) {
-      rates = await shQuoteShippingRates(m.shopify_shop, m.shopify_token, {
-        variantId: variant,
-        quantity: Number(req.query.qty || 1),
-        address: {
-          zip: req.query.zip || "",
-          city: req.query.city || "",
-          province: req.query.province || "",
-          address1: req.query.address1 || "",
-        },
-      });
-    }
-    // 2) Sin carriers (o sin destino todavía): las tarifas manuales de siempre.
-    if (!rates.length) {
-      rates = await shGetShippingRates(m.shopify_shop, m.shopify_token, {
-        province: req.query.province || "",
-        subtotal: Number(req.query.subtotal || 0),
-      });
-    }
+    const carrier = (liveQuotes && variant)
+      ? await shQuoteShippingRates(m.shopify_shop, m.shopify_token, {
+          variantId: variant,
+          quantity: Number(req.query.qty || 1),
+          address: {
+            zip: req.query.zip || "",
+            city: req.query.city || "",
+            province: req.query.province || "",
+            address1: req.query.address1 || "",
+          },
+        })
+      : [];
+
+    // 2) Tarifas propias del comerciante (zonas de Shopify: precio/peso).
+    const manuales = await shGetShippingRates(m.shopify_shop, m.shopify_token, {
+      province: req.query.province || "",
+      subtotal: Number(req.query.subtotal || 0),
+    });
+
+    // 3) Las dos juntas, sin repetir: si una manual tiene el mismo nombre que una
+    //    del carrier, gana la del carrier (es la que sabe despachar). Primero las
+    //    del proveedor, que son las que el comprador espera ver.
+    const vistos = new Set(carrier.map(r => String(r.name || "").trim().toLowerCase()));
+    const rates = [...carrier, ...manuales.filter(r => !vistos.has(String(r.name || "").trim().toLowerCase()))];
     res.setHeader("Cache-Control", "no-store");
     return res.json({ rates });
   } catch (e) {
