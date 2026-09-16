@@ -8,6 +8,7 @@ import { pricingModeOf } from "./PacksEditor.jsx";
 import { WidgetDesignTip } from "./Onboarding.jsx";
 import { useOnb } from "../lib/onboarding.js";
 import { MONO } from "./_shared.jsx";
+import { Segmented } from "../ui/charts.jsx";
 
 // Diseñador del selector de packs (widget bundle) — SOLO diseño global del
 // merchant: variante, color, esquinas, textos, orden/modo del toggle e
@@ -45,6 +46,14 @@ export function devWhatsAppUrl(merchant) {
   const m = merchant || {};
   const who = m.store_name || m.shopify_shop || m.email || "una tienda";
   const text = "Hola! Soy " + who + " y quiero que me vinculen el selector de packs de Recurrentes en mi tienda.";
+  return `https://wa.me/${DEV_WHATSAPP}?text=${encodeURIComponent(text)}`;
+}
+
+// Pedido de cotización de un selector a medida (tiendas que no tienen uno).
+export function quoteWhatsAppUrl(merchant) {
+  const m = merchant || {};
+  const who = m.store_name || m.shopify_shop || m.email || "una tienda";
+  const text = "Hola! Soy " + who + " y quiero cotizar un desarrollo a medida del selector de suscripción para mi tienda.";
   return `https://wa.me/${DEV_WHATSAPP}?text=${encodeURIComponent(text)}`;
 }
 
@@ -342,7 +351,17 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
 
   const selectedVariant = (BUNDLE_VARIANTS || []).find(v => v.id === variant);
   // Cuenta vinculada a mano por los devs (beta legada o integración a medida) con el plan en modo tema.
-  const externallyLinked = !!selectedPlan && selMode === "theme" && (m.billing?.plan === "beta" || m.custom_integration === true);
+  // Desarrollo a medida (Lumina: beta legada o custom_integration). Se cambia solo con los devs.
+  const customDev = m.billing?.plan === "beta" || m.custom_integration === true;
+  const externallyLinked = !!selectedPlan && selMode === "theme" && customDev;
+  function pickSource(id) {
+    if (id === "custom" && !customDev) {
+      try { window.open(quoteWhatsAppUrl(m), "_blank", "noopener"); } catch (_) {}
+      toast("Te abrimos WhatsApp para pedir la cotización del desarrollo", "success");
+    } else if (id === "templates" && customDev) {
+      toast("Tu selector es un desarrollo a medida: para pasar a los prediseñados, pedilo por WhatsApp", "info");
+    }
+  }
   const galleryPending = !!selectedPlan && selMode === "theme" && packPlans.length === 0;
   const sectionH = { fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, marginBottom:8, letterSpacing:-0.2 };
   const small = { fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5 };
@@ -350,6 +369,11 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
 
   return (
     <div>
+      <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:14}}>
+        <Segmented T={T} ariaLabel="Origen del widget" value={customDev ? "custom" : "templates"} onChange={pickSource}
+          options={[{ id:"templates", label:"Usar widgets prediseñados" }, { id:"custom", label:"Usar desarrollo a medida" }]}/>
+        <span style={{...small}}>{customDev ? "Tu tienda usa un selector desarrollado a medida." : "¿Querés un selector a medida para tu tienda? Elegí “desarrollo” y te cotizamos por WhatsApp."}</span>
+      </div>
       {externallyLinked && (
         <Callout T={T} tone="info" style={{marginBottom:14}} right={<WhatsAppBtn merchant={m} size="sm"/>}>
           Tu tienda está vinculada de manera externa por los desarrolladores. El selector que ves en tu producto es un desarrollo a medida; cualquier cambio pedilo por WhatsApp.
