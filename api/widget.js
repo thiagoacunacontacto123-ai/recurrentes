@@ -150,7 +150,7 @@ export default async function handler(req, res) {
       if (typeof m.widget_once_subtitle === "string" && m.widget_once_subtitle.trim()) widgetOnceSubtitle = m.widget_once_subtitle.trim();
       if (typeof m.widget_disclaimer_text === "string") widgetDisclaimerText = m.widget_disclaimer_text;
       if (!hideSelector && typeof m.widget_hide_selector === "string") hideSelector = m.widget_hide_selector;
-      if (m.widget_checkout_flow === "inline") checkoutFlow = "inline";
+      // widget_checkout_flow "inline" ya no existe (16-sept): un solo checkout, el de Recurrentes.
       if (typeof m.widget_checkout_page_path === "string" && m.widget_checkout_page_path.trim()) checkoutPagePath = m.widget_checkout_page_path.trim();
       checkoutShippingRates = resolveCheckoutShippingRates(m);
       liveShippingQuotes = true; // siempre en vivo, sin interruptor: cada venta igual a una venta común
@@ -1267,7 +1267,7 @@ export default async function handler(req, res) {
       });
 
       subPanel.querySelector("#recurrentes-subscribe-btn").addEventListener("click", function(){
-        if (CHECKOUT_FLOW === "redirect") {
+        {
           // Modo checkout ON-STORE: el botón lleva a la PÁGINA de Shopify del
           // merchant (misma tienda), con producto/variante/cantidad. Esa página
           // tiene el embed (?view=checkout) que junta datos + envíos reales por
