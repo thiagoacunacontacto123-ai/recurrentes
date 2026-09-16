@@ -1,5 +1,16 @@
 # Mails para llegar a las app stores (redactados 2026-09-15)
 
+## Estado de las gestiones (actualizar cuando contesten)
+
+| Gestión | Canal | Enviado | Estado |
+|---|---|---|---|
+| Tiendanube: 3 preguntas antes de homologación | mail a socios@tiendanube.com | 15-sept 22:24 | esperando respuesta |
+| Shopify: autorización escrita (API Terms 2.3.18) | chat de Partner support (agente Mark) | 15-sept 22:30 | dijo que lo dirige a App Review / políticas → **falta número de ticket** |
+| Shopify: Payments Platform | formulario oficial | 15-sept | enviado, responden sin plazo definido |
+
+Seguimiento sugerido: si en **7 días** no contestan, insistir. Tiendanube por el mismo hilo;
+Shopify pidiendo el estado del ticket en el chat del Partner Dashboard.
+
 Datos reales para no exagerar nada:
 - Recurrentes: SaaS argentino de suscripciones con cobro recurrente en Mercado Pago.
 - Hoy: 1 tienda real en producción (LuminaLabs, Shopify) con 32 suscripciones activas desde junio 2026, y una app de Tiendanube (ID 42443) recién aprobada para desarrollo.
