@@ -336,7 +336,10 @@ export function buildPeriod(subs, charges, days, mrrNow, nowMs = Date.now()) {
       const k = arDay(s.first_charge_at || s.activated_at || s.created_at);
       if (inCur.has(k)) nuevas[k]++; else if (inPrev.has(k)) prev.nuevas++;
     }
-    if (s.status === "cancelled") {
+    // Baja = alguien que PAGÓ y se fue. Un checkout abandonado que quedó en
+    // "cancelled" sin cobrar nunca no es churn (inflaba la tasa al 70%).
+    const pagoAlgunaVez = !!s.last_charge_at || (Array.isArray(s.shopify_orders) && s.shopify_orders.length > 0);
+    if (s.status === "cancelled" && pagoAlgunaVez) {
       const k = arDay(s.cancelled_at || s.updated_at);
       if (inCur.has(k)) bajas[k]++; else if (inPrev.has(k)) prev.bajas++;
     }

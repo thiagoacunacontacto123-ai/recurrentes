@@ -233,6 +233,7 @@ export async function retryOne(mid, merchant, chargeDoc, issueRef, issue, { now 
   await subRef.update({
     shopify_orders: FieldValue.arrayUnion(result.shopifyOrderId),
     last_charge_at: lastChargeAt,
+    ...(sub.first_charge_at ? {} : { first_charge_at: lastChargeAt }),
     ...(result.orderStatusUrl ? { last_shopify_order_status_url: result.orderStatusUrl } : {}),
     updated_at: iso(now),
   }).catch(e => logError("fulfill.retry.sub_update", { ...base, error: e.message }));

@@ -817,6 +817,7 @@ export async function linkPaymentToSubscriber(merchantId, subscriberId, paymentI
   if (!shopifyError) {
     update.status = (sub.status === "cancelled" || sub.status === "paused") ? sub.status : "active";
     update.last_charge_at = payment.date_approved || nowIso();
+    if (!sub.first_charge_at) update.first_charge_at = update.last_charge_at; // fecha del primer pago (columna del panel)
     if (shopifyOrderId) update.shopify_orders = FieldValue.arrayUnion(shopifyOrderId);
     if (orderStatusUrl) update.last_shopify_order_status_url = orderStatusUrl;
   }
@@ -906,6 +907,7 @@ export async function simulateNextCharge(merchantId, subscriberId) {
   if (shopifyOrderId) {
     await subRef.update({
       last_charge_at: nowIso(),
+      ...(sub.first_charge_at ? {} : { first_charge_at: nowIso() }),
       shopify_orders: FieldValue.arrayUnion(shopifyOrderId),
       last_shopify_order_status_url: orderStatusUrl,
       updated_at: nowIso(),

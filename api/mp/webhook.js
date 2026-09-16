@@ -350,6 +350,7 @@ async function processPaymentForMerchant(merchantId, merchant, payment) {
   if (payPreId && !sub.mp_preapproval_id) upd.mp_preapproval_id = payPreId;
   if (!shopifyError) {
     upd.last_charge_at = payment.date_approved || nowIso();
+    if (!sub.first_charge_at) upd.first_charge_at = upd.last_charge_at; // fecha del primer pago (columna del panel)
     if (shopifyOrderId) upd.shopify_orders = FieldValue.arrayUnion(shopifyOrderId);
     if (orderStatusUrl) upd.last_shopify_order_status_url = orderStatusUrl;
   }

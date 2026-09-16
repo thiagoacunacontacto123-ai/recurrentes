@@ -344,6 +344,9 @@ export function SubscriptionsPage({ devMode = false, shop = null }) {
   ] : [
     clienteCol, planCol,
     { key:"freq", label:"Frecuencia", nowrap:true, hideMobile:true, render: s => <span style={{ color:T.textMd }}>{fmtFreq(s.plan_snapshot?.frequency_days)}</span> },
+    // Fecha del primer cobro (o del alta, para las viejas sin el campo). Sin esta
+    // columna la fecha del próximo cobro se leía como si fuera la del alta.
+    { key:"primer", label:"Primer pago", nowrap:true, render: s => { const ts = s.first_charge_at || s.created_at; return ts ? <CellStack T={T} main={fmtDayMonth(ts)} sub={fmtDateShort(ts)}/> : <span style={{ color:T.textSm }}>—</span>; } },
     { key:"next", label:"Próximo cobro", nowrap:true, render: s => (s.status === "active" && s.next_charge_at)
       ? <CellStack T={T} main={fmtDayMonth(s.next_charge_at)} sub={fmtIn(s.next_charge_at)}/>
       : <span style={{ color:T.textSm }}>—</span> },
