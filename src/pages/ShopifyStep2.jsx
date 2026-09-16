@@ -19,7 +19,7 @@ function CopyLine({ T, text }) {
   }
   return (
     <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
-      <code style={{ flex: 1, minWidth: 0, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 12px", color: T.text, overflowX: "auto", whiteSpace: "nowrap" }}>{text}</code>
+      <code style={{ flex: 1, minWidth: 0, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 12, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 12px", color: T.text, whiteSpace: "pre-wrap", wordBreak: "break-all", lineHeight: 1.5 }}>{text}</code>
       <Btn T={T} variant={ok ? "success" : "solid"} onClick={copy} style={{ flexShrink: 0 }}>{ok ? "Copiado ✓" : "Copiar"}</Btn>
     </div>
   );
@@ -30,26 +30,25 @@ export default function ShopifyStep2Modal({ merchant, onDone }) {
   const m = merchant || {};
   const snippet = widgetSnippet(m);
   const openedAt = useRef(new Date().toISOString());
-  const [seen, setSeen] = useState(null);     // { at, host } cuando el widget cargó después de abrir este paso
-  const [elapsed, setElapsed] = useState(0);
+  const [seen, setSeen] = useState(null);       // { at, host } cuando el widget cargó después de abrir este paso
   const [checking, setChecking] = useState(false);
+  const [failed, setFailed] = useState(0);      // intentos de "Ya lo hice" sin ver el widget
 
-  // Cada 4 s miramos si widget.js ya avisó desde la tienda.
-  useEffect(() => {
-    let alive = true;
-    const tick = async () => {
-      try {
-        setChecking(true);
+  // Nada automático: el comerciante toca "Ya lo hice" y ahí revisamos (unos 12 s,
+  // por si el beacon del widget todavía está viajando).
+  async function verify() {
+    setChecking(true);
+    try {
+      for (let i = 0; i < 4; i++) {
         const d = await apiGet("merchant");
-        if (!alive) return;
         const at = d?.widget_last_seen_at || "";
-        if (at && at > openedAt.current) { setSeen({ at, host: d.widget_last_seen_host || "" }); }
-      } catch (_) {} finally { if (alive) setChecking(false); }
-    };
-    tick();
-    const iv = setInterval(() => { tick(); setElapsed(e => e + 4); }, 4000);
-    return () => { alive = false; clearInterval(iv); };
-  }, []);
+        if (at && at > openedAt.current) { setSeen({ at, host: d.widget_last_seen_host || "" }); return; }
+        if (i < 3) await new Promise(r => setTimeout(r, 3000));
+      }
+      setFailed(f => f + 1);
+    } catch (_) { setFailed(f => f + 1); }
+    finally { setChecking(false); }
+  }
 
   useEffect(() => { if (seen) { writeFlag(widgetKey(m.id), true); toast("¡El widget ya carga en tu tienda!", "success"); } }, [seen, m.id]);
 
@@ -58,14 +57,17 @@ export default function ShopifyStep2Modal({ merchant, onDone }) {
 
   return (
     <Modal T={T} open onClose={() => toast("Terminá este paso para seguir: sin el widget en la tienda, la suscripción no se ve.", "warning", 4000)}
-      width={640} title="Shopify conectado ✓ · Paso 2 de 2: poné el widget en tu tienda"
-      subtitle="Una sola línea, una sola vez. Cuando la pegues, abrí un producto de tu tienda y acá aparece el tilde verde."
+      width={860} title="Shopify conectado ✓ · Paso 2 de 2: poné el widget en tu tienda"
+      subtitle="Una sola línea, una sola vez. Cuando la pegues, abrí un producto de tu tienda y tocá “Ya lo hice”."
       footer={
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          {!seen && elapsed >= 90
+          {!seen && failed >= 2
             ? <button type="button" onClick={() => { toast("Quedó pendiente: lo verificamos cuando abras un producto de tu tienda.", "info", 5000); onDone(); }} style={{ background: "transparent", border: "none", color: T.textSm, fontSize: DS.font.sm, cursor: "pointer", textDecoration: "underline", fontFamily: "inherit" }}>Lo verifico más tarde</button>
-            : <span style={{ fontSize: DS.font.sm, color: T.textSm }}>{seen ? "Todo listo." : "El botón se habilita cuando veamos el widget en tu tienda."}</span>}
-          <Btn T={T} variant="solid" disabled={!seen} onClick={onDone}>Terminar → crear mi primer plan</Btn>
+            : <span style={{ fontSize: DS.font.sm, color: T.textSm }}>{seen ? "Todo listo." : "Cuando termines los 4 pasos, tocá “Ya lo hice”."}</span>}
+          <div style={{ display: "flex", gap: 8 }}>
+            {!seen && <Btn T={T} variant="solid" disabled={checking} onClick={verify}>{checking ? "Revisando tu tienda…" : "Ya lo hice ✓"}</Btn>}
+            <Btn T={T} variant={seen ? "solid" : "secondary"} disabled={!seen} onClick={onDone}>Terminar → crear mi primer plan</Btn>
+          </div>
         </div>
       }>
       <div style={{ display: "grid", gap: 14 }}>
@@ -78,16 +80,17 @@ export default function ShopifyStep2Modal({ merchant, onDone }) {
           <Callout T={T} tone="success" title="¡El widget ya carga en tu tienda!">
             Lo vimos en <B T={T}>{seen.host || "tu tienda"}</B> hace un momento. Ya podés crear tu primer plan: el selector de suscripción va a aparecer solo en los productos que tengan plan activo.
           </Callout>
-        ) : (
+        ) : checking ? (
           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10 }}>
             <span aria-hidden="true" style={{ width: 18, height: 18, border: `2px solid ${T.border}`, borderTopColor: T.accent, borderRadius: "50%", flexShrink: 0, animation: "rc-step2-spin .8s linear infinite" }}/>
-            <div style={{ fontSize: DS.font.sm, color: T.textMd, lineHeight: 1.5 }}>
-              <b style={{ color: T.text }}>Esperando que el widget cargue en tu tienda…</b><br/>
-              Guardá el tema y abrí un producto. Revisamos cada 4 segundos{checking ? " ·" : ""}{elapsed >= 40 ? " · Si ya lo hiciste, recargá la página del producto sin caché (Cmd/Ctrl + Shift + R) y fijate que el bloque esté en la plantilla de producto que usa tu tienda." : ""}
-            </div>
+            <div style={{ fontSize: DS.font.sm, color: T.textMd }}><b style={{ color: T.text }}>Revisando tu tienda…</b> Buscamos el aviso del widget, tarda unos segundos.</div>
             <style>{`@keyframes rc-step2-spin{to{transform:rotate(360deg)}}`}</style>
           </div>
-        )}
+        ) : failed > 0 ? (
+          <Callout T={T} tone="warning" title="Todavía no vimos el widget en tu tienda">
+            Fijate que hayas tocado <B T={T}>Guardar</B> en el editor del tema y que el bloque esté en la plantilla de producto que usa tu tienda (algunos temas tienen varias). Después <B T={T}>abrí un producto</B> en otra pestaña, recargalo sin caché (Cmd/Ctrl + Shift + R) y volvé a tocar “Ya lo hice”.
+          </Callout>
+        ) : null}
       </div>
     </Modal>
   );
