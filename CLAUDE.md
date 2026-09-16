@@ -153,6 +153,7 @@ Recurrentes deja de ser solo "Shopify + MP". Cada merchant tiene un **perfil** e
 ## Decisiones del 2026-09-15 (Thiago)
 - **Klaviyo retirado**: `klaviyoEnabled()` devuelve siempre false (todo envío es no-op) y no aparece en ningún lado del panel. Recupero, avisos y "pagos completados" van por **Flujos de email** propios (Resend). No se crean carritos ni borradores en Shopify/Tiendanube/Impultienda: todo queda en Recurrentes.
 - **Mails**: salen de `Recurrentes <hola@recurrentesapp.com>` (dominio verificado en Resend; ese dominio NO recibe mails). Todos llevan al pie "mail automático, no lo respondas · escribí a <email_reply_to de la tienda>"; los flujos no se activan sin ese mail.
+- **Una tienda por cuenta**: Shopify y Tiendanube (e Impultienda cuando exista) se excluyen. Con una conectada, las otras plataformas NO se muestran en Integraciones, y el backend rechaza conectar la segunda (`code: "channel_taken"` en `shopify.js?action=save-creds` y en `tiendanubeApi` `tn-oauth-start` + `connectStore`, que cubre callback e instalación desde la tienda de apps). Para cambiar de plataforma hay que desvincular primero.
 - **WhatsApp**: un solo número de Recurrentes para todas las tiendas (Cloud API de Meta directa, plantillas de utilidad); el costo por mensaje se le suma al comerciante con +10%.
 
 ## Integraciones y panel (tanda del 2026-09-15, rama `integracion`)

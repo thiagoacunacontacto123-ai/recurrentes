@@ -185,6 +185,10 @@ async function handleSaveCreds(req, res) {
 
   const merchantSnap = await db().collection("merchants").doc(merchantId).get();
   const merchant = merchantSnap.exists ? merchantSnap.data() : {};
+  // Una tienda a la vez: con Tiendanube conectado no se conecta Shopify (y al revés).
+  if (merchant.tiendanube_token) {
+    return res.status(400).json({ error: "Ya tenés Tiendanube conectado. Desvinculá Tiendanube antes de conectar Shopify: cada tienda de Recurrentes trabaja con una sola plataforma.", code: "channel_taken" });
+  }
 
   // Token pegado (custom app / Admin API access token): lo validamos contra
   // shop.json antes de guardar nada. Si es válido, guardamos token + datos de la

@@ -59,6 +59,10 @@ export async function connectStore(merchantId, { store_id, access_token, scope }
   if (!snap.exists) return { error: "Cuenta no encontrada" };
   const m = snap.data();
   const storeId = String(store_id);
+  // Una tienda a la vez: con Shopify conectado no se conecta Tiendanube (y al revés).
+  if (m.shopify_token) {
+    return { error: "Esta cuenta ya tiene Shopify conectado. Desvinculá Shopify antes de conectar Tiendanube: cada tienda de Recurrentes trabaja con una sola plataforma." };
+  }
   if (m.tiendanube_token && m.tiendanube_store_id && String(m.tiendanube_store_id) !== storeId) {
     return { error: "Esta cuenta ya tiene otra tienda de Tiendanube conectada. Desvinculala primero desde Integraciones." };
   }
@@ -144,6 +148,11 @@ async function handleOauthStart(req, res) {
   if (!ctx) return;
   if (!isOwner(ctx)) return res.status(403).json({ error: "Solo el dueño de la tienda puede conectar Tiendanube." });
   if (!tnConfigured()) return res.status(400).json({ error: NOT_ENABLED });
+  // Una tienda a la vez: con Shopify conectado no se conecta Tiendanube (y al revés).
+  const mSnap = await merchants().doc(ctx.merchantId).get();
+  if (mSnap.exists && mSnap.data().shopify_token) {
+    return res.status(400).json({ error: "Ya tenés Shopify conectado. Desvinculá Shopify antes de conectar Tiendanube: cada tienda de Recurrentes trabaja con una sola plataforma.", code: "channel_taken" });
+  }
   const storeUrl = normalizeStoreUrl(req.query.store_url || req.body?.store_url || "");
   const state = signToken({ uid: ctx.uid, mid: ctx.merchantId, tn: 1 }, 600);
   res.setHeader("Set-Cookie", `tn_oauth_state=${encodeURIComponent(state)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`);

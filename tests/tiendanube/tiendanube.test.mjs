@@ -34,6 +34,7 @@ const { db } = await import(ROOT + "api/_lib/firebase.js");
 const tn = await import(ROOT + "api/_lib/tiendanube.js");
 const { fulfillCharge, linkPaymentToSubscriber } = await import(ROOT + "api/_lib/sync.js");
 const shopifyHandler = (await import(ROOT + "api/shopify.js")).default;
+const { connectStore } = await import(ROOT + "api/_lib/tiendanubeApi.js");
 const { signToken } = await import(ROOT + "api/_lib/token.js");
 const { merchantProfile, channelAvailable, validateProfilePatch } = await import(ROOT + "shared/platform/profile.js");
 
@@ -198,13 +199,15 @@ function tnStoreRoutes(storeId, token) {
   const scr = callsTo("POST", /\/9002\/scripts$/)[0];
   ok(scr?.body?.script_id === 777 && JSON.parse(scr.body.query_params).merchant === "m_new" && !!m.tiendanube_script_installed_at, "instala el script del widget con merchant=<cuenta>");
 
-  // Lumina-like: vende con Shopify conectado → conectar Tiendanube NO cambia el canal.
+  // Lumina-like: con Shopify conectado, el callback de Tiendanube NO conecta nada
+  // (una tienda a la vez, decisión de Thiago 2026-09-15) y vuelve al panel con el motivo.
   await M("m_shop").set({ email: "l@x.com", shopify_token: "shpat_x", shopify_shop: "l.myshopify.com" });
   routes = tnStoreRoutes("9003", "tok_def");
   const s2 = signToken({ uid: "m_shop", mid: "m_shop", tn: 1 }, 600);
-  await call(shopifyHandler, { query: { action: "tn-callback", code: "c2", state: s2 } });
+  const back = await call(shopifyHandler, { query: { action: "tn-callback", code: "c2", state: s2 } });
   const ms = await data(M("m_shop"));
-  ok(ms.tiendanube_token === "tok_def" && !ms.channel, "cuenta con Shopify conectado: conecta Tiendanube pero el canal no cambia");
+  ok(!ms.tiendanube_token && !ms.channel && ms.shopify_token === "shpat_x", "con Shopify conectado el callback de Tiendanube no conecta nada y no toca Shopify");
+  ok(back.status === 302 && /Desvincul/.test(decodeURIComponent(String(back.headers?.location || ""))), "vuelve al panel avisando que hay que desvincular Shopify");
 
   calls.length = 0;
   const bad = await call(shopifyHandler, { query: { action: "tn-callback", code: "c3", state: state.slice(0, -3) + "xyz" } });
@@ -293,6 +296,22 @@ section("fulfillCharge tiendanube + idempotencia");
   const f6 = await fulfillCharge(await data(M("m_tn")), "s1", SUB, { payment_id: 777, total_price: 31501, charge_number: 5, extra: { simulated: true } }, "simulate");
   const simBody = callsTo("POST", /\/9100\/orders$/).slice(-1)[0].body;
   ok(!!f6.shopifyOrderId && simBody.payment_status === "pending" && simBody.send_confirmation_email === false, "simulador (dev_mode): orden pendiente sin mails");
+}
+
+// ── Una tienda a la vez: Shopify y Tiendanube se excluyen ──────────────────
+{
+  await M("m_shop").set({ email: "d@x.com", shopify_shop: "lumina.myshopify.com", shopify_token: "shpat_x" });
+  routes = [];
+  const st = await call(shopifyHandler, { query: { action: "tn-oauth-start", store_url: "cafedelsur.mitiendanube.com" }, ctx: owner("m_shop") });
+  ok(st.status === 400 && /Desvinculá Shopify/.test(st.json?.error || ""), "con Shopify conectado no se puede empezar a conectar Tiendanube");
+
+  const conn = await connectStore("m_shop", { store_id: "9100", access_token: "tn_tok", scope: "read_products" });
+  ok(/Desvinculá Shopify/.test(conn.error || ""), "el callback y la instalación desde Tiendanube también se bloquean");
+
+  await M("m_tn2").set({ email: "d@x.com", tiendanube_store_id: "9100", tiendanube_token: "tn_tok" });
+  const sc = await call(shopifyHandler, { method: "POST", query: { action: "save-creds" }, body: { shop: "otra.myshopify.com", access_token: "shpat_nuevo" }, ctx: owner("m_tn2") });
+  ok(sc.status === 400 && /Desvinculá Tiendanube/.test(sc.json?.error || ""), "con Tiendanube conectado no se puede conectar Shopify");
+  ok(callsTo("GET", /myshopify\.com/).length === 0, "ni siquiera llama a Shopify cuando está bloqueado");
 }
 
 console.log(fails ? `\n${fails} FALLARON` : "\nTodo OK");

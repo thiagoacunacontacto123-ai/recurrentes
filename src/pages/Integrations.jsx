@@ -378,9 +378,11 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
 
 
   // Lo que viene (visible, no elegible).
-  const soonChannels = Object.values(CHANNELS).filter(c => !channelAvailable(c.id, m) && c.id !== profile.channel && c.types.includes(profile.businessType));
+  // Una tienda a la vez: con una plataforma conectada, las otras no se muestran.
+  const storeConnected = shopifyOk || tnOk;
+  const soonChannels = storeConnected ? [] : Object.values(CHANNELS).filter(c => !channelAvailable(c.id, m) && c.id !== profile.channel && c.types.includes(profile.businessType));
   // Tiendanube habilitada pero no es el canal elegido: fila opcional para conectarla.
-  const tnOptional = tnEnabled && profile.channel !== "tiendanube" && CHANNELS.tiendanube.types.includes(profile.businessType);
+  const tnOptional = tnEnabled && !shopifyOk && profile.channel !== "tiendanube" && CHANNELS.tiendanube.types.includes(profile.businessType);
   const soonProviders = Object.values(PAYMENT_PROVIDERS).filter(p => p.status !== "available" && !(p.id === "stripe" && m.stripe_enabled) && !(p.id === "whop" && m.whop_enabled));
   const storeRequired = profile.channel === "shopify" || profile.channel === "tiendanube";
   const reqTotal = storeRequired ? 2 : 1;
