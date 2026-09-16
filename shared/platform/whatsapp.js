@@ -216,6 +216,10 @@ export const ALERT_EVENTS = [
   { id: "paused",         label: "Alguien pausa su suscripción",      template: "aviso_comercio_pausa" },
   { id: "cancelled",      label: "Alguien cancela su suscripción",    template: "aviso_comercio_baja" },
   { id: "payment_failed", label: "Se rechaza el pago de una renovación", template: "aviso_comercio_pago_rechazado" },
+  // El "cachín": Shopify y Tiendanube no suenan para órdenes creadas por API, así
+  // que el aviso de cada cobro lo damos nosotros. Llega en segundos (medido: 3 a 5
+  // desde que Mercado Pago aprueba) y funciona igual en las tres plataformas.
+  { id: "renewed",        label: "Se cobra una renovación",            template: "aviso_comercio_cobro" },
 ];
 export const ALERT_EVENT_IDS = ALERT_EVENTS.map(e => e.id);
 // vars: qué dato va en cada {{n}}. Claves: marca, nombre (solo el nombre de pila), producto, monto, link_panel.
@@ -251,6 +255,14 @@ export const WA_MERCHANT_TEMPLATES = [
     footer: WA_MERCHANT_FOOTER,
     vars: { "1": "marca", "2": "nombre", "3": "producto", "4": "monto", "5": "link_panel" },
     samples: ["LuminaLabs", "Ana", "Cápsulas LuminaLabs", "$9.480", ALERTS_PANEL_URL],
+  },
+  {
+    name: "aviso_comercio_cobro", event: "renewed", category: "UTILITY", lang: "es_AR",
+    title: "Cobro de renovación (aviso al comercio)",
+    body: "💰 Cobro en {{1}}: {{2}} pagó {{3}} de {{4}}. La orden ya está en tu tienda.\n\nMirala en tu panel: {{5}}\n\nEs un aviso automático de Recurrentes.",
+    footer: WA_MERCHANT_FOOTER,
+    vars: { "1": "marca", "2": "nombre", "3": "monto", "4": "producto", "5": "link_panel" },
+    samples: ["LuminaLabs", "Ana", "$9.480", "Cápsulas LuminaLabs", ALERTS_PANEL_URL],
   },
 ];
 export const WA_MERCHANT_TEMPLATE_BY_EVENT = Object.fromEntries(WA_MERCHANT_TEMPLATES.map(t => [t.event, t]));

@@ -213,6 +213,13 @@ export async function notifyActivation(merchantId, merchant, subscriberId, sub, 
 export async function notifyRenewal(merchantId, merchant, subscriberId, sub, payment, tag = "sync", { shopifyOrderId = null } = {}) {
   // Flujos de email propios ("Renovación cobrada"). No-op sin flujos activos.
   await emitFlowEvent(merchantId, merchant, "renewed", subscriberId, sub, { key: payment?.id || shopifyOrderId || undefined });
+  // El "cachín": Shopify y Tiendanube no hacen sonar su notificación para órdenes
+  // creadas por API, así que el aviso del cobro lo mandamos nosotros. Idempotente
+  // por pago, así que webhook + cron + link no avisan tres veces.
+  await notifyMerchantWhatsApp("renewed", merchantId, merchant, subscriberId, sub, {
+    key: payment?.id || shopifyOrderId || undefined,
+    amount: payment?.transaction_amount ?? undefined,
+  });
   // Entrega digital en renovaciones (si el plan lo pide). No-op con envío; nunca lanza.
   await sendDigitalDelivery(merchantId, merchant, subscriberId, sub, payment, "renewal", { tag, portalUrl: portalUrlFor(sub) });
   if (!klaviyoEnabled(merchant)) return;

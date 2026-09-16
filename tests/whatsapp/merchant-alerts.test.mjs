@@ -270,7 +270,7 @@ test("alerts-save / alerts-test: solo el dueño, normaliza el número y la prueb
   const m = W.merchant();
   assert.equal(m.alerts_whatsapp_enabled, true);
   assert.equal(m.alerts_whatsapp, "+5491155550000");
-  assert.deepEqual(m.alerts_events, { subscribed: true, paused: false, cancelled: true, payment_failed: true });
+  assert.deepEqual(m.alerts_events, { subscribed: true, paused: false, cancelled: true, payment_failed: true, renewed: true });
   assert.equal(m.alerts_email, false);
   assert.equal(ok.body.alerts_whatsapp_available, true);
 
@@ -284,7 +284,7 @@ test("alerts-save / alerts-test: solo el dueño, normaliza el número y la prueb
 
 // ── Plantillas ─────────────────────────────────────────────────────
 test("plantillas del comercio: utilidad es_AR, ejemplos completos, sin variables al borde ni pegadas, aparte de las de clientes", () => {
-  assert.equal(SW.WA_MERCHANT_TEMPLATES.length, 4);
+  assert.equal(SW.WA_MERCHANT_TEMPLATES.length, 5);   // alta, pausa, baja, pago rechazado y cobro
   for (const t of SW.WA_MERCHANT_TEMPLATES) {
     const n = SW.templateVarCount(t.body);
     assert.equal(t.category, "UTILITY");
