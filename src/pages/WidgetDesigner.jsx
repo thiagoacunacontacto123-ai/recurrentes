@@ -351,16 +351,28 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
 
   const selectedVariant = (BUNDLE_VARIANTS || []).find(v => v.id === variant);
   // Cuenta vinculada a mano por los devs (beta legada o integración a medida) con el plan en modo tema.
-  // Desarrollo a medida (Lumina: beta legada o custom_integration). Se cambia solo con los devs.
-  const customDev = m.billing?.plan === "beta" || m.custom_integration === true;
-  const externallyLinked = !!selectedPlan && selMode === "theme" && customDev;
-  function pickSource(id) {
-    if (id === "custom" && !customDev) {
-      try { window.open(quoteWhatsAppUrl(m), "_blank", "noopener"); } catch (_) {}
-      toast("Te abrimos WhatsApp para pedir la cotización del desarrollo", "success");
-    } else if (id === "templates" && customDev) {
-      toast("Tu selector es un desarrollo a medida: para pasar a los prediseñados, pedilo por WhatsApp", "info");
-    }
+  // Origen del widget: "templates" (prediseñados) | "custom" (desarrollo a medida).
+  // Se cambia libremente y queda guardado. Sin elegir: Lumina (beta legada o
+  // custom_integration) arranca en desarrollo; el resto en prediseñados.
+  const hasCustomDev = m.billing?.plan === "beta" || m.custom_integration === true;
+  const [source, setSource] = useState(m.widget_source || (hasCustomDev ? "custom" : "templates"));
+  useEffect(() => { if (m.widget_source) setSource(m.widget_source); }, [m.widget_source]);
+  const customDev = source === "custom";
+  const externallyLinked = customDev;
+  async function pickSource(id) {
+    if (id === source) return;
+    setSource(id);
+    try {
+      const d = await apiPatch("merchant", { widget_source: id }, { action: "save-settings" });
+      if (d?.error) throw new Error(d.error);
+      onSaved?.();
+      if (id === "custom" && !hasCustomDev) {
+        try { window.open(quoteWhatsAppUrl(m), "_blank", "noopener"); } catch (_) {}
+        toast("Te abrimos WhatsApp para pedir la cotización del desarrollo", "success");
+      } else {
+        toast(id === "custom" ? "Widget: desarrollo a medida" : "Widget: prediseñados", "success");
+      }
+    } catch (e) { toast(e.message || "No se pudo guardar", "error"); setSource(source); }
   }
   const galleryPending = !!selectedPlan && selMode === "theme" && packPlans.length === 0;
   const sectionH = { fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, marginBottom:8, letterSpacing:-0.2 };
@@ -372,11 +384,11 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
       <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:14}}>
         <Segmented T={T} ariaLabel="Origen del widget" value={customDev ? "custom" : "templates"} onChange={pickSource}
           options={[{ id:"templates", label:"Usar widgets prediseñados" }, { id:"custom", label:"Usar desarrollo a medida" }]}/>
-        <span style={{...small}}>{customDev ? "Tu tienda usa un selector desarrollado a medida." : "¿Querés un selector a medida para tu tienda? Elegí “desarrollo” y te cotizamos por WhatsApp."}</span>
+        <span style={{...small}}>{customDev ? (hasCustomDev ? "Tu tienda usa un selector desarrollado a medida." : "Pedinos la cotización por WhatsApp y lo dejamos vinculado en tu tienda.") : "¿Querés un selector a medida para tu tienda? Elegí “desarrollo” y te cotizamos por WhatsApp."}</span>
       </div>
       {externallyLinked && (
         <Callout T={T} tone="info" style={{marginBottom:14}} right={<WhatsAppBtn merchant={m} size="sm"/>}>
-          Tu tienda está vinculada de manera externa por los desarrolladores. El selector que ves en tu producto es un desarrollo a medida; cualquier cambio pedilo por WhatsApp.
+          {hasCustomDev ? "Tu tienda está vinculada de manera externa por los desarrolladores. El selector que ves en tu producto es un desarrollo a medida; cualquier cambio pedilo por WhatsApp." : "Desarrollo a medida: escribinos por WhatsApp y te pasamos la cotización. Mientras, tu tienda sigue mostrando el widget prediseñado."}
         </Callout>
       )}
 

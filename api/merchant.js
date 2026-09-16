@@ -161,6 +161,8 @@ export default async function handler(req, res) {
         widget_once_subtitle: merchant.widget_once_subtitle || "Comprá una vez al precio normal.",
         widget_disclaimer_text: merchant.widget_disclaimer_text || "",   // vacío = usar default explicativo
         widget_hide_selector: merchant.widget_hide_selector || "",
+        // "templates" (diseñador) | "custom" (desarrollo a medida). Vacío = según la cuenta.
+        widget_source: merchant.widget_source || "",
         // "redirect" (botón → página de checkout on-store) | "inline". "page" legacy = redirect.
         widget_checkout_flow: normCheckoutFlow(merchant.widget_checkout_flow),
         widget_checkout_page_path: merchant.widget_checkout_page_path || "",
@@ -735,6 +737,7 @@ async function saveSettings(merchantId, req, res) {
   }
   if ("store_name" in b) out.store_name = String(b.store_name || "").trim().slice(0, 60);
   if ("widget_hide_selector" in b) out.widget_hide_selector = String(b.widget_hide_selector || "").trim().slice(0, 300);
+  if ("widget_source" in b) out.widget_source = b.widget_source === "custom" ? "custom" : "templates";
   // "page" (nombre viejo del front) se acepta y se guarda como "redirect".
   if ("widget_checkout_flow" in b) out.widget_checkout_flow = normCheckoutFlow(b.widget_checkout_flow);
   if ("widget_checkout_page_path" in b) {
