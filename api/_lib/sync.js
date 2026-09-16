@@ -437,8 +437,19 @@ export async function syncSubscriber(merchantId, subscriberId) {
   const addResults = (res) => { for (const p of (res?.results || [])) if (p?.id && !paymentsMap.has(p.id)) paymentsMap.set(p.id, p); };
   const preIds = [pre.id, ...extraAuthorized.map(p => p.id)];
   let searchIncomplete = false;
+  // 1) es "blanda": en algunas cuentas MP rechaza `preapproval_id` como filtro
+  //    (HTTP 400 "not a possible param") y eso NO puede tumbar el sync entero —
+  //    pasó en la cuenta de Lumina: fallaba acá y nunca llegaba a la búsqueda
+  //    por external_reference, que sí funciona.
+  for (const pid of preIds) {
+    try { addResults(await mpSearchPayments(token, { preapproval_id: pid })); }
+    catch (e) {
+      if (isMpAuthError(e)) return failSync("payments_search", e);
+      log(`payments_search por preapproval_id no disponible (${String(e.message).slice(0, 80)}); sigo por external_reference`);
+    }
+  }
+  // 2) sigue siendo "dura": si falla, la sync devuelve error y no toca status.
   try {
-    for (const pid of preIds) addResults(await mpSearchPayments(token, { preapproval_id: pid }));
     addResults(await mpSearchPayments(token, { external_reference: extRef }));
     addResults(await mpSearchPayments(token, { sort: "date_created", criteria: "desc", external_reference: extRef }));
   } catch (e) {
