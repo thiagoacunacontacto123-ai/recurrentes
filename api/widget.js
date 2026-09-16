@@ -1026,7 +1026,9 @@ export default async function handler(req, res) {
         if (!document.getElementById("rc-bundle-hide-style")) {
           var st = document.createElement("style");
           st.id = "rc-bundle-hide-style";
-          st.textContent = 'body.rec-bundle-active form[action*="/cart/add"] button[name="add"],body.rec-bundle-active form[action*="/cart/add"] [type="submit"],body.rec-bundle-active form[action*="/cart/add"] quantity-input,body.rec-bundle-active form[action*="/cart/add"] .product-form__quantity,body.rec-bundle-active form[action*="/cart/add"] .quantity__rules{display:none !important}';
+          st.textContent = 'body.rec-bundle-active form[action*="/cart/add"] button[name="add"],body.rec-bundle-active form[action*="/cart/add"] [type="submit"],body.rec-bundle-active form[action*="/cart/add"] quantity-input,body.rec-bundle-active form[action*="/cart/add"] .product-form__quantity,body.rec-bundle-active form[action*="/cart/add"] .quantity__rules{display:none !important}'
+            // Tiendanube: el pack reemplaza al botón y la cantidad del tema (nunca a nuestro bloque .rc-once)
+            + 'body.rec-bundle-active form.js-product-form:not(.rc-once) [type="submit"],body.rec-bundle-active form#product_form:not(.rc-once) [type="submit"],body.rec-bundle-active form[action*="/comprar"]:not(.rc-once) .js-addtocart,body.rec-bundle-active form[action*="/comprar"]:not(.rc-once) [type="submit"],body.rec-bundle-active form[action*="/comprar"]:not(.rc-once) .js-quantity-input,body.rec-bundle-active form[action*="/comprar"]:not(.rc-once) .js-quantity-container{display:none !important}';
           document.head.appendChild(st);
         }
         try {
@@ -1061,6 +1063,21 @@ export default async function handler(req, res) {
       function addToCart() {
         var vid = plan.shopify_variant_id || variantId;
         if (!vid) { showErr("No pudimos identificar la variante. Recargá la página."); return; }
+        // Tiendanube no tiene /cart/add.js: agregamos con el MISMO POST que usa el
+        // formulario del tema (/comprar/ con add_to_cart + quantity). Cae en la
+        // página del carrito con el pack cargado, igual que el botón nativo cuando
+        // el tema no usa carrito AJAX.
+        if (IS_TN) {
+          setBusy(true, "Agregando al carrito…");
+          var f = document.createElement("form");
+          f.method = "post"; f.action = "/comprar/"; f.style.display = "none";
+          [["add_to_cart", String(vid)], ["quantity", String(packQty())]].forEach(function (kv) {
+            var i = document.createElement("input"); i.type = "hidden"; i.name = kv[0]; i.value = kv[1]; f.appendChild(i);
+          });
+          document.body.appendChild(f);
+          f.submit();
+          return;
+        }
         var rootPath = (window.Shopify && Shopify.routes && Shopify.routes.root) || "/";
         setBusy(true, "Agregando al carrito…");
         fetch(rootPath + "cart/add.js", {
