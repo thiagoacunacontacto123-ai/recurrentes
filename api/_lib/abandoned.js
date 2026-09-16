@@ -1,4 +1,5 @@
 // Flujo de carrito abandonado de suscripción — RETIRADO 2026-09-13.
+import { appBaseUrl } from "./config.js";
 //
 // La secuencia propia de 3 mails (P1 15 min / P2 2 hs con cupón / P3 24 hs) fue
 // reemplazada por la integración con Klaviyo (_lib/klaviyo.js): cada lead del
@@ -61,20 +62,18 @@ export function merchantHosts(merchant) {
 // (el embed resuelve qty/precio/frecuencia desde el plan). Si no, como siempre.
 function rebuildPath(merchant, sub) {
   const ps = sub?.plan_snapshot || {};
-  if (!ps.shopify_product_id) return null;
-  const base = String(merchant?.widget_checkout_page_path || "/pages/suscripcion-form").trim();
+  if (!sub?.plan_id) return null;
   const q = new URLSearchParams();
-  q.set("product", String(ps.shopify_product_id));
-  if (ps.shopify_variant_id) q.set("variant", String(ps.shopify_variant_id));
+  q.set("merchant", String(sub.merchant_id || merchant?.id || merchant?.uid || ""));
+  q.set("plan", String(sub.plan_id));
   const packIdx = parseInt(ps.pack_index, 10);
-  if (ps.pricing_mode === "packs" && sub?.plan_id && Number.isInteger(packIdx) && packIdx >= 0) {
-    q.set("plan", String(sub.plan_id));
+  if (ps.pricing_mode === "packs" && Number.isInteger(packIdx) && packIdx >= 0) {
     q.set("pack", String(packIdx));
-    return `${base.startsWith("/") ? base : "/" + base}?${q.toString()}`;
+    return `/#/checkout?${q.toString()}`;
   }
   q.set("qty", String(Math.max(1, parseInt(sub.quantity || ps.units_per_shipment || 1, 10) || 1)));
   if (ps.frequency_days) q.set("freq_days", String(ps.frequency_days));
-  return `${base.startsWith("/") ? base : "/" + base}?${q.toString()}`;
+  return `/#/checkout?${q.toString()}`;
 }
 
 // Destino base del recupero: { url, allowsQuery }. allowsQuery=false → es el
@@ -83,9 +82,13 @@ export function recoverTarget(merchant, sub) {
   const hosts = merchantHosts(merchant);
   const host = hosts[0] || "";
   const rp = String(sub?.recover_path || "").trim();
+  const app = (appBaseUrl() || "https://www.recurrentesapp.com").replace(/\/$/, "");
+  // Checkout de Recurrentes (un solo checkout para todas las tiendas): la query va
+  // dentro del hash; computeRecoverUrl sabe meter el ?rc= ahí.
+  if (rp.startsWith("/#/checkout")) return { url: `${app}${rp}`, allowsQuery: true };
   if (host && rp.startsWith("/") && !rp.startsWith("//")) return { url: `https://${host}${rp}`, allowsQuery: true };
-  const built = host ? rebuildPath(merchant, sub) : null;
-  if (built) return { url: `https://${host}${built}`, allowsQuery: true };
+  const built = rebuildPath(merchant, sub);
+  if (built) return { url: `${app}${built}`, allowsQuery: true };
   const esu = String(sub?.fb_data?.event_source_url || "").trim();
   if (esu && hosts.length) {
     try {
@@ -105,14 +108,21 @@ export function computeRecoverUrl(merchant, sub, { code, step, merchantId, email
   const { url, allowsQuery } = recoverTarget(merchant, sub);
   if (!url || !allowsQuery) return url;
   try {
+    const rc = code ? signToken({ m: merchantId || sub?.merchant_id || merchant?.id || merchant?.uid || "", e: norm(email || sub?.customer_email), c: String(code).toUpperCase(), s: step || 0 }, 7 * 86400) : null;
+    // Checkout de Recurrentes: la query vive DENTRO del hash (#/checkout?...).
+    const hashIdx = url.indexOf("#/checkout");
+    if (hashIdx !== -1) {
+      const [hashPath, hashQs = ""] = url.slice(hashIdx).split("?");
+      const hq = new URLSearchParams(hashQs);
+      hq.delete("code"); hq.delete("rc");
+      if (rc) hq.set("rc", rc);
+      const qs = hq.toString();
+      return url.slice(0, hashIdx) + hashPath + (qs ? "?" + qs : "");
+    }
     const u = new URL(url);
     u.searchParams.delete("code");
     u.searchParams.delete("rc");
-    if (code) {
-      const m = merchantId || sub?.merchant_id || merchant?.id || merchant?.uid || "";
-      const e = norm(email || sub?.customer_email);
-      u.searchParams.set("rc", signToken({ m, e, c: String(code).toUpperCase(), s: step || 0 }, 7 * 86400));
-    }
+    if (rc) u.searchParams.set("rc", rc);
     return u.toString();
   } catch (e) {
     console.warn("[abandoned] no se pudo armar la URL de recupero:", url.slice(0, 120), e.message);

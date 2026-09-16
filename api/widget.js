@@ -1093,20 +1093,11 @@ export default async function handler(req, res) {
         // Tiendanube no tiene página de checkout en la tienda: el pack va al
         // checkout de Recurrentes con su índice (el server resuelve precio,
         // cantidad y frecuencia del pack, igual que en el checkout on-store).
-        if (IS_TN) {
-          setBusy(true, "Abriendo el checkout…");
-          window.location.href = API_BASE + "/#/checkout?merchant=" + encodeURIComponent(MERCHANT_ID) +
-            "&plan=" + encodeURIComponent(plan.id) + "&pack=" + encodeURIComponent(state.idx);
-          return;
-        }
-        var u = window.location.origin + CHECKOUT_PAGE_PATH +
-          "?merchant=" + encodeURIComponent(MERCHANT_ID) +
-          "&product=" + encodeURIComponent(plan.shopify_product_id || productId) +
-          "&variant=" + encodeURIComponent(plan.shopify_variant_id || variantId || "") +
-          "&plan=" + encodeURIComponent(plan.id) +
-          "&pack=" + encodeURIComponent(state.idx);
+        // Un solo checkout para todas las tiendas: el de Recurrentes. El server
+        // resuelve precio, cantidad y frecuencia del pack por su índice.
         setBusy(true, "Abriendo el checkout…");
-        window.location.href = u;
+        window.location.href = API_BASE + "/#/checkout?merchant=" + encodeURIComponent(MERCHANT_ID) +
+          "&plan=" + encodeURIComponent(plan.id) + "&pack=" + encodeURIComponent(state.idx);
       }
       function addToCart() {
         var vid = plan.shopify_variant_id || variantId;
@@ -1283,14 +1274,15 @@ export default async function handler(req, res) {
           // CP de Shopify y va a MP. Igual que Puentify (/pages/suscripcion-form).
           var qEl = subPanel.querySelector("#rec-qty");
           var q = parseInt(qEl ? qEl.value : (subPanel.dataset.qty || 1)) || 1;
-          // Tiendanube no tiene la página de checkout on-store: va al checkout de Recurrentes.
-          if (IS_TN) { window.location.href = tnCheckoutUrl(plan, q); return; }
-          var u = window.location.origin + CHECKOUT_PAGE_PATH +
-            "?product=" + encodeURIComponent(plan.shopify_product_id) +
-            "&variant=" + encodeURIComponent(plan.shopify_variant_id || variantId || "") +
+          // Un solo checkout para todas las tiendas: el de Recurrentes (Thiago,
+          // 16-sept). La página on-store de Shopify (/pages/suscripcion-form) deja
+          // de usarse: menos pasos de instalación y una sola experiencia que
+          // mantenemos nosotros (envíos en vivo, marca, etc.).
+          window.location.href = API_BASE + "/#/checkout?merchant=" + encodeURIComponent(MERCHANT_ID) +
+            "&plan=" + encodeURIComponent(plan.id) +
             "&qty=" + q +
-            "&freq_days=" + encodeURIComponent(plan.frequency_days || 30);
-          window.location.href = u;
+            "&freq_days=" + encodeURIComponent(plan.frequency_days || 30) +
+            "&variant=" + encodeURIComponent(plan.shopify_variant_id || variantId || "");
           return;
         }
         startSubscribe(plan, subPanel);

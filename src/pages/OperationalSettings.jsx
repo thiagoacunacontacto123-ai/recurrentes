@@ -125,7 +125,7 @@ export function WidgetThemeCard({ merchant, onChange, bare = false }) {
   const Wrap = bare ? BareWrap : Panel;
   return (
     <Wrap T={T} title="Widget en tu tema de Shopify"
-      sub="Qué pasa después de que el cliente toca Suscribirme. Solo aplica al widget pegado a mano; con la integración nativa de Shopify se va a configurar solo."
+      sub="El snippet que muestra la suscripción en tus productos y, si hace falta, qué botones del tema esconder."
       right={!open && <Btn T={T} variant="secondary" size="sm" onClick={() => setOpen(true)}>Cambiar</Btn>}>
       {/* El snippet vive acá (Configuración → Shopify), no en Planes: en Planes
           confundía porque parecía un paso por plan, y es uno solo por tienda. */}
@@ -141,24 +141,11 @@ export function WidgetThemeCard({ merchant, onChange, bare = false }) {
           interruptor a propósito: cada venta tiene que ser igual a una venta común. */}
       {!open ? (
         <ul style={{ margin:0, paddingLeft:18, display:"flex", flexDirection:"column", gap:6, fontSize:DS.font.md, color:T.textMd, lineHeight:1.5 }}>
-          <li>{savedFlow === "inline" ? "El formulario se abre en la misma página del producto." : <>El formulario se abre en una página aparte de tu tienda: <code style={{ fontFamily:MONO, color:T.text }}>{path}</code></>}</li>
+          <li>Al tocar Suscribirme, el cliente completa sus datos en el checkout de Recurrentes, con los envíos y precios de tu tienda. No hay que crear ninguna página.</li>
           <li>{savedHide ? <>Además escondemos del tema: <code style={{ fontFamily:MONO, color:T.text }}>{savedHide}</code></> : "Cuando elige Suscripción escondemos el botón de compra normal del tema (lo estándar)."}</li>
         </ul>
       ) : (
         <>
-          <div style={label}>¿Dónde completa sus datos el cliente?</div>
-          <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
-            <Option id="redirect" title="En una página aparte (recomendado)" desc="Va a la página de tu tienda donde pegaste el bloque del checkout."/>
-            <Option id="inline" title="En la misma página del producto" desc="El formulario se abre ahí mismo, debajo del selector."/>
-          </div>
-          {flow === "redirect" && (
-            <>
-              <Field T={T} label="Dirección de esa página">
-                <input value={pagePath} onChange={e => setPagePath(e.target.value)} style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} placeholder={CHECKOUT_PAGE_PATH_DEFAULT}/>
-              </Field>
-              <Hint T={T}>Lo que va después de tu dominio, empezando con <code style={{ fontFamily:MONO }}>/</code>. Si la dejás vacía usamos <code style={{ fontFamily:MONO }}>{CHECKOUT_PAGE_PATH_DEFAULT}</code>.</Hint>
-            </>
-          )}
           <Field T={T} label="Botones del tema a esconder (opcional)">
             <input value={hideSel} onChange={e => setHideSel(e.target.value)} style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} placeholder=".product-form__buttons, .shopify-payment-button"/>
           </Field>

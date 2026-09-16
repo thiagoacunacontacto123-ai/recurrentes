@@ -50,12 +50,22 @@ export default function Checkout() {
   // Planes en modo packs (Tiendanube y link directo): ?pack=<índice>. El pack fija
   // cantidad, precio y frecuencia; el server lo vuelve a resolver en checkout/init.
   const packParam = p.get("pack");
+  // Frecuencia elegida en el widget (modo tema: 30/60/120 días según el pack) y
+  // código de descuento o link de recupero (?code= / ?rc=) que antes tomaba el
+  // checkout dentro de la tienda.
+  const freqParam = Math.max(0, parseInt(p.get("freq_days")) || 0);
+  const codeParam = (p.get("code") || "").trim().toUpperCase();
+  const rcParam = p.get("rc") || "";
   const packIdx = packParam == null || packParam === "" ? null : Math.max(0, parseInt(packParam, 10) || 0);
   const img = p.get("img") || "";
   const titleOverride = p.get("title") || "";
   const colorParam = /^#[0-9a-fA-F]{6}$/.test(p.get("color") || "") ? p.get("color") : "";
 
   const [plan, setPlan] = useState(null);
+  const [codeInput, setCodeInput] = useState(codeParam);
+  const [discount, setDiscount] = useState(null);   // { code, type, value, first_charge_only, viaRecovery }
+  const [codeMsg, setCodeMsg] = useState("");
+  const [codeBusy, setCodeBusy] = useState(false);
   const [cfg, setCfg] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState(null);
@@ -164,7 +174,27 @@ export default function Checkout() {
 
   const shippingSel = askAddress ? (rates[rateIdx] || planShipping) : null;
   const shippingPrice = shippingSel ? (Number(shippingSel.price) || 0) : 0;
-  const total = subtotal + shippingPrice;
+  // Descuento validado contra el backend (el server lo vuelve a validar al pagar).
+  const discountAmt = discount
+    ? (discount.type === "fixed" ? Math.min(subtotal, Math.round(Number(discount.value) || 0)) : Math.round(subtotal * (Math.min(100, Number(discount.value) || 0) / 100)))
+    : 0;
+  const total = Math.max(0, subtotal - discountAmt) + shippingPrice;
+
+  async function aplicarCodigo(code, rc) {
+    const c = String(code || "").trim().toUpperCase();
+    if (!c && !rc) return;
+    setCodeBusy(true); setCodeMsg("");
+    try {
+      const q = new URLSearchParams({ action: "discount", merchant });
+      if (rc) q.set("rc", rc); else q.set("code", c);
+      const r = await fetch(`/api/public?${q.toString()}`);
+      const d = await r.json();
+      if (d.valid) { setDiscount({ ...d, viaRecovery: !!rc }); setCodeInput(d.code || c); setCodeMsg(`Código ${d.code || c} aplicado${d.first_charge_only ? " · solo en el primer cobro" : ""}.`); }
+      else { setDiscount(null); setCodeMsg(d.error || "Ese código no es válido."); }
+    } catch (_) { setCodeMsg("No pudimos validar el código. Probá de nuevo."); }
+    finally { setCodeBusy(false); }
+  }
+  useEffect(() => { if (merchant && (rcParam || codeParam)) aplicarCodigo(codeParam, rcParam); /* eslint-disable-next-line */ }, [merchant]);
 
   async function pagar() {
     setFormErr("");
@@ -187,6 +217,9 @@ export default function Checkout() {
         plan_id: plan.id,
         quantity: qty,
         ...(pack ? { pack_index: pack.idx } : {}),
+        ...(!pack && freqParam ? { frequency_days: freqParam } : {}),
+        ...(discount?.code ? { discount_code: discount.code } : {}),
+        ...(discount?.viaRecovery && rcParam ? { recovery_token: rcParam } : {}),
         customer: { email: email.trim(), name: name.trim(), phone: phone.trim(), tax_id: taxid.trim() },
         ...(cfg?.whatsapp_optin ? { whatsapp_optin: waOptin } : {}),
       };
@@ -228,7 +261,7 @@ export default function Checkout() {
   if (loading) return <div style={{ ...st.page, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ color: "#777", fontSize: 14 }}>Cargando…</div></div>;
   if (loadErr) return <div style={{ ...st.page, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ ...st.card, maxWidth: 420, textAlign: "center" }}><div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Ups</div><div style={{ fontSize: 13, color: "#666", lineHeight: 1.5 }}>{loadErr}</div></div></div>;
 
-  const freqTxt = freqText(pack ? pack.freqDays : plan.frequency_days);
+  const freqTxt = freqText(pack ? pack.freqDays : (freqParam || plan.frequency_days));
   const kindLabel = isService ? "Membresía" : "Suscripción";
   const title = titleOverride || plan.product_title;
   const image = img || plan.product_image || "";
@@ -244,6 +277,7 @@ export default function Checkout() {
       <div style={{ borderTop: "1px solid #eee", paddingTop: 12, display: "flex", flexDirection: "column", gap: 8, fontSize: 13 }}>
         {askAddress && <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}><span style={{ color: "#666" }}>Subtotal{qtyDiscountPct > 0 ? ` (−${qtyDiscountPct}%)` : ""}</span><b>{money(subtotal)}</b></div>}
         {askAddress && <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}><span style={{ color: "#666" }}>Envío{shippingSel?.name ? ` · ${shippingSel.name}` : ""}</span><b>{shippingPrice === 0 ? "Gratis" : money(shippingPrice)}</b></div>}
+        {discountAmt > 0 && <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 13, color: "#0a8a3f", marginBottom: 6 }}><span>Descuento {discount?.code}</span><span>−{money(discountAmt)}</span></div>}
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, borderTop: askAddress ? "1px solid #eee" : "none", paddingTop: askAddress ? 10 : 0, fontSize: 15 }}><b>Total {freqTxt}</b><b>{money(total)}</b></div>
       </div>
       <div style={{ marginTop: 12, fontSize: 11, color: "#888", lineHeight: 1.5 }}>Se cobra {money(total)} ahora y se renueva automáticamente ({freqTxt}). Podés pausar o cancelar cuando quieras.</div>
@@ -320,6 +354,15 @@ export default function Checkout() {
           <div style={st.card}>
             <h3 style={st.h}>Pago</h3>
             <div style={{ fontSize: 13, color: "#555", marginBottom: 12, lineHeight: 1.5 }}>Pagás con <b>{providerLabel}</b>. {isService ? "La cuota se cobra sola cada período." : "Se renueva sola cada período."}</div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <input value={codeInput} onChange={e => setCodeInput(e.target.value.toUpperCase())} placeholder="Código de descuento" aria-label="Código de descuento"
+                style={{ ...st.input, flex: 1, textTransform: "uppercase" }} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); aplicarCodigo(codeInput); } }}/>
+              <button type="button" onClick={() => aplicarCodigo(codeInput)} disabled={codeBusy || !codeInput.trim()}
+                style={{ padding: "0 16px", fontSize: 14, fontWeight: 700, color: accent, background: "#fff", border: `1.5px solid ${accent}`, borderRadius: 9, cursor: "pointer", opacity: codeBusy || !codeInput.trim() ? 0.6 : 1 }}>
+                {codeBusy ? "…" : "Aplicar"}
+              </button>
+            </div>
+            {codeMsg ? <div style={{ fontSize: 12, color: discount ? "#0a8a3f" : "#b42318", marginTop: -6, marginBottom: 10 }}>{codeMsg}</div> : null}
             {formErr ? <div role="alert" style={{ background: "#fde8e8", border: "1px solid #f5b5b5", color: "#b42318", fontSize: 13, padding: "10px 12px", borderRadius: 9, marginBottom: 12 }}>{formErr}</div> : null}
             <button onClick={pagar} disabled={submitting} style={{ width: "100%", padding: "14px", fontSize: 15, fontWeight: 700, color: "#fff", background: accent, border: "none", borderRadius: 11, cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.7 : 1 }}>
               {submitting ? `Redirigiendo a ${providerLabel}…` : `Suscribirme y pagar ${money(total)}`}

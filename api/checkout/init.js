@@ -222,20 +222,20 @@ function merchantShippingRates(merchant) {
 //    base/sub_off/qty/freq_days (el embed los resuelve desde el plan).
 //  · Modo theme: como siempre (qty + freq_days + base/sub_off).
 function buildRecoverPath(merchant, plan, planId, qty, extra = {}) {
-  const base = String(merchant.widget_checkout_page_path || "/pages/suscripcion-form").trim() || "/pages/suscripcion-form";
+  // Un solo checkout (el de Recurrentes): el path es del hash del SPA. abandoned.js
+  // lo cuelga de APP_BASE_URL y mete el ?rc= dentro del hash.
+  const base = "/#/checkout";
   const sp = new URLSearchParams();
+  if (extra.merchant_id) sp.set("merchant", String(extra.merchant_id));
   if (extra.pack_index != null) {
-    if (extra.merchant_id) sp.set("merchant", String(extra.merchant_id));
     sp.set("product", String(plan.shopify_product_id || ""));
     sp.set("variant", String(plan.shopify_variant_id || ""));
     sp.set("plan", String(planId));
     sp.set("pack", String(extra.pack_index));
     return `${base}?${sp.toString()}`;
   }
-  sp.set("product", String(plan.shopify_product_id || ""));
-  sp.set("variant", String(plan.shopify_variant_id || ""));
-  sp.set("qty", String(qty));
   sp.set("plan", String(planId));
+  sp.set("qty", String(qty));
   if (extra.freq_days) sp.set("freq_days", String(extra.freq_days));
   if (extra.base > 0) { sp.set("base", String(extra.base)); sp.set("sub_off", String(extra.sub_off || 0)); }
   return `${base}?${sp.toString()}`;
