@@ -5,6 +5,7 @@
 // plan", tabla de comercios con búsqueda y filtros, y ficha lateral con
 // WhatsApp, plan del SaaS, notas internas, registro y "Ver como este comercio".
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { FREE_SUBSCRIBERS } from "../../shared/platform/pricing.js";
 import ReactDOM from "react-dom";
 import { apiGet, apiPost, getAdminAs, setAdminAs } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
@@ -84,10 +85,11 @@ export function AdminPage() {
   const [q, setQ] = useState("");
   const [qDeb, setQDeb] = useState("");
   const [filter, setFilter] = useState("todos");
-  const [sort, setSort] = useState("recientes");
+  const [sort, setSort] = useState("subs");
   const [page, setPage] = useState(1);
   const [openId, setOpenId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   const tableRef = useRef(null);
 
   const loadOverview = useCallback(async (fresh) => {
@@ -135,20 +137,20 @@ export function AdminPage() {
         <CellStack T={T} main={<>{r.name}{r.is_store && <span style={{ marginLeft:6 }}><DSBadge T={T} color={T.blue} size="sm">Tienda extra</DSBadge></span>}</>} sub={r.owner_name || r.login_email || r.email || r.id}/>
       </div>
     ) },
+    { key:"subs", label:"Suscriptores", align:"right", nowrap:true, render: r => <span style={{ fontWeight:700, fontVariantNumeric:"tabular-nums" }}>{fmtN(r.subs)}</span> },
+    { key:"plan", label:"Plan que le toca", nowrap:true, render: r => <PlanBadge T={T} r={r}/> },
+    { key:"mrr", label:"MRR del comercio", align:"right", nowrap:true, render: r => <span style={{ fontVariantNumeric:"tabular-nums", color: r.mrr ? T.text : T.textSm }}>{fmtARS(r.mrr)}</span> },
     { key:"contact", label:"Contacto", render: r => (
       <div style={{ display:"flex", flexDirection:"column", gap:4, alignItems:"flex-start" }}>
         <WaLink T={T} url={r.whatsapp_url}/>
         {(r.contact_email || r.login_email || r.email) && <span style={{ fontSize:DS.font.xs, color:T.textSm, maxWidth:200, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.contact_email || r.login_email || r.email}</span>}
       </div>
     ) },
+    { key:"act", label:"Últ. actividad", nowrap:true, hideMobile:true, render: r => <span title={r.last_activity_at ? fmtDateTime(r.last_activity_at) : ""} style={{ color:T.textSm, fontSize:DS.font.sm }}>{ago(r.last_activity_at)}</span> },
     { key:"channel", label:"Canal · pasarela", hideMobile:true, render: r => <CellStack T={T} main={`${labelOf(CHANNELS, r.channel)} · ${labelOf(PAYMENT_PROVIDERS, r.payment_provider)}`} sub={labelOf(BUSINESS_TYPES, r.business_type)}/> },
     { key:"conn", label:"Conexiones", hideMobile:true, render: r => <ConnPills T={T} c={r.connections}/> },
-    { key:"subs", label:"Suscr.", align:"right", nowrap:true, render: r => <span style={{ fontWeight:700, fontVariantNumeric:"tabular-nums" }}>{fmtN(r.subs)}</span> },
-    { key:"mrr", label:"MRR", align:"right", nowrap:true, render: r => <span style={{ fontVariantNumeric:"tabular-nums", color: r.mrr ? T.text : T.textSm }}>{fmtARS(r.mrr)}</span> },
-    { key:"plan", label:"Plan", nowrap:true, render: r => <PlanBadge T={T} r={r}/> },
     { key:"wa", label:"WhatsApp mes", align:"right", nowrap:true, hideMobile:true, render: r => r.wa_sent ? <CellStack T={T} main={fmtUsd2(r.wa_cost_usd)} sub={`${fmtN(r.wa_sent)} avisos`}/> : <span style={{ color:T.textSm }}>—</span> },
     { key:"alta", label:"Alta", nowrap:true, hideMobile:true, render: r => <span title={r.created_at ? fmtDateTime(r.created_at) : ""} style={{ color:T.textMd, fontSize:DS.font.sm }}>{r.created_at ? fmtDateOnly(r.created_at) : "—"}</span> },
-    { key:"act", label:"Últ. actividad", nowrap:true, hideMobile:true, render: r => <span title={r.last_activity_at ? fmtDateTime(r.last_activity_at) : ""} style={{ color:T.textSm, fontSize:DS.font.sm }}>{ago(r.last_activity_at)}</span> },
   ];
 
   return (
@@ -163,48 +165,18 @@ export function AdminPage() {
         </Callout>
       )}
 
-      <HealthPanel T={T}/>
-
+      {/* Lo primero: cuántos comercios tengo y cuánto me pagan. Lo demás, abajo. */}
       <div style={kpiGrid}>
         <KpiCard T={T} hero loading={!ov} label="Comercios" value={fmtN(o.merchants?.accounts)} color={T.accentSolid}
           hint={`+${fmtN(o.merchants?.new_30d)} en 30 días${o.merchants?.stores_extra ? ` · ${fmtN(o.merchants.stores_extra)} tiendas extra` : ""}`} spark={lastN(sig.cumulative, 30)}/>
-        <KpiCard T={T} hero loading={!ov} label="Altas 30 días" value={fmtN(o.merchants?.new_30d)} curr={o.merchants?.new_30d} prev={o.merchants?.new_prev_30d}
-          hint="vs. los 30 días anteriores" spark={lastN(sig.counts, 30)} color={T.blue}/>
-        <KpiCard T={T} hero loading={!ov} label="Suscripciones activas" value={fmtN(o.subs?.active)} color={T.green}
-          hint={`en ${fmtN(o.subs?.merchants_with_subs)} comercio${o.subs?.merchants_with_subs === 1 ? "" : "s"} · cuentan para el plan`}/>
-        <KpiCard T={T} hero loading={!ov} label="MRR total" value={fmtARS(o.subs?.mrr)} color={T.accentSolid} hint="lo que cobran todos por mes, en pesos"/>
-      </div>
-      <div style={{ ...kpiGrid, marginBottom:16 }}>
-        <KpiCard T={T} loading={!ov} label="Cobros 30 días" value={fmtN(o.charges_30d?.count)} hint={`${fmtARS(o.charges_30d?.amount)} cobrados`} spark={o.charges_30d?.amounts} color={T.blue}/>
-        <KpiCard T={T} loading={!ov} label="Pagan Recurrentes" value={fmtN(o.saas?.paying)} hint={`${fmtUsd(o.saas?.usd_month)} por mes`} color={T.green} onClick={() => goFilter("pagan")}/>
-        <KpiCard T={T} loading={!ov} label="Beta" value={fmtN(o.saas?.beta)} hint="cuentas viejas, sin cargo" color={T.blue} onClick={() => goFilter("beta")}/>
-        <KpiCard T={T} loading={!ov} label="A activar plan" value={fmtN(needs.length)} valueColor={needs.length ? T.yellow : T.text} hint="les toca un plan pago" color={T.yellow} onClick={() => goFilter("activar")}/>
-        <KpiCard T={T} loading={!ov} label="WhatsApp este mes" value={fmtUsd2(o.whatsapp?.cost_usd)} color={T.green}
-          hint={`${fmtN(o.whatsapp?.sent)} avisos en ${fmtN(o.whatsapp?.merchants)} comercio${o.whatsapp?.merchants === 1 ? "" : "s"} · a cobrar (Meta: ${fmtUsd2(o.whatsapp?.meta_cost_usd)})`}/>
-      </div>
-
-      <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:8 }}>
-        <Segmented T={T} ariaLabel="Período de altas" value={range} onChange={setRange} options={[{ id:30, label:"30 días" }, { id:90, label:"90 días" }]}/>
-      </div>
-      <div style={{ marginBottom:16 }}>
-        <AreaChart T={T} title="Altas de comercios" total={`${fmtN(sum(lastN(sig.counts, range)))} en ${range} días`} dates={lastN(sig.dates, range)} fmtDate={fmtDM}
-          tabs={[
-            { id:"dia", label:"Por día", series:[{ key:"altas", label:"Altas", color:T.accentSolid, values:lastN(sig.counts, range), fmt:fmtN }] },
-            { id:"total", label:"Acumulado", series:[{ key:"total", label:"Comercios", color:T.blue, values:lastN(sig.cumulative, range), fmt:fmtN }] },
-          ]}/>
-      </div>
-
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))", gap:12, marginBottom:16 }}>
-        <Panel T={T} title="Por canal"><BarList T={T} color={T.accentSolid} empty="Sin datos todavía." rows={(o.by_channel || []).map(x => ({ key:x.id, label:x.label, value:x.count }))}/></Panel>
-        <Panel T={T} title="Por pasarela"><BarList T={T} color={T.blue} empty="Sin datos todavía." rows={(o.by_provider || []).map(x => ({ key:x.id, label:x.label, value:x.count }))}/></Panel>
-        <Panel T={T} title="Por tipo de negocio"><BarList T={T} color={T.orange} empty="Sin datos todavía." rows={(o.by_business_type || []).map(x => ({ key:x.id, label:x.label, value:x.count }))}/></Panel>
-        <Panel T={T} title="Por plan de Recurrentes" sub="Plan que les toca por suscriptores · cuántos lo pagan">
-          <BarList T={T} color={T.green} empty="Sin datos todavía." rows={(o.by_tier || []).map(x => ({ key:x.id, label:x.label, value:x.count, extra: x.activated ? `${x.activated} paga${x.activated === 1 ? "" : "n"}` : null }))}/>
-        </Panel>
+        <KpiCard T={T} hero loading={!ov} label="Tu MRR" value={fmtUsd(o.saas?.usd_month)} color={T.green}
+          hint={`${fmtN(o.saas?.paying)} pagan · ${fmtN(o.saas?.beta)} beta sin cargo · por tramo de suscriptores`} onClick={() => goFilter("pagan")}/>
+        <KpiCard T={T} hero loading={!ov} label="A activar plan" value={fmtN(needs.length)} valueColor={needs.length ? T.yellow : T.text}
+          hint={needs.length ? "les toca un tramo pago y no lo activaste" : "nadie pendiente"} color={T.yellow} onClick={() => goFilter("activar")}/>
       </div>
 
       {needs.length > 0 && (
-        <Panel T={T} title={`Para activar plan (${needs.length})`} sub="Tienen más de 5 suscriptores activos y todavía no les activaste el plan que les toca. Escribiles y, cuando paguen, activalo acá." style={{ marginBottom:16 }}>
+        <Panel T={T} title={`Para activar plan (${needs.length})`} sub={`Tienen más de ${FREE_SUBSCRIBERS} suscriptores activos y todavía no les activaste el plan que les toca. Escribiles y, cuando paguen, activalo acá.`} style={{ marginBottom:16 }}>
           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
             {needs.map(r => (
               <div key={r.id} style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", padding:"9px 12px", background:T.bg, border:`1px solid ${T.borderL}`, borderRadius:10 }}>
@@ -250,6 +222,45 @@ export function AdminPage() {
             ) : null}/>
         </Panel>
       </div>
+
+      {/* Métricas de operación, altas y distribuciones: útiles, pero no son lo que
+          se mira todos los días. Plegadas para que arriba quede solo lo que importa. */}
+      <div style={{ marginTop:16 }}>
+        <Btn T={T} variant="secondary" size="sm" onClick={() => setShowMore(v => !v)}>{showMore ? "Ocultar más métricas ▴" : "Más métricas: cobros, altas, canales, WhatsApp, salud ▾"}</Btn>
+      </div>
+      {showMore && (
+        <div style={{ marginTop:14 }}>
+      <div style={{ ...kpiGrid, marginBottom:16 }}>
+        <KpiCard T={T} loading={!ov} label="Cobros 30 días" value={fmtN(o.charges_30d?.count)} hint={`${fmtARS(o.charges_30d?.amount)} cobrados`} spark={o.charges_30d?.amounts} color={T.blue}/>
+        <KpiCard T={T} loading={!ov} label="Pagan Recurrentes" value={fmtN(o.saas?.paying)} hint={`${fmtUsd(o.saas?.usd_month)} por mes`} color={T.green} onClick={() => goFilter("pagan")}/>
+        <KpiCard T={T} loading={!ov} label="Beta" value={fmtN(o.saas?.beta)} hint="cuentas viejas, sin cargo" color={T.blue} onClick={() => goFilter("beta")}/>
+        <KpiCard T={T} loading={!ov} label="WhatsApp este mes" value={fmtUsd2(o.whatsapp?.cost_usd)} color={T.green}
+          hint={`${fmtN(o.whatsapp?.sent)} avisos en ${fmtN(o.whatsapp?.merchants)} comercio${o.whatsapp?.merchants === 1 ? "" : "s"} · a cobrar (Meta: ${fmtUsd2(o.whatsapp?.meta_cost_usd)})`}/>
+      </div>
+
+      <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:8 }}>
+        <Segmented T={T} ariaLabel="Período de altas" value={range} onChange={setRange} options={[{ id:30, label:"30 días" }, { id:90, label:"90 días" }]}/>
+      </div>
+      <div style={{ marginBottom:16 }}>
+        <AreaChart T={T} title="Altas de comercios" total={`${fmtN(sum(lastN(sig.counts, range)))} en ${range} días`} dates={lastN(sig.dates, range)} fmtDate={fmtDM}
+          tabs={[
+            { id:"dia", label:"Por día", series:[{ key:"altas", label:"Altas", color:T.accentSolid, values:lastN(sig.counts, range), fmt:fmtN }] },
+            { id:"total", label:"Acumulado", series:[{ key:"total", label:"Comercios", color:T.blue, values:lastN(sig.cumulative, range), fmt:fmtN }] },
+          ]}/>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))", gap:12, marginBottom:16 }}>
+        <Panel T={T} title="Por canal"><BarList T={T} color={T.accentSolid} empty="Sin datos todavía." rows={(o.by_channel || []).map(x => ({ key:x.id, label:x.label, value:x.count }))}/></Panel>
+        <Panel T={T} title="Por pasarela"><BarList T={T} color={T.blue} empty="Sin datos todavía." rows={(o.by_provider || []).map(x => ({ key:x.id, label:x.label, value:x.count }))}/></Panel>
+        <Panel T={T} title="Por tipo de negocio"><BarList T={T} color={T.orange} empty="Sin datos todavía." rows={(o.by_business_type || []).map(x => ({ key:x.id, label:x.label, value:x.count }))}/></Panel>
+        <Panel T={T} title="Por plan de Recurrentes" sub="Plan que les toca por suscriptores · cuántos lo pagan">
+          <BarList T={T} color={T.green} empty="Sin datos todavía." rows={(o.by_tier || []).map(x => ({ key:x.id, label:x.label, value:x.count, extra: x.activated ? `${x.activated} paga${x.activated === 1 ? "" : "n"}` : null }))}/>
+        </Panel>
+      </div>
+
+          <HealthPanel T={T}/>
+        </div>
+      )}
 
       {openId && <MerchantPanel id={openId} onClose={() => setOpenId(null)} onChanged={reloadAll}/>}
     </div>
