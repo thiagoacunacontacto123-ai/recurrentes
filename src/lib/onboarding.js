@@ -152,11 +152,19 @@ export function computeSteps({ merchant, user, plansCount }) {
       why:"El widget es lo que ve tu cliente en la página de producto. Elegí uno de los 10 diseños con vista previa real, ajustá el color, las esquinas y los textos.",
       needs:["El color principal de tu marca (hex)","Un plan creado para ver la vista previa con tus packs (opcional)"],
       tab:"planes", planesSub:"widget", guideSec:"diseno", cta:"Abrir el diseñador" });
-    steps.push({ id:"snippet", done:snippetOk, manual:true, manualLabel:"Ya lo pegué en mi tienda", manualKey:widgetKey(mid), title:"Pegar el snippet en tu tienda",
-      short:"Una línea de código en tu theme y el widget aparece solo en los productos con plan.",
-      why:"El snippet carga el widget en tu página de producto. Detecta el producto que se está viendo y, si tiene plan, muestra el selector de suscripción.",
-      needs:["Acceso a Online Store → Themes → Edit code (o al editor de temas)","El snippet lo copiás desde Planes → </> Código"],
-      tab:"planes", guideSec:"snippet", cta:"Cómo pegarlo" });
+    if (p.channel === "tiendanube") {
+      steps.push({ id:"snippet", done:snippetOk, manual:true, manualLabel:"Ya lo vi en mi tienda", manualKey:widgetKey(mid), title:"Ver el widget en tu tienda",
+        short:"No se pega nada: Tiendanube carga el widget solo en los productos con plan activo.",
+        why:"Tiendanube inyecta el widget de Recurrentes en tu tienda. Creá un plan, abrí ese producto y vas a ver la caja Suscripción / Compra única.",
+        needs:["Un plan activo","Abrir el producto en tu tienda (recargá sin caché si no aparece)"],
+        tab:"planes", guideSec:"snippet", cta:"Cómo funciona" });
+    } else {
+      steps.push({ id:"snippet", done:snippetOk, manual:true, manualLabel:"Ya lo pegué en mi tienda", manualKey:widgetKey(mid), title:"Pegar el snippet en tu tienda",
+        short:"Una línea de código en tu theme y el widget aparece solo en los productos con plan.",
+        why:"El snippet carga el widget en tu página de producto. Detecta el producto que se está viendo y, si tiene plan, muestra el selector de suscripción.",
+        needs:["Acceso a Tienda online → Temas → Personalizar (bloque Liquid personalizado)","El snippet lo copiás desde Configuración → Integraciones → Shopify → Ajustes"],
+        tab:"planes", guideSec:"snippet", cta:"Cómo pegarlo" });
+    }
   } else {
     steps.push({ id:"link", done:linkOk, manual:true, manualLabel:"Ya lo compartí", manualKey:linkKey(mid), locked:!planOk, lockedMsg:"Primero creá un plan.", title:"Compartir tu link de suscripción",
       short:"Pegalo en tu bio de Instagram, en WhatsApp, en tu web o imprimilo como QR.",

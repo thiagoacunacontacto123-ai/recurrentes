@@ -317,12 +317,13 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
     if (!res && !claim) return;
     tnReturnDone.current = true;
     const clean = () => { try { window.history.replaceState(null, "", window.location.pathname + "#/config/integraciones"); } catch (_) {} };
-    if (res === "ok") { clean(); toast("Tiendanube conectada", "success"); onChange?.(); return; }
+    const step2 = () => { try { window.location.hash = "#/dashboard/planes?store_step2=tiendanube"; } catch (_) {} };
+    if (res === "ok") { toast("Tiendanube conectada · falta el paso 2", "success"); onChange?.(); step2(); return; }
     if (res === "error") { clean(); toast("No se pudo conectar Tiendanube: " + (q.get("msg") || "error desconocido"), "error", 8000); return; }
     apiPost("shopify", { claim }, { action: "tn-claim" }).then(d => {
       clean();
       if (d?.error) toast("No se pudo conectar Tiendanube: " + d.error, "error", 8000);
-      else { toast(`Tiendanube conectada${d.store_name ? ` (${d.store_name})` : ""}`, "success"); onChange?.(); }
+      else { toast(`Tiendanube conectada${d.store_name ? ` (${d.store_name})` : ""} · falta el paso 2`, "success"); onChange?.(); step2(); }
     });
     // eslint-disable-next-line
   }, []);

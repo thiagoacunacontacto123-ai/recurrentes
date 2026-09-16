@@ -332,15 +332,16 @@ function SecSnippet({ T, onb, goTab, origin, mid, canal }) {
 function SnippetTiendanube({ T, onb, snippet }) {
   return (
     <>
-      <Sec T={T} title="Mostrar la suscripción en tu Tiendanube" sub="Un botón desde Recurrentes. No pegás código, no tocás el tema."
+      <Sec T={T} title="Mostrar la suscripción en tu Tiendanube" sub="Se pone solo. No pegás código, no tocás el tema."
         right={<><StepStatus T={T} onb={onb} id="snippet"/>{onb && !onb.steps?.find(s => s.id === "snippet")?.done && <Btn T={T} variant="success" size="sm" onClick={() => onb.setManual(onb.steps.find(s => s.id === "snippet"), true)}>Ya lo hice ✓</Btn>}</>}>
         <Steps T={T} items={[
-          <>Entrá a <B T={T}>Planes</B> y en la tarjeta del plan tocá <B T={T}>Poner en la tienda</B>.<Crumb T={T} path="Recurrentes › Planes › Poner en la tienda"/></>,
-          <>Listo. En la página de ese producto aparece la caja con las dos opciones: <B T={T}>Suscripción</B> (con su precio y descuento) y <B T={T}>Compra única</B>. Las dos funcionan: la suscripción va al checkout de Recurrentes y la compra única agrega al carrito como siempre.</>,
-          <>Si después cambiás el precio o la frecuencia del plan, tocá <B T={T}>↻</B> al lado de "En la tienda" para que la caja se actualice.</>,
+          <>Al instalar Recurrentes, <B T={T}>Tiendanube ya carga nuestro widget en tu tienda</B>. No hay snippet ni código que pegar.</>,
+          <>Creá un plan en <B T={T}>Planes</B> (producto, frecuencia, descuento y packs). En la página de ese producto aparece sola la caja con las dos opciones: <B T={T}>Suscripción</B> (con su precio y descuento) y <B T={T}>Compra única</B>. La suscripción va al checkout de Recurrentes; la compra única agrega al carrito como siempre.<Crumb T={T} path="Tu tienda › Producto con plan activo"/></>,
+          <>Elegís el diseño, el color y los textos en <B T={T}>Widget</B>. Aplica a todos los productos con plan.</>,
+          <>¿No aparece? Recargá el producto sin caché (Cmd/Ctrl + Shift + R) y fijate que el plan esté activo y que la app Recurrentes figure instalada en Mi Tiendanube → Aplicaciones.</>,
         ]}/>
-        <Callout T={T} tone="info" title="Cómo funciona por dentro">
-          Lo escribimos en la <B T={T}>descripción del producto</B>, al final, entre dos marcadores. Tu descripción no se toca, y si sacás el bloque queda exactamente como estaba. Es HTML plano, sin código: es lo único que Tiendanube permite ahí, y por eso funciona en cualquier plan y cualquier tema.
+        <Callout T={T} tone="info" title="Plan B sin JavaScript: “Poner en la tienda”">
+          Si un tema no carga scripts de apps, en <B T={T}>Planes → Poner en la tienda</B> escribimos la misma caja como HTML plano al final de la <B T={T}>descripción del producto</B>, entre dos marcadores. Tu descripción no se toca y se saca con un clic; con <B T={T}>↻</B> se actualiza si cambiás el precio o la frecuencia.
         </Callout>
       </Sec>
 

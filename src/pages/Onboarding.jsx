@@ -62,7 +62,7 @@ export default function OnboardingWizard({ T: Tp, DS: DSp, merchant, onb, onClos
   const profile = merchantProfile(merchant);
   const COMO_FUNCIONA = profile.caps.widget ? [
     { id:"plan",     nombre:"Planes con packs",         desc:"Elegís un producto de tu Shopify, cada cuántos días se cobra, el descuento y los packs (x1, x2, x3) con su precio." },
-    { id:"snippet",  nombre:"Widget en tu tienda",      desc:"Una línea de código y el selector de suscripción aparece en la página de producto, con el diseño que elijas." },
+    { id:"snippet",  nombre:"Widget en tu tienda",      desc: profile.channel === "tiendanube" ? "Se pone solo: Tiendanube carga el widget de Recurrentes y el selector de suscripción aparece en cada producto con plan activo. Sin pegar código." : "Una línea de código y el selector de suscripción aparece en la página de producto, con el diseño que elijas." },
     { id:"mp",       nombre:"Cobros automáticos",       desc:"El cliente paga en Mercado Pago. MP cobra solo cada período y Recurrentes crea la orden en Shopify para que despaches." },
     { id:"klaviyo",  nombre:"Recupero y mails",         desc:"Mails automáticos con tu marca: checkouts sin pagar, pago rechazado, aviso de próximo cobro y más, desde Flujos de email." },
   ] : [
@@ -226,7 +226,7 @@ export default function OnboardingWizard({ T: Tp, DS: DSp, merchant, onb, onClos
             {s.id === "shopify" && <StepHint T={T} DS={DS}>Los permisos exactos son {SHOPIFY_SCOPE_IDS.map(sc => <React.Fragment key={sc}><Code T={T}>{sc}</Code> </React.Fragment>)}. En Conectar Shopify los copiás con un botón.</StepHint>}
             {s.id === "mp" && <StepHint T={T} DS={DS}>Usá el token de <strong style={{ color:T.text }}>producción</strong> (empieza con <Code T={T}>APP_USR-</Code>). Con uno <Code T={T}>TEST-</Code> podés probar, pero nadie te va a poder pagar de verdad.</StepHint>}
             {s.id === "plan" && <StepHint T={T} DS={DS}>Un buen arranque: pack x1 al precio normal con 10% de descuento por suscribirse, y pack x2 o x3 un poco más barato por unidad.</StepHint>}
-            {s.id === "snippet" && <StepHint T={T} DS={DS}>Se pega una sola vez para toda la tienda. El widget solo aparece en los productos que tienen plan activo.</StepHint>}
+            {s.id === "snippet" && <StepHint T={T} DS={DS}>{merchantProfile(merchant).channel === "tiendanube" ? "En Tiendanube no se pega nada: el widget se carga solo. Aparece únicamente en los productos que tienen plan activo." : "Se pega una sola vez para toda la tienda. El widget solo aparece en los productos que tienen plan activo."}</StepHint>}
 
             <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", marginTop:DS.sp.md }}>
               {s.id === "email" && !s.done ? (

@@ -25,9 +25,10 @@ function CopyLine({ T, text }) {
   );
 }
 
-export default function ShopifyStep2Modal({ merchant, onDone }) {
+export default function StoreStep2Modal({ merchant, channel = "shopify", onDone }) {
   const T = useT();
   const m = merchant || {};
+  const tn = channel === "tiendanube";
   const snippet = widgetSnippet(m);
   const openedAt = useRef(new Date().toISOString());
   const [seen, setSeen] = useState(null);       // { at, host } cuando el widget cargó después de abrir este paso
@@ -56,9 +57,9 @@ export default function ShopifyStep2Modal({ merchant, onDone }) {
   const num = (n) => <span style={{ width: 22, height: 22, borderRadius: "50%", background: T.accentSolid + "1a", color: T.accent, fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>{n}</span>;
 
   return (
-    <Modal T={T} open onClose={() => toast("Terminá este paso para seguir: sin el widget en la tienda, la suscripción no se ve.", "warning", 4000)}
-      width={860} title="Shopify conectado ✓ · Paso 2 de 2: poné el widget en tu tienda"
-      subtitle="Una sola línea, una sola vez. Cuando la pegues, abrí un producto de tu tienda y tocá “Ya lo hice”."
+    <Modal T={T} open onClose={() => toast(tn ? "Terminá este paso para seguir: así sabés cómo aparece la suscripción en tu tienda." : "Terminá este paso para seguir: sin el widget en la tienda, la suscripción no se ve.", "warning", 4000)}
+      width={860} title={tn ? "Tiendanube conectada ✓ · Paso 2 de 2: así aparece la suscripción en tu tienda" : "Shopify conectado ✓ · Paso 2 de 2: poné el widget en tu tienda"}
+      subtitle={tn ? "No hay que pegar ningún código. Leé cómo funciona, abrí un producto de tu tienda y tocá “Ya lo hice”." : "Una sola línea, una sola vez. Cuando la pegues, abrí un producto de tu tienda y tocá “Ya lo hice”."}
       footer={
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           {!seen && failed >= 2
@@ -71,14 +72,24 @@ export default function ShopifyStep2Modal({ merchant, onDone }) {
         </div>
       }>
       <div style={{ display: "grid", gap: 14 }}>
-        <div style={step}>{num(1)}<div>Copiá tu snippet:<div style={{ marginTop: 8 }}><CopyLine T={T} text={snippet}/></div></div></div>
-        <div style={step}>{num(2)}<div>En Shopify: <B T={T}>Tienda online → Temas → Personalizar</B>. Arriba, en el selector de plantillas, elegí <B T={T}>Productos → Producto predeterminado</B>.</div></div>
-        <div style={step}>{num(3)}<div>En la barra izquierda, dentro de <B T={T}>Información del producto</B>, tocá <B T={T}>+ Agregar bloque → Liquid personalizado</B>, pegá el snippet y arrastrá el bloque <B T={T}>debajo del botón "Agregar al carrito"</B>.</div></div>
-        <div style={step}>{num(4)}<div>Tocá <B T={T}>Guardar</B> (arriba a la derecha) y <B T={T}>abrí cualquier producto de tu tienda</B> en otra pestaña. Con eso alcanza: no hace falta tener un plan todavía.</div></div>
+        {tn ? (<>
+          <div style={step}>{num(1)}<div><B T={T}>No hay que pegar ningún código.</B> Tiendanube ya carga el widget de Recurrentes en tu tienda. Aparece solo en los productos que tengan un <B T={T}>plan activo</B>; en el resto no se ve nada.</div></div>
+          <div style={step}>{num(2)}<div>Después de este paso vas a <B T={T}>crear tu primer plan</B>: elegís el producto, cada cuántos días se cobra, el descuento y los packs (x1, x2, x3).</div></div>
+          <div style={step}>{num(3)}<div>En la página de ese producto el cliente ve la caja <B T={T}>Suscripción / Compra única</B>. La suscripción va al checkout de Recurrentes y paga con Mercado Pago; la compra única agrega al carrito como siempre.</div></div>
+          <div style={step}>{num(4)}<div>Para comprobar ahora que tu tienda ya habla con Recurrentes: <B T={T}>abrí cualquier producto de tu tienda</B> en otra pestaña y tocá “Ya lo hice”. No hace falta tener un plan todavía.</div></div>
+          <Callout T={T} tone="info" title="Plan B sin JavaScript">
+            Si algún tema no carga scripts, en <B T={T}>Planes → Poner en la tienda</B> escribimos la misma caja como HTML al final de la descripción del producto. Tu descripción no se toca y se saca con un clic.
+          </Callout>
+        </>) : (<>
+          <div style={step}>{num(1)}<div>Copiá tu snippet:<div style={{ marginTop: 8 }}><CopyLine T={T} text={snippet}/></div></div></div>
+          <div style={step}>{num(2)}<div>En Shopify: <B T={T}>Tienda online → Temas → Personalizar</B>. Arriba, en el selector de plantillas, elegí <B T={T}>Productos → Producto predeterminado</B>.</div></div>
+          <div style={step}>{num(3)}<div>En la barra izquierda, dentro de <B T={T}>Información del producto</B>, tocá <B T={T}>+ Agregar bloque → Liquid personalizado</B>, pegá el snippet y arrastrá el bloque <B T={T}>debajo del botón "Agregar al carrito"</B>.</div></div>
+          <div style={step}>{num(4)}<div>Tocá <B T={T}>Guardar</B> (arriba a la derecha) y <B T={T}>abrí cualquier producto de tu tienda</B> en otra pestaña. Con eso alcanza: no hace falta tener un plan todavía.</div></div>
+        </>)}
 
         {seen ? (
           <Callout T={T} tone="success" title="¡El widget ya carga en tu tienda!">
-            Lo vimos en <B T={T}>{seen.host || "tu tienda"}</B> hace un momento. Ya podés crear tu primer plan: el selector de suscripción va a aparecer solo en los productos que tengan plan activo.
+            Lo vimos en <B T={T}>{seen.host || "tu tienda"}</B> hace un momento. Ya podés crear tu primer plan: la caja de suscripción va a aparecer sola en los productos que tengan plan activo.
           </Callout>
         ) : checking ? (
           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10 }}>
@@ -88,7 +99,9 @@ export default function ShopifyStep2Modal({ merchant, onDone }) {
           </div>
         ) : failed > 0 ? (
           <Callout T={T} tone="warning" title="Todavía no vimos el widget en tu tienda">
-            Fijate que hayas tocado <B T={T}>Guardar</B> en el editor del tema y que el bloque esté en la plantilla de producto que usa tu tienda (algunos temas tienen varias). Después <B T={T}>abrí un producto</B> en otra pestaña, recargalo sin caché (Cmd/Ctrl + Shift + R) y volvé a tocar “Ya lo hice”.
+            {tn
+              ? <>Fijate que la app <B T={T}>Recurrentes</B> figure instalada en tu Tiendanube (Mi Tiendanube → Aplicaciones). Después <B T={T}>abrí un producto</B> de tu tienda en otra pestaña, recargalo sin caché (Cmd/Ctrl + Shift + R) y volvé a tocar “Ya lo hice”. Si sigue sin aparecer, escribinos y lo vemos juntos.</>
+              : <>Fijate que hayas tocado <B T={T}>Guardar</B> en el editor del tema y que el bloque esté en la plantilla de producto que usa tu tienda (algunos temas tienen varias). Después <B T={T}>abrí un producto</B> en otra pestaña, recargalo sin caché (Cmd/Ctrl + Shift + R) y volvé a tocar “Ya lo hice”.</>}
           </Callout>
         ) : null}
       </div>

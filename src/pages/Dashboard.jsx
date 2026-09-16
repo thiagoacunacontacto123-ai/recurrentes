@@ -24,7 +24,7 @@ import { OwnerInfoModal } from "./OwnerInfo.jsx";
 import { readPendingSignup, clearPendingSignup } from "../lib/signup.js";
 import { mpOauthReturnToast } from "../lib/mpOauth.js";
 import { AdminPage, AdminViewBanner } from "./Admin.jsx";
-import ShopifyStep2Modal from "./ShopifyStep2.jsx";
+import StoreStep2Modal from "./ShopifyStep2.jsx";
 
 // Resuelve un id de tab (nuevo o viejo) a { tab, config?, query? }.
 function resolveTab(id) {
@@ -63,7 +63,25 @@ export default function Dashboard({ user, onLogout }) {
   const [manageStoreId, setManageStoreId] = useState(null);
   const [wizardOpen, setWizardOpen] = useState(false);
   // Paso 2 obligatorio después de conectar Shopify: pegar el snippet y verificarlo.
-  const [shopifyStep2, setShopifyStep2] = useState(false);
+  const [step2Channel, setStep2Channel] = useState(null); // "shopify" | "tiendanube" | null
+  const setShopifyStep2 = (on) => setStep2Channel(on ? "shopify" : null);
+  // Tiendanube vuelve del OAuth a Integraciones, que nos manda a #/dashboard/planes?store_step2=tiendanube.
+  useEffect(() => {
+    const check = () => {
+      const q = new URLSearchParams((window.location.hash || "").split("?")[1] || "");
+      const ch = q.get("store_step2");
+      if (ch === "tiendanube" || ch === "shopify") {
+        try { window.history.replaceState(null, "", window.location.pathname + "#/dashboard/planes"); } catch (_) {}
+        setTab("planes");
+        setStep2Channel(ch);
+        reloadMerchant();
+      }
+    };
+    check();
+    window.addEventListener("hashchange", check);
+    return () => window.removeEventListener("hashchange", check);
+    // eslint-disable-next-line
+  }, []);
   const [guideOpen, setGuideOpen] = useState(false);
 
   useEffect(() => { try { localStorage.setItem("rec_sidebar_collapsed", collapsed ? "1" : "0"); } catch (_) {} }, [collapsed]);
@@ -279,7 +297,7 @@ export default function Dashboard({ user, onLogout }) {
   return (
     <OnboardingContext.Provider value={onbCtx}>
     <div style={{minHeight:"100vh",display:"flex",background:T.bg,color:T.text,fontFamily:"'Inter',system-ui,sans-serif"}}>
-      {shopifyStep2 && merchant && <ShopifyStep2Modal merchant={merchant} onDone={() => { setShopifyStep2(false); reloadMerchant(); goTab("planes"); }}/>}
+      {step2Channel && merchant && <StoreStep2Modal channel={step2Channel} merchant={merchant} onDone={() => { setStep2Channel(null); reloadMerchant(); goTab("planes"); }}/>}
       {wizardOpen && merchant && <OnboardingWizard T={T} DS={DS} merchant={merchant} onb={onb} goTab={goTab} onClose={closeWizard} onMerchantChange={reloadMerchant}/>}
       <Sidebar {...shellProps} collapsed={collapsed} setCollapsed={setCollapsed}/>
 
