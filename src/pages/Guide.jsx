@@ -293,23 +293,21 @@ function SecSnippet({ T, onb, goTab, origin, mid, canal }) {
         right={<><StepStatus T={T} onb={onb} id="snippet"/>{onb && !onb.steps?.find(s => s.id === "snippet")?.done && <Btn T={T} variant="success" size="sm" onClick={() => onb.setManual(onb.steps.find(s => s.id === "snippet"), true)}>Ya lo pegué ✓</Btn>}</>}>
         <P T={T}>Tu snippet (también lo copiás desde <B T={T}>Configuración → Integraciones → Shopify → Ajustes</B>):</P>
         <CodeBlock T={T} code={snippet} label="Copiar snippet"/>
-        <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, margin:"14px 0 6px" }}>Opción A · Bloque Custom Liquid (recomendada, sin código)</div>
+        <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, margin:"14px 0 6px" }}>Opción A · Una línea en theme.liquid (recomendada: una vez para toda la tienda)</div>
         <Steps T={T} items={[
-          <>En Shopify: <B T={T}>Online Store → Themes → Personalizar</B>. Arriba, en el selector de plantillas, elegí <B T={T}>Productos → Producto predeterminado</B>.<Crumb T={T} path="Shopify › Online Store › Themes › Personalizar › Productos › Producto predeterminado"/></>,
-          <>En la barra izquierda, dentro de la sección <B T={T}>Información del producto</B>, tocá <B T={T}>+ Agregar bloque → Liquid personalizado</B> (Custom Liquid).</>,
-          <>Pegá el snippet en el cuadro de texto del bloque y arrastralo <B T={T}>debajo del botón "Agregar al carrito"</B> (o justo arriba, donde quieras que aparezca el selector).
-            <Screen T={T} title="Shopify › Personalizar › Bloque Liquid personalizado" rows={[{ label:"Liquid personalizado", value:snippet, mono:true, hl:true }]}/>
+          <>En Shopify: <B T={T}>Tienda online → Temas</B>. En el tema activo tocá los <B T={T}>tres puntos (⋯) → Editar código</B>.<Crumb T={T} path="Shopify › Tienda online › Temas › ⋯ › Editar código"/></>,
+          <>En la carpeta <B T={T}>Layout</B> abrí <Code T={T}>theme.liquid</Code>. Buscá <Code T={T}>&lt;/body&gt;</Code> (Cmd/Ctrl + F) y pegá el snippet <B T={T}>justo arriba</B>.
+            <Screen T={T} title="Shopify › Editar código › layout/theme.liquid" rows={[{ label:"…", value:"" }, { label:"", value:snippet, mono:true, hl:true }, { label:"", value:"</body>", mono:true }]}/>
           </>,
-          <>Tocá <B T={T}>Guardar</B> arriba a la derecha. Listo: el widget aparece en los productos con plan activo.</>,
+          <>Tocá <B T={T}>Guardar</B>. Listo: vale para todos los productos, los de ahora y los que agregues después. El widget solo se muestra en los que tengan plan activo.</>,
         ]}/>
-        <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, margin:"14px 0 6px" }}>Opción B · Editar templates/product.json (editor de código)</div>
+        <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, margin:"14px 0 6px" }}>Opción B · Bloque Liquid personalizado (sin tocar código, por plantilla)</div>
         <Steps T={T} items={[
-          <><B T={T}>Online Store → Themes → ⋯ → Editar código</B>. En la carpeta <Code T={T}>templates</Code> abrí <Code T={T}>product.json</Code>.<Crumb T={T} path="Shopify › Themes › Editar código › templates › product.json"/></>,
-          <>Dentro de <Code T={T}>"sections" → "main" → "blocks"</Code> agregá un bloque de tipo <Code T={T}>custom_liquid</Code> con el snippet, y sumá su id al array <Code T={T}>block_order</Code> después de <Code T={T}>buy_buttons</Code>:</>,
+          <><B T={T}>Tienda online → Temas → Personalizar</B>. Arriba, en el selector de plantillas, elegí <B T={T}>Productos → Producto predeterminado</B>.</>,
+          <>En <B T={T}>Información del producto</B> tocá <B T={T}>+ Agregar bloque → Liquid personalizado</B>, pegá el snippet y arrastralo debajo del botón "Agregar al carrito". <B T={T}>Guardar</B>.</>,
+          <>Si tu tema usa varias plantillas de producto, repetilo en cada una. Por eso recomendamos la opción A.</>,
         ]}/>
-        <CodeBlock T={T} code={`"recurrentes": {\n  "type": "custom_liquid",\n  "settings": {\n    "custom_liquid": "${snippet.replace(/"/g, '\\"')}"\n  }\n}`} label="Copiar bloque"/>
-        <Callout T={T} tone="warning" title="Ojo con las comillas">En product.json el snippet va dentro de un string JSON: las comillas internas tienen que ir escapadas (<Code T={T}>\"</Code>), como en el bloque de arriba. Si el archivo no guarda, es eso.</Callout>
-        <P T={T} style={{ marginTop:12 }}>¿Theme viejo (product.liquid) o quieren ponerlo en otro lado? Pegalo dentro del <Code T={T}>&lt;form action="/cart/add"&gt;</Code>, al final. Funciona igual.</P>
+        <P T={T} style={{ marginTop:12 }}>¿Theme viejo sin editor de secciones? Funciona igual: pegá la línea al final de <Code T={T}>theme.liquid</Code>, antes de <Code T={T}>&lt;/body&gt;</Code>.</P>
       </Sec>
       <Sec T={T} title="Cómo saber si quedó bien">
         <Steps T={T} items={[
