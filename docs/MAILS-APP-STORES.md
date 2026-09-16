@@ -174,3 +174,69 @@ I can share technical documentation, our current integration and a demo.
 Thank you,
 Thiago Acuña — Recurrentes
 soporte@recurrentesapp.com
+
+---
+
+## 3-bis) Shopify Payments Platform — respuestas campo por campo (formulario de Google, 2026-09-15)
+
+- **Partner Account Name:** el nombre de tu organización en el Partner Dashboard (arriba a la izquierda). Si es "Recurrentes", poné `Recurrentes`.
+- **Shopify Partner ID:** `4957008` (sale de la URL del dashboard: partners.shopify.com/4957008).
+- **Main Contact Full Name:** `Thiago Acuña`
+- **Main Contact Email:** `soporte@recurrentesapp.com`
+- **Emergency Support Contact Name:** `Thiago Acuña`
+- **Emergency Support Contact Email:** `thiagoacunacontacto123@gmail.com` (el personal, para que nunca rebote)
+
+**Business model / differentiator:**
+```
+Recurrentes is an Argentine app that lets merchants sell subscriptions: the customer buys once
+and is then charged automatically every N days, and each charge becomes a paid order in the
+merchant's store, ready to fulfil. Customers self-serve pause, address change and cancellation
+from their own portal.
+
+Our differentiator is geography, not features: Shopify's native subscriptions only work with
+Shopify Payments, PayPal Express, Authorize.net, Adyen or Stripe. Shopify Payments does not
+exist in Argentina, and Mercado Pago — the payment method most Argentine customers actually use,
+and effectively the only one they will authorize for recurring debit — is not supported for
+subscriptions. So Argentine Shopify merchants cannot sell subscriptions in pesos at all today.
+
+We want to close that gap properly: a payments app that accepts Mercado Pago inside Shopify
+Checkout with card vaulting, so subscriptions run on Shopify's own Subscription APIs instead of
+outside the checkout.
+```
+
+**How many merchants do you currently have?**
+```
+1 live merchant in production (32 active subscriptions since June 2026). We are pre-launch: the
+product works end to end and we are onboarding the first cohort of Argentine merchants now.
+```
+
+**Estimated annual total GMV:** `≈ USD 5,000 in recurring charges processed today (small: one live merchant, launching now).`
+
+**Estimated annual GMV on Shopify:** `The same ≈ USD 5,000 — 100% of what we process today is for a Shopify merchant.`
+
+**TAM:**
+```
+Argentina, subscription/recurring commerce. We do not have a reliable public figure for the
+number of Argentine Shopify stores, so we prefer not to guess: what we can say is that
+subscription commerce here is close to nonexistent because no local gateway supports it, and our
+initial target is Argentine merchants selling consumables (supplements, coffee, pet food,
+cosmetics). Mercado Pago is the dominant payment method in the country. Happy to share our
+bottom-up estimate and pipeline if useful.
+```
+
+**Website:** `https://www.recurrentesapp.com`
+**Countries:** `Argentina (Mercado Pago Argentina). Uruguay, Chile and Mexico later, same provider.`
+**Payment methods:** tildar **Credit Cards / Debit Cards**, **Digital Wallets** y **Other:** `Mercado Pago (wallet balance + saved cards, via Mercado Pago's subscription APIs)`
+
+**Pricing model for merchants:**
+```
+SaaS subscription, not per transaction: free up to 5 active subscribers, then USD 29 / 69 / 99 /
+149 / 299 per month by active subscriber count. We take no cut of the transaction; Mercado Pago's
+own processing fee is paid by the merchant to Mercado Pago.
+```
+
+**Status page:** `We don't have a public status page yet. We monitor with an internal health endpoint (/api/cron?action=health) and alerting, and we will publish a public status page before launching a payments app.`
+
+**Pitch deck:** opcional, se puede dejar vacío (o subir uno después).
+**Internal Shopify referral:** vacío.
+**Las 3 confirmaciones:** Yes, Yes, Yes. La segunda dice que revisaste las dev docs de Payments Apps API: leelas por encima antes de tildar (el link está en el formulario).
