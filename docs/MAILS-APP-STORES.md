@@ -51,8 +51,46 @@ soporte@recurrentesapp.com · https://www.recurrentesapp.com
 
 ## 2) Shopify — autorización por escrito (Partner support)
 
-Enviar desde el Partner Dashboard → Support, o a partners@shopify.com.
-En inglés, que es como responden más rápido.
+**OJO (probado 2026-09-15): `partners@shopify.com` NO se atiende desde 2018** — contesta un robot
+y te manda al formulario. Usar:
+- Formulario (abre ticket, queda por escrito): https://partners.shopify.com/current/support/form
+  → categoría **Apps / App development / API**.
+- Alternativas: chat en vivo del Partner Dashboard, o 1-866-752-0324 (24/7, en inglés).
+- El formulario tiene un campo de texto corto: pegar la **versión corta** de más abajo. Si podés
+  adjuntar o pegar más, va la versión larga.
+
+### Versión CORTA (para el formulario)
+
+**Subject:** Written authorization request — recurring charges via Mercado Pago (API Terms 2.3.18)
+
+I run Recurrentes (https://www.recurrentesapp.com), an Argentine app that lets merchants sell
+subscriptions. I am requesting **express written authorization under API Terms section 2.3.18**,
+and guidance on App Store requirement 1.1.2.
+
+How it works: the merchant connects their own store and their own **Mercado Pago** account.
+Mercado Pago charges the recurring payment (the customer authorizes it once in Mercado Pago),
+and we then create the matching **paid order** via the Admin API so the merchant fulfils it.
+One-time purchases are untouched and still go through Shopify Checkout.
+
+Why we cannot do it inside Shopify Checkout: native subscriptions only support Shopify Payments,
+PayPal Express, Authorize.net, Adyen and Stripe. **Shopify Payments does not exist in Argentina**
+and Mercado Pago — the dominant local payment method, and the only one most Argentine customers
+will use for recurring debit — is not supported for subscriptions. So an Argentine merchant has
+no compliant way to sell a subscription in pesos today.
+
+What I am asking: written authorization to keep charging in the merchant's own Mercado Pago
+account and registering each charge as a paid order via the Admin API, for merchants who install
+the app themselves (we are not listed on the App Store). Every charge is authorized by the
+customer and visible to the merchant.
+
+Scale, honestly: 1 live merchant, 32 active subscriptions since June 2026. I would rather ask
+than assume, and I will follow whichever path you tell me is correct — I am applying to the
+Payments Platform separately.
+
+Happy to share the exact API calls and a demo store.
+Thiago Acuña — soporte@recurrentesapp.com
+
+### Versión LARGA (si hay lugar, o para el mail de seguimiento)
 
 **Subject:** Written authorization request — recurring charges via Mercado Pago in Argentina (API Terms 2.3.18)
 
