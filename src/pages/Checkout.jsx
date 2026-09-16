@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { resolvePack } from "../../shared/bundle/viewmodel.js";
 
 // Checkout propio de Recurrentes (hosteado). Dos entradas:
 //   · Link de suscripción (negocios sin tienda: servicios, digitales, venta por link):
@@ -45,7 +46,11 @@ export default function Checkout() {
   const merchant = p.get("merchant") || "";
   const product = p.get("product") || "";
   const planParam = p.get("plan") || "";
-  const qty = Math.max(1, Math.min(10, parseInt(p.get("qty")) || 1));
+  const qtyParam = Math.max(1, Math.min(10, parseInt(p.get("qty")) || 1));
+  // Planes en modo packs (Tiendanube y link directo): ?pack=<índice>. El pack fija
+  // cantidad, precio y frecuencia; el server lo vuelve a resolver en checkout/init.
+  const packParam = p.get("pack");
+  const packIdx = packParam == null || packParam === "" ? null : Math.max(0, parseInt(packParam, 10) || 0);
   const img = p.get("img") || "";
   const titleOverride = p.get("title") || "";
   const colorParam = /^#[0-9a-fA-F]{6}$/.test(p.get("color") || "") ? p.get("color") : "";
@@ -86,13 +91,13 @@ export default function Checkout() {
         const d = await r.json();
         if (!ok) return;
         if (d.error || !d.plan) setLoadErr("Esta suscripción no está disponible. Puede que el plan se haya pausado.");
-        else if (d.plan.pricing_mode === "packs") setLoadErr("Este plan se contrata desde la página del producto en la tienda.");
+        else if (d.plan.pricing_mode === "packs" && (packIdx == null || !resolvePack(d.plan, packIdx))) setLoadErr("Este plan se contrata desde la página del producto en la tienda.");
         else { setPlan(d.plan); setCfg(d.checkout || null); }
       } catch (e) { if (ok) setLoadErr("No pudimos cargar la suscripción. Revisá tu conexión."); }
       finally { if (ok) setLoading(false); }
     })();
     return () => { ok = false; };
-  }, [merchant, product, planParam]);
+  }, [merchant, product, planParam, packIdx]);
 
   // Sin `checkout` (backend viejo) → comportamiento histórico: pide todo.
   const askAddress = cfg ? cfg.ask_address !== false : true;
@@ -103,11 +108,13 @@ export default function Checkout() {
   const isService = cfg?.business_type === "service";
 
   // Cálculo de precios (mismo criterio que checkout/init).
+  const pack = plan && plan.pricing_mode === "packs" && packIdx != null ? resolvePack(plan, packIdx) : null;
+  const qty = pack ? pack.qty : qtyParam;
   const unitPrice = plan?.subscription_price_ars || 0;
   const tiers = Array.isArray(plan?.qty_discount_tiers) ? plan.qty_discount_tiers : [];
   let qtyDiscountPct = 0;
   for (const t of tiers) if (qty >= (t.min_qty || 0)) qtyDiscountPct = t.discount_pct || 0;
-  const subtotal = Math.round(unitPrice * qty * (1 - qtyDiscountPct / 100));
+  const subtotal = pack ? pack.priceSub : Math.round(unitPrice * qty * (1 - qtyDiscountPct / 100));
 
   // Envío por defecto del plan (si no hay otros métodos).
   const planShippingFree = (plan?.free_shipping_from_ars || 0) > 0 && subtotal >= (plan?.free_shipping_from_ars || 0);
@@ -179,6 +186,7 @@ export default function Checkout() {
         merchant_id: merchant,
         plan_id: plan.id,
         quantity: qty,
+        ...(pack ? { pack_index: pack.idx } : {}),
         customer: { email: email.trim(), name: name.trim(), phone: phone.trim(), tax_id: taxid.trim() },
         ...(cfg?.whatsapp_optin ? { whatsapp_optin: waOptin } : {}),
       };
@@ -220,7 +228,7 @@ export default function Checkout() {
   if (loading) return <div style={{ ...st.page, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ color: "#777", fontSize: 14 }}>Cargando…</div></div>;
   if (loadErr) return <div style={{ ...st.page, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ ...st.card, maxWidth: 420, textAlign: "center" }}><div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Ups</div><div style={{ fontSize: 13, color: "#666", lineHeight: 1.5 }}>{loadErr}</div></div></div>;
 
-  const freqTxt = freqText(plan.frequency_days);
+  const freqTxt = freqText(pack ? pack.freqDays : plan.frequency_days);
   const kindLabel = isService ? "Membresía" : "Suscripción";
   const title = titleOverride || plan.product_title;
   const image = img || plan.product_image || "";

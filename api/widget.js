@@ -1051,6 +1051,15 @@ export default async function handler(req, res) {
         else if (btn.getAttribute("data-rc-label")) { btn.innerHTML = btn.getAttribute("data-rc-label"); btn.removeAttribute("data-rc-label"); }
       }
       function goCheckout() {
+        // Tiendanube no tiene página de checkout en la tienda: el pack va al
+        // checkout de Recurrentes con su índice (el server resuelve precio,
+        // cantidad y frecuencia del pack, igual que en el checkout on-store).
+        if (IS_TN) {
+          setBusy(true, "Abriendo el checkout…");
+          window.location.href = API_BASE + "/#/checkout?merchant=" + encodeURIComponent(MERCHANT_ID) +
+            "&plan=" + encodeURIComponent(plan.id) + "&pack=" + encodeURIComponent(state.idx);
+          return;
+        }
         var u = window.location.origin + CHECKOUT_PAGE_PATH +
           "?merchant=" + encodeURIComponent(MERCHANT_ID) +
           "&product=" + encodeURIComponent(plan.shopify_product_id || productId) +

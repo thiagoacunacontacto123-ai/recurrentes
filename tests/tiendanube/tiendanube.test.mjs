@@ -70,7 +70,7 @@ section("perfil / canal");
   ok(channelAvailable("tiendanube", {}) === true, "con TIENDANUBE_APP_ID en el backend, Tiendanube se puede elegir");
   const p = merchantProfile({ channel: "tiendanube", tiendanube_token: "x", mp_access_token: "y" });
   ok(p.channel === "tiendanube" && p.connected.channel && p.ready, "canal tiendanube + token = conectado y listo");
-  ok(p.caps.orders && p.caps.catalog && p.caps.widget && p.caps.shipping && !p.caps.packs, "caps: órdenes, catálogo, widget y envío (sin packs por ahora)");
+  ok(p.caps.orders && p.caps.catalog && p.caps.widget && p.caps.shipping && p.caps.packs, "caps: órdenes, catálogo, widget, envío y packs (el pack va al checkout de Recurrentes)");
   ok(!!validateProfilePatch({}, { channel: "tiendanube" }).value, "save-settings acepta channel=tiendanube");
   const lumina = merchantProfile({ shopify_token: "t", mp_access_token: "m" });
   ok(lumina.channel === "shopify" && lumina.caps.packs === true && lumina.ready, "Lumina (histórico) sigue igual: Shopify + packs");

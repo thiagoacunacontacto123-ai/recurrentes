@@ -81,7 +81,7 @@ export const CHANNELS = {
     status: "soon", // se habilita solo: ver channelAvailable()
     types: ["physical", "digital"],
     catalog: true, orders: true, widget: true,
-    packs: false,    // el selector de packs necesita el checkout on-store (solo Shopify por ahora)
+    packs: true,     // el selector de packs; en Tiendanube el CTA de suscripción va al checkout de Recurrentes con la cantidad del pack y la compra única postea a /comprar/ como el tema
     desc: "Tus productos de Tiendanube como suscripción, con una orden por cobro.",
   },
   impultienda: {
