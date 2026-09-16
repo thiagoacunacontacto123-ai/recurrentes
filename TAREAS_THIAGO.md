@@ -44,6 +44,11 @@ Está todo codeado y esperando la configuración. Ver el detalle en la Parte 7 m
 8 plantillas, verificación del negocio, token permanente, webhook y 5 variables.
 **Meta tarda días en aprobar**, así que conviene arrancarlo mañana aunque no se termine.
 
+### ✅ Cerrado el 16-sept
+- **Envíos con proveedor externo**: probado con una suscripción real en Lumina eligiendo un HOP de Andreani → la orden #3048 llegó a Envialo con la sucursal correcta. La cotización en vivo quedó prendida por defecto para toda tienda Shopify.
+- **Tiendanube**: widget completo inyectado por Tiendanube (sin homologación), packs, compra única nativa, bloque HTML de respaldo, envío en el fulfillment order.
+- **Precios nuevos** (gratis hasta 10, 9 tramos, instalación gratis) en la fuente única y en toda la comunicación.
+
 ### D. Cabos sueltos de hoy
 
 | Qué | Por qué importa |
@@ -51,7 +56,7 @@ Está todo codeado y esperando la configuración. Ver el detalle en la Parte 7 m
 | Widget en Tiendanube: confirmar que se inyecta | El script quedó `active` con la v2 a las 00:17. Si sigue sin aparecer, abrimos ticket con la evidencia |
 | Apagar el "modo de desarrollo" del script 10256 | Si queda prendido apuntando a una URL, el día que falle el widget desaparece |
 | Cuenta demo para Tiendanube | La piden para homologar: usuario dedicado + contraseña compartible + la contraseña de la tienda demo |
-| Suscripción real en DEMO TN | Necesita otra cuenta de Mercado Pago. Sirve para la homologación y para el video |
+| Suscripción real en DEMO TN | Necesita otra cuenta de Mercado Pago (ya la tenés: la usaste en Lumina el 16-sept). Sirve para la homologación y para el video |
 | Número de ticket de Shopify | Llega por mail a la casilla del Partner Dashboard. Pasámelo y lo anoto |
 | Video de Shopify → `SHOPIFY_TUTORIAL_URL` | Es lo único que falta de la Parte 4 |
 | SPF y `_dmarc` (lo debo yo) | Para poder responder mails como `soporte@recurrentesapp.com` |
