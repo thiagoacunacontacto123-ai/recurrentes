@@ -1,22 +1,31 @@
 # Los dos problemas del negocio (16-sept)
 
-## 1. Tiendanube sin widget
+## 1. Tiendanube sin widget — RESUELTO (16-sept)
 
-**Estado:** el script 10256 quedó `active` con la v2 (00:17 del 16-sept) y el archivo que sirve
-Tiendanube es idéntico byte por byte al nuestro (md5 `50b3f8a1…`). Lo que falta es que lo
-inyecte en el storefront.
+**El script sí se inyecta.** Con el modo de desarrollo APAGADO y la v2 desplegada a
+producción, Tiendanube inyecta el script en la tienda demo con la app todavía sin
+aprobar. Lo que faltaba era el deploy a producción (en `testing` no alcanzaba a esa
+tienda) y unos minutos de propagación. La hipótesis del issue #418 (inyección
+bloqueada para apps sin aprobar) NO aplica a nuestro caso.
 
-Si después de 10 minutos el HTML del producto sigue sin traer `apps-scripts`, el problema es de
-Tiendanube y hay ticket con evidencia: script `active`, versión 2, asociado a la tienda con
-`params: { merchant: … }`, y el HTML sin el tag.
+Resultado verificado en la tienda demo (tema morelia): el widget completo —toggle
+Suscripción / Compra única, cantidad, subtotal con envío, Suscribirme— funciona igual
+que en Shopify. Compra única = formulario nativo del tema (mini-carrito, cantidad).
+Suscripción = checkout de Recurrentes.
 
-**Camino de fondo: portar a NubeSDK.** Resuelve dos cosas de una:
-- Es el mecanismo que Tiendanube sostiene para UI en el storefront (los scripts planos son el
-  camino viejo).
-- Es requisito obligatorio de homologación desde el 5 de junio de 2026.
+Dos bugs propios en el camino, ya corregidos: el widget se montaba dentro del
+mini-carrito (`form[action*="/carrito"]` en los selectores) y el id del producto
+dependía de `LS.product`; ahora se resuelve también por el handle de la URL
+(`/api/public?action=tn-product`).
 
-O sea que el trabajo de NubeSDK no es "un requisito burocrático más": es también la forma de
-que el widget deje de depender de un mecanismo que ya está de salida.
+**Plan B que queda vigente:** el bloque HTML en la descripción del producto
+(Planes → "Poner en la tienda"). Sin JavaScript, funciona en cualquier tema y plan.
+Cuando el widget JS monta, lo esconde solo. Sirve para tiendas donde la inyección
+tarde o falle, y para el video.
+
+El mail a socios@ sobre la inyección ya no hace falta. La homologación sigue
+pendiente solo para aparecer en la tienda de aplicaciones (y sigue exigiendo
+NubeSDK para aprobar).
 
 ---
 

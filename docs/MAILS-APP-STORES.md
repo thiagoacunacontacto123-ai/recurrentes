@@ -6,6 +6,7 @@
 |---|---|---|---|
 | Tiendanube: 3 preguntas antes de homologación | mail a socios@tiendanube.com | 15-sept 22:24 | esperando respuesta (la de facturación ya la contestó el formulario: se puede facturar por fuera eligiendo "Gratis") |
 | Tiendanube: solicitud de homologación | Partners → app 42443 | 15-sept | **En aprobación**; ficha finalizada. Artefactos en `ficha-tiendanube/homologacion.md`. Contestar en 5 días o salimos de la cola |
+| Tiendanube: script no se inyectaba | (mail redactado, NO enviado) | — | **Resuelto sin mail** (16-sept): con dev mode apagado y v2 en producción, inyecta. El widget funciona sin aprobación |
 | Shopify: autorización escrita (API Terms 2.3.18) | chat de Partner support (agente Mark) | 15-sept 22:30 | dijo que lo dirige a App Review / políticas → **falta número de ticket** |
 | Shopify: Payments Platform | formulario oficial | 15-sept | enviado, responden sin plazo definido |
 
