@@ -51,12 +51,18 @@ const SearchIcon = ({ color }) => (
   <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="5" stroke={color} strokeWidth="1.6"/><path d="M11 11l3.5 3.5" stroke={color} strokeWidth="1.6" strokeLinecap="round"/></svg>
 );
 
-export function PlansPage({ merchant, onMerchantChange }) {
+// Sección "Widget" del menú (Catálogo → Widget, #/dashboard/widget). Reusa PlansPage
+// fijada en la sub-vista del diseñador.
+export function WidgetTab({ merchant, onMerchantChange }) {
+  return <PlansPage merchant={merchant} onMerchantChange={onMerchantChange} forceSub="widget"/>;
+}
+
+export function PlansPage({ merchant, onMerchantChange, forceSub = null }) {
   const T = useT();
   const iS = InputStyle(T);
   const profile = useMemo(() => merchantProfile(merchant), [merchant]);
   const widgetOn = profile.caps.widget;
-  const [sub, setSub] = useState(() => readSub(widgetOn));
+  const [sub, setSub] = useState(() => forceSub || readSub(widgetOn));
   const [plans, setPlans] = useState([]);
   const [products, setProducts] = useState([]);
   const [activeSubs, setActiveSubs] = useState([]);
@@ -69,15 +75,14 @@ export function PlansPage({ merchant, onMerchantChange }) {
   const [editor, setEditor] = useState(null);
   const [linkFor, setLinkFor] = useState(null);
 
+  // Planes y Widget son dos secciones del menú: navegar entre ellas cambia el hash
+  // (Dashboard lo escucha). Las URLs viejas (#/dashboard/planes?sub=widget) redirigen.
   const goSub = useCallback((id) => {
-    setSub(id);
-    try { window.history.replaceState(null, "", `${window.location.pathname}#/dashboard/planes${id === "widget" ? "?sub=widget" : ""}`); } catch (_) {}
+    try { window.location.hash = id === "widget" ? "#/dashboard/widget" : "#/dashboard/planes"; } catch (_) {}
   }, []);
   useEffect(() => {
-    const onHash = () => { if (/^#\/dashboard\/planes/.test(window.location.hash || "")) setSub(readSub(widgetOn)); };
-    window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
-  }, [widgetOn]);
+    if (!forceSub && widgetOn && readSub(widgetOn) === "widget") goSub("widget");
+  }, [forceSub, widgetOn, goSub]);
 
   async function loadAll() {
     setLoading(true);
@@ -178,9 +183,7 @@ export function PlansPage({ merchant, onMerchantChange }) {
     );
   }
 
-  const tabs = widgetOn
-    ? <Segmented T={T} options={[{ id:"planes", label:"Planes", count: loading ? null : plans.length }, { id:"widget", label:"Widget" }]} value={sub} onChange={goSub} ariaLabel="Sección de planes"/>
-    : null;
+  const tabs = null; // Planes y Widget ya son secciones separadas del menú
 
   if (widgetOn && sub === "widget") {
     return (

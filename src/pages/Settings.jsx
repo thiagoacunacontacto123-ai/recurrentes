@@ -43,6 +43,7 @@ export const TEAM_SECTIONS = [
   { id: "suscripciones", label: "Suscripciones" },
   { id: "cobros",        label: "Cobros" },
   { id: "planes",        label: "Planes" },
+  { id: "widget",        label: "Widget" },
   { id: "retencion",     label: "Retención" },
   { id: "flujos",        label: "Flujos de email" },
   { id: "portal",        label: "Portal del cliente" },
@@ -112,7 +113,7 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
   // #/config/widget (viejo) → el diseño ahora vive en Planes → Widget.
   const goPlanesWidget = React.useCallback(() => {
     try { goTab?.("planes"); } catch (_) {}
-    try { setTimeout(() => { window.location.hash = "#/dashboard/planes?sub=widget"; }, 0); } catch (_) {}
+    try { setTimeout(() => { window.location.hash = "#/dashboard/widget"; }, 0); } catch (_) {}
   }, [goTab]);
   useEffect(() => { if (readHashSec() === "__planes_widget__") goPlanesWidget(); /* eslint-disable-line */ }, []);
 

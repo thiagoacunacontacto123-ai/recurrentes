@@ -54,7 +54,7 @@ export function goGuideSection(goTab, sec) {
 // Planes → sub-tab Widget (diseñador): `#/dashboard/planes?sub=widget`.
 export function goPlanesWidget(goTab) {
   try { goTab?.("planes"); } catch (_) {}
-  try { setTimeout(() => { window.location.hash = "#/dashboard/planes?sub=widget"; }, 0); } catch (_) {}
+  try { setTimeout(() => { window.location.hash = "#/dashboard/widget"; }, 0); } catch (_) {}
 }
 
 // ─── Íconos (paths SVG 24x24, stroke) de cada paso ─────────────────────

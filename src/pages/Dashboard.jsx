@@ -13,7 +13,7 @@ import { useOnboarding, OnboardingContext } from "../lib/onboarding.js";
 import { merchantProfile } from "../../shared/platform/profile.js";
 import { BillingBanner } from "./Billing.jsx";
 import { HomeTab } from "./Home.jsx";
-import { PlansTab } from "./Plans.jsx";
+import { PlansTab, WidgetTab } from "./Plans.jsx";
 import { SubscriptionsPage } from "./Subscriptions.jsx";
 import { ChargesPage } from "./Charges.jsx";
 import { AnalyticsPage } from "./Analytics.jsx";
@@ -252,7 +252,8 @@ export default function Dashboard({ user, onLogout }) {
   const isAdmin = merchant?.is_admin === true;
   const navList = useMemo(() => {
     const secs = merchant?.role === "member" && merchant?.member_secciones && Object.keys(merchant.member_secciones).length ? merchant.member_secciones : null;
-    const base = secs ? NAV.filter(n => n.id === "analiticas" || secs[n.id] === true || n.adminOnly) : NAV;
+    // Widget acompaña al permiso de Planes (los permisos guardados antes no lo conocen).
+    const base = secs ? NAV.filter(n => n.id === "analiticas" || secs[n.id] === true || (n.id === "widget" && secs.planes === true) || n.adminOnly) : NAV;
     return base.filter(n => !n.adminOnly || isAdmin);
   }, [merchant?.role, merchant?.member_secciones, isAdmin]);
   useEffect(() => { if (loading) return; if (!navList.some(n => n.id === tab)) goTab("analiticas"); }, [navList, tab, goTab, loading]);
@@ -302,6 +303,8 @@ export default function Dashboard({ user, onLogout }) {
                 integrationsReady ? <ChargesPage shop={shop}/> : needs("Cobros")
               ) : tab === "planes" ? (
                 integrationsReady ? <PlansTab merchant={merchant} onMerchantChange={reloadMerchant}/> : needs("Planes")
+              ) : tab === "widget" ? (
+                integrationsReady ? <WidgetTab merchant={merchant} onMerchantChange={reloadMerchant}/> : needs("Widget")
               ) : tab === "retencion" ? (
                 integrationsReady ? <RetentionPage merchant={merchant} reloadMerchant={reloadMerchant} goTab={goTab}/> : needs("Retención")
               ) : tab === "flujos" ? (

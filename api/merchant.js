@@ -1097,7 +1097,7 @@ async function saveMpToken(merchantId, req, res) {
 //   (subcolecciones) NO está implementada acá (TODO cron).
 // ═══════════════════════════════════════════════════════════════════════════
 
-const SECCIONES = ["inicio", "suscripciones", "cobros", "planes", "retencion", "flujos", "portal", "analiticas", "configuracion"];
+const SECCIONES = ["inicio", "suscripciones", "cobros", "planes", "widget", "retencion", "flujos", "portal", "analiticas", "configuracion"];
 // Secciones viejas (antes de la reestructura 2026-09-14) → nuevas. Los permisos
 // ya guardados con ids viejos se traducen al leer y al escribir.
 export const LEGACY_SECCION = { suscriptores: "suscripciones", carritos: "suscripciones", abandonados: "suscripciones", actividad: "portal", integraciones: "configuracion", plan: "configuracion", guia: "configuracion" };

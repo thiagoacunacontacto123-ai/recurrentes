@@ -220,7 +220,7 @@ section("Transferir de vuelta al login original (keep_access = true)");
   ok(r.status === 200, `Ana acepta (${r.status} ${r.error || ""})`);
   const d = await doc("merchants/uidA");
   ok(d.ownerUid === "uidA" && d.is_store === false, "vuelve a ser su principal");
-  ok(d.teamMembers.uidB?.role === "member" && Object.keys(d.teamMembers.uidB.secciones).length === 9 && Object.values(d.teamMembers.uidB.secciones).every(v => v === true), "el que la entrega queda como miembro con TODAS las secciones");
+  ok(d.teamMembers.uidB?.role === "member" && Object.keys(d.teamMembers.uidB.secciones).length === 10 && Object.values(d.teamMembers.uidB.secciones).every(v => v === true), "el que la entrega queda como miembro con TODAS las secciones");
   ok(d.teamUids.includes("uidB") && d.teamUids.includes("uidM") && d.teamUids.includes("uidA"), "teamUids con los dos + la miembro");
   ok(d.active_merchant_id === "m_extra" && Array.isArray(d.stores) && d.stores.some(x => x.id === "m_extra"), "recupera su tienda activa y cache desde profiles");
   ok((await doc("profiles/uidA")).primary_transferred === undefined, "profiles: se limpia la marca de transferida");

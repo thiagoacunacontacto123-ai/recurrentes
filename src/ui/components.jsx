@@ -273,6 +273,7 @@ export function TabView({children, tabKey}) {
 export const SECTION_ICONS = {
   inicio:        "M3 12l9-9 9 9M5 10v10a2 2 0 002 2h3M19 10v10a2 2 0 01-2 2h-3M9 22V12h6v10",
   integraciones: "M9 2v5M15 2v5M6 7h12v3a6 6 0 01-12 0zM12 16v6",
+  widget:        "M4 4h16v6H4zM4 14h7v6H4zM15 14h5v6h-5z",
   planes:        "M12 22a10 10 0 100-20 10 10 0 000 20zM12 18a6 6 0 100-12 6 6 0 000 12zM12 14a2 2 0 100-4 2 2 0 000 4z",
   suscriptores:  "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75",
   carritos:      "M9 22a1 1 0 100-2 1 1 0 000 2zM20 22a1 1 0 100-2 1 1 0 000 2zM1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6",
