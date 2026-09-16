@@ -1018,6 +1018,35 @@ export default async function handler(req, res) {
         for (var i = 0; i < list.length; i++) if (list[i].idx === state.idx) return Math.max(1, parseInt(list[i].qty, 10) || 1);
         return 1;
       }
+      // Tiendanube, modo packs: el pack decide la cantidad y el precio, así que el
+      // precio, el selector de cantidad y el botón del tema sobran mientras la
+      // suscripción está activa. En compra única se hace al revés: se esconde
+      // NUESTRO botón y vuelve el "Agregar al carrito" nativo (mini-carrito y
+      // todo), con la cantidad del pack ya cargada en el input del tema.
+      // Selectores: los hooks que Tiendanube expone para apps en sus temas
+      // (data-store="product-buy-button", data-store="product-price-<id>",
+      // data-component="product.quantity") más las clases js-* del tema base.
+      var TN_THEME_PRICE = '[data-store^="product-price"], .js-product-price, .js-price-display, .js-compare-price-display';
+      var TN_THEME_QTY   = '[data-component="product.quantity"], .js-quantity-container, .js-quantity, .js-quantity-input, .js-quantity-up, .js-quantity-down';
+      var TN_THEME_BUY   = '[data-store="product-buy-button"], .js-addtocart, form.js-product-form [type="submit"], form#product_form [type="submit"]';
+      var NOT_OURS = ':not(#recurrentes-widget *):not(.recurrentes-bloque *):not(.rc-once *)';
+      function withNotOurs(list) {
+        return list.split(",").map(function (x) { return "body.rec-bundle-active " + x.trim() + NOT_OURS; }).join(",");
+      }
+      function syncThemeQty() {
+        // La cantidad del tema = la del pack, para que el botón nativo agregue lo correcto.
+        if (!IS_TN) return;
+        var q = packQty();
+        var inputs = document.querySelectorAll('.js-quantity-input, input[name^="quantity"]');
+        for (var i = 0; i < inputs.length; i++) {
+          var inp = inputs[i];
+          if (inp.closest && (inp.closest("#recurrentes-widget") || inp.closest(".rc-once"))) continue;
+          if (String(inp.value) !== String(q)) {
+            inp.value = q;
+            try { inp.dispatchEvent(new Event("input", { bubbles: true })); inp.dispatchEvent(new Event("change", { bubbles: true })); } catch(e) {}
+          }
+        }
+      }
       function applyMode() {
         // Se esconden los botones de compra del tema (no el form entero, para
         // no perder el selector de variantes) y el buy box custom (&hide=).
@@ -1026,15 +1055,23 @@ export default async function handler(req, res) {
         if (!document.getElementById("rc-bundle-hide-style")) {
           var st = document.createElement("style");
           st.id = "rc-bundle-hide-style";
-          st.textContent = 'body.rec-bundle-active form[action*="/cart/add"] button[name="add"],body.rec-bundle-active form[action*="/cart/add"] [type="submit"],body.rec-bundle-active form[action*="/cart/add"] quantity-input,body.rec-bundle-active form[action*="/cart/add"] .product-form__quantity,body.rec-bundle-active form[action*="/cart/add"] .quantity__rules{display:none !important}'
-            // Tiendanube: el pack reemplaza al botón y la cantidad del tema (nunca a nuestro bloque .rc-once)
-            + 'body.rec-bundle-active form.js-product-form:not(.rc-once) [type="submit"],body.rec-bundle-active form#product_form:not(.rc-once) [type="submit"],body.rec-bundle-active form[action*="/comprar"]:not(.rc-once) .js-addtocart,body.rec-bundle-active form[action*="/comprar"]:not(.rc-once) [type="submit"],body.rec-bundle-active form[action*="/comprar"]:not(.rc-once) .js-quantity-input,body.rec-bundle-active form[action*="/comprar"]:not(.rc-once) .js-quantity-container{display:none !important}';
+          st.textContent = 'body.rec-bundle-active form[action*="/cart/add"] button[name="add"],body.rec-bundle-active form[action*="/cart/add"] [type="submit"],body.rec-bundle-active form[action*="/cart/add"] quantity-input,body.rec-bundle-active form[action*="/cart/add"] .product-form__quantity,body.rec-bundle-active form[action*="/cart/add"] .quantity__rules{display:none !important}';
+          if (IS_TN) {
+            st.textContent +=
+              // siempre en modo packs: precio y cantidad del tema
+              withNotOurs(TN_THEME_PRICE) + "{display:none !important}" +
+              withNotOurs(TN_THEME_QTY) + "{display:none !important}" +
+              // en suscripción: el botón del tema; en compra única: el nuestro
+              withNotOurs(TN_THEME_BUY).replace(/body\.rec-bundle-active /g, "body.rec-bundle-active.rec-sub-active ") + "{display:none !important}" +
+              'body.rec-bundle-active:not(.rec-sub-active) #recurrentes-widget [data-rc-action="cta"]{display:none !important}';
+          }
           document.head.appendChild(st);
         }
         try {
           document.body.classList.add("rec-bundle-active");
           document.body.classList.toggle("rec-sub-active", state.mode === "sub");
         } catch(e){}
+        syncThemeQty();
         try {
           document.dispatchEvent(new CustomEvent("recurrentes:mode-change", { detail: { mode: state.mode, packIndex: state.idx, qty: packQty(), bundle: true } }));
         } catch(e){}
