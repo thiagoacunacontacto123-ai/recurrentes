@@ -254,6 +254,7 @@ export function PlansPage({ merchant, onMerchantChange }) {
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(min(100%, 320px), 1fr))", gap:12 }}>
               {list.map(p => {
                 const manualPlan = p.item_source === "manual" || !p.shopify_variant_id;
+                const esTiendanube = profile.channel === "tiendanube";
                 const hasDiscount = (p.discount_pct || 0) > 0;
                 const st = stat(p);
                 const share = totalMrr ? Math.round((st.mrr / totalMrr) * 100) : 0;
@@ -316,7 +317,9 @@ export function PlansPage({ merchant, onMerchantChange }) {
                       <Btn T={T} variant="secondary" size="sm" onClick={()=>setEditor({ plan: p })} style={{ flex:1, justifyContent:"center" }}>Editar</Btn>
                       {manualPlan
                         ? <Btn T={T} variant="secondary" size="sm" onClick={()=>setLinkFor(p)} style={{ flex:1, justifyContent:"center" }}>🔗 Link</Btn>
-                        : <Btn T={T} variant="secondary" size="sm" onClick={()=>setEmbedFor(p)} style={{ flex:1, justifyContent:"center" }}>&lt;/&gt; Snippet</Btn>}
+                        : esTiendanube
+                          ? <BotonBloqueTn T={T} plan={p} onDone={load}/>
+                          : <Btn T={T} variant="secondary" size="sm" onClick={()=>setEmbedFor(p)} style={{ flex:1, justifyContent:"center" }}>&lt;/&gt; Snippet</Btn>}
                     </div>
                   </article>
                 );
@@ -334,6 +337,38 @@ export function PlansPage({ merchant, onMerchantChange }) {
 
 // Alias para el Dashboard (import histórico).
 export const PlansTab = PlansPage;
+
+// ── Tiendanube: poner o sacar el bloque de suscripción ──────────────────────
+// Tiendanube solo inyecta scripts de apps aprobadas, y cerró las vías nativas
+// para pegar uno a mano (ver Guía → Poner el widget en tu Tiendanube). Pero sí
+// acepta HTML con estilos en línea en la descripción del producto, y tenemos
+// permiso de escritura: el bloque lo ponemos nosotros, el comerciante no toca
+// código. Al sacarlo, su descripción queda exactamente como estaba.
+function BotonBloqueTn({ T, plan, onDone }) {
+  const [busy, setBusy] = useState(false);
+  const puesto = Boolean(plan.tiendanube_block_at);
+
+  async function toggle() {
+    if (puesto) {
+      const ok = await appConfirm("Sacamos el bloque de suscripción de la descripción del producto. Tu descripción queda como estaba.", { title: "¿Sacar de la tienda?", okLabel: "Sacar" });
+      if (!ok) return;
+    }
+    setBusy(true);
+    const d = await apiPost("shopify", { plan_id: plan.id, on: !puesto }, { action: "tn-block" });
+    setBusy(false);
+    if (d?.error) return toast("Error: " + d.error, "error", 7000);
+    toast(puesto ? "Lo sacamos del producto" : "Listo: ya se ve en la página del producto", "success");
+    onDone?.();
+  }
+
+  return (
+    <Btn T={T} variant={puesto ? "secondary" : "primary"} size="sm" disabled={busy} onClick={toggle}
+      style={{ flex:1, justifyContent:"center" }}
+      title={puesto ? "Sacar el bloque de la descripción del producto" : "Mostrar la suscripción en la página del producto"}>
+      {busy ? "Guardando…" : (puesto ? "✓ En la tienda" : "Poner en la tienda")}
+    </Btn>
+  );
+}
 
 export function EmbedSnippetModal({ plan, merchant, onClose }) {
   const T = useT();

@@ -22,7 +22,7 @@ import {
 } from "./tiendanube.js";
 import { merchantProfile } from "../../shared/platform/profile.js";
 
-export const TN_ACTIONS = ["tn-oauth-start", "tn-callback", "tn-products", "tn-webhooks", "tn-claim", "tn-install-script", "tn-disconnect"];
+export const TN_ACTIONS = ["tn-oauth-start", "tn-callback", "tn-products", "tn-webhooks", "tn-claim", "tn-install-script", "tn-disconnect", "tn-block"];
 
 // /api/tiendanube/callback | /api/tiendanube/webhooks → acción (por si el rewrite no pasa ?action=).
 export function tnActionFromPath(url) {
@@ -44,6 +44,7 @@ export async function tiendanubeApi(action, req, res) {
   if (action === "tn-claim") return handleClaim(req, res);
   if (action === "tn-install-script") return handleInstallScript(req, res);
   if (action === "tn-disconnect") return handleDisconnect(req, res);
+  if (action === "tn-block") return handleBlock(req, res);
   return res.status(400).json({ error: `action debe ser ${TN_ACTIONS.join(" | ")}` });
 }
 
@@ -261,6 +262,52 @@ async function handleInstallScript(req, res) {
   const out = await setupStore(ctx.merchantId, m.tiendanube_store_id, m.tiendanube_token);
   if (out.script_error) return res.status(502).json({ error: `Tiendanube no aceptó el widget: ${out.script_error}` });
   return res.json({ ok: true, ...out });
+}
+
+// ─── action=tn-block ────────────────────────────────────────────────────────
+// POST { plan_id, on }  (auth, dueño) → escribe o saca el bloque de suscripción
+// en la DESCRIPCIÓN del producto de Tiendanube.
+//
+// Es el reemplazo del widget mientras Tiendanube no inyecte nuestro script (solo
+// lo hace con apps aprobadas). Como tenemos write_products, lo ponemos nosotros:
+// el comerciante no pega código en ningún lado. Es HTML con estilos en línea, sin
+// JavaScript, que es lo único que Tiendanube deja pasar en una descripción.
+async function handleBlock(req, res) {
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  const ctx = await requireMerchant(req, res);
+  if (!ctx) return;
+  if (!isOwner(ctx)) return res.status(403).json({ error: "Solo el dueño de la tienda puede administrar las integraciones." });
+  const planId = String(req.body?.plan_id || "").trim();
+  const on = req.body?.on !== false;
+  if (!planId) return res.status(400).json({ error: "Falta plan_id" });
+  const ref = merchants().doc(ctx.merchantId);
+  const m = (await ref.get()).data() || {};
+  if (!m.tiendanube_token || !m.tiendanube_store_id) return res.status(400).json({ error: "Conectá Tiendanube primero." });
+  const planSnap = await ref.collection("plans").doc(planId).get();
+  if (!planSnap.exists) return res.status(404).json({ error: "No encontré el plan" });
+  const plan = planSnap.data();
+  const productId = plan.shopify_product_id;   // id del producto de la tienda (campo histórico)
+  if (!productId) return res.status(400).json({ error: "El plan no está atado a un producto del catálogo." });
+
+  try {
+    const { tnGetProductDescription, tnSetProductDescription } = await import("./tiendanube.js");
+    const { tnSubscriptionBlock, upsertBlock, stripBlock } = await import("../../shared/platform/tnBlock.js");
+    const actual = await tnGetProductDescription(m.tiendanube_store_id, m.tiendanube_token, productId);
+    let next;
+    if (on) {
+      const base = appBaseUrl() || "https://www.recurrentesapp.com";
+      const checkoutUrl = `${base}/#/checkout?merchant=${encodeURIComponent(ctx.merchantId)}&plan=${encodeURIComponent(planId)}`;
+      next = upsertBlock(actual.html, tnSubscriptionBlock({ plan, planId, checkoutUrl, brandColor: m.widget_color || "#10b981" }));
+    } else {
+      next = stripBlock(actual.html);
+    }
+    await tnSetProductDescription(m.tiendanube_store_id, m.tiendanube_token, productId, next, actual.lang);
+    await ref.collection("plans").doc(planId).set({ tiendanube_block_at: on ? nowIso() : null }, { merge: true });
+    productsCache.delete(ctx.merchantId);
+    return res.json({ ok: true, on });
+  } catch (e) {
+    return res.status(502).json({ error: `Tiendanube no aceptó el cambio: ${e.message}` });
+  }
 }
 
 // ─── action=tn-disconnect ───────────────────────────────────────────────────

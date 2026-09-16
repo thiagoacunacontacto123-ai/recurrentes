@@ -413,6 +413,25 @@ const STOCK_RE = /stock|inventor|estoque|sin existencias|out of/i;
 /**
  * Crea la orden PAGA. Devuelve { id, number, reused? }. LANZA si Tiendanube la rechaza.
  */
+// ─── Descripción de un producto (para el bloque de suscripción) ─────────────
+// Tiendanube guarda la descripción por idioma: { es: "...", pt: null }. Leemos y
+// escribimos respetando el idioma que ya tenía, así una tienda en portugués no
+// termina con la descripción en la clave equivocada.
+export async function tnGetProductDescription(storeId, token, productId) {
+  const { data } = await call(storeId, token, "GET", `/products/${productId}?fields=id,description`);
+  const d = data?.description;
+  if (d && typeof d === "object") {
+    const lang = Object.keys(d).find(k => typeof d[k] === "string" && d[k]) || Object.keys(d)[0] || "es";
+    return { html: String(d[lang] || ""), lang };
+  }
+  return { html: String(d || ""), lang: "es" };
+}
+
+export async function tnSetProductDescription(storeId, token, productId, html, lang = "es") {
+  await call(storeId, token, "PUT", `/products/${productId}`, { description: { [lang]: String(html || "") } }, { retry5xx: false });
+  return true;
+}
+
 // ─── Envío en la orden: el fulfillment order ────────────────────────────────
 // Tiendanube guarda el envío en una entidad aparte (Fulfillment Order), NO en la
 // orden: `POST /orders` acepta `shipping_option` (un nombre) y descarta el resto
