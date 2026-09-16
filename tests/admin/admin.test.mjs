@@ -82,14 +82,14 @@ charge("lumina", "c5", { amount_ars: 3000, status: "approved", created_at: ago(4
 charge("lumina", "c6", { amount_ars: 4000, status: "rejected", created_at: ago(5) });
 const luminaSeed = JSON.stringify(doc("merchants/lumina"));
 
-// Newbie: gimnasio sin tienda, 8 activas → le toca Starter, lo pidió.
+// Newbie: gimnasio sin tienda, 15 activas → le toca Starter (11–50), lo pidió.
 put("merchants/newbie", { email: "newbie@x.com", store_name: "Gym Norte", owner_name: "Nico", owner_whatsapp: "+54 9 11 2222-3333", created_at: ago(3), plan: "free", business_type: "service", channel: "none", mp_access_token: "APP_USR-y", plan_requested: "starter", plan_requested_at: ago(1) });
-for (let i = 0; i < 8; i++) sub("newbie", `n${i}`, { status: "active", plan_snapshot: { total_per_charge_ars: 1000, frequency_days: 30 } });
+for (let i = 0; i < 15; i++) sub("newbie", `n${i}`, { status: "active", plan_snapshot: { total_per_charge_ars: 1000, frequency_days: 30 } });
 charge("newbie", "k1", { amount_ars: 1000, status: "approved", created_at: ago(1) });
 
-// Payer: Growth activado, 35 activas.
+// Payer: Growth activado, 60 activas (51–100).
 put("merchants/payer", { email: "payer@x.com", store_name: "Payer Store", created_at: ago(40), plan: "free", plan_activated: "growth", shopify_token: "t", mp_access_token: "t" });
-for (let i = 0; i < 35; i++) sub("payer", `p${i}`, { status: "active", plan_snapshot: { total_per_charge_ars: 2000, frequency_days: 30 } });
+for (let i = 0; i < 60; i++) sub("payer", `p${i}`, { status: "active", plan_snapshot: { total_per_charge_ars: 2000, frequency_days: 30 } });
 
 put("merchants/m_extra", { store_name: "Payer 2", is_store: true, ownerUid: "payer", created_at: ago(3), plan: "free" });
 put("merchants/gone", { email: "gone@x.com", created_at: ago(2), deleted: true });
@@ -135,7 +135,7 @@ put("merchants/old", { email: "old@x.com", created_at: ago(35), plan: "free" });
   ok(byId(o.by_business_type).physical === 4 && byId(o.by_business_type).service === 1, "reparto por tipo de negocio");
   const tier = Object.fromEntries(o.by_tier.map(x => [x.id, x]));
   ok(tier.beta?.count === 1 && tier.free?.count === 2 && tier.starter?.count === 1 && tier.growth?.count === 1 && tier.growth?.activated === 1, "reparto por plan del SaaS (beta 1 · free 2 · starter 1 · growth 1 pagando)", o.by_tier);
-  ok(o.saas.paying === 1 && o.saas.usd_month === 69 && o.saas.beta === 1, "pagan 1 (US$ 69/mes), beta 1", o.saas);
+  ok(o.saas.paying === 1 && o.saas.usd_month === 99 && o.saas.beta === 1, "pagan 1 (US$ 99/mes), beta 1", o.saas);
   ok(o.needs_activation.length === 1 && o.needs_activation[0].id === "newbie" && o.needs_activation[0].tier === "starter" && o.needs_activation[0].plan_requested === "starter", "para activar: Gym Norte → Starter (lo pidió)", o.needs_activation);
   ok(o.stats_pending === 0, "todos los números calculados");
   const cache = doc("admin_cache/merchant_stats");

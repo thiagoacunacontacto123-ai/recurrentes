@@ -3,23 +3,34 @@
 // (Billing.jsx, Landing.jsx).
 //
 // El precio sale de la cantidad de SUSCRIPTORES ACTIVOS de la tienda (no se
-// elige): los primeros 5 son gratis y después sube por tramos. Todo lo demás
-// está incluido en todos los planes.
+// elige): los primeros 10 son gratis y después sube por tramos. La instalación
+// es gratis siempre. Todo lo demás está incluido en todos los planes.
 //
 // Suscriptor activo = sub con status "active" o "payment_failed" (MP sigue
 // reintentando el cobro). Pausados, cancelados y los que nunca pagaron no cuentan.
+//
+// Escala del 16-sept-2026 (Thiago). Por suscriptor, piso → tope del tramo:
+//   11–50 → 4,45 → 0,98 · 51–100 → 1,94 → 0,99 · 101–300 → 1,97 → 0,66
+//   301–1000 → 1,16 → 0,35 · 1001–2000 → 0,50 → 0,25 · 2001–5000 → 0,37 → 0,15
+//   5001–10000 → 0,20 → 0,10 · +10000 → 0,20 → ↓
 
 export const BILLABLE_STATUSES = ["active", "payment_failed"];
-export const FREE_SUBSCRIBERS = 5;
+export const FREE_SUBSCRIBERS = 10;
+export const INSTALL_USD = 0; // la instalación es gratis, siempre
 
 // max null = sin techo. Los tramos son contiguos: min del siguiente = max + 1.
+// Los ids viejos (starter/growth/scale/pro/unlimited) se conservan para que
+// `plan_activated` de cuentas existentes siga resolviendo.
 export const PRICING_TIERS = [
-  { id: "free",      label: "Free",      usd: 0,   min: 0,    max: 5 },
-  { id: "starter",   label: "Starter",   usd: 29,  min: 6,    max: 30 },
-  { id: "growth",    label: "Growth",    usd: 69,  min: 31,   max: 100 },
-  { id: "scale",     label: "Scale",     usd: 99,  min: 101,  max: 300 },
-  { id: "pro",       label: "Pro",       usd: 149, min: 301,  max: 1000 },
-  { id: "unlimited", label: "Unlimited", usd: 299, min: 1001, max: null },
+  { id: "free",       label: "Free",       usd: 0,    min: 0,     max: 10 },
+  { id: "starter",    label: "Starter",    usd: 49,   min: 11,    max: 50 },
+  { id: "growth",     label: "Growth",     usd: 99,   min: 51,    max: 100 },
+  { id: "scale",      label: "Scale",      usd: 199,  min: 101,   max: 300 },
+  { id: "pro",        label: "Pro",        usd: 349,  min: 301,   max: 1000 },
+  { id: "business",   label: "Business",   usd: 499,  min: 1001,  max: 2000 },
+  { id: "enterprise", label: "Enterprise", usd: 749,  min: 2001,  max: 5000 },
+  { id: "max",        label: "Max",        usd: 999,  min: 5001,  max: 10000 },
+  { id: "unlimited",  label: "Unlimited",  usd: 1999, min: 10001, max: null },
 ];
 
 export const TIER_BY_ID = Object.fromEntries(PRICING_TIERS.map(t => [t.id, t]));

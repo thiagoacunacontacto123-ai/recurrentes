@@ -505,7 +505,7 @@ const FAQS = [
   ["¿Con qué medios paga el cliente?", "Con tarjeta de crédito, y con débito o dinero en cuenta cuando Mercado Pago lo habilita para suscripciones."],
   ["¿Funciona con Tiendanube?", "Muy pronto. Hoy funciona con Shopify y con el link de suscripción, que sirve para cualquier negocio aunque no tenga tienda."],
   ["¿Puedo vender sin tienda online?", "Sí. Cada plan tiene su link: lo compartís por Instagram, WhatsApp o tu web, y el cliente se suscribe desde ahí."],
-  ["¿Cuánto cuesta Recurrentes?", `Es gratis hasta ${FREE_SUBSCRIBERS} suscriptores activos. Después pagás según cuántos clientes tenés cobrando, desde USD 29 por mes, con todo incluido.`],
+  ["¿Cuánto cuesta Recurrentes?", `Es gratis hasta ${FREE_SUBSCRIBERS} suscriptores activos. Después pagás según cuántos clientes tenés cobrando, desde USD 49 por mes, con todo incluido.`],
   ["¿Qué cuenta como suscriptor activo?", "Un cliente con su suscripción cobrando, o con un pago que Mercado Pago está reintentando. Los pausados y cancelados no cuentan."],
   ["¿Puedo dar descuentos?", "Sí: descuento por suscribirse, packs con mejor precio, cupones y descuento solo en el primer cobro."],
   ["¿Mercado Pago me cobra comisión?", "Sí, la comisión habitual de Mercado Pago por cada cobro, como en cualquier venta. Recurrentes no suma comisión por cobro: pagás un plan según tus suscriptores."],

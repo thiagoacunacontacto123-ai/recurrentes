@@ -95,12 +95,17 @@ Se paga por suscriptores activos, y todas las funciones están en todos los plan
 
 | Plan | Suscriptores activos | Precio |
 |---|---|---|
-| Free | hasta 5 | US$ 0 |
-| Starter | 6 a 30 | US$ 29/mes |
-| Growth | 31 a 100 | US$ 69/mes |
-| Scale | 101 a 300 | US$ 99/mes |
-| Pro | 301 a 1000 | US$ 149/mes |
-| Unlimited | más de 1000 | US$ 299/mes |
+| Free | hasta 10 | US$ 0 |
+| Starter | 11 a 50 | US$ 49/mes |
+| Growth | 51 a 100 | US$ 99/mes |
+| Scale | 101 a 300 | US$ 199/mes |
+| Pro | 301 a 1000 | US$ 349/mes |
+| Business | 1001 a 2000 | US$ 499/mes |
+| Enterprise | 2001 a 5000 | US$ 749/mes |
+| Max | 5001 a 10000 | US$ 999/mes |
+| Unlimited | más de 10000 | US$ 1999/mes |
+
+Instalación gratis en todos los planes.
 
 Sin costo de instalación y sin comisión por venta. Las comisiones de Mercado Pago son las de
 tu propia cuenta y no las tocamos.

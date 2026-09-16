@@ -185,7 +185,7 @@ de los bordes, 56 px de alto, con "Recurrentes" a su derecha en blanco, sans ser
 Paleta estricta: fondo #0B1220, acento #10b981, texto #F8FAFC, secundario #94A3B8, tarjetas
 #131C2E con borde 1 px #283650. Línea verde de 8 px en el borde superior.
 
-Titular arriba, blanco, bold, 66 px, texto literal: "Gratis hasta 5 suscriptores"
+Titular arriba, blanco, bold, 66 px, texto literal: "Gratis hasta 10 suscriptores"
 Subtítulo debajo en #94A3B8, 30 px: "Después pagás por suscriptores activos, con todas las
 funciones incluidas."
 
@@ -202,10 +202,10 @@ Mitad derecha: cuatro tarjetas de precio chicas en una fila, esquinas redondeada
 separadas por 24 px. La primera resaltada con borde verde #10b981 de 3 px y su nombre en verde;
 las otras tres con borde gris tenue y nombre en blanco. Cada una lleva el nombre en bold 30 px,
 el rango en #94A3B8 de 24 px y el precio en blanco bold de 44 px. Textos literales:
-"Free" / "hasta 5" / "US$ 0"
-"Starter" / "6 a 30" / "US$ 29"
-"Growth" / "31 a 100" / "US$ 69"
-"Scale" / "101 a 300" / "US$ 99"
+"Free" / "hasta 10" / "US$ 0"
+"Starter" / "11 a 50" / "US$ 49"
+"Growth" / "51 a 100" / "US$ 99"
+"Scale" / "101 a 300" / "US$ 199"
 
 No incluyas logos de terceros. Sin emojis, sin personas, sin fotos de stock. Todo el texto
 exactamente como se indica, en español, con tildes y sin errores. Los montos y números deben
