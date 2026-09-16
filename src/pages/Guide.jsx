@@ -49,7 +49,8 @@ export default function GuidePage({ merchant, goTab, embedded = false, initial }
   const go = (id) => { setSec(id); try { if (!embedded) window.history.replaceState(null, "", `${window.location.pathname}#/dashboard/guia?s=${id}`); window.scrollTo({ top: 0, behavior: "smooth" }); } catch (_) {} };
   const origin = typeof window !== "undefined" ? window.location.origin : "https://recurrentesapp.com";
   const mid = merchant?.id || "<tu-id>";
-  const ctx = { T, go, goTab, onb, origin, mid, merchant };
+  const canal = merchant?.channel || "shopify";
+  const ctx = { T, go, goTab, onb, origin, mid, merchant, canal };
 
   const Body = ({
     inicio: SecInicio, shopify: SecShopify, mp: SecMp, planes: SecPlanes, diseno: SecDiseno,
@@ -284,8 +285,9 @@ function SecDiseno({ T, onb, goTab }) {
   );
 }
 
-function SecSnippet({ T, onb, goTab, origin, mid }) {
+function SecSnippet({ T, onb, goTab, origin, mid, canal }) {
   const snippet = `<script src="${origin}/widget.js?merchant=${mid}" defer></script>`;
+  if (canal === "tiendanube") return <SnippetTiendanube T={T} onb={onb} snippet={snippet}/>;
   return (
     <>
       <Sec T={T} title="Pegar el snippet en tu tienda" sub="Una línea de código, una sola vez. Elegí la forma que te resulte más cómoda: como bloque Custom Liquid (sin tocar código) o en templates/product.json (editor de código)."
@@ -315,6 +317,61 @@ function SecSnippet({ T, onb, goTab, origin, mid }) {
           <>Abrí en tu tienda un producto <B T={T}>que tenga plan activo</B> en Recurrentes.</>,
           <>Debajo (o arriba) del botón de compra tenés que ver el selector <B T={T}>Suscripción / Compra única</B> con tus packs.</>,
           <>Si no aparece: revisá que el plan esté activo, que el snippet esté en la plantilla de producto correcta (algunos themes usan varias) y recargá sin caché (Ctrl/Cmd + Shift + R).</>,
+        ]}/>
+      </Sec>
+    </>
+  );
+}
+
+// ── Tiendanube: el snippet se pega a mano ────────────────────────────────────
+// Tiendanube solo inyecta los scripts de apps aprobadas, así que hasta que la
+// nuestra esté publicada el comerciante lo pega él. El campo "Códigos externos →
+// Para la Tienda" ya no existe en las tiendas nuevas (lo dieron de baja en marzo
+// de 2024), y en páginas de contenido y descripciones los <script> se borran por
+// seguridad. Quedan dos caminos reales: Google Tag Manager —lo que Tiendanube
+// recomienda— y el FTP del tema.
+function SnippetTiendanube({ T, onb, snippet }) {
+  return (
+    <>
+      <Sec T={T} title="Poner el widget en tu Tiendanube" sub="Una línea de código, una sola vez. Hay dos formas: con Google Tag Manager (recomendada) o editando el código del tema."
+        right={<><StepStatus T={T} onb={onb} id="snippet"/>{onb && !onb.steps?.find(s => s.id === "snippet")?.done && <Btn T={T} variant="success" size="sm" onClick={() => onb.setManual(onb.steps.find(s => s.id === "snippet"), true)}>Ya lo pegué ✓</Btn>}</>}>
+        <P T={T}>Este es tu código. Es el mismo para las dos formas:</P>
+        <CodeBlock T={T} code={snippet} label="Copiar código"/>
+
+        <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, margin:"16px 0 6px" }}>Opción A · Google Tag Manager (recomendada)</div>
+        <P T={T}>Es la que Tiendanube recomienda desde que dieron de baja los códigos de tracking. No tocás el código de tu tienda y no te bloquea nada.</P>
+        <Steps T={T} items={[
+          <>Si no tenés cuenta, creá una gratis en <B T={T}>tagmanager.google.com</B> y armá un contenedor de tipo <B T={T}>Web</B> con el dominio de tu tienda.</>,
+          <>En Tiendanube: <B T={T}>Configuración → Códigos externos → Google Tag Manager</B>, pegá el id del contenedor (arranca con <Code T={T}>GTM-</Code>) y guardá.<Crumb T={T} path="Tiendanube › Configuración › Códigos externos › Google Tag Manager"/></>,
+          <>En Tag Manager: <B T={T}>Etiquetas → Nueva → Configuración → HTML personalizado</B>. Pegá el código de arriba.</>,
+          <>En <B T={T}>Activación</B> elegí <B T={T}>All Pages</B> (todas las páginas). El widget se muestra solo en las de producto con plan activo, así que no molesta en el resto.</>,
+          <>Guardá la etiqueta y tocá <B T={T}>Enviar</B> arriba a la derecha para publicar el contenedor. Si no publicás, no se aplica.</>,
+        ]}/>
+        <Callout T={T} tone="warning" title="Qué plan necesitás">
+          La integración con Tag Manager no está disponible en el plan <B T={T}>Tienda Inicial</B> ni en el gratis. Si estás en esos, usá la opción B.
+        </Callout>
+
+        <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, margin:"16px 0 6px" }}>Opción B · El código del tema (por FTP)</div>
+        <Steps T={T} items={[
+          <>En Tiendanube: <B T={T}>Tienda online → Diseño</B>, y debajo de tu diseño actual tocá <B T={T}>Editar el código</B>.<Crumb T={T} path="Tiendanube › Tienda online › Diseño › Editar el código"/></>,
+          <>Leé la advertencia, tocá <B T={T}>Abrir FTP</B> y generá las credenciales (host, usuario y contraseña).</>,
+          <>Conectate con un cliente FTP —FileZilla es el que recomienda Tiendanube— con el <B T={T}>tipo de transferencia en binario</B>.</>,
+          <>Abrí la plantilla del producto (<Code T={T}>product.tpl</Code> o el archivo equivalente de tu tema) y pegá el código antes de <Code T={T}>&lt;/body&gt;</Code>. Subí el archivo.</>,
+        ]}/>
+        <Callout T={T} tone="warning" title="Antes de elegir esta opción">
+          Dos cosas que conviene saber: el acceso por FTP <B T={T}>no está en todos los planes</B>, y mientras la edición de código esté activa <B T={T}>no vas a poder cambiar de plantilla</B> hasta desactivarla. Si podés usar Tag Manager, usá Tag Manager.
+        </Callout>
+
+        <Callout T={T} tone="info" title="¿Por qué no es automático?">
+          Tiendanube inyecta los scripts solo de las apps ya aprobadas en su tienda de aplicaciones. La nuestra está en homologación: cuando la aprueben, esto desaparece y el widget se instala solo al conectar la tienda. Todo lo demás —los planes, los cobros, las órdenes— ya funciona sin esperar nada.
+        </Callout>
+      </Sec>
+
+      <Sec T={T} title="Cómo saber si quedó bien">
+        <Steps T={T} items={[
+          <>Abrí en tu tienda un producto <B T={T}>que tenga plan activo</B> en Recurrentes.</>,
+          <>Tenés que ver el selector <B T={T}>Suscripción / Compra única</B>. Si tu tema carga el script al interactuar, bajá un poco o hacé un clic.</>,
+          <>Si no aparece: recargá sin caché (Ctrl/Cmd + Shift + R). Si usaste Tag Manager, verificá que hayas tocado <B T={T}>Enviar</B> para publicar el contenedor — es lo que más se olvida.</>,
         ]}/>
       </Sec>
     </>
