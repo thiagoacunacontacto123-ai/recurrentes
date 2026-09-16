@@ -311,11 +311,30 @@ export default async function handler(req, res) {
       .catch(function(){ return null; });
   }
 
+  // El formulario de compra del TEMA. Excluimos explícitamente:
+  //  · los formularios del carrito / mini-carrito (también postean a /comprar o
+  //    /carrito): montarse ahí ponía el widget dentro del cajón del carrito;
+  //  · nuestro propio bloque HTML (.rc-once), que también postea a /comprar/.
   function tnProductForm() {
-    return document.querySelector(
-      'form.js-product-form, form#product_form, form[action*="/comprar"], ' +
-      'form[action*="/carrito"], form[data-store="product-form"], form[data-component="product-form"]'
-    );
+    // 1) Selectores inequívocos del formulario de producto: el carrito nunca los usa.
+    var directo = document.querySelector('form.js-product-form, form#product_form, form[data-store="product-form"], form[data-component="product-form"]');
+    if (directo) return directo;
+    // 2) Genérico por action=/comprar: acá SÍ hay que filtrar, porque el carrito y
+    //    nuestro propio bloque HTML también postean ahí.
+    var list = document.querySelectorAll('form[action*="/comprar"]');
+    for (var i = 0; i < list.length; i++) {
+      var f = list[i];
+      var inCart = false;
+      try {
+        if (f.classList && f.classList.contains("rc-once")) continue;
+        if (f.closest && (f.closest(".recurrentes-bloque") || f.closest('[class*="cart"], [id*="cart"], [class*="carrito"], [id*="carrito"], [data-store*="cart"]'))) inCart = true;
+      } catch(e) {}
+      if (inCart) continue;
+      // Un formulario de producto de verdad tiene el input de la variante o el botón de agregar.
+      if (!f.querySelector('[name="add_to_cart"], [name="variant_id"], [name="variant"], .js-variation-option, .js-addtocart')) continue;
+      return f;
+    }
+    return null;
   }
   // Suscribirse en Tiendanube: checkout de Recurrentes (#/checkout) con plan + cantidad.
   function tnCheckoutUrl(plan, qty) {
@@ -953,13 +972,20 @@ export default async function handler(req, res) {
       var sel = ['[data-store="product-info"]', ".js-product-detail", ".product-info",
                  '[data-component="product-info"]', "main h1", "h1"];
       for (var i = 0; i < sel.length; i++) {
-        try { hideAnchor = document.querySelector(sel[i]); } catch(e) {}
-        if (hideAnchor) { log("Tiendanube: monto sobre " + sel[i]); break; }
+        var cand = null;
+        try { cand = document.querySelector(sel[i]); } catch(e) {}
+        if (cand && cand.closest('[class*="cart"], [id*="cart"], [class*="carrito"], [id*="carrito"]')) cand = null;
+        if (cand) { hideAnchor = cand; log("Tiendanube: monto sobre " + sel[i]); break; }
       }
     }
     if (!mountPoint && !form && !hideAnchor) {
       log("No hay mount point ni form/cart/add ni hide anchor. Widget no se monta.");
       return;
+    }
+    // Tiendanube: si el script llegó a inyectarse, el bloque HTML que pusimos en
+    // la descripción (el plan B sin JavaScript) queda repetido. Lo escondemos.
+    if (IS_TN) {
+      try { document.querySelectorAll(".recurrentes-bloque").forEach(function (el) { el.style.display = "none"; }); } catch(e) {}
     }
 
     // ─── Modo PACKS: selector de packs precalculado (shared/bundle) ───
