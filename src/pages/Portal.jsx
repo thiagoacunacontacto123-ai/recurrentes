@@ -297,7 +297,7 @@ function AddressForm({ sub, token, onSaved }) {
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || d.error) { toast("Error: " + (d.error || `HTTP ${r.status}`), "error", 6000); return; }
-      toast("Dirección actualizada. Se usa en tus próximos envíos.", "success", 5000);
+      toast("Dirección actualizada. Se usa a partir de tu próximo envío.", "success", 5000);
       onSaved?.();
     } catch (e) {
       toast("Error: " + e.message, "error", 6000);
@@ -306,6 +306,9 @@ function AddressForm({ sub, token, onSaved }) {
 
   return (
     <div style={{marginTop:12,display:"grid",gap:8}}>
+      <div style={{fontSize:13,lineHeight:1.5,color:"var(--text-md)",background:"var(--surface)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 12px"}}>
+        La dirección nueva se usa <strong>a partir de tu próximo envío</strong>. Si querés cambiar un pedido que ya se hizo, escribile a la marca: puede que ya esté en camino.
+      </div>
       <input value={f.address1} onChange={set("address1")} placeholder="Calle y número *" style={inp}/>
       <input value={f.address2} onChange={set("address2")} placeholder="Piso / depto (opcional)" style={inp}/>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>

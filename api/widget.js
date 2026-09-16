@@ -132,6 +132,7 @@ export default async function handler(req, res) {
   // Tarifas de envío del checkout (editables por el merchant). Sólo name/price/eta/code.
   // [] = sin lista → el embed ofrece el envío del plan (code PLAN).
   let checkoutShippingRates = [];
+  let liveShippingQuotes = false; // Configuración → Shopify → Ajustes: cotizar con el proveedor de envíos
   // Doc crudo del merchant (widget_variant, widget_texts, etc. los lee buildBundleVM).
   let merchantDoc = null;
   try {
@@ -152,6 +153,7 @@ export default async function handler(req, res) {
       if (m.widget_checkout_flow === "inline") checkoutFlow = "inline";
       if (typeof m.widget_checkout_page_path === "string" && m.widget_checkout_page_path.trim()) checkoutPagePath = m.widget_checkout_page_path.trim();
       checkoutShippingRates = resolveCheckoutShippingRates(m);
+      liveShippingQuotes = m.shipping_live_quotes === true;
     }
   } catch (_) {}
   // WhatsApp: casilla "Quiero que me avisen por WhatsApp" SOLO si la tienda tiene quién mande
@@ -209,7 +211,7 @@ export default async function handler(req, res) {
     // Cache corta para el checkout: así un deploy nuevo (ej. cambios de captura de
     // carrito) se propaga en ≤60s a la storefront, en vez de quedar 5 min viejo.
     res.setHeader("Cache-Control", "public, max-age=60");
-    return res.send(buildCheckoutEmbed({ merchantId, apiBase, color: widgetColor, shippingRates: checkoutShippingRates, waOptin }));
+    return res.send(buildCheckoutEmbed({ merchantId, apiBase, color: widgetColor, shippingRates: checkoutShippingRates, waOptin, liveQuotes: liveShippingQuotes }));
   }
 
   const COL_DARK = shade(widgetColor, -35);           // gradient end (botones)
@@ -1375,13 +1377,14 @@ export function waOptinSnippets(color) {
   };
 }
 
-function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates, waOptin = false }) {
+function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates, waOptin = false, liveQuotes = false }) {
   return `(function(){
   "use strict";
   var MERCHANT_ID = ${JSON.stringify(merchantId)};
   var API_BASE = ${JSON.stringify(apiBase)};
   var COL = ${JSON.stringify(color || "#10b981")};
   var SHIPPING_RATES = ${JSON.stringify(Array.isArray(shippingRates) ? shippingRates : [])};
+  var LIVE_QUOTES = ${liveQuotes ? "true" : "false"};
   var PLAN_RATE_CODE = ${JSON.stringify(PLAN_SHIPPING_CODE)};
   if (!MERCHANT_ID) { console.error("[Recurrentes checkout] falta ?merchant en el <script>"); return; }
 
@@ -1442,7 +1445,10 @@ function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates, waOptin
   // merchant no tiene lista, la única opción es el ENVÍO DEL PLAN (code PLAN:
   // shipping_price_ars, gratis desde free_shipping_from_ars). El server sólo
   // acepta el nombre/code y toma el precio de SU lista / del plan (nunca del navegador).
-  var rates = SHIPPING_RATES;
+  // Con cotización en vivo no mostramos los envíos fijos ni un segundo: hasta que el
+  // cliente cargue C.P. y provincia, el bloque explica qué falta.
+  var rates = LIVE_QUOTES ? [] : SHIPPING_RATES;
+  if (LIVE_QUOTES) ratesMsg = "Completá C.P. y provincia para ver los envíos disponibles.";
   function planRate(){ return { name: (plan && plan.shipping_method_name) || "Envío a domicilio", price: (plan && plan.shipping_price_ars) || 0, code: PLAN_RATE_CODE }; }
   // Precio efectivo de una tarifa para un subtotal dado (la del plan respeta "gratis desde $X").
   function ratePrice(rt, subtotal){
@@ -1570,10 +1576,36 @@ function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates, waOptin
       })
       .catch(function(){ rates = [{ name: (plan.shipping_method_name||"Envío"), price: (plan.shipping_price_ars||0) }]; rateIdx = 0; ratesMsg = ""; renderRates(); renderSummary(); });
   }
-  // Envíos fijos: ya no re-consultamos tarifas por CP (antes traía las sucursales
-  // dinámicas de Envialo que no se pueden asignar por API). Los dos envíos a
-  // domicilio están fijos arriba. La dirección/CP se sigue pidiendo para el envío.
-  function onAddrChange(){ /* no-op: envíos fijos */ }
+  // Cotización en vivo (Configuración → Shopify → Ajustes): le pedimos a nuestra
+  // API los envíos reales de la tienda para esta dirección. Devuelve las opciones
+  // del proveedor (Envialo, Andreani…) con su code/source —las que la app de envíos
+  // sabe despachar, sucursales incluidas— más las tarifas manuales del comerciante.
+  // Sin la bandera, quedan los envíos fijos de siempre (SHIPPING_RATES).
+  function fetchLiveRates(){
+    var zip = val("rc-zip"), prov = val("rc-prov"), city = val("rc-city"), addr1 = val("rc-addr1") || val("rc-address1") || "";
+    if (!zip || !prov) { ratesMsg = "Completá C.P. y provincia para ver los envíos disponibles."; renderRates(); renderSummary(); return; }
+    ratesMsg = "Buscando opciones de envío…"; renderRates();
+    var u = API_BASE + "/api/shopify?action=shipping-rates&merchant=" + encodeURIComponent(MERCHANT_ID)
+      + "&variant=" + encodeURIComponent(VARIANT) + "&qty=" + encodeURIComponent(QTY)
+      + "&zip=" + encodeURIComponent(zip) + "&city=" + encodeURIComponent(city) + "&province=" + encodeURIComponent(prov)
+      + "&address1=" + encodeURIComponent(addr1) + "&subtotal=" + encodeURIComponent(plan ? prices().subtotal : 0);
+    fetch(u).then(function(r){ return r.json(); }).then(function(d){
+      var list = (d && d.rates ? d.rates : []).map(function(rt){
+        return { name: rt.name, price: Number(rt.price) || 0, eta: etaFromName(rt.name), code: rt.code || "", source: rt.source || "" };
+      });
+      if (!list.length) list = SHIPPING_RATES.length ? SHIPPING_RATES.slice() : [{ name: (plan.shipping_method_name||"Envío"), price: (plan.shipping_price_ars||0) }];
+      rates = list; rateIdx = 0; ratesMsg = "";
+      renderRates(); renderSummary();
+    }).catch(function(){
+      rates = SHIPPING_RATES.length ? SHIPPING_RATES.slice() : [{ name: (plan.shipping_method_name||"Envío"), price: (plan.shipping_price_ars||0) }];
+      rateIdx = 0; ratesMsg = ""; renderRates(); renderSummary();
+    });
+  }
+  function onAddrChange(){
+    if (!LIVE_QUOTES) return; // envíos fijos: no se re-consulta
+    clearTimeout(rateTimer);
+    rateTimer = setTimeout(fetchLiveRates, 400);
+  }
 
   function renderRates(){
     var box = document.getElementById("rc-rates"); if (!box) return;

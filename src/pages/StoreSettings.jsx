@@ -30,13 +30,9 @@ export default function CheckoutSettings({ merchant, onChange }) {
   const profile = merchantProfile(m);
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
-      {profile.caps.shipping ? (
-        <ShippingRatesCard T={T} m={m} isOwner={isOwner} onChange={onChange} profile={profile}/>
-      ) : (
-        <Callout T={T} tone="info" title="Sin envíos">
-          Tu negocio es de {profile.type.label.toLowerCase()}: el checkout no pide dirección ni cobra envío. Si eso cambia, actualizalo en Configuración → Negocio.
-        </Callout>
-      )}
+      {/* Los envíos ya no se configuran acá: el checkout usa los mismos métodos y
+          precios que la tienda tiene para una venta normal (cotización en vivo, se
+          activa en Integraciones → Shopify → Ajustes). Esta sección es solo descuentos. */}
       <DiscountCodesCard merchant={m} onChange={onChange}/>
     </div>
   );

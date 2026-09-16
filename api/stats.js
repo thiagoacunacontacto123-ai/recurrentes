@@ -113,9 +113,14 @@ export default async function handler(req, res) {
     }
 
     // ── Cancelados últimos 30 días + churn rate ──
+    // Una baja es alguien que PAGÓ y se fue. Los checkouts abandonados que quedan
+    // en "cancelled" sin haber cobrado nunca no son churn: inflaban la tasa
+    // (Lumina mostraba 72% con 22 de 34 "bajas" que jamás pagaron).
     let cancelled30 = 0;
     for (const s of subs) {
       if (s.status !== "cancelled") continue;
+      const pagoAlgunaVez = !!s.last_charge_at || (Array.isArray(s.shopify_orders) && s.shopify_orders.length > 0);
+      if (!pagoAlgunaVez) continue;
       const ts = s.cancelled_at || s.updated_at || "";
       if (ts >= cutoff30) cancelled30++;
     }

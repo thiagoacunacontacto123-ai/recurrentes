@@ -198,6 +198,10 @@ function AppearanceSection({ T, merchant, profile, reloadMerchant, goTab }) {
           </div>
         </Field>
         <Hint T={T}>Cada cliente recibe su link con token propio en el mail de activación. También lo copiás desde la ficha de cada suscripción.</Hint>
+        <div style={{ marginTop:12 }}>
+          <Btn T={T} variant="primary" size="sm" onClick={() => window.open(`${window.location.origin}/#/portal?demo=${encodeURIComponent(merchant?.id || "")}`, "_blank", "noopener")}>Ver cómo lo ve tu cliente →</Btn>
+          <Hint T={T}>Abre el portal real con una suscripción de ejemplo, con tu marca y tus acciones habilitadas. Nada de lo que toques ahí se guarda.</Hint>
+        </div>
       </Panel>
 
       {/* Vista previa en vivo */}
