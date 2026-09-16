@@ -74,6 +74,18 @@ export function PlansPage({ merchant, onMerchantChange, forceSub = null }) {
   // editor: null | { plan: null } (nuevo) | { plan } (edición)
   const [editor, setEditor] = useState(null);
   const [linkFor, setLinkFor] = useState(null);
+  // Desde Widget → "Editar packs de este plan" llega #/dashboard/planes?edit=<id>:
+  // abrimos ese plan en el editor apenas cargan los planes.
+  const [pendingEdit, setPendingEdit] = useState(() => {
+    try { return new URLSearchParams((window.location.hash || "").split("?")[1] || "").get("edit") || null; } catch (_) { return null; }
+  });
+  useEffect(() => {
+    if (forceSub || !pendingEdit || loading) return;
+    const p = plans.find(x => x.id === pendingEdit);
+    setPendingEdit(null);
+    try { window.history.replaceState(null, "", `${window.location.pathname}#/dashboard/planes`); } catch (_) {}
+    if (p) setEditor({ plan: p });
+  }, [forceSub, pendingEdit, loading, plans]);
 
   // Planes y Widget son dos secciones del menú: navegar entre ellas cambia el hash
   // (Dashboard lo escucha). Las URLs viejas (#/dashboard/planes?sub=widget) redirigen.
@@ -189,7 +201,7 @@ export function PlansPage({ merchant, onMerchantChange, forceSub = null }) {
     return (
       <div>
         <PageHeader T={T} title="Widget" subtitle="Cómo se ve el selector de suscripción en tu página de producto. Es global: aplica a todos los planes. Los packs se cargan en cada plan." right={tabs}/>
-        {loading ? <Loading T={T}/> : <WidgetDesigner merchant={merchant} plans={plans} onSaved={onMerchantChange} onEditPlan={(p)=>setEditor({ plan: p })}/>}
+        {loading ? <Loading T={T}/> : <WidgetDesigner merchant={merchant} plans={plans} onSaved={onMerchantChange} onEditPlan={(p)=>{ try { window.location.hash = `#/dashboard/planes?edit=${encodeURIComponent(p.id)}`; } catch (_) {} }}/>}
       </div>
     );
   }
