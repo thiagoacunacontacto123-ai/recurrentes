@@ -132,7 +132,18 @@ export default function Checkout() {
     rateTimer.current = setTimeout(async () => {
       setRatesLoading(true);
       try {
-        const r = await fetch(`/api/shopify?action=shipping-rates&merchant=${encodeURIComponent(merchant)}&province=${encodeURIComponent(province)}&subtotal=${subtotal}`);
+        // Con variante + CP, el backend le pide la cotización a Shopify y trae
+        // las opciones de la app de envíos del comerciante (sucursales incluidas),
+        // con el código que después necesita la orden. Sin eso, tarifas manuales.
+        const q = new URLSearchParams({
+          action: "shipping-rates", merchant, province, subtotal: String(subtotal),
+          qty: String(qty || 1),
+        });
+        if (plan?.shopify_variant_id) q.set("variant", String(plan.shopify_variant_id));
+        if (zip) q.set("zip", zip);
+        if (city) q.set("city", city);
+        if (address1) q.set("address1", address1);
+        const r = await fetch(`/api/shopify?${q.toString()}`);
         const d = await r.json();
         const list = Array.isArray(d.rates) ? d.rates : [];
         setRates(list.length ? list : [planShipping]);
@@ -142,7 +153,7 @@ export default function Checkout() {
     }, 350);
     return () => clearTimeout(rateTimer.current);
     // eslint-disable-next-line
-  }, [plan, cfg, province, subtotal, askAddress]);
+  }, [plan, cfg, province, subtotal, askAddress, zip, city, address1, qty]);
 
   const shippingSel = askAddress ? (rates[rateIdx] || planShipping) : null;
   const shippingPrice = shippingSel ? (Number(shippingSel.price) || 0) : 0;

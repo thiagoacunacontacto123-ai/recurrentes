@@ -112,6 +112,7 @@ export async function createShopifyOrderForSub(merchant, subscriberId, sub, { pa
         shipping_price: sub.plan_snapshot?.shipping_price_ars ?? 0,
         shipping_method_name: sub.plan_snapshot?.shipping_method_name || "Envío a domicilio",
         shipping_method_code: sub.plan_snapshot?.shipping_method_code || "",
+        shipping_method_source: sub.plan_snapshot?.shipping_method_source || "",
         tax_id: sub.customer_tax_id || null,
         tax_id_kind: sub.customer_tax_id_kind || "DNI",
         ...extra,

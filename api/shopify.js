@@ -15,7 +15,7 @@
 //   GET  ?action=shipping-rates-admin (auth, dueño) → tarifas de Shopify para
 //        importarlas al panel: { rates:[{name,price,code,source:"shopify"}], note? }
 import { db, requireMerchant } from "./_lib/firebase.js";
-import { shListProducts, shGetShippingRates, shGetShopInfo, buildShopInfoPatch, shopifyRatesForPanel } from "./_lib/shopify.js";
+import { shListProducts, shGetShippingRates, shQuoteShippingRates, shGetShopInfo, buildShopInfoPatch, shopifyRatesForPanel } from "./_lib/shopify.js";
 import { signToken } from "./_lib/token.js";
 import { appBaseUrl } from "./_lib/config.js";
 import { rateLimit, clientIp } from "./_lib/ratelimit.js";
@@ -70,10 +70,31 @@ async function handleShippingRates(req, res) {
     const snap = await db().collection("merchants").doc(merchantId).get();
     const m = snap.exists ? snap.data() : null;
     if (!m?.shopify_token || !m?.shopify_shop) return res.json({ rates: [] });
-    const rates = await shGetShippingRates(m.shopify_shop, m.shopify_token, {
-      province: req.query.province || "",
-      subtotal: Number(req.query.subtotal || 0),
-    });
+    // 1) Cotización REAL: si vino la variante y un destino, le pedimos a Shopify
+    //    que cotice como en su propio checkout. Eso trae las opciones de las apps
+    //    de envío (Envialo, Andreani…) con su `code` y `source`, que son los que
+    //    necesita la app para despachar. `shipping_zones.json` NO las tiene.
+    let rates = [];
+    const variant = String(req.query.variant || "").trim();
+    if (variant) {
+      rates = await shQuoteShippingRates(m.shopify_shop, m.shopify_token, {
+        variantId: variant,
+        quantity: Number(req.query.qty || 1),
+        address: {
+          zip: req.query.zip || "",
+          city: req.query.city || "",
+          province: req.query.province || "",
+          address1: req.query.address1 || "",
+        },
+      });
+    }
+    // 2) Sin carriers (o sin destino todavía): las tarifas manuales de siempre.
+    if (!rates.length) {
+      rates = await shGetShippingRates(m.shopify_shop, m.shopify_token, {
+        province: req.query.province || "",
+        subtotal: Number(req.query.subtotal || 0),
+      });
+    }
     res.setHeader("Cache-Control", "no-store");
     return res.json({ rates });
   } catch (e) {

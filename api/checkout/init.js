@@ -533,19 +533,64 @@ export default async function handler(req, res) {
   // code PLAN (o sin match) → envío del plan (fijo + envío gratis desde $X), con
   // el MISMO nombre que muestra el embed (plan.shipping_method_name || "Envío a domicilio").
   const freeShippingFrom = parseFloat(plan.free_shipping_from_ars) || 0;
-  let shippingCost, shippingName, shippingCode = "";
+  let shippingCost, shippingName, shippingCode = "", shippingSource = "";
   let matchedRate = null;
   if (caps.shipping && shipping_method && typeof shipping_method === "object" && (shipping_method.name || shipping_method.code)) {
     const wantName = String(shipping_method.name || "").trim().toLowerCase();
     const wantCode = String(shipping_method.code || "").trim();
-    const rates = merchantShippingRates(merchant);
     const wantsPlanRate = wantCode === PLAN_SHIPPING_CODE;
-    if (!wantsPlanRate) {
+
+    // Las tarifas de una app de envíos traen un code estructurado
+    // (`envialo:andreani:andreani_pickup:ship:12218`); las manuales del
+    // comerciante, un nombre o nada. Solo recotizamos en el primer caso, así las
+    // tiendas sin app de envíos no pagan una llamada extra a Shopify.
+    const looksCarrier = wantCode.includes(":");
+    const puedeCotizar = !!(merchant.shopify_shop && merchant.shopify_token && plan.shopify_variant_id);
+
+    // 1) Opción de una app de envíos: RE-COTIZAMOS contra Shopify y usamos su
+    //    precio, nunca el que mandó el navegador. Así la orden sale con el `code`
+    //    (que lleva el id de la sucursal) y el `source` del carrier, y su app la
+    //    despacha igual que una venta del checkout.
+    if (!wantsPlanRate && looksCarrier && puedeCotizar) {
+      try {
+        const quoted = await shopifyLib.shQuoteShippingRates(merchant.shopify_shop, merchant.shopify_token, {
+          variantId: plan.shopify_variant_id,
+          quantity: finalQty,
+          address: { zip: addr.zip, city: addr.city, province: addr.province, address1: addr.address1 },
+        });
+        matchedRate = quoted.find(r => wantCode && String(r.code || "").trim() === wantCode)
+          || quoted.find(r => wantName && String(r.name || "").trim().toLowerCase() === wantName)
+          || null;
+        if (matchedRate) shippingSource = String(matchedRate.source || "");
+      } catch (e) {
+        console.warn("[checkout/init] no pude recotizar el envío:", e.message);
+      }
+    }
+
+    // 2) Tarifas manuales del comerciante (tiendas sin app de envíos).
+    if (!matchedRate && !wantsPlanRate) {
+      const rates = merchantShippingRates(merchant);
       matchedRate = rates.find(r => wantCode && String(r.code || "").trim() && String(r.code).trim() === wantCode)
         || rates.find(r => wantName && String(r.name || "").trim().toLowerCase() === wantName)
         || null;
+      if (!matchedRate && rates.length) console.warn("[checkout/init] shipping_method sin match, uso envío del plan:", { merchantId, name: wantName, code: wantCode, bodyPrice: shipping_method.price });
     }
-    if (!matchedRate && !wantsPlanRate && rates.length) console.warn("[checkout/init] shipping_method sin match, uso envío del plan:", { merchantId, name: wantName, code: wantCode, bodyPrice: shipping_method.price });
+
+    // 3) Último intento: el comerciante tiene app de envíos pero el navegador
+    //    mandó solo el nombre (embed viejo, o tarifa importada sin code).
+    if (!matchedRate && !wantsPlanRate && !looksCarrier && puedeCotizar) {
+      try {
+        const quoted = await shopifyLib.shQuoteShippingRates(merchant.shopify_shop, merchant.shopify_token, {
+          variantId: plan.shopify_variant_id,
+          quantity: finalQty,
+          address: { zip: addr.zip, city: addr.city, province: addr.province, address1: addr.address1 },
+        });
+        matchedRate = quoted.find(r => wantName && String(r.name || "").trim().toLowerCase() === wantName) || null;
+        if (matchedRate) shippingSource = String(matchedRate.source || "");
+      } catch (e) {
+        console.warn("[checkout/init] no pude recotizar el envío por nombre:", e.message);
+      }
+    }
   }
   if (!caps.shipping) {
     // Sin envío (servicios, digitales): el cobro es solo el plan.
@@ -557,6 +602,7 @@ export default async function handler(req, res) {
     // envío como Envialo matchean el método por nombre + code exacto.
     shippingName = String(matchedRate.name).slice(0, 250);
     shippingCode = String(matchedRate.code || "").slice(0, 250);
+    shippingSource = String(matchedRate.source || shippingSource || "").slice(0, 100);
   } else {
     const shippingPrice = parseFloat(plan.shipping_price_ars) || 0;
     shippingCost = (freeShippingFrom > 0 && subtotal >= freeShippingFrom) ? 0 : shippingPrice;
@@ -652,6 +698,7 @@ export default async function handler(req, res) {
       shipping_price_ars: shippingCost,
       shipping_method_name: shippingName,
       shipping_method_code: shippingCode,
+      shipping_method_source: shippingSource,
       qty_discount_pct: qtyDiscountPct,
       discount_code: discountCodeApplied,
       discount_code_pct: discountCodePct,

@@ -165,6 +165,98 @@ export async function shHasRecentPaidOrder(shop, token, email, days = 14) {
 // desde $X) para no ofrecer una tarifa que no aplica a ese carrito.
 // `allZones: true` ignora el filtro de país (importación al panel cuando la
 // tienda no tiene zona Argentina). Cada tarifa incluye `id` (id de Shopify).
+// ─── Tarifas REALES de los carriers (Envialo, Andreani, Correo…) ────────────
+// `shipping_zones.json` solo devuelve las tarifas MANUALES del comerciante. Las
+// que calcula una app de envíos (CarrierService) no están ahí: hay que pedirle a
+// Shopify que cotice, y eso es lo que hace `draftOrderCalculate` — una mutation
+// que NO persiste nada (no crea borradores ni carritos).
+//
+// El `handle` que devuelve es un JWT sin firmar-para-nosotros cuyo payload trae
+// exactamente lo que la app de envíos necesita ver en la orden:
+//   { title, code: "envialo:andreani:andreani_pickup:ship:12218", source: "Envialo", price }
+// El `code` lleva el id de la sucursal al final: sin él, la app no puede despachar.
+export function decodeRateHandle(handle) {
+  try {
+    const part = String(handle || "").split(".")[1];
+    if (!part) return null;
+    const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const json = Buffer.from(b64 + "=".repeat((4 - (b64.length % 4)) % 4), "base64").toString("utf8");
+    const p = JSON.parse(json);
+    return {
+      title: String(p.title || "").trim(),
+      code: String(p.code || "").trim(),
+      source: String(p.source || "").trim(),
+      price: Number(p.price ?? p.price_presentment ?? 0) || 0,
+      currency: String(p.currency || p.currency_presentment || "").trim(),
+    };
+  } catch (_) { return null; }
+}
+
+export async function shopifyGraphql(shop, token, query, variables = {}) {
+  const url = `https://${shop}/admin/api/${API_VERSION}/graphql.json`;
+  const r = await fetchRetry(url, {
+    method: "POST",
+    headers: { "X-Shopify-Access-Token": token, "Content-Type": "application/json", "Accept": "application/json" },
+    body: JSON.stringify({ query, variables }),
+  }, { ms: 12000, retries: 2 });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(`Shopify GraphQL: HTTP ${r.status}`);
+  if (data.errors?.length) throw new Error(`Shopify GraphQL: ${data.errors.map(e => e.message).join("; ")}`);
+  return data.data || {};
+}
+
+const QUOTE_MUTATION = `mutation($input: DraftOrderInput!) {
+  draftOrderCalculate(input: $input) {
+    calculatedDraftOrder { availableShippingRates { handle title price { amount currencyCode } } }
+    userErrors { field message }
+  }
+}`;
+
+/**
+ * Cotiza envío como lo haría el checkout de Shopify: mismas opciones, mismos
+ * precios y — lo importante — los mismos `code`/`source` del carrier, para que
+ * la app de envíos procese la orden igual que una venta suelta.
+ *
+ * Devuelve [] si la tienda no tiene carriers, si falta la dirección o si Shopify
+ * no pudo cotizar. El llamador cae a las tarifas manuales en ese caso.
+ */
+export async function shQuoteShippingRates(shop, token, { variantId, quantity = 1, address = {} } = {}) {
+  if (!variantId) return [];
+  const zip = String(address.zip || "").trim();
+  const city = String(address.city || "").trim();
+  if (!zip && !city) return [];   // sin destino no hay cotización posible
+  const input = {
+    lineItems: [{ variantId: `gid://shopify/ProductVariant/${String(variantId).replace(/\D/g, "")}`, quantity: Math.max(1, parseInt(quantity, 10) || 1) }],
+    shippingAddress: {
+      address1: String(address.address1 || "").trim() || city || "-",
+      city: city || "-",
+      zip,
+      province: String(address.province || "").trim() || undefined,
+      countryCode: String(address.country_code || "AR").toUpperCase(),
+    },
+  };
+  let data;
+  try { data = await shopifyGraphql(shop, token, QUOTE_MUTATION, { input }); }
+  catch (e) { console.warn("[shopify/quote]", e.message); return []; }
+  const errs = data?.draftOrderCalculate?.userErrors || [];
+  if (errs.length) { console.warn("[shopify/quote] userErrors:", JSON.stringify(errs).slice(0, 300)); return []; }
+  const list = data?.draftOrderCalculate?.calculatedDraftOrder?.availableShippingRates || [];
+  const out = [];
+  for (const r of list) {
+    const dec = decodeRateHandle(r.handle) || {};
+    const name = String(r.title || dec.title || "").trim();
+    if (!name) continue;
+    out.push({
+      name: name.slice(0, 250),
+      price: Math.max(0, Math.round(Number(r.price?.amount ?? dec.price ?? 0) || 0)),
+      code: (dec.code || "").slice(0, 250),
+      source: (dec.source || "").slice(0, 100),
+      carrier: true,
+    });
+  }
+  return out;
+}
+
 export async function shGetShippingRates(shop, token, { province = "", subtotal = 0, allZones = false } = {}) {
   let data;
   try { data = await call(shop, token, "GET", "/shipping_zones.json"); }
@@ -340,7 +432,7 @@ export async function shCreatePaidOrder(shop, token, params) {
   const {
     customer_id, line_items, shipping_address, billing_address,
     subscriber_id, plan_id, charge_number, mp_payment_id, total_price,
-    shipping_price, shipping_method_name, shipping_method_code,
+    shipping_price, shipping_method_name, shipping_method_code, shipping_method_source,
     tax_id, tax_id_kind,
     mp_fee_real, // comisión REAL que cobró MP (fee_details del pago). Se guarda en
                  // la orden para que herramientas de márgenes usen el fee exacto.
@@ -370,12 +462,19 @@ export async function shCreatePaidOrder(shop, token, params) {
     shippingPriceNum = 0;
   }
   const shippingPriceStr = shippingPriceNum.toFixed(2);
+  // La app de envíos (Envialo, Andreani…) lee `code` y `source` para saber qué
+  // servicio y qué sucursal despachar: el `code` del carrier termina en el id del
+  // punto de retiro (`envialo:andreani:andreani_pickup:ship:12218`). Sin esos dos
+  // campos la orden le llega como un texto suelto y no la puede procesar, que es
+  // lo que pasaba con las suscripciones. `source` se manda solo si vino del
+  // cotizador; si Shopify lo rechaza, reintentamos sin él (ver abajo).
   const shippingLines = [{
     title: shippingTitle,
     price: shippingPriceStr,
-    // code = el código REAL de la tarifa del carrier (Envialo, etc.) para que la
-    // app de envío reconozca el método/sucursal. Fallback al título si no vino.
     code: (shipping_method_code && String(shipping_method_code).trim()) || shippingTitle.slice(0, 50),
+    ...(shipping_method_source && String(shipping_method_source).trim()
+      ? { source: String(shipping_method_source).trim().slice(0, 100) }
+      : {}),
   }];
 
   // CRÍTICO: setear `price` en cada line_item con el precio REAL que cobró MP
@@ -529,6 +628,16 @@ export async function shCreatePaidOrder(shop, token, params) {
   } catch (e) {
     // SOLO si Shopify rechaza el teléfono, lo normalizamos (15→11) y reintentamos.
     // El teléfono sigue viajando (nunca vacío).
+    // Shopify puede rechazar `source` con valores que no reconoce. En ese caso la
+    // orden tiene que existir igual (el cobro ya se hizo): reintentamos sin
+    // `source`, conservando `code`, que es lo que identifica servicio y sucursal.
+    if (/source/i.test(e.message) && body.order.shipping_lines?.[0]?.source) {
+      console.warn("[shopify] Shopify rechazó shipping_lines.source; reintento sin él:", e.message.slice(0, 200));
+      const { source, ...sinSource } = body.order.shipping_lines[0];
+      body.order.shipping_lines = [sinSource];
+      const data = await call(shop, token, "POST", "/orders.json", body);
+      return data.order;
+    }
     if (/phone/i.test(e.message)) {
       const fixed = normalizeArPhone(body.order.shipping_address?.phone) || body.order.shipping_address?.phone || "";
       body.order.shipping_address = { ...body.order.shipping_address, phone: fixed };
