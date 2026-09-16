@@ -138,6 +138,16 @@ Es un aviso automático de Recurrentes.
 ```
 Ejemplos: LuminaLabs · Ana · Cápsulas LuminaLabs · $9.480 · https://www.recurrentesapp.com/#/dashboard/suscripciones
 
+**`aviso_comercio_cobro`** — el "cachín": Shopify y Tiendanube no suenan para órdenes creadas por API.
+```
+💰 Cobro en {{1}}: {{2}} pagó {{3}} de {{4}}. La orden ya está en tu tienda.
+
+Mirala en tu panel: {{5}}
+
+Es un aviso automático de Recurrentes.
+```
+Ejemplos: LuminaLabs · Ana · $9.480 · Cápsulas LuminaLabs · https://www.recurrentesapp.com/#/dashboard/suscripciones
+
 ## Tareas de Thiago
 
 1. **Verificar el negocio** en Meta Business: https://business.facebook.com/settings/security → Centro de seguridad → Verificación (sube el límite de 250 clientes nuevos por día).
