@@ -1609,7 +1609,12 @@ function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates, waOptin
 
   function renderRates(){
     var box = document.getElementById("rc-rates"); if (!box) return;
-    if (ratesMsg) { box.innerHTML = '<div style="font-size:13px;color:#888;padding:10px 0;">' + esc(ratesMsg) + '</div>'; return; }
+    if (ratesMsg) {
+      // Mientras cotizamos, un spinner al lado del texto (misma animación que el resumen).
+      var spin = /^Buscando/.test(ratesMsg) ? '<span style="width:14px;height:14px;border:2px solid #e3e3e5;border-top-color:' + COL + ';border-radius:50%;display:inline-block;flex-shrink:0;animation:rc-spin .7s linear infinite;"></span>' : '';
+      box.innerHTML = '<div style="display:flex;align-items:center;gap:9px;font-size:13px;color:#888;padding:10px 0;">' + spin + '<span>' + esc(ratesMsg) + '</span></div>';
+      return;
+    }
     var curSub = plan ? prices().subtotal : 0;
     box.innerHTML = rates.map(function(rt,i){
       var shown = ratePrice(rt, curSub);
