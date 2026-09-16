@@ -30,7 +30,10 @@ export default function StoreStep2Modal({ merchant, channel = "shopify", onDone 
   const m = merchant || {};
   const tn = channel === "tiendanube";
   const snippet = widgetSnippet(m);
-  const openedAt = useRef(new Date().toISOString());
+  // Vale cualquier carga del widget desde que se conectó la tienda (si el aviso llegó
+  // entre la conexión y la apertura de este paso, también cuenta).
+  const openedAt = useRef(m.shopify_connected_at || m.tiendanube_connected_at || new Date(Date.now() - 10 * 60 * 1000).toISOString());
+  const niceHost = (h) => !h ? "tu tienda" : /shopifypreview\.com$/.test(h) ? "la vista previa de tu tema" : h;
   const [seen, setSeen] = useState(null);       // { at, host } cuando el widget cargó después de abrir este paso
   const [checking, setChecking] = useState(false);
   const [failed, setFailed] = useState(0);      // intentos de "Ya lo hice" sin ver el widget
@@ -89,7 +92,7 @@ export default function StoreStep2Modal({ merchant, channel = "shopify", onDone 
 
         {seen ? (
           <Callout T={T} tone="success" title="¡El widget ya carga en tu tienda!">
-            Lo vimos en <B T={T}>{seen.host || "tu tienda"}</B> hace un momento. Ya podés crear tu primer plan: la caja de suscripción va a aparecer sola en los productos que tengan plan activo.
+            Lo vimos en <B T={T}>{niceHost(seen.host)}</B> hace un momento. Ya podés crear tu primer plan: la caja de suscripción va a aparecer sola en los productos que tengan plan activo.
           </Callout>
         ) : checking ? (
           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10 }}>
