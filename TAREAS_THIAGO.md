@@ -8,6 +8,66 @@ Con 🟥 marco lo que hace falta para poder publicar. El resto lo podés hacer c
 
 ---
 
+## 🗓️ Mañana (16-sept) — plan del día
+
+Objetivo tuyo: hablar con Impultienda (para Growith y Recurrentes), ver qué onda Meta, y dejar
+la app lista para salir con pauta el fin de semana.
+
+### A. Antes que nada: ¿puede entrar un desconocido? (🟥 bloquea la pauta, ≈40 min)
+
+Nadie nunca se registró en Recurrentes desde cero salvo vos. Si la pauta trae gente y el
+onboarding se rompe, se quema la plata del anuncio. Hay que probarlo como un extraño:
+
+1. Ventana de incógnito → https://www.recurrentesapp.com → registrarse con un mail nuevo.
+2. Seguir el onboarding tal como aparece, sin atajos y sin tocar la base: elegir qué vende,
+   conectar una tienda, conectar Mercado Pago, crear un plan.
+3. Anotar **cada** punto donde dudaste o algo no se entendió. Eso es lo que hay que arreglar
+   antes de gastar en anuncios, no después.
+4. Al terminar, borrar esa cuenta de prueba.
+
+### B. Impultienda (reunión)
+
+Objetivo doble: para Growith y para Recurrentes. Lo que necesitamos saber de ellos:
+- ¿Tienen API pública o la pueden habilitar? (No encontramos documentación pública.)
+- ¿Se puede leer catálogo, crear órdenes pagas e inyectar un script en la tienda?
+- ¿Tienen tienda de aplicaciones o las integraciones se acuerdan una por una?
+- ¿Con qué pasarelas cobran hoy sus tiendas?
+- ¿Aceptan un piloto con una tienda real?
+
+Sin API para crear órdenes, Recurrentes igual les sirve con el **link de suscripción**
+(`channel: none`), que ya funciona: cobra por Mercado Pago y registra el comprobante interno.
+Es una buena carta si dicen que no hay API todavía.
+
+### C. Meta / WhatsApp (Parte 7)
+
+Está todo codeado y esperando la configuración. Ver el detalle en la Parte 7 más abajo:
+8 plantillas, verificación del negocio, token permanente, webhook y 5 variables.
+**Meta tarda días en aprobar**, así que conviene arrancarlo mañana aunque no se termine.
+
+### D. Cabos sueltos de hoy
+
+| Qué | Por qué importa |
+|---|---|
+| Widget en Tiendanube: confirmar que se inyecta | El script quedó `active` con la v2 a las 00:17. Si sigue sin aparecer, abrimos ticket con la evidencia |
+| Apagar el "modo de desarrollo" del script 10256 | Si queda prendido apuntando a una URL, el día que falle el widget desaparece |
+| Cuenta demo para Tiendanube | La piden para homologar: usuario dedicado + contraseña compartible + la contraseña de la tienda demo |
+| Suscripción real en DEMO TN | Necesita otra cuenta de Mercado Pago. Sirve para la homologación y para el video |
+| Número de ticket de Shopify | Llega por mail a la casilla del Partner Dashboard. Pasámelo y lo anoto |
+| Video de Shopify → `SHOPIFY_TUTORIAL_URL` | Es lo único que falta de la Parte 4 |
+| SPF y `_dmarc` (lo debo yo) | Para poder responder mails como `soporte@recurrentesapp.com` |
+
+### E. Antes de la pauta (checklist)
+
+- [ ] El registro y el onboarding funcionan para alguien de cero (punto A)
+- [ ] La landing dice lo que la app hace hoy, sin prometer lo que está "próximamente"
+- [ ] Precios visibles y coherentes con `shared/platform/pricing.js`
+- [ ] `#/soporte`, `#/terminos` y `#/privacidad` abren bien
+- [ ] Un plan nuevo se crea sin errores en una tienda nueva
+- [ ] Los mails de los flujos llegan (probar con `flow-test`)
+- [ ] El chequeo de salud en Admin está en verde
+
+---
+
 ## 🟥 Parte 1 — Imprescindible para publicar (≈15 min)
 
 ### 1.1 Vercel: variables de entorno
