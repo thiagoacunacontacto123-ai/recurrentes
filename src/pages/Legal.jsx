@@ -11,7 +11,7 @@ import React from "react";
 const ULTIMA_ACTUALIZACION = "septiembre 2026";
 const RESPONSABLE = "Recurrentes App";
 const DOMICILIO = "Ezeiza, Buenos Aires, Argentina";
-const EMAIL_CONTACTO = "el formulario de contacto de la aplicación";
+const EMAIL_CONTACTO = "soporte@recurrentesapp.com";
 
 const FALLBACK_T = {
   bg: "var(--bg)", surface: "var(--surface)", card: "var(--card)", border: "var(--border)", borderL: "var(--border-light)",
@@ -66,7 +66,7 @@ export function TerminosPage({ T }) {
   return (
     <Frame T={T} title="Términos y condiciones">
       <p style={s.p}>
-        <S>Recurrentes</S> ("el servicio", "la aplicación") es una herramienta de gestión de suscripciones para tiendas Shopify: permite convertir productos en planes recurrentes, cobrarlos a través de Mercado Pago, generar las órdenes correspondientes en la tienda y administrar suscriptores, cobros y avisos por mail. Al crear una cuenta aceptás estos términos.
+        <S>Recurrentes</S> ("el servicio", "la aplicación") es una herramienta de gestión de suscripciones para tiendas online (Shopify y Tiendanube): permite convertir productos en planes recurrentes, cobrarlos a través de Mercado Pago, generar las órdenes correspondientes en la tienda y administrar suscriptores, cobros y avisos por mail. Al crear una cuenta aceptás estos términos.
       </p>
 
       <h2 style={s.h2}>1. Quién presta el servicio</h2>
@@ -81,7 +81,7 @@ export function TerminosPage({ T }) {
 
       <h2 style={s.h2}>3. Cuenta y credenciales</h2>
       <p style={s.p}>
-        Para usar el servicio tenés que ser mayor de 18 años y titular (o estar autorizado por el titular) de la tienda Shopify y de la cuenta de Mercado Pago que conectás. Sos responsable de la seguridad de tu cuenta y de las credenciales que cargás (Client ID y Client Secret de tu app de Shopify, Access Token de Mercado Pago). Podés desconectar cada integración cuando quieras desde <S>Integraciones</S>; al hacerlo eliminamos el token correspondiente de nuestra base.
+        Para usar el servicio tenés que ser mayor de 18 años y titular (o estar autorizado por el titular) de la tienda (Shopify o Tiendanube) y de la cuenta de Mercado Pago que conectás. Sos responsable de la seguridad de tu cuenta y de las credenciales que cargás (Client ID y Client Secret de tu app de Shopify, Access Token de Mercado Pago). Podés desconectar cada integración cuando quieras desde <S>Integraciones</S>; al hacerlo eliminamos el token correspondiente de nuestra base.
       </p>
       <p style={s.p}>
         Si invitás miembros de tu equipo, sos responsable de lo que hagan dentro de tu tienda con los permisos que les diste.
@@ -90,7 +90,7 @@ export function TerminosPage({ T }) {
       <h2 style={s.h2}>4. Cómo funcionan los cobros</h2>
       <ul style={s.ul}>
         <li>Las suscripciones se crean y se cobran <S>en tu propia cuenta de Mercado Pago</S>. Recurrentes no recibe, retiene ni intermedia dinero: el cobro es una relación entre vos, tu cliente y Mercado Pago.</li>
-        <li>Por cada cobro aprobado, Recurrentes crea una orden en tu Shopify para que la prepares y envíes como cualquier venta.</li>
+        <li>Por cada cobro aprobado, Recurrentes crea una orden en tu tienda (Shopify o Tiendanube) para que la prepares y envíes como cualquier venta.</li>
         <li>Los reintentos de cobro, las devoluciones y los contracargos se rigen por las reglas de Mercado Pago. Recurrentes te muestra el estado pero no decide sobre ellos.</li>
         <li>Sos responsable de que tus planes, precios, descuentos, condiciones de envío y cancelación cumplan la normativa de defensa del consumidor que te aplique, y de informarlas a tus clientes.</li>
       </ul>
@@ -102,7 +102,7 @@ export function TerminosPage({ T }) {
 
       <h2 style={s.h2}>6. Uso aceptable</h2>
       <p style={s.p}>
-        No está permitido usar Recurrentes para actividades ilegales, para vender productos o servicios prohibidos por Shopify o Mercado Pago, para enviar mails no solicitados, para intentar acceder a datos de otras cuentas, ni para revender el servicio sin autorización escrita. Podemos suspender cuentas que incumplan estos términos, avisando salvo urgencia.
+        No está permitido usar Recurrentes para actividades ilegales, para vender productos o servicios prohibidos por Shopify, Tiendanube o Mercado Pago, para enviar mails no solicitados, para intentar acceder a datos de otras cuentas, ni para revender el servicio sin autorización escrita. Podemos suspender cuentas que incumplan estos términos, avisando salvo urgencia.
       </p>
 
       <h2 style={s.h2}>7. Disponibilidad, garantías y límite de responsabilidad</h2>
@@ -159,13 +159,13 @@ export function PrivacidadPage({ T }) {
       <p style={s.p}><S>Del comerciante:</S></p>
       <ul style={s.ul}>
         <li>Email y nombre, para autenticarte y contactarte por el servicio.</li>
-        <li>Credenciales de las integraciones que conectás: Client ID y Client Secret de tu app de Shopify, el token de acceso a tu tienda y el Access Token de Mercado Pago. Se guardan <S>cifrados o con acceso restringido</S> a los procesos del servidor; nunca se muestran a otros usuarios ni a tus clientes.</li>
+        <li>Credenciales de las integraciones que conectás: Client ID y Client Secret de tu app de Shopify o el token que otorga Tiendanube al instalar la app, el token de acceso a tu tienda y el Access Token de Mercado Pago. Se guardan <S>cifrados o con acceso restringido</S> a los procesos del servidor; nunca se muestran a otros usuarios ni a tus clientes.</li>
         <li>Configuración de tu tienda (dominio, remitente de mails, planes, códigos de descuento) y registros técnicos de uso (fecha y hora, dirección IP, errores) para seguridad y soporte.</li>
         <li>Datos de los miembros de equipo que invitás (nombre y email).</li>
       </ul>
       <p style={s.p}><S>De tus clientes finales</S> (tratados por cuenta y orden tuya):</p>
       <ul style={s.ul}>
-        <li>Nombre, email, teléfono y DNI/CUIL, necesarios para crear la suscripción en Mercado Pago y la orden en Shopify.</li>
+        <li>Nombre, email, teléfono y DNI/CUIL, necesarios para crear la suscripción en Mercado Pago y la orden en tu tienda.</li>
         <li>Dirección de envío, para que puedas despachar cada entrega.</li>
         <li>Historial de suscripciones y cobros (plan, fechas, montos, estado de cada pago) y los avisos por mail que se les envían.</li>
         <li><S>No</S> almacenamos números de tarjeta ni credenciales de pago: eso lo maneja Mercado Pago en sus propios sistemas.</li>
@@ -173,7 +173,7 @@ export function PrivacidadPage({ T }) {
 
       <h2 style={s.h2}>4. Para qué los usamos</h2>
       <ul style={s.ul}>
-        <li>Operar las suscripciones: crearlas, cobrarlas a través de tu Mercado Pago, generar las órdenes en tu Shopify y mostrarte su estado.</li>
+        <li>Operar las suscripciones: crearlas, cobrarlas a través de tu Mercado Pago, generar las órdenes en tu tienda y mostrarte su estado.</li>
         <li>Enviar mails transaccionales a tus clientes en tu nombre (bienvenida, aviso de cobro, problemas de pago, recupero de carritos abandonados si lo activás) y a vos (alertas del servicio).</li>
         <li>Seguridad, prevención de fraude, soporte y mejora del servicio.</li>
       </ul>
@@ -188,6 +188,7 @@ export function PrivacidadPage({ T }) {
         <li><S>Vercel</S> (Vercel Inc.): alojamiento de la aplicación y ejecución del servidor.</li>
         <li><S>Mercado Pago</S> (Mercado Libre S.R.L. y afiliadas): creación y cobro de las suscripciones.</li>
         <li><S>Shopify</S> (Shopify Inc.): lectura de productos y creación de órdenes en tu tienda.</li>
+        <li><S>Tiendanube</S> (Tiendanube / Nuvemshop): lectura de productos y creación de órdenes en tu tienda.</li>
         <li><S>Resend</S> (Resend Inc.): envío de mails transaccionales.</li>
       </ul>
       <p style={s.p}>También podemos revelar datos si una autoridad competente lo exige por ley.</p>
