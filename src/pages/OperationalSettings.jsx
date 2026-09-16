@@ -1,4 +1,6 @@
 import React from "react";
+import { widgetSnippet } from "./WidgetDesigner.jsx";
+import { CopyRow } from "./ShopifyConnect.jsx";
 import { apiPatch } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
 import { Btn, Field, InputStyle, Spinner, Hint, CheckLine, DSBadge, toast } from "../ui/components.jsx";
@@ -125,6 +127,15 @@ export function WidgetThemeCard({ merchant, onChange, bare = false }) {
     <Wrap T={T} title="Widget en tu tema de Shopify"
       sub="Qué pasa después de que el cliente toca Suscribirme. Solo aplica al widget pegado a mano; con la integración nativa de Shopify se va a configurar solo."
       right={!open && <Btn T={T} variant="secondary" size="sm" onClick={() => setOpen(true)}>Cambiar</Btn>}>
+      {/* El snippet vive acá (Configuración → Shopify), no en Planes: en Planes
+          confundía porque parecía un paso por plan, y es uno solo por tienda. */}
+      <div style={{ marginBottom:14 }}>
+        <div style={label}>Snippet para tu tema (una sola vez)</div>
+        <CopyRow T={T} text={widgetSnippet(m)} label="Copiar"/>
+        <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:6, lineHeight:1.5 }}>
+          Online Store → Themes → Personalizar → plantilla de producto → bloque <strong style={{ color:T.text }}>Liquid personalizado</strong>. El widget aparece solo en los productos con plan activo. Paso a paso en Configuración → Ayuda.
+        </div>
+      </div>
       {!open ? (
         <ul style={{ margin:0, paddingLeft:18, display:"flex", flexDirection:"column", gap:6, fontSize:DS.font.md, color:T.textMd, lineHeight:1.5 }}>
           <li>{savedFlow === "inline" ? "El formulario se abre en la misma página del producto." : <>El formulario se abre en una página aparte de tu tienda: <code style={{ fontFamily:MONO, color:T.text }}>{path}</code></>}</li>

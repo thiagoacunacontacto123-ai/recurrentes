@@ -292,7 +292,7 @@ function SecSnippet({ T, onb, goTab, origin, mid, canal }) {
     <>
       <Sec T={T} title="Pegar el snippet en tu tienda" sub="Una línea de código, una sola vez. Elegí la forma que te resulte más cómoda: como bloque Custom Liquid (sin tocar código) o en templates/product.json (editor de código)."
         right={<><StepStatus T={T} onb={onb} id="snippet"/>{onb && !onb.steps?.find(s => s.id === "snippet")?.done && <Btn T={T} variant="success" size="sm" onClick={() => onb.setManual(onb.steps.find(s => s.id === "snippet"), true)}>Ya lo pegué ✓</Btn>}</>}>
-        <P T={T}>Tu snippet (también lo copiás desde <B T={T}>Planes → 📋 Snippet</B> o desde <B T={T}>Planes → Widget → Instalación</B>):</P>
+        <P T={T}>Tu snippet (también lo copiás desde <B T={T}>Configuración → Integraciones → Shopify → Ajustes</B>):</P>
         <CodeBlock T={T} code={snippet} label="Copiar snippet"/>
         <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, margin:"14px 0 6px" }}>Opción A · Bloque Custom Liquid (recomendada, sin código)</div>
         <Steps T={T} items={[

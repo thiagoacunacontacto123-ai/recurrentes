@@ -140,7 +140,10 @@ function buildCtx(vm, state) {
   };
   ctx.on = function (cond, cls) { return cond ? " " + (cls || "is-on") : ""; };
   ctx.trust = function (cls) {
-    var lines = Array.isArray(t.trust_lines) ? t.trust_lines : [];
+    // Las líneas de confianza ("Cancelás cuando quieras", "Envío a todo el país")
+    // hablan de la suscripción: en compra única no aplican y confunden. Ahí queda
+    // solo el candado de pago seguro.
+    var lines = mode === "sub" && Array.isArray(t.trust_lines) ? t.trust_lines : [];
     var items = lines.map(function (l) { return '<li><span class="rc-tick">' + SVG_CHECK + "</span>" + esc(l) + "</li>"; }).join("");
     items += '<li><span class="rc-tick">' + SVG_LOCK + "</span>Pago seguro con Mercado Pago</li>";
     return '<ul class="' + (cls || "rc-trust") + '">' + items + "</ul>";

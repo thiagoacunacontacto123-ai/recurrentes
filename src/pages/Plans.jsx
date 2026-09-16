@@ -67,7 +67,6 @@ export function PlansPage({ merchant, onMerchantChange }) {
   const [sort, setSort] = useState(readSort);
   // editor: null | { plan: null } (nuevo) | { plan } (edición)
   const [editor, setEditor] = useState(null);
-  const [embedFor, setEmbedFor] = useState(null);
   const [linkFor, setLinkFor] = useState(null);
 
   const goSub = useCallback((id) => {
@@ -319,7 +318,7 @@ export function PlansPage({ merchant, onMerchantChange }) {
                         ? <Btn T={T} variant="secondary" size="sm" onClick={()=>setLinkFor(p)} style={{ flex:1, justifyContent:"center" }}>🔗 Link</Btn>
                         : esTiendanube
                           ? <BotonBloqueTn T={T} plan={p} onDone={loadAll}/>
-                          : <Btn T={T} variant="secondary" size="sm" onClick={()=>setEmbedFor(p)} style={{ flex:1, justifyContent:"center" }}>&lt;/&gt; Snippet</Btn>}
+                          : null}
                     </div>
                   </article>
                 );
@@ -329,7 +328,6 @@ export function PlansPage({ merchant, onMerchantChange }) {
         </>
       )}
 
-      {embedFor && <EmbedSnippetModal plan={embedFor} merchant={merchant} onClose={()=>setEmbedFor(null)}/>}
       {linkFor && <SubscriptionLinkModal plan={linkFor} merchant={merchant} profile={profile} onClose={()=>setLinkFor(null)}/>}
     </div>
   );

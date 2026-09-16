@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { apiPatch } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
-import { Card, Field, InputStyle, Btn, DSToggle, Callout, CheckLine, toast } from "../ui/components.jsx";
+import { Card, Field, InputStyle, Btn, DSToggle, Callout, toast } from "../ui/components.jsx";
 import { BUNDLE_VARIANTS, renderBundle } from "../../shared/bundle/templates.js";
 import { buildBundleVM } from "../../shared/bundle/viewmodel.js";
 import { pricingModeOf } from "./PacksEditor.jsx";
 import { WidgetDesignTip } from "./Onboarding.jsx";
-import { useOnb, widgetKey, readFlag, writeFlag } from "../lib/onboarding.js";
+import { useOnb } from "../lib/onboarding.js";
 import { MONO } from "./_shared.jsx";
 
 // Diseñador del selector de packs (widget bundle) — SOLO diseño global del
@@ -339,20 +339,6 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
   const setText = (k, v) => setTexts(t => ({ ...t, [k]: v }));
   const setTrust = (i, v) => setTexts(t => { const arr = [...t.trust_lines]; arr[i] = v; return { ...t, trust_lines: arr }; });
 
-  // ── instalación: snippet + "ya lo pegué" (misma flag que el plan de acción) ──
-  const snippet = widgetSnippet(m);
-  const [copied, setCopied] = useState(false);
-  const [pasted, setPasted] = useState(() => readFlag(widgetKey(m.id)));
-  useEffect(() => { setPasted(readFlag(widgetKey(m.id))); }, [m.id]);
-  async function copySnippet() {
-    try { await navigator.clipboard.writeText(snippet); setCopied(true); toast("Snippet copiado", "success"); setTimeout(() => setCopied(false), 2000); }
-    catch (_) { toast("No se pudo copiar — seleccioná el texto y copialo a mano", "warning"); }
-  }
-  function togglePasted(v) {
-    setPasted(v);
-    const step = onb?.steps?.find(s => s.id === "snippet");
-    if (onb?.setManual && step) onb.setManual(step, v); else writeFlag(widgetKey(m.id), v);
-  }
 
   const selectedVariant = (BUNDLE_VARIANTS || []).find(v => v.id === variant);
   // Cuenta vinculada a mano por los devs (beta legada o integración a medida) con el plan en modo tema.
@@ -484,22 +470,6 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
           })}
         </div>
       </div>
-
-      {/* ── Instalación en la tienda ────────────────────────────────── */}
-      <Card T={T} style={{marginTop:20}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap",marginBottom:8}}>
-          <div>
-            <div style={sectionH}>Instalación en tu tienda</div>
-            <div style={small}>Una sola vez, en la plantilla de producto (Online Store → Themes → Personalizar → bloque "Liquid personalizado"). El widget aparece solo en los productos con plan activo.</div>
-          </div>
-          <span style={{fontSize:DS.font.xs,fontWeight:DS.w.bold,padding:"3px 9px",borderRadius:99,background:(pasted ? T.green : T.yellow) + "1a",color:pasted ? T.green : T.yellow,border:`1px solid ${(pasted ? T.green : T.yellow)}44`}}>{pasted ? "✓ Snippet pegado" : "Snippet pendiente"}</span>
-        </div>
-        <div style={{display:"flex",gap:8,alignItems:"stretch",flexWrap:"wrap"}}>
-          <pre style={{flex:"1 1 320px",background:T.bg,border:`1px solid ${T.border}`,borderRadius:DS.r.lg,padding:"10px 12px",fontSize:DS.font.md,fontFamily:MONO,overflowX:"auto",margin:0,color:T.accent,lineHeight:1.5,whiteSpace:"pre-wrap",wordBreak:"break-all"}}>{snippet}</pre>
-          <Btn T={T} variant="secondary" type="button" onClick={copySnippet}>{copied ? "✓ Copiado" : "📋 Copiar snippet"}</Btn>
-        </div>
-        <CheckLine T={T} checked={pasted} onChange={togglePasted} style={{marginTop:12,color:T.text}}>Ya lo pegué en mi tienda</CheckLine>
-      </Card>
 
       <DevHelpCard merchant={m} context="widget"/>
     </div>
