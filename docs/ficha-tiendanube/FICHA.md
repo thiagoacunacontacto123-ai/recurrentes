@@ -103,7 +103,8 @@ Se paga por suscriptores activos, y todas las funciones están en todos los plan
 | Business | 1001 a 2000 | US$ 499/mes |
 | Enterprise | 2001 a 5000 | US$ 749/mes |
 | Max | 5001 a 10000 | US$ 999/mes |
-| Unlimited | más de 10000 | US$ 1999/mes |
+| Unlimited | 10001 a 20000 | US$ 1999/mes |
+| Ultra | más de 20000 | US$ 2999/mes |
 
 Instalación gratis en todos los planes.
 

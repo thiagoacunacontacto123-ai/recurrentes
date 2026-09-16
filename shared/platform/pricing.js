@@ -12,7 +12,7 @@
 // Escala del 16-sept-2026 (Thiago). Por suscriptor, piso → tope del tramo:
 //   11–50 → 4,45 → 0,98 · 51–100 → 1,94 → 0,99 · 101–300 → 1,97 → 0,66
 //   301–1000 → 1,16 → 0,35 · 1001–2000 → 0,50 → 0,25 · 2001–5000 → 0,37 → 0,15
-//   5001–10000 → 0,20 → 0,10 · +10000 → 0,20 → ↓
+//   5001–10000 → 0,20 → 0,10 · 10001–20000 → 0,20 → 0,10 · +20000 → 0,15 → ↓
 
 export const BILLABLE_STATUSES = ["active", "payment_failed"];
 export const FREE_SUBSCRIBERS = 10;
@@ -30,7 +30,8 @@ export const PRICING_TIERS = [
   { id: "business",   label: "Business",   usd: 499,  min: 1001,  max: 2000 },
   { id: "enterprise", label: "Enterprise", usd: 749,  min: 2001,  max: 5000 },
   { id: "max",        label: "Max",        usd: 999,  min: 5001,  max: 10000 },
-  { id: "unlimited",  label: "Unlimited",  usd: 1999, min: 10001, max: null },
+  { id: "unlimited",  label: "Unlimited",  usd: 1999, min: 10001, max: 20000 },
+  { id: "ultra",      label: "Ultra",      usd: 2999, min: 20001, max: null },
 ];
 
 export const TIER_BY_ID = Object.fromEntries(PRICING_TIERS.map(t => [t.id, t]));

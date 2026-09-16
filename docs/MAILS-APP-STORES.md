@@ -38,7 +38,7 @@ Datos reales para no exagerar nada:
 - Recurrentes: SaaS argentino de suscripciones con cobro recurrente en Mercado Pago.
 - Hoy: 1 tienda real en producción (LuminaLabs, Shopify) con 32 suscripciones activas desde junio 2026, y una app de Tiendanube (ID 42443) recién aprobada para desarrollo.
 - Modelo: el comerciante conecta su Shopify (app creada por él) o su Tiendanube (app de Partner), y su cuenta de Mercado Pago. MP cobra la renovación y Recurrentes crea la orden ya pagada en la tienda.
-- Precio del SaaS: por suscriptores activos, en USD (Free hasta 10 · 49 · 99 · 199 · 349 · 499 · 749 · 999 · 1999). Instalación gratis.
+- Precio del SaaS: por suscriptores activos, en USD (Free hasta 10 · 49 · 99 · 199 · 349 · 499 · 749 · 999 · 1999 · 2999). Instalación gratis.
 
 ---
 
