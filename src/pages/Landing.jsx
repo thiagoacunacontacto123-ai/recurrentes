@@ -185,7 +185,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
 
   const PASOS = [
     { n:"1", t:"Conectá tu negocio y Mercado Pago", d:"Autorizás Recurrentes en tu negocio y vinculás la cuenta de Mercado Pago que cobra. Diez minutos, sin código." },
-    { n:"2", t:"Creá tus planes", d:"Elegís el producto, cada cuántos días se cobra, el descuento y los packs. Pegás el widget en la página de producto." },
+    { n:"2", t:"Creá tus planes", d:"Elegís el producto, cada cuántos días se cobra, el descuento y los packs. En Tiendanube el widget se pone solo; en Shopify es una línea en el tema." },
     { n:"3", t:"Cobrá y despachá en piloto automático", d:"Cada cobro crea la orden en tu negocio. Tus clientes gestionan su suscripción desde el portal." },
   ];
 

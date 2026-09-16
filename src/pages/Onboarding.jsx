@@ -346,6 +346,7 @@ export function PlanDeAccionCard({ onOpenGuide }) {
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontSize:DS.font.base, fontWeight:DS.w.semibold, color: s.done ? T.textSm : T.text, textDecoration: s.done ? "line-through" : "none", textDecorationColor:T.border, display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                     {s.title}
+                    {s.effort && <span style={{ fontSize:10, fontWeight:800, letterSpacing:0.4, textTransform:"uppercase", color: s.done ? T.textSm : T.accent, background: (s.done ? T.border : T.accentSolid) + "22", border:`1px solid ${(s.done ? T.border : T.accentSolid)}55`, borderRadius:99, padding:"1px 8px" }}>{s.effort}</span>}
                     {isNext && <span style={{ fontSize:DS.font.xs, fontWeight:DS.w.bold, color:T.accent, background:T.accentSolid + "1a", borderRadius:99, padding:"1px 7px" }}>SIGUIENTE</span>}
                     {s.later && <span style={{ fontSize:DS.font.xs, fontWeight:DS.w.bold, color:T.textSm, background:T.surface, border:`1px solid ${T.border}`, borderRadius:99, padding:"1px 7px" }}>MÁS TARDE</span>}
                   </div>

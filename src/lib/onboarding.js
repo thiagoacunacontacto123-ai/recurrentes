@@ -119,18 +119,33 @@ export function computeSteps({ merchant, user, plansCount }) {
     tab:"configuracion", configSec:"negocio", cta:"Elegir mi tipo de negocio" });
 
   if (p.channel === "shopify") {
-    steps.push({ id:"shopify", done:shopifyOk, title:"Conectar Shopify",
-      short:"Para leer tus productos y crear una orden en tu tienda con cada cobro.",
+    steps.push({ id:"shopify", done:shopifyOk, title:"Conectar Shopify", effort:"2 pasos",
+      short:"Paso 1: tu app en Shopify (5 min, te guiamos). Paso 2: una línea en el tema.",
       why:"Recurrentes lee tu catálogo para armar los planes y crea una orden en Shopify cada vez que Mercado Pago cobra una suscripción. Sin esto no hay envíos.",
-      needs:["Entrar con la cuenta dueña de la tienda","Crear tu propia app en dev.shopify.com (5 min, una sola vez: te guiamos paso a paso y copiás todo con un botón)","Tu dominio tu-tienda.myshopify.com"],
+      needs:["Entrar con la cuenta dueña de la tienda","Paso 1 · Crear tu app en dev.shopify.com (5 min, una sola vez: copiás todo con un botón)","Paso 2 · Pegar una línea en theme.liquid (te la damos lista)"],
       tab:"configuracion", configSec:"integraciones", guideSec:"shopify", cta:"Conectar Shopify" });
   }
+  if (p.channel === "tiendanube") {
+    const tnOk = Boolean(m.tiendanube_token || m.tiendanube_connected_at || m.tiendanube_store_id);
+    steps.push({ id:"tiendanube", done:tnOk, title:"Conectar Tiendanube", effort:"1 clic",
+      short:"Instalás la app y listo: el widget se pone solo en tus productos.",
+      why:"Con la app instalada leemos tu catálogo, creamos la orden en tu Tiendanube con cada cobro y el widget de suscripción aparece solo en los productos con plan.",
+      needs:["Entrar con la cuenta dueña de la tienda"],
+      tab:"configuracion", configSec:"integraciones", cta:"Conectar Tiendanube" });
+  }
 
-  steps.push({ id:"mp", done:mpOk, title:"Conectar Mercado Pago",
+  steps.push({ id:"mp", done:mpOk, title:"Conectar Mercado Pago", effort:"1 clic",
     short:"Es la cuenta que cobra: la plata va directo a vos.",
     why:"Las suscripciones se crean y se cobran en TU cuenta de Mercado Pago. Recurrentes solo las da de alta y escucha los pagos.",
-    needs:["Tu cuenta de Mercado Pago de comercio (la que cobra)","El Access Token de producción (APP_USR-…) desde el panel de developers"],
+    needs:["Tu cuenta de Mercado Pago de comercio (la que cobra): autorizás con un clic"],
     tab:"configuracion", configSec:"integraciones", guideSec:"mp", cta:"Conectar Mercado Pago" });
+
+  // Opcional: solo suma si hace publicidad en Facebook/Instagram.
+  steps.push({ id:"meta", done:Boolean(m.meta_connected || m.meta_pixel_id), optional:true, title:"Conectar Meta Ads (opcional)", effort:"1 paso",
+    short:"Si hacés publicidad en Facebook o Instagram: que tus campañas cuenten las suscripciones como ventas.",
+    why:"Las suscripciones se pagan en el checkout de Recurrentes, así que tu pixel no las ve. Con el Pixel ID y el token de la API de Conversiones le avisamos a Meta cada primera venta.",
+    needs:["Pixel ID y token de la API de Conversiones (los dos salen del Administrador de eventos de Meta, te decimos dónde)"],
+    tab:"configuracion", configSec:"integraciones", cta:"Conectar Meta Ads" });
 
   if (p.caps.catalog) {
     steps.push({ id:"plan", done:planOk, locked:!p.ready, lockedMsg, title: p.caps.packs ? "Crear tu primer plan con packs" : "Crear tu primer plan",
@@ -185,11 +200,14 @@ export function computeSteps({ merchant, user, plansCount }) {
 }
 
 export function summarize(steps) {
-  const done = steps.filter(s => s.done).length;
-  const pendingSteps = steps.filter(s => !s.done);
+  // Los pasos opcionales (Meta Ads) se muestran pero no cuentan como pendientes.
+  const counted = steps.filter(s => !s.optional);
+  const done = counted.filter(s => s.done).length;
+  const pendingSteps = counted.filter(s => !s.done);
   const nextStep = pendingSteps.find(s => !s.locked) || pendingSteps[0] || null;
-  return { done, total: steps.length, pending: pendingSteps.length, pendingSteps, nextStep, allDone: pendingSteps.length === 0 };
+  return { done, total: counted.length, pending: pendingSteps.length, pendingSteps, nextStep, allDone: pendingSteps.length === 0 };
 }
+
 
 // ─── Hook: estado vivo del plan de acción ──────────────────────────────
 export function useOnboarding({ merchant, user, goTab }) {
