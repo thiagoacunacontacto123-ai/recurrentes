@@ -122,7 +122,7 @@ put("merchants/old", { email: "old@x.com", created_at: ago(35), plan: "free" });
   const r = await call(stats, { query: { action: "admin-overview" }, token: "t-admin-caps" });
   ok(r.status === 200, "admin (email con mayúsculas) → 200", r.body);
   const o = r.body;
-  ok(o.merchants.accounts === 4 && o.merchants.total === 5 && o.merchants.stores_extra === 1 && o.merchants.deleted === 1, "comercios: 4 cuentas + 1 tienda extra, 1 eliminado aparte", o.merchants);
+  ok(o.merchants.accounts === 5 && o.merchants.total === 5 && o.merchants.stores_extra === 1 && o.merchants.deleted === 1, "comercios: 5 tiendas vivas (4 logins + 1 tienda extra), 1 eliminado aparte", o.merchants);
   ok(o.merchants.new_30d === 1 && o.merchants.new_prev_30d === 2, "altas 30 d = 1 · 30 d anteriores = 2", o.merchants);
   ok(o.signups.dates.length === 90 && o.signups.counts.reduce((a, b) => a + b, 0) === 3 && o.signups.cumulative.at(-1) === 4, "serie de altas de 90 días (3 en ventana, acumulado 4)", o.signups.counts.reduce((a, b) => a + b, 0));
   ok(o.subs.active === 79, "suscripciones que facturan = 4 + 15 + 60", o.subs);

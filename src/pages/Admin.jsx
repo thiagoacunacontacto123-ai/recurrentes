@@ -139,7 +139,16 @@ export function AdminPage() {
     ) },
     { key:"subs", label:"Suscriptores", align:"right", nowrap:true, render: r => <span style={{ fontWeight:700, fontVariantNumeric:"tabular-nums" }}>{fmtN(r.subs)}</span> },
     { key:"plan", label:"Plan que le toca", nowrap:true, render: r => <PlanBadge T={T} r={r}/> },
-    { key:"mrr", label:"MRR del comercio", align:"right", nowrap:true, render: r => <span style={{ fontVariantNumeric:"tabular-nums", color: r.mrr ? T.text : T.textSm }}>{fmtARS(r.mrr)}</span> },
+    // Próximo pago del comercio a Recurrentes: cada 30 días desde su PRIMER pago
+    // (la activación del plan), no desde el alta gratis; al tramo que le toque ese
+    // día por sus suscriptores. Beta y Free no pagan.
+    { key:"next_pay", label:"Próximo pago", nowrap:true, render: r => r.beta
+        ? <span style={{ color:T.textSm }}>beta · sin cargo</span>
+        : !r.tier_usd
+          ? <span style={{ color:T.textSm }}>free</span>
+          : r.next_saas_payment_at
+            ? <CellStack T={T} main={fmtDateOnly(r.next_saas_payment_at)} sub={`US$ ${r.tier_usd} · ${r.tier_label || r.plan_label || ""}`}/>
+            : <span style={{ color:T.yellow, fontWeight:600 }}>activar · US$ {r.tier_usd}</span> },
     { key:"contact", label:"Contacto", render: r => (
       <div style={{ display:"flex", flexDirection:"column", gap:4, alignItems:"flex-start" }}>
         <WaLink T={T} url={r.whatsapp_url}/>

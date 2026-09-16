@@ -190,6 +190,15 @@ async function loadAll({ fresh = false, nowMs = Date.now() } = {}) {
 
 const ownerEmailMap = (merchants) => Object.fromEntries(merchants.filter(m => m.email).map(m => [m.id, m.email]));
 
+// Primer fecha ≥ hoy en pasos de 30 días desde la activación del plan.
+function nextSaasPaymentAt(activatedAt) {
+  const t0 = Date.parse(activatedAt || "");
+  if (!t0) return null;
+  const step = 30 * 86400000, now = Date.now();
+  const k = Math.max(1, Math.ceil((now - t0) / step));
+  return new Date(t0 + k * step).toISOString();
+}
+
 // Fila de la tabla / base de la ficha. Sin tokens ni datos sensibles.
 function rowOf(m, s, ownerEmails = {}) {
   const prof = merchantProfile(m);
@@ -226,6 +235,12 @@ function rowOf(m, s, ownerEmails = {}) {
     tier: billing.tier,
     beta: billing.plan === "beta",
     plan_activated: activatedTierId(m),
+    plan_activated_at: m.plan_activated_at || null,
+    tier_usd: billing.plan_usd,
+    tier_label: billing.plan_label,
+    // Próximo pago a Recurrentes: cada 30 días desde el PRIMER pago (la activación
+    // del plan), no desde el alta gratis. Null si nunca activó (free/beta o pendiente).
+    next_saas_payment_at: nextSaasPaymentAt(m.plan_activated_at),
     needs_activation: billing.needs_activation,
     plan_requested: billing.plan_requested,
     plan_requested_at: billing.plan_requested_at,
@@ -285,9 +300,11 @@ function matches(r, needle) {
   const digits = needle.replace(/\D/g, "");
   return digits.length >= 4 && String(r.owner_whatsapp || "").replace(/\D/g, "").includes(digits);
 }
+// Vivas = no borradas y no archivadas. Una archivada (INDATROPIC) sigue cobrando en
+// MP pero Recurrentes la ignora: no es un comercio del negocio.
 const liveRows = (data) => {
   const owners = ownerEmailMap(data.merchants);
-  return data.merchants.filter(m => m.deleted !== true).map(m => rowOf(m, data.stats[m.id], owners));
+  return data.merchants.filter(m => m.deleted !== true && !m.archived_at).map(m => rowOf(m, data.stats[m.id], owners));
 };
 
 // ─── GET admin-overview ──────────────────────────────────────────────────────
@@ -297,8 +314,8 @@ async function overview(query) {
   // Tiendas archivadas (ej. INDATROPIC: sigue cobrando en MP pero Recurrentes la
   // ignora) no cuentan en ningún agregado: inflaban "suscripciones activas" y el
   // MRR total con números de una tienda muerta.
-  const archived = new Set(data.merchants.filter(m => m.archived_at).map(m => m.id));
-  const rows = liveRows(data).filter(r => !archived.has(r.id));
+  const rows = liveRows(data);
+  // Altas por día siguen contando logins (una tienda extra no es un alta nueva).
   const accounts = data.merchants.filter(m => m.deleted !== true && m.is_store !== true && !m.archived_at);
 
   // Altas por día (hora AR, 90 días). Solo logins: las tiendas extra no son altas.
@@ -347,7 +364,9 @@ async function overview(query) {
     generated_at: new Date(nowMs).toISOString(),
     merchants: {
       total: rows.length,
-      accounts: accounts.length,
+      // Lo que se muestra como "Comercios": cada tienda viva es un comercio (Lumina es
+      // tienda extra de un login cuyo doc principal está archivado; contarla es lo correcto).
+      accounts: rows.length,
       stores_extra: rows.length - accounts.length,
       deleted: data.merchants.length - rows.length,
       new_30d: sum(perDay.slice(-30)),
