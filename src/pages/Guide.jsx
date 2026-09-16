@@ -333,45 +333,33 @@ function SecSnippet({ T, onb, goTab, origin, mid, canal }) {
 function SnippetTiendanube({ T, onb, snippet }) {
   return (
     <>
-      <Sec T={T} title="Poner el widget en tu Tiendanube" sub="Una línea de código, una sola vez. Hay dos formas: con Google Tag Manager (recomendada) o editando el código del tema."
-        right={<><StepStatus T={T} onb={onb} id="snippet"/>{onb && !onb.steps?.find(s => s.id === "snippet")?.done && <Btn T={T} variant="success" size="sm" onClick={() => onb.setManual(onb.steps.find(s => s.id === "snippet"), true)}>Ya lo pegué ✓</Btn>}</>}>
-        <P T={T}>Este es tu código. Es el mismo para las dos formas:</P>
-        <CodeBlock T={T} code={snippet} label="Copiar código"/>
-
-        <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, margin:"16px 0 6px" }}>Opción A · Google Tag Manager (recomendada)</div>
-        <P T={T}>Es la que Tiendanube recomienda desde que dieron de baja los códigos de tracking. No tocás el código de tu tienda y no te bloquea nada.</P>
+      <Sec T={T} title="Mostrar la suscripción en tu Tiendanube" sub="Un botón desde Recurrentes. No pegás código, no tocás el tema."
+        right={<><StepStatus T={T} onb={onb} id="snippet"/>{onb && !onb.steps?.find(s => s.id === "snippet")?.done && <Btn T={T} variant="success" size="sm" onClick={() => onb.setManual(onb.steps.find(s => s.id === "snippet"), true)}>Ya lo hice ✓</Btn>}</>}>
         <Steps T={T} items={[
-          <>Si no tenés cuenta, creá una gratis en <B T={T}>tagmanager.google.com</B> y armá un contenedor de tipo <B T={T}>Web</B> con el dominio de tu tienda.</>,
-          <>En Tiendanube: <B T={T}>Configuración → Códigos externos → Google Tag Manager</B>, pegá el id del contenedor (arranca con <Code T={T}>GTM-</Code>) y guardá.<Crumb T={T} path="Tiendanube › Configuración › Códigos externos › Google Tag Manager"/></>,
-          <>En Tag Manager: <B T={T}>Etiquetas → Nueva → Configuración → HTML personalizado</B>. Pegá el código de arriba.</>,
-          <>En <B T={T}>Activación</B> elegí <B T={T}>All Pages</B> (todas las páginas). El widget se muestra solo en las de producto con plan activo, así que no molesta en el resto.</>,
-          <>Guardá la etiqueta y tocá <B T={T}>Enviar</B> arriba a la derecha para publicar el contenedor. Si no publicás, no se aplica.</>,
+          <>Entrá a <B T={T}>Planes</B> y en la tarjeta del plan tocá <B T={T}>Poner en la tienda</B>.<Crumb T={T} path="Recurrentes › Planes › Poner en la tienda"/></>,
+          <>Listo. En la página de ese producto aparece la caja con las dos opciones: <B T={T}>Suscripción</B> (con su precio y descuento) y <B T={T}>Compra única</B>. Las dos funcionan: la suscripción va al checkout de Recurrentes y la compra única agrega al carrito como siempre.</>,
+          <>Si después cambiás el precio o la frecuencia del plan, tocá <B T={T}>↻</B> al lado de "En la tienda" para que la caja se actualice.</>,
         ]}/>
-        <Callout T={T} tone="warning" title="Qué plan necesitás">
-          La integración con Tag Manager no está disponible en el plan <B T={T}>Tienda Inicial</B> ni en el gratis. Si estás en esos, usá la opción B.
+        <Callout T={T} tone="info" title="Cómo funciona por dentro">
+          Lo escribimos en la <B T={T}>descripción del producto</B>, al final, entre dos marcadores. Tu descripción no se toca, y si sacás el bloque queda exactamente como estaba. Es HTML plano, sin código: es lo único que Tiendanube permite ahí, y por eso funciona en cualquier plan y cualquier tema.
         </Callout>
+      </Sec>
 
-        <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, margin:"16px 0 6px" }}>Opción B · El código del tema (por FTP)</div>
+      <Sec T={T} title="Opcional · Ocultar el botón del tema" sub="Como la caja ya trae la compra única, el botón 'Agregar al carrito' del tema queda repetido. Podés esconderlo solo en los productos que tienen suscripción.">
         <Steps T={T} items={[
-          <>En Tiendanube: <B T={T}>Tienda online → Diseño</B>, y debajo de tu diseño actual tocá <B T={T}>Editar el código</B>.<Crumb T={T} path="Tiendanube › Tienda online › Diseño › Editar el código"/></>,
-          <>Leé la advertencia, tocá <B T={T}>Abrir FTP</B> y generá las credenciales (host, usuario y contraseña).</>,
-          <>Conectate con un cliente FTP —FileZilla es el que recomienda Tiendanube— con el <B T={T}>tipo de transferencia en binario</B>.</>,
-          <>Abrí la plantilla del producto (<Code T={T}>product.tpl</Code> o el archivo equivalente de tu tema) y pegá el código antes de <Code T={T}>&lt;/body&gt;</Code>. Subí el archivo.</>,
+          <>En Tiendanube: <B T={T}>Tienda online → Diseño → Personalizar → CSS avanzado</B> (o "Editar CSS"), y pegá esto:<Crumb T={T} path="Tiendanube › Diseño › Personalizar › CSS avanzado"/></>,
         ]}/>
-        <Callout T={T} tone="warning" title="Antes de elegir esta opción">
-          Dos cosas que conviene saber: el acceso por FTP <B T={T}>no está en todos los planes</B>, y mientras la edición de código esté activa <B T={T}>no vas a poder cambiar de plantilla</B> hasta desactivarla. Si podés usar Tag Manager, usá Tag Manager.
-        </Callout>
-
-        <Callout T={T} tone="info" title="¿Por qué no es automático?">
-          Tiendanube inyecta los scripts solo de las apps ya aprobadas en su tienda de aplicaciones. La nuestra está en homologación: cuando la aprueben, esto desaparece y el widget se instala solo al conectar la tienda. Todo lo demás —los planes, los cobros, las órdenes— ya funciona sin esperar nada.
+        <CodeBlock T={T} code={`/* Recurrentes: en productos con suscripción, oculta el botón de compra del tema */\nbody:has(.recurrentes-bloque) form[action*="/comprar"]:not(.rc-once) { display: none !important; }`} label="Copiar CSS"/>
+        <Callout T={T} tone="warning" title="Antes de pegarlo">
+          Solo actúa en las páginas donde está nuestra caja (usa <Code T={T}>:has()</Code>, que ya soportan todos los navegadores actuales). Igual, después de guardar abrí un producto <B T={T}>sin</B> plan y confirmá que su botón sigue ahí. Si tu tema usa otra ruta para el carrito y el botón no se oculta, mandanos la URL del producto y te pasamos el selector exacto.
         </Callout>
       </Sec>
 
       <Sec T={T} title="Cómo saber si quedó bien">
         <Steps T={T} items={[
-          <>Abrí en tu tienda un producto <B T={T}>que tenga plan activo</B> en Recurrentes.</>,
-          <>Tenés que ver el selector <B T={T}>Suscripción / Compra única</B>. Si tu tema carga el script al interactuar, bajá un poco o hacé un clic.</>,
-          <>Si no aparece: recargá sin caché (Ctrl/Cmd + Shift + R). Si usaste Tag Manager, verificá que hayas tocado <B T={T}>Enviar</B> para publicar el contenedor — es lo que más se olvida.</>,
+          <>Abrí en tu tienda el producto del plan. Debajo de la descripción tenés que ver la caja <B T={T}>"Elegí cómo comprarlo"</B>.</>,
+          <>Tocá <B T={T}>Comprar una vez</B>: tiene que agregarlo al carrito igual que el botón del tema.</>,
+          <>Tocá <B T={T}>Suscribirme</B>: tiene que llevarte al checkout con el producto y el precio de la suscripción.</>,
         ]}/>
       </Sec>
     </>

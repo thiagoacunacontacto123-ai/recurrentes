@@ -74,3 +74,26 @@ test("frecuencias en palabras", () => {
   assert.equal(freqText(21), "3 semanas");
   assert.equal(freqText(undefined), "mes");
 });
+
+// ─── Compra única dentro del bloque ─────────────────────────────────────────
+test("con variante y precio base, incluye la compra única como formulario nativo de Tiendanube", () => {
+  const b = tnSubscriptionBlock({ plan: { ...PLAN, shopify_variant_id: "1597700160" }, planId: "p1", checkoutUrl: URL_CK });
+  assert.ok(b.includes('action="/comprar/"'), "postea al mismo endpoint que el botón del tema");
+  assert.ok(b.includes('name="add_to_cart" value="1597700160"'), "con la variante del plan");
+  assert.ok(b.includes('name="quantity" value="1"'));
+  assert.ok(b.includes("Comprar una vez") && b.includes("Suscribirme"), "las dos opciones");
+  assert.ok(b.includes("Compra única") && b.includes("$100"), "muestra el precio de lista de la compra única");
+});
+
+test("sin variante no inventa una compra única (plan manual o sin catálogo)", () => {
+  const b = tnSubscriptionBlock({ plan: PLAN, planId: "p1", checkoutUrl: URL_CK });
+  assert.ok(!b.includes("<form"), "sin formulario");
+  assert.ok(!b.includes("Comprar una vez"));
+  assert.ok(b.includes("Suscribirme"), "pero la suscripción sigue");
+});
+
+test("la variante se sanea a dígitos: no se puede inyectar en el value", () => {
+  const b = tnSubscriptionBlock({ plan: { ...PLAN, shopify_variant_id: '12"><script>x</script>' }, planId: "p1", checkoutUrl: URL_CK });
+  assert.ok(b.includes('value="12"'), "solo quedan los dígitos");
+  assert.ok(!/<script/i.test(b));
+});

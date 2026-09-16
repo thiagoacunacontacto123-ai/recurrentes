@@ -361,12 +361,33 @@ function BotonBloqueTn({ T, plan, onDone }) {
     onDone?.();
   }
 
+  // Re-aplica el bloque con los datos actuales del plan (precio, descuento,
+  // frecuencia). El endpoint hace upsert, así que no duplica.
+  async function actualizar() {
+    setBusy(true);
+    const d = await apiPost("shopify", { plan_id: plan.id, on: true }, { action: "tn-block" });
+    setBusy(false);
+    if (d?.error) return toast("Error: " + d.error, "error", 7000);
+    toast("Bloque actualizado en la página del producto", "success");
+    onDone?.();
+  }
+
+  if (!puesto) {
+    return (
+      <Btn T={T} variant="primary" size="sm" disabled={busy} onClick={toggle} style={{ flex:1, justifyContent:"center" }}
+        title="Mostrar la suscripción en la página del producto">
+        {busy ? "Guardando…" : "Poner en la tienda"}
+      </Btn>
+    );
+  }
   return (
-    <Btn T={T} variant={puesto ? "secondary" : "primary"} size="sm" disabled={busy} onClick={toggle}
-      style={{ flex:1, justifyContent:"center" }}
-      title={puesto ? "Sacar el bloque de la descripción del producto" : "Mostrar la suscripción en la página del producto"}>
-      {busy ? "Guardando…" : (puesto ? "✓ En la tienda" : "Poner en la tienda")}
-    </Btn>
+    <div style={{ flex:1, display:"flex", gap:4, minWidth:0 }}>
+      <Btn T={T} variant="secondary" size="sm" disabled={busy} onClick={toggle} style={{ flex:1, justifyContent:"center" }}
+        title="Sacar el bloque de la descripción del producto">
+        {busy ? "Guardando…" : "✓ En la tienda"}
+      </Btn>
+      <Btn T={T} variant="secondary" size="sm" disabled={busy} onClick={actualizar} title="Volver a generar el bloque con el precio y la frecuencia actuales del plan">↻</Btn>
+    </div>
   );
 }
 

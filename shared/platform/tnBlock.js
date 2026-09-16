@@ -45,18 +45,45 @@ export function tnSubscriptionBlock({ plan, planId, checkoutUrl, brandColor = "#
   const freq = freqText(plan?.frequency_days);
   const color = /^#[0-9a-f]{6}$/i.test(String(brandColor)) ? brandColor : "#10b981";
   const ahorro = off > 0 && base > price;
+  // La compra única es el MISMO formulario que usa el tema para agregar al
+  // carrito (POST /comprar/ con la variante y la cantidad): Tiendanube lo acepta
+  // en la descripción y se comporta idéntico al botón nativo. Así el bloque es la
+  // caja de compra completa y el botón del tema pasa a ser redundante.
+  const variant = String(plan?.tiendanube_variant_id || plan?.shopify_variant_id || "").replace(/\D/g, "");
+  const conUnica = !!variant && base > 0;
+
+  const opcion = (titulo, precio, detalle, activa) => [
+    `<div style="flex:1 1 180px;min-width:0;border:2px solid ${activa ? esc(color) : "#ddd"};border-radius:12px;padding:12px 14px;background:${activa ? "#fff" : "#fafafa"}">`,
+    `<div style="font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:${activa ? esc(color) : "#777"}">${titulo}</div>`,
+    `<div style="font-size:20px;font-weight:800;color:#111;margin-top:2px">${precio}</div>`,
+    `<div style="font-size:13px;color:#666;margin-top:2px">${detalle}</div>`,
+    `</div>`,
+  ].join("");
 
   return [
     RC_START,
     `<div id="recurrentes-plan-${esc(planId)}" class="recurrentes-bloque" style="border:2px solid ${esc(color)};border-radius:14px;padding:18px;margin:18px 0;font-family:inherit;line-height:1.45">`,
-    `<div style="font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:${esc(color)};margin-bottom:6px">Suscribite y recibilo siempre</div>`,
-    `<div style="font-size:22px;font-weight:800;color:#111">${money(price)} <span style="font-size:15px;font-weight:600;color:#666">por ${esc(freq)}</span>`,
-    ahorro ? ` <span style="font-size:15px;color:#888;text-decoration:line-through;margin-left:6px">${money(base)}</span>` : "",
-    ahorro ? ` <span style="display:inline-block;background:${esc(color)};color:#fff;font-size:13px;font-weight:700;border-radius:999px;padding:2px 10px;margin-left:6px">${off}% OFF</span>` : "",
+    `<div style="font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:${esc(color)};margin-bottom:10px">Elegí cómo comprarlo</div>`,
+    `<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px">`,
+    opcion(
+      "Suscripción" + (ahorro ? ` · ${off}% OFF` : ""),
+      `${money(price)} <span style="font-size:14px;font-weight:600;color:#666">por ${esc(freq)}</span>` + (ahorro ? ` <span style="font-size:14px;color:#999;text-decoration:line-through">${money(base)}</span>` : ""),
+      `Te llega cada ${esc(freq)}. Pausás o cancelás cuando quieras.`,
+      true,
+    ),
+    conUnica ? opcion("Compra única", money(base), "Una sola vez, sin renovación.", false) : "",
     `</div>`,
-    `<div style="font-size:14px;color:#555;margin:8px 0 14px">Se cobra automáticamente cada ${esc(freq)} con Mercado Pago. Pausalo o cancelalo cuando quieras, sin llamar a nadie.</div>`,
+    `<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">`,
     `<a href="${esc(checkoutUrl)}" style="display:inline-block;background:${esc(color)};color:#fff;font-size:16px;font-weight:700;padding:13px 26px;border-radius:9px;text-decoration:none">Suscribirme</a>`,
-    `<div style="font-size:12px;color:#888;margin-top:10px">Pago seguro con Mercado Pago · Suscripciones gestionadas por Recurrentes</div>`,
+    conUnica ? [
+      `<form method="post" action="/comprar/" class="rc-once" style="display:inline;margin:0">`,
+      `<input type="hidden" name="add_to_cart" value="${esc(variant)}">`,
+      `<input type="hidden" name="quantity" value="1">`,
+      `<button type="submit" style="background:#fff;color:#111;font-size:16px;font-weight:700;padding:12px 24px;border:2px solid #111;border-radius:9px;cursor:pointer">Comprar una vez</button>`,
+      `</form>`,
+    ].join("") : "",
+    `</div>`,
+    `<div style="font-size:12px;color:#888;margin-top:12px">Pago seguro con Mercado Pago · Suscripciones gestionadas por Recurrentes</div>`,
     `</div>`,
     RC_END,
   ].filter(Boolean).join("\n");
