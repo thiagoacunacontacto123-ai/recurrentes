@@ -202,13 +202,16 @@ export default function Checkout() {
   }
 
   const st = {
-    page: { minHeight: "100vh", background: "#f6f6f7", fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif", color: "#1a1a1a", padding: "24px 16px", boxSizing: "border-box" },
+    // colorScheme light: index.css declara `color-scheme: dark` para el panel y el
+    // checkout lo heredaba. Chrome entonces pintaba los campos con su paleta
+    // oscura (texto blanco, autocompletado gris-azul) sobre una página blanca.
+    page: { minHeight: "100vh", background: "#f6f6f7", colorScheme: "light", fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif", color: "#1a1a1a", padding: "24px 16px", boxSizing: "border-box" },
     wrap: { maxWidth: 940, margin: "0 auto", display: "grid", gridTemplateColumns: "minmax(0,1fr) 360px", gap: 24, alignItems: "start" },
     card: { background: "#fff", border: "1px solid #e5e5e7", borderRadius: 14, padding: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" },
     h: { fontSize: 15, fontWeight: 700, margin: "0 0 14px" },
     label: { fontSize: 12, fontWeight: 600, color: "#555", margin: "0 0 5px", display: "block" },
     // 16px: iOS Safari hace zoom al enfocar inputs con letra menor.
-    input: { width: "100%", padding: "11px 12px", fontSize: 16, border: "1px solid #d6d6d8", borderRadius: 9, boxSizing: "border-box", outline: "none", background: "#fff", fontFamily: "inherit" },
+    input: { width: "100%", padding: "11px 12px", fontSize: 16, border: "1px solid #d6d6d8", borderRadius: 9, boxSizing: "border-box", outline: "none", background: "#fff", color: "#1a1a1a", fontFamily: "inherit" },
     row2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 },
     field: { marginBottom: 12 },
     opt: { color: "#aaa", fontWeight: 400 },
@@ -240,8 +243,13 @@ export default function Checkout() {
   );
 
   return (
-    <div style={st.page}>
-      <style>{`@media(max-width:760px){ .rc-wrap{grid-template-columns:1fr!important;} .rc-summary{order:-1;} } @media(max-width:420px){ .rc-row2{grid-template-columns:1fr!important;} }`}</style>
+    <div style={st.page} className="rc-checkout">
+      <style>{`@media(max-width:760px){ .rc-wrap{grid-template-columns:1fr!important;} .rc-summary{order:-1;} } @media(max-width:420px){ .rc-row2{grid-template-columns:1fr!important;} }
+        /* Autocompletado de Chrome: que no pise el fondo blanco ni el color del texto. */
+        .rc-checkout input:-webkit-autofill, .rc-checkout select:-webkit-autofill, .rc-checkout input:-webkit-autofill:focus {
+          -webkit-text-fill-color:#1a1a1a; -webkit-box-shadow:0 0 0 1000px #fff inset; box-shadow:0 0 0 1000px #fff inset; caret-color:#1a1a1a; transition:background-color 9999s ease-out;
+        }
+        .rc-checkout input::placeholder { color:#9a9a9e; }`}</style>
       {cfg?.store_name ? (
         <div style={{ maxWidth: 940, margin: "0 auto 16px", fontSize: 17, fontWeight: 800, letterSpacing: -0.2, overflowWrap: "anywhere" }}>{cfg.store_name}</div>
       ) : null}
