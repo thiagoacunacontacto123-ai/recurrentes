@@ -142,6 +142,13 @@ Mientras no cargues las variables, en el panel sigue diciendo "Próximamente". C
 
 ---
 
+## 📌 Pendiente para otro día — responder como soporte@recurrentesapp.com
+Ya tenés el **reenvío** listo: lo que le escriban a `soporte@recurrentesapp.com` te llega a tu Gmail (Squarespace → Domains → Email → Email forwarding). Eso es solo para **recibir**.
+- [ ] Para **responder** con esa dirección desde Gmail hay que aflojar antes 2 registros del DNS: el `TXT` de `@` (hoy `v=spf1 -all`, hay que sumar Google) y el `_dmarc` (hoy `p=reject` estricto). Sin eso, los mails que mandes como `soporte@` caen en spam o rebotan. Pedime "pasame lo del DNS para responder como soporte" y te doy los valores exactos.
+- Recordatorio: si algún día querés casilla propia de verdad (no reenvío), la opción gratis es Zoho Mail con dominio propio.
+
+---
+
 ## Parte 6 — Impultienda
 - [ ] Mandales el mensaje que está en `docs/IMPULTIENDA.md` (sección "Mensaje para el equipo de Impultienda") por el chat de soporte de su panel o por Instagram: https://www.instagram.com/impultienda/
 - Lo que encontré: tienen webhooks salientes firmados (solo plan Max), pero su API todavía no está abierta a terceros. Sus suscripciones son con Stripe en dólares, así que **cobrar en pesos con Mercado Pago es justo lo que les falta**.
