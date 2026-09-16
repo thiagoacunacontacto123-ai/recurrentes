@@ -1,0 +1,27 @@
+Vender una vez está bien. Que te compren solos todos los meses es otra cosa.
+
+Recurrentes convierte cualquier producto de tu Tiendanube en una suscripción que se cobra automáticamente con Mercado Pago: el cliente elige suscribirse en la página del producto y, cada período, Mercado Pago le cobra y la orden aparece paga en tu tienda, lista para despachar.
+
+Mercado Pago es el único medio con débito automático local, así que armamos todo alrededor de eso. No reemplaza tu checkout: tus órdenes siguen siendo de Tiendanube, con la nota RECURRENTE para distinguirlas de las compras únicas.
+
+Cómo funciona
+- Conectás tu Tiendanube y tu Mercado Pago, cada uno con un clic.
+- Creás el plan sobre un producto: cada cuántos días se cobra, qué descuento tiene y cuántas unidades van por envío.
+- En la página del producto aparece el selector Compra única / Suscripción.
+- Cada período Mercado Pago cobra solo y nosotros creamos la orden paga en tu tienda.
+
+Funciones
+- Frecuencia libre: 7, 15, 30 días o la que quieras.
+- Descuento por suscripción y descuentos por cantidad.
+- Packs: combos de varias unidades con su propio precio.
+- Portal del cliente: pausan, reactivan o cancelan solos, sin escribirte.
+- Mails automáticos: aviso antes del cobro, bienvenida, pago rechazado y recuperación, con tu mail de atención al pie.
+- Avisos para vos cuando alguien se suscribe, pausa o cancela.
+- Panel con suscriptores activos, ingreso recurrente, cobros y fallos.
+- Reintentos y conciliación horaria con Mercado Pago: nunca queda un cobro sin su orden.
+
+Qué ganás
+Ingreso previsible en lugar de empezar el mes de cero, y menos trabajo manual porque las órdenes de las renovaciones se crean solas. Cobrás con tu propia cuenta de Mercado Pago: la plata entra directo, no pasa por nosotros.
+
+Precios
+Gratis hasta 5 suscriptores activos. Después, desde US$ 29 por mes según cuántos tengas, con todas las funciones en todos los planes. Sin comisión por venta.
