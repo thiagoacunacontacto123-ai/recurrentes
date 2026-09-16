@@ -23,7 +23,21 @@ Las imágenes están en esta misma carpeta y copiadas en `~/Downloads/ficha-tien
 | Instalación | https://www.recurrentesapp.com |
 | Términos | https://www.recurrentesapp.com/#/terminos |
 | Privacidad | https://www.recurrentesapp.com/#/privacidad |
-| Formas de cobro | Suscripción mensual, con tramo gratis |
+| Formas de cobro | **Gratis** (facturamos nosotros) — ver nota abajo |
+| Prueba gratis | vacío (no hay trial) |
+| Nombre de la app | Recurrentes (11/35) |
+
+## Formas de cobro: por qué "Gratis"
+
+El formulario de Tiendanube ofrece Gratis / Pago único / Pago mensual recurrente, y aclara:
+"Si desea utilizar su propio sistema de facturación, elija la opción gratuita". El pago mensual
+por Tiendanube acepta **un solo monto en ARS** y "de este importe se deducirán los impuestos y
+la comisión de Tiendanube".
+
+No sirve para Recurrentes: los precios son en USD y por tramos de suscriptores activos
+(`shared/platform/pricing.js`), y ya facturamos nosotros (plan-request + `plan_activated`).
+Por eso va **Gratis**, que en ese formulario significa "Tiendanube no cobra la instalación",
+y los tramos se explican en la descripción larga.
 
 ## Descripción larga
 
