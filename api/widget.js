@@ -1015,8 +1015,9 @@ export default async function handler(req, res) {
     }
 
     // ─── Modo PACKS: selector de packs precalculado (shared/bundle) ───
-    // El widget tiene CTA propio para AMBOS modos: "once" agrega el pack al
-    // carrito de Shopify; "sub" va a la página de checkout con plan+pack.
+    // "sub" → nuestro CTA lleva al checkout de Recurrentes con plan+pack.
+    // "once" → se muestra el botón nativo del tema (Shopify y Tiendanube) con la
+    // cantidad del pack; nuestro CTA de compra única queda oculto.
     function mountBundle(plan, bundle) {
       var host = document.createElement("div");
       host.id = "recurrentes-widget";
@@ -1060,8 +1061,8 @@ export default async function handler(req, res) {
         return list.split(",").map(function (x) { return "body.rec-bundle-active " + x.trim() + NOT_OURS; }).join(",");
       }
       function syncThemeQty() {
-        // La cantidad del tema = la del pack, para que el botón nativo agregue lo correcto.
-        if (!IS_TN) return;
+        // La cantidad del tema = la del pack, para que el botón nativo agregue lo
+        // correcto (Tiendanube y Shopify: en compra única manda el botón del tema).
         var q = packQty();
         var inputs = document.querySelectorAll('.js-quantity-input, input[name^="quantity"]');
         for (var i = 0; i < inputs.length; i++) {
@@ -1074,22 +1075,31 @@ export default async function handler(req, res) {
         }
       }
       function applyMode() {
-        // Se esconden los botones de compra del tema (no el form entero, para
-        // no perder el selector de variantes) y el buy box custom (&hide=).
-        hideExternalBuyButtons(true);
+        // Suscripción: se esconden los botones de compra del tema (no el form
+        // entero, para no perder el selector de variantes), el buy box custom
+        // (&hide=) y los botones de pago rápido (Shop Pay, etc.); manda nuestro CTA.
+        // Compra única (Thiago, 17-sept): al revés, igual que en Tiendanube. Se
+        // esconde NUESTRO CTA y vuelve el "Agregar al carrito" nativo del tema con
+        // todo lo que tenga abajo (Shop Pay, Apple Pay…), con la cantidad del pack
+        // ya cargada en el input del tema. Así el carrito/mini-carrito es el de
+        // siempre en cualquier tema. El selector de cantidad del tema queda oculto
+        // en los dos modos: la cantidad la decide el pack.
+        hideExternalBuyButtons(state.mode === "sub");
         hideCustomSelector(true);
         if (!document.getElementById("rc-bundle-hide-style")) {
           var st = document.createElement("style");
           st.id = "rc-bundle-hide-style";
-          st.textContent = 'body.rec-bundle-active form[action*="/cart/add"] button[name="add"],body.rec-bundle-active form[action*="/cart/add"] [type="submit"],body.rec-bundle-active form[action*="/cart/add"] quantity-input,body.rec-bundle-active form[action*="/cart/add"] .product-form__quantity,body.rec-bundle-active form[action*="/cart/add"] .quantity__rules{display:none !important}';
+          st.textContent =
+            'body.rec-bundle-active form[action*="/cart/add"] quantity-input,body.rec-bundle-active form[action*="/cart/add"] .product-form__quantity,body.rec-bundle-active form[action*="/cart/add"] .quantity__rules{display:none !important}' +
+            'body.rec-bundle-active.rec-sub-active form[action*="/cart/add"] button[name="add"],body.rec-bundle-active.rec-sub-active form[action*="/cart/add"] [type="submit"]{display:none !important}' +
+            'body.rec-bundle-active:not(.rec-sub-active) #recurrentes-widget [data-rc-action="cta"]{display:none !important}';
           if (IS_TN) {
             st.textContent +=
               // siempre en modo packs: precio y cantidad del tema
               withNotOurs(TN_THEME_PRICE) + "{display:none !important}" +
               withNotOurs(TN_THEME_QTY) + "{display:none !important}" +
               // en suscripción: el botón del tema; en compra única: el nuestro
-              withNotOurs(TN_THEME_BUY).replace(/body\.rec-bundle-active /g, "body.rec-bundle-active.rec-sub-active ") + "{display:none !important}" +
-              'body.rec-bundle-active:not(.rec-sub-active) #recurrentes-widget [data-rc-action="cta"]{display:none !important}';
+              withNotOurs(TN_THEME_BUY).replace(/body\.rec-bundle-active /g, "body.rec-bundle-active.rec-sub-active ") + "{display:none !important}";
           }
           document.head.appendChild(st);
         }
