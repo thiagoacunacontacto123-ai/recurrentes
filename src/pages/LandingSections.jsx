@@ -576,11 +576,26 @@ export function BigFooter({ T, onGo, onRegister }) {
 
 
 // ─── Video: Recurrentes en acción (después de las integraciones) ─────────
-export function VideoSection({ T, url, poster, duration }) {
+export function VideoSection({ T, url, poster, duration, sources }) {
   const ref = React.useRef(null);
   const [playing, setPlaying] = React.useState(false);
-  if (!url) return null;
+  const list = Array.isArray(sources) && sources.length > 1 ? sources : null;
+  const [q, setQ] = React.useState(0);
+  const src = list ? list[q].url : url;
+  if (!src) return null;
   const play = () => { try { ref.current?.play(); } catch (_) {} };
+  // Cambiar de calidad mantiene el minuto y el estado de reproducción.
+  function pickQ(i) {
+    if (i === q) return;
+    const v = ref.current, t = v ? v.currentTime : 0, era = v ? !v.paused : false;
+    setQ(i);
+    requestAnimationFrame(() => {
+      const el = ref.current; if (!el) return;
+      const go = () => { try { el.currentTime = t; if (era) el.play(); } catch (_) {} el.removeEventListener("loadedmetadata", go); };
+      el.addEventListener("loadedmetadata", go);
+      el.load();
+    });
+  }
   const parts = [
     ["01", "Por dentro", "El panel: suscriptores, cobros, analíticas y el widget."],
     ["02", "En tu tienda", "Cómo lo ve tu cliente: packs, suscripción y compra única."],
@@ -594,9 +609,18 @@ export function VideoSection({ T, url, poster, duration }) {
         <div style={{position:"relative",maxWidth:960,margin:"0 auto"}}>
           <div style={{position:"absolute",inset:-40,background:`radial-gradient(circle at 50% 30%, ${T.accentSolid}26 0%, transparent 60%)`,filter:"blur(34px)",pointerEvents:"none"}}/>
           <div style={{position:"relative",background:"#0b0f0d",border:`1px solid ${T.border}`,borderRadius:20,overflow:"hidden",boxShadow:"0 30px 80px rgba(0,0,0,0.35)",aspectRatio:"1658 / 1080"}}>
-            <video ref={ref} src={url} poster={poster} controls playsInline preload="none"
+            <video ref={ref} src={src} poster={poster} controls playsInline preload="none"
               onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
               style={{display:"block",width:"100%",height:"100%",objectFit:"contain",background:"#0b0f0d"}}/>
+            {list && (
+              <div role="radiogroup" aria-label="Calidad del video" style={{position:"absolute",top:12,right:12,zIndex:2,display:"inline-flex",gap:2,padding:3,borderRadius:99,background:"rgba(8,14,12,0.72)",backdropFilter:"blur(8px)",border:"1px solid rgba(255,255,255,0.14)"}}>
+                {list.map((s2, i) => (
+                  <button key={s2.id} type="button" role="radio" aria-checked={i === q} onClick={() => pickQ(i)} title={s2.hint}
+                    style={{padding:"4px 11px",borderRadius:99,border:"none",cursor:"pointer",fontFamily:F,fontSize:11.5,fontWeight:i === q ? 800 : 600,
+                      background: i === q ? T.accentSolid : "transparent", color: i === q ? "#fff" : "rgba(255,255,255,0.72)"}}>{s2.label}</button>
+                ))}
+              </div>
+            )}
             {!playing && (
               <button type="button" onClick={play} aria-label="Reproducir el video"
                 style={{position:"absolute",inset:0,width:"100%",height:"100%",background:"linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.35))",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:14,color:"#fff",fontFamily:F}}>

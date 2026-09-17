@@ -5,7 +5,7 @@ import { RecLogo } from "../ui/Shell.jsx";
 import { PricingTable } from "./Billing.jsx";
 import { FREE_SUBSCRIBERS } from "../../shared/platform/pricing.js";
 import { SectionsStyle, ProblemSection, DeepDivesSection, TrustSection, FaqSection, BigFooter, VideoSection, ComparisonSection, ReviewsSection } from "./LandingSections.jsx";
-import { LANDING_VIDEO_URL, LANDING_VIDEO_POSTER, LANDING_VIDEO_DURATION } from "../lib/landingMedia.js";
+import { LANDING_VIDEO_URL, LANDING_VIDEO_POSTER, LANDING_VIDEO_DURATION, LANDING_VIDEO_SOURCES } from "../lib/landingMedia.js";
 
 const F = "'Inter',system-ui,sans-serif";
 
@@ -44,6 +44,7 @@ const FLOW_ACTIONS = [
 ];
 const FLOW_STATUS = { live:"Disponible", soon:"Próximamente", radar:"En el radar" };
 const FLOW_ITEM_H = 44;
+const FLOW_ITEM_H_SM = 30;   // versión chica: el mapa dentro del panel del hero
 
 // Curvas entre columnas en % del alto (los ítems tienen alto fijo y la columna
 // usa space-around → el centro del ítem i está en (i + 0.5) / N).
@@ -73,17 +74,18 @@ function FlowConnector({ T, left, right, mode }) {
   );
 }
 
-function FlowItem({ T, it }) {
+function FlowItem({ T, it, compact }) {
   const live = it.s === "live", soon = it.s === "soon";
   const c = live ? T.accentSolid : soon ? T.yellow : T.textSm;
   return (
-    <div style={{height:FLOW_ITEM_H,display:"flex",alignItems:"center",gap:8,padding:"0 12px",borderRadius:10,background:T.card,
-      border:`1.5px ${live ? "solid" : "dashed"} ${live ? T.accentSolid : c + "88"}`,minWidth:0}}>
-      <span style={{width:7,height:7,borderRadius:99,background:c,flexShrink:0}}/>
-      <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:13,fontWeight:700,color:live ? T.text : T.textMd}}>
+    <div title={compact ? FLOW_STATUS[it.s] : undefined}
+      style={{height:compact ? FLOW_ITEM_H_SM : FLOW_ITEM_H,display:"flex",alignItems:"center",gap:compact ? 6 : 8,padding:compact ? "0 9px" : "0 12px",borderRadius:compact ? 8 : 10,background:T.card,
+      border:`${compact ? 1 : 1.5}px ${live ? "solid" : "dashed"} ${live ? T.accentSolid : c + "88"}`,minWidth:0}}>
+      <span style={{width:compact ? 6 : 7,height:compact ? 6 : 7,borderRadius:99,background:c,flexShrink:0}}/>
+      <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:compact ? 11.5 : 13,fontWeight:700,color:live ? T.text : T.textMd}}>
         {it.n}{it.d && <span style={{fontWeight:500,color:T.textSm}}> · {it.d}</span>}
       </span>
-      <span style={{fontSize:10,fontWeight:700,color:c,whiteSpace:"nowrap",textTransform:"uppercase",letterSpacing:0.3}}>{FLOW_STATUS[it.s]}</span>
+      {!compact && <span style={{fontSize:10,fontWeight:700,color:c,whiteSpace:"nowrap",textTransform:"uppercase",letterSpacing:0.3}}>{FLOW_STATUS[it.s]}</span>}
     </div>
   );
 }
@@ -93,116 +95,58 @@ function FlowItem({ T, it }) {
 // Sin `gap`: con ítems de alto fijo y space-around, el centro del ítem i queda
 // exacto en (i + 0.5) / N del alto, que es donde FlowConnector dibuja cada curva.
 const FLOW_MLABEL = new Map([[FLOW_STORES, "1 · Tu negocio"], [FLOW_PAYMENTS, "2 · Tu pasarela"]]);
-function FlowColumn({ T, items, label = FLOW_MLABEL.get(items) }) {
+function FlowColumn({ T, items, label = FLOW_MLABEL.get(items), compact }) {
+  const h = compact ? FLOW_ITEM_H_SM : FLOW_ITEM_H;
   return (
-    <div style={{display:"flex",flexDirection:"column",justifyContent:"space-around",height:"100%",minHeight:items.length * (FLOW_ITEM_H + 12),minWidth:0}}>
+    <div style={{display:"flex",flexDirection:"column",justifyContent:"space-around",height:"100%",minHeight:items.length * (h + (compact ? 7 : 12)),minWidth:0}}>
       {label && <div className="rec-flow-mlabel" style={{fontSize:11,fontWeight:800,color:T.accent,letterSpacing:0.6,textTransform:"uppercase"}}>{label}</div>}
-      {items.map(it => <FlowItem key={it.n} T={T} it={it}/>)}
-    </div>
-  );
-}
-
-// Chip compacto para el panel del hero (nombre + punto de estado).
-function FlowChip({ T, it }) {
-  const c = it.s === "live" ? T.accentSolid : it.s === "soon" ? T.yellow : T.textSm;
-  return (
-    <span title={FLOW_STATUS[it.s]} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 10px",borderRadius:9,background:it.s === "live" ? T.accentSolid + "12" : T.bg,
-      border:`1px ${it.s === "live" ? "solid" : "dashed"} ${it.s === "live" ? T.accentSolid + "88" : T.border}`,fontSize:12,fontWeight:700,color:it.s === "radar" ? T.textSm : T.text,whiteSpace:"nowrap"}}>
-      <span style={{width:6,height:6,borderRadius:99,background:c,flexShrink:0}}/>{it.n}
-    </span>
-  );
-}
-// Versión compacta del mapa (dentro del panel del hero): 3 pasos apilados.
-function FlowMapCompact({ T }) {
-  const Paso = ({ n, t, sub, children }) => (
-    <div>
-      <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:8}}>
-        <span style={{width:18,height:18,borderRadius:99,background:T.accentSolid,color:"#fff",fontSize:10,fontWeight:800,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{n}</span>
-        <span style={{fontSize:12.5,fontWeight:800,color:T.text}}>{t}</span>
-        <span style={{fontSize:11,color:T.textSm}}>{sub}</span>
-      </div>
-      {children}
-    </div>
-  );
-  const flecha = <div aria-hidden="true" style={{textAlign:"center",fontSize:15,color:T.accentSolid,lineHeight:1,margin:"9px 0"}}>↓</div>;
-  return (
-    <div>
-      <Paso n={1} t="Donde vendés" sub="tu negocio">
-        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{FLOW_STORES.map(it => <FlowChip key={it.n} T={T} it={it}/>)}</div>
-      </Paso>
-      {flecha}
-      <Paso n={2} t="Con qué cobrás" sub="tu pasarela">
-        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{FLOW_PAYMENTS.map(it => <FlowChip key={it.n} T={T} it={it}/>)}</div>
-      </Paso>
-      {flecha}
-      <Paso n={3} t="Lo que pasa en cada cobro" sub="tu panel">
-        <div style={{background:T.bg,border:`1px solid ${T.accentSolid}44`,borderRadius:12,padding:"12px 13px"}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:11}}>
-            {[["Suscriptores","128"],["MRR","$ 5,2M"]].map(([l,v])=>(
-              <div key={l}>
-                <div style={{fontSize:9,color:T.textSm,textTransform:"uppercase",fontWeight:800,letterSpacing:0.5}}>{l}</div>
-                <div style={{fontSize:19,fontWeight:800,color:T.text,letterSpacing:-0.5,fontVariantNumeric:"tabular-nums"}}>{v}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{display:"flex",flexDirection:"column",gap:7}}>
-            {FLOW_ACTIONS.map(a => (
-              <div key={a.t} style={{display:"flex",alignItems:"center",gap:8,fontSize:11.5,color:a.s === "live" ? T.textMd : T.textSm,lineHeight:1.35}}>
-                <span style={{width:5,height:5,borderRadius:99,background:a.s === "live" ? T.accentSolid : T.yellow,flexShrink:0}}/>
-                <span style={{flex:1,minWidth:0}}>{a.t}</span>
-                {a.s !== "live" && <span style={{fontSize:9,fontWeight:800,color:T.yellow,whiteSpace:"nowrap"}}>PRONTO</span>}
-              </div>
-            ))}
-          </div>
-        </div>
-      </Paso>
+      {items.map(it => <FlowItem key={it.n} T={T} it={it} compact={compact}/>)}
     </div>
   );
 }
 
 // Tiendas → pasarelas → panel de Recurrentes con las acciones de cada cobro.
 function FlowMap({ T, compact }) {
-  if (compact) return <FlowMapCompact T={T}/>;
   const head = (n, t, sub) => (
     <div>
-      <div style={{fontSize:11,fontWeight:800,color:T.accent,letterSpacing:0.6,textTransform:"uppercase"}}>{n} · {t}</div>
-      <div style={{fontSize:12,color:T.textSm,marginTop:2}}>{sub}</div>
+      <div style={{fontSize:compact ? 9.5 : 11,fontWeight:800,color:T.accent,letterSpacing:0.5,textTransform:"uppercase"}}>{n} · {t}</div>
+      {!compact && <div style={{fontSize:12,color:T.textSm,marginTop:2}}>{sub}</div>}
     </div>
   );
   return (
-    <div>
+    <div className={compact ? "rec-flow-sm" : undefined}>
       <div className="rec-flow-grid rec-flow-head">
         {head(1, "Tu negocio", "Donde vendés")}<span/>
         {head(2, "Tu pasarela", "Con qué cobrás")}<span/>
         {head(3, "Tu panel", "Lo que pasa en cada cobro")}
       </div>
       <div className="rec-flow-grid">
-        <FlowColumn T={T} items={FLOW_STORES}/>
+        <FlowColumn T={T} items={FLOW_STORES} compact={compact}/>
         <div className="rec-flow-connwrap"><FlowConnector T={T} left={FLOW_STORES} right={FLOW_PAYMENTS} mode="hub"/></div>
         <div className="rec-flow-mobile-arrow" aria-hidden="true">↓</div>
-        <FlowColumn T={T} items={FLOW_PAYMENTS}/>
+        <FlowColumn T={T} items={FLOW_PAYMENTS} compact={compact}/>
         <div className="rec-flow-connwrap"><FlowConnector T={T} left={FLOW_PAYMENTS} mode="merge"/></div>
         <div className="rec-flow-mobile-arrow" aria-hidden="true">↓</div>
-        <div style={{alignSelf:"center",background:T.card,border:`1.5px solid ${T.accentSolid}`,borderRadius:16,padding:16,boxShadow:`0 18px 44px ${T.accentSolid}22`,minWidth:0}}>
-          <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-            <RecLogo size={22}/><span style={{fontSize:14,fontWeight:800,color:T.text}}>Recurrentes</span>
-            <span style={{marginLeft:"auto",fontSize:10,fontWeight:700,color:T.accent,background:T.accentSolid+"18",borderRadius:99,padding:"2px 8px"}}>EN VIVO</span>
+        <div style={{alignSelf:"center",background:T.card,border:`1.5px solid ${T.accentSolid}`,borderRadius:compact ? 13 : 16,padding:compact ? 12 : 16,boxShadow:`0 18px 44px ${T.accentSolid}22`,minWidth:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:compact ? 9 : 12}}>
+            <RecLogo size={compact ? 18 : 22}/><span style={{fontSize:compact ? 12 : 14,fontWeight:800,color:T.text}}>Recurrentes</span>
+            <span style={{marginLeft:"auto",fontSize:compact ? 8.5 : 10,fontWeight:700,color:T.accent,background:T.accentSolid+"18",borderRadius:99,padding:"2px 7px"}}>EN VIVO</span>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:compact ? 6 : 8,marginBottom:compact ? 9 : 12}}>
             {[["Suscriptores","128"],["MRR","$ 5,2M"]].map(([l,v])=>(
-              <div key={l} style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:10,padding:"8px 10px"}}>
-                <div style={{fontSize:9,color:T.textSm,textTransform:"uppercase",fontWeight:700,letterSpacing:0.5}}>{l}</div>
-                <div style={{fontSize:17,fontWeight:800,color:T.text,letterSpacing:-0.4,fontVariantNumeric:"tabular-nums"}}>{v}</div>
+              <div key={l} style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:compact ? 8 : 10,padding:compact ? "6px 8px" : "8px 10px"}}>
+                <div style={{fontSize:compact ? 8 : 9,color:T.textSm,textTransform:"uppercase",fontWeight:700,letterSpacing:0.5}}>{l}</div>
+                <div style={{fontSize:compact ? 14 : 17,fontWeight:800,color:T.text,letterSpacing:-0.4,fontVariantNumeric:"tabular-nums"}}>{v}</div>
               </div>
             ))}
           </div>
-          <div style={{fontSize:10,fontWeight:700,color:T.textSm,letterSpacing:0.5,textTransform:"uppercase",marginBottom:6}}>Acciones automáticas</div>
-          <div style={{display:"flex",flexDirection:"column",gap:7}}>
+          <div style={{fontSize:compact ? 8.5 : 10,fontWeight:700,color:T.textSm,letterSpacing:0.5,textTransform:"uppercase",marginBottom:compact ? 5 : 6}}>Acciones automáticas</div>
+          <div style={{display:"flex",flexDirection:"column",gap:compact ? 5 : 7}}>
             {FLOW_ACTIONS.map(a => (
-              <div key={a.t} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:a.s === "live" ? T.textMd : T.textSm}}>
-                <span style={{width:6,height:6,borderRadius:99,background:a.s === "live" ? T.accentSolid : T.yellow,flexShrink:0}}/>
+              <div key={a.t} style={{display:"flex",alignItems:"center",gap:7,fontSize:compact ? 10.5 : 12,lineHeight:1.35,color:a.s === "live" ? T.textMd : T.textSm}}>
+                <span style={{width:5,height:5,borderRadius:99,background:a.s === "live" ? T.accentSolid : T.yellow,flexShrink:0}}/>
                 <span style={{flex:1,minWidth:0}}>{a.t}</span>
-                {a.s !== "live" && <span style={{fontSize:9.5,fontWeight:700,color:T.yellow,whiteSpace:"nowrap"}}>PRONTO</span>}
+                {a.s !== "live" && <span style={{fontSize:compact ? 8 : 9.5,fontWeight:700,color:T.yellow,whiteSpace:"nowrap"}}>PRONTO</span>}
               </div>
             ))}
           </div>
@@ -296,6 +240,9 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
       <section id="rec-tiendas" className="rec-land-wrap" style={{paddingTop:72,paddingBottom:56}}>
         <style>{`
           .rec-flow-grid{display:grid;grid-template-columns:minmax(0,1fr) 72px minmax(0,1fr) 72px minmax(0,1.2fr);column-gap:10px;align-items:stretch;}
+          /* Versión chica: el mismo mapa (curvas punteadas incluidas) dentro del panel del hero. */
+          .rec-flow-sm .rec-flow-grid{grid-template-columns:minmax(0,1fr) 34px minmax(0,0.92fr) 34px minmax(0,1.05fr);column-gap:5px;}
+          .rec-flow-sm .rec-flow-head{margin-bottom:9px;}
           .rec-flow-head{margin-bottom:14px;align-items:end;}
           .rec-flow-connwrap{position:relative;min-width:0;}
           .rec-flow-mobile-arrow,.rec-flow-mlabel{display:none;}
@@ -305,6 +252,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
           @media(max-width:900px){
             .rec-flow-grid{grid-template-columns:1fr;row-gap:10px;}
             .rec-flow-head,.rec-flow-connwrap{display:none;}
+            .rec-flow-sm .rec-flow-mobile-arrow{font-size:16px;}
             .rec-flow-mobile-arrow{display:block;text-align:center;font-size:22px;font-weight:800;color:${T.accentSolid};line-height:1;}
             .rec-flow-mlabel{display:block;}
           }
@@ -382,7 +330,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
 
       {/* Interés: el video (panel por dentro, en la tienda, precios). */}
       <SectionsStyle T={T}/>
-      <VideoSection T={T} url={LANDING_VIDEO_URL} poster={LANDING_VIDEO_POSTER} duration={LANDING_VIDEO_DURATION}/>
+      <VideoSection T={T} url={LANDING_VIDEO_URL} sources={LANDING_VIDEO_SOURCES} poster={LANDING_VIDEO_POSTER} duration={LANDING_VIDEO_DURATION}/>
 
       {/* Comparativa justo debajo del video (Thiago, 17-sept). */}
       <ComparisonSection T={T}/>
