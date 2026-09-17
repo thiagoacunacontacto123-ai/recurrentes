@@ -171,8 +171,9 @@ if (typeof document !== "undefined" && !document.getElementById("rec-global-css"
     .gh-toggle-thumb  { transition: left 0.22s cubic-bezier(0.34,1.3,0.64,1) !important; }
 
     /* Smooth scroll */
-    html { scroll-behavior: smooth; }
-    body { overscroll-behavior: none; transition: background 0.22s ease !important; }
+    html { scroll-behavior: auto; }
+    @media (prefers-reduced-motion: no-preference) { html:focus-within { scroll-behavior: smooth; } }
+    body { transition: background 0.22s ease !important; }
 
     /* Selección de texto */
     ::selection { background: rgba(16,185,129,0.30); color: inherit; }
