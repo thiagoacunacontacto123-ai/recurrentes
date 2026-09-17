@@ -60,7 +60,7 @@ input, textarea, select {
 @keyframes rec-logo-spin { to { transform: rotate(360deg); } }
 @keyframes rec-logo-pulse { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
 
-/* Celular: los brillos decorativos de la landing sobresalen del ancho. El body ya
-   los recorta, pero el <html> no, y eso permitía arrastrar la página de costado
-   (Thiago, 17-sept). `clip` corta sin crear scroll y sin romper position:sticky. */
-html { overflow-x: clip; }
+/* Celular: los brillos decorativos de la landing sobresalen del ancho y permitían
+   arrastrar la página de costado (Thiago, 17-sept). Se recorta en el contenedor de
+   la landing, NO en <html>: ahí `overflow` rompe el scroll vertical de la página. */
+.rec-landing-root { overflow-x: clip; }

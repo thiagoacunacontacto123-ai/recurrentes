@@ -201,7 +201,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
   ];
 
   return (
-    <div style={{fontFamily:F,background:T.bg,minHeight:"100vh",color:T.text}}>
+    <div className="rec-landing-root" style={{fontFamily:F,background:T.bg,minHeight:"100vh",color:T.text}}>
       <style>{`
         .rec-land-hero{display:grid;grid-template-columns:0.86fr 1.22fr;gap:30px;align-items:center;}
         .rec-land-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
@@ -211,7 +211,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         .rec-land-card:hover{transform:translateY(-3px);box-shadow:0 14px 34px rgba(0,0,0,0.18);}
         .rec-land-wrap{max-width:1180px;margin:0 auto;padding:0 24px;}
         .rec-hero-sec{padding-top:56px;}
-        @media(max-width:640px){ .rec-hero-sec{padding-top:18px;} }
+        @media(max-width:640px){ .rec-hero-sec{padding-top:26px;} }
         @media (prefers-reduced-motion: reduce){ .rec-land-card{transition:none;} .rec-land-card:hover{transform:none;} }
         @media(max-width:900px){ .rec-land-hero{grid-template-columns:1fr!important;gap:32px;} .rec-land-grid,.rec-land-stores{grid-template-columns:repeat(2,1fr)!important;} }
         @media(max-width:900px){ .rec-land-benefits{grid-template-columns:1fr!important;gap:18px!important;} }
