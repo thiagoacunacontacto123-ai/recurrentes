@@ -6,6 +6,7 @@ import { KpiCard, AreaChart, Segmented } from "../ui/charts.jsx";
 import { PlanDeAccionCard } from "./Onboarding.jsx";
 import { fmtARS, fmtDayMonth } from "./_shared.jsx";
 import { fetchUpcoming, fetchErrors } from "./Charges.jsx";
+import DateRangePicker, { PRESETS_DIAS, rangoDePreset } from "../ui/DateRangePicker.jsx";
 import { merchantProfile } from "../../shared/platform/profile.js";
 
 // ─── Inicio (estilo dashboard de Growith) ───────────────────────────────
@@ -14,16 +15,26 @@ import { merchantProfile } from "../../shared/platform/profile.js";
 //     (GET /api/stats?days=N → period.kpis / period.series).
 //   · Gráfico grande con pestañas: Cobrado · Activas · Altas y bajas.
 //   · Próximos cobros (7 días) + Alertas.
-const DAYS_KEY = "rec_home_days";
-const PERIODS = [{ id:7, label:"7 días" }, { id:30, label:"30 días" }, { id:90, label:"90 días" }];
-const readDays = () => { try { const d = parseInt(localStorage.getItem(DAYS_KEY)); return [7, 30, 90].includes(d) ? d : 30; } catch (_) { return 30; } };
+// Período del calendario (mismo que Cobros). Default: últimos 30 días.
+const RANGE_KEY = "rec_home_range";
+const readRange = () => {
+  try {
+    const r = JSON.parse(localStorage.getItem(RANGE_KEY) || "null");
+    if (r && /^\d{4}-\d{2}-\d{2}$/.test(r.since) && /^\d{4}-\d{2}-\d{2}$/.test(r.until)) {
+      if (r.preset) { const p = PRESETS_DIAS.find(x => x.id === r.preset); if (p) { const [s, u] = rangoDePreset(p); return { since: s, until: u, preset: p.id }; } }
+      return r;
+    }
+  } catch (_) {}
+  const [since, until] = rangoDePreset(PRESETS_DIAS.find(p => p.id === "30d"));
+  return { since, until, preset: "30d" };
+};
 const fmtN = (n) => Math.round(Number(n) || 0).toLocaleString("es-AR");
 const fmtShortDate = (key) => { try { const [, m, d] = String(key).split("-"); return `${parseInt(d)}/${parseInt(m)}`; } catch (_) { return key; } };
 const fmtTime = (d) => { try { return d.toLocaleTimeString("es-AR", { hour:"2-digit", minute:"2-digit" }); } catch (_) { return ""; } };
 
 export function HomeTab({ merchant, onGo, onGoConfig, onOpenGuide }) {
   const T = useT();
-  const [days, setDays] = useState(readDays);
+  const [range, setRange] = useState(readRange);
   const [stats, setStats] = useState(null);
   const [upcoming, setUpcoming] = useState([]);
   const [errorsCount, setErrorsCount] = useState(0);
@@ -31,17 +42,17 @@ export function HomeTab({ merchant, onGo, onGoConfig, onOpenGuide }) {
   const [err, setErr] = useState("");
   const [updatedAt, setUpdatedAt] = useState(null);
 
-  async function load(d = days) {
+  async function load(r = range) {
     setLoading(true);
-    const [s, up, errs] = await Promise.all([apiGet("stats", { days: d }), fetchUpcoming().catch(() => []), fetchErrors().catch(() => [])]);
+    const [s, up, errs] = await Promise.all([apiGet("stats", { since: r.since, until: r.until }), fetchUpcoming().catch(() => []), fetchErrors().catch(() => [])]);
     if (s?.error) setErr(s.error);
     else { setStats(s); setErr(""); setUpdatedAt(new Date()); }
     setUpcoming(up);
     setErrorsCount(errs.length);
     setLoading(false);
   }
-  useEffect(() => { load(days); /* eslint-disable-next-line */ }, [days]);
-  const pickDays = (d) => { setDays(d); try { localStorage.setItem(DAYS_KEY, String(d)); } catch (_) {} };
+  useEffect(() => { load(range); /* eslint-disable-next-line */ }, [range.since, range.until]);
+  const pickRange = (since, until, preset) => { const r = { since, until, preset: preset || null }; setRange(r); try { localStorage.setItem(RANGE_KEY, JSON.stringify(r)); } catch (_) {} };
 
   const s = stats || {};
   const totals = s.totals || {};
@@ -50,7 +61,7 @@ export function HomeTab({ merchant, onGo, onGoConfig, onOpenGuide }) {
   const ser = p?.series || {};
   const upcomingTotal = upcoming.reduce((a, u) => a + (Number(u.amount_ars) || 0), 0);
   const next7 = upcoming.filter(u => new Date(u.next_charge_at).getTime() - Date.now() <= 7 * 86400000);
-  const pl = days === 7 ? "7 días" : days === 30 ? "30 días" : "90 días";
+  const pl = stats?.period?.days ? `${stats.period.days} días` : "período";
   const prevHint = `vs. los ${pl} anteriores`;
 
   // Alertas: cosas que requieren acción hoy.
@@ -78,8 +89,8 @@ export function HomeTab({ merchant, onGo, onGoConfig, onOpenGuide }) {
     <div>
       <PageHeader T={T} title="Inicio" subtitle="Tu negocio recurrente de un vistazo."
         right={<>
-          <Segmented T={T} options={PERIODS} value={days} onChange={pickDays} ariaLabel="Período"/>
-          <Btn T={T} variant="secondary" size="sm" onClick={() => load(days)} disabled={loading} style={{ height:34 }}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>
+          <DateRangePicker T={T} since={range.since} until={range.until} onChange={pickRange}/>
+          <Btn T={T} variant="secondary" size="sm" onClick={() => load(range)} disabled={loading} style={{ height:34 }}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>
           <Btn T={T} variant="ghost" size="sm" onClick={onOpenGuide} style={{ height:34 }}>Guía</Btn>
         </>}/>
       {updatedAt && <div style={{ fontSize:11, color:T.textSm, textAlign:"right", margin:"-10px 0 12px" }}>{loading ? "actualizando…" : `act. ${fmtTime(updatedAt)}`}</div>}
@@ -88,7 +99,7 @@ export function HomeTab({ merchant, onGo, onGoConfig, onOpenGuide }) {
       <PlanDeAccionCard onOpenGuide={onOpenGuide}/>
 
       {err && !loading && (
-        <Callout T={T} tone="danger" title="No pudimos cargar las métricas" style={{ marginBottom:16 }} right={<Btn T={T} variant="secondary" size="sm" onClick={() => load(days)}>Reintentar</Btn>}>{err}</Callout>
+        <Callout T={T} tone="danger" title="No pudimos cargar las métricas" style={{ marginBottom:16 }} right={<Btn T={T} variant="secondary" size="sm" onClick={() => load(range)}>Reintentar</Btn>}>{err}</Callout>
       )}
 
       {/* Métricas principales */}
