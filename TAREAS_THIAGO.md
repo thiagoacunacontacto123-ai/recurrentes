@@ -294,10 +294,20 @@ Todo está en la rama `integracion`. Pasan las 68 pruebas automáticas, incluida
 - **Tiendanube:** hay que confirmar en la tienda de prueba si acepta órdenes sin dirección (servicios o digitales).
 
 
-## Cobrar el plan de Recurrentes con Stripe (tu cuenta) — 2026-09-16
-Todo el código está; falta tu cuenta. Con estas dos variables en Vercel se prende solo:
-1. En https://dashboard.stripe.com/apikeys copiá la **clave secreta** (`sk_live_…`; para probar, la de test `sk_test_…`) → env `STRIPE_SAAS_SECRET_KEY`.
-2. En https://dashboard.stripe.com/webhooks → **Add destination** → **Your account** (no Connected accounts) → URL `https://www.recurrentesapp.com/api/public?action=stripe-saas-webhook` → eventos: `checkout.session.completed`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted`. Copiá el **Signing secret** (`whsec_…`) → env `STRIPE_SAAS_WEBHOOK_SECRET`.
-3. Redeploy. En Configuración → Facturación, "Activar Starter · USD 49/mes" pasa a abrir Stripe Checkout (tarjeta, en dólares). Los productos/precios en Stripe se crean solos la primera vez ("Recurrentes · Starter", etc.).
-4. Cómo cobra: suscripción mensual en Stripe. Cada día a las 9:00 UTC el cron `sync-saas-tiers` mueve cada suscripción al tramo que le corresponde por suscriptores activos, sin prorrateo → la próxima factura sale por el tramo vigente. Si baja a ≤10 suscriptores, se cancela al fin del período. Rechazos → "past_due" con aviso y botón "Actualizar tarjeta" (portal de Stripe).
-5. Opcional: activá el **Customer portal** en https://dashboard.stripe.com/settings/billing/portal (para "Tarjeta y facturas").
+## Cobrar el plan de Recurrentes con Stripe (tu cuenta) — HECHO el 2026-09-17
+
+✅ Clave secreta y secreto del webhook cargados en Vercel (tipo Secret) · ✅ webhook "Recurrentes SaaS" con los 6 eventos · ✅ redeploy · ✅ verificado: "Activar Starter · USD 49/mes" abre Stripe Checkout de verdad (probado desde DEMO SHOPIFY, ya existe el producto "Recurrentes · Starter" en tu Stripe).
+
+Cómo cobra: suscripción mensual en Stripe. Cada día a las 9:00 UTC el cron `sync-saas-tiers` mueve cada suscripción al tramo que le corresponde por suscriptores activos, sin prorrateo → la próxima factura sale por el tramo vigente. Si baja a ≤10 suscriptores, se cancela al fin del período. Rechazos → "past_due" con aviso y botón "Actualizar tarjeta".
+
+### Lo que te falta a vos en Stripe (sin esto cobra pero no te gira la plata)
+1. **La barra amarilla "Acción requerida"** → "Consulta la tarea" y completá lo que pida. Es lo más importante: sin verificar la cuenta, Stripe cobra y retiene.
+2. Configuración → **Empresa** → Editar: **Industria** = Software como servicio (SaaS) (sacar "Tiendas multiservicio"); **Descripción del producto** = "Software de gestión de suscripciones para tiendas online de Argentina. Les cobramos a los comercios una suscripción mensual por usar la plataforma, según su cantidad de suscriptores activos. El primer cobro es al activar el plan y después se renueva cada 30 días."; **Descripción del cargo en el extracto** = `RECURRENTES`.
+3. **Customer portal**: https://dashboard.stripe.com/settings/billing/portal → activarlo (guardar con lo que viene por defecto alcanza). Lo usa el botón "Tarjeta y facturas" del panel; sin activarlo, ese botón da error.
+4. Podés borrar la clave secreta vieja (`sk_live_…vmcW`) desde los tres puntos en Claves de API: no se usó en ningún lado.
+
+### WhatsApp: 3 plantillas nuevas para aprobar en Meta
+Los avisos del límite del plan gratis al dueño de la tienda. Mientras Meta no las apruebe, el aviso sale por mail igual (no se pierde). Textos exactos en `shared/platform/whatsapp.js` → `WA_PLAN_TEMPLATES`. Categoría UTILITY, idioma es_AR:
+- `aviso_plan_limite` (pasó los 10: "te damos 5 de regalo")
+- `aviso_plan_ultimo` (llegó a 14 o 15: "con uno más se apaga")
+- `aviso_plan_bloqueado` (16+: "tu widget está apagado")
