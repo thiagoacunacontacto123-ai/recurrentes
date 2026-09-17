@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { BundlePreview } from "./WidgetDesigner.jsx";
 import { DS } from "../ui/theme.js";
 import { BtnSolid } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
@@ -203,24 +204,26 @@ export function UseCasesSection({ T }) {
 }
 
 // ─── 3. Deep-dives (texto + maqueta, alternados) ─────────────────────────
+// El widget REAL (mismas plantillas que la tienda: shared/bundle), interactivo:
+// toggle Compra única / Suscripción y clic en los packs. Nada dibujado a mano,
+// así la landing nunca promete algo que el producto no tiene.
+const DEMO_PLAN = {
+  id: "demo", product_title: "Bálsamo Natural", frequency_days: 30, frequency_scales_with_qty: false,
+  discount_pct: 15, base_price_ars: 45000,
+  packs: [
+    { qty: 1, price_ars: 45000 },
+    { qty: 2, price_ars: 90000, badge: "Más elegido", default: true },
+    { qty: 3, price_ars: 135000, badge: "Mejor precio" },
+  ],
+};
+const DEMO_MERCHANT = { widget_variant: "v01", widget_color: "#10b981", widget_radius: 14, widget_mode_default: "sub" };
 function WidgetMock({ T }) {
-  const packs = [["x1", 45000, 40500, ""], ["x2", 90000, 76500, "Más elegido"], ["x3", 135000, 108000, "Mejor precio"]];
   return (
     <MockFrame T={T} label="Widget en tu producto">
-      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
-        {packs.map(([q, full, sub, tag], i) => (
-          <div key={q} style={{position:"relative",border:`1.5px solid ${i === 1 ? T.accentSolid : T.border}`,background:i === 1 ? T.accentSolid + "12" : T.bg,borderRadius:12,padding:"14px 10px 12px",textAlign:"center"}}>
-            {tag && <div style={{position:"absolute",top:-9,left:"50%",transform:"translateX(-50%)",fontSize:9,fontWeight:800,background:i === 1 ? T.accentSolid : T.textSm,color:"#fff",borderRadius:99,padding:"2px 8px",whiteSpace:"nowrap"}}>{tag}</div>}
-            <div style={{fontSize:18,fontWeight:900,color:T.text}}>{q}</div>
-            <div style={{fontSize:11,color:T.textSm,textDecoration:"line-through",marginTop:4}}>{fmt$(full)}</div>
-            <div style={{fontSize:14,fontWeight:800,color:T.accent,fontVariantNumeric:"tabular-nums"}}>{fmt$(sub)}</div>
-          </div>
-        ))}
+      <BundlePreview plan={DEMO_PLAN} merchant={DEMO_MERCHANT} footer={false} maxWidth={460} minHeight={260} style={{ margin: "0 -4px" }}/>
+      <div style={{ marginTop: 10, fontSize: 11.5, color: T.textSm, textAlign: "center" }}>
+        Probalo: tocá los packs y cambiá entre <strong style={{ color: T.textMd }}>Compra única</strong> y <strong style={{ color: T.textMd }}>Suscripción</strong>.
       </div>
-      <div style={{display:"flex",gap:6,marginTop:12}}>
-        {["Cada 30 días","Cada 60 días"].map((f, i) => <div key={f} style={{flex:1,textAlign:"center",fontSize:12,fontWeight:700,padding:"8px",borderRadius:9,border:`1px solid ${i === 0 ? T.accentSolid : T.border}`,color:i === 0 ? T.accent : T.textMd}}>{f}</div>)}
-      </div>
-      <div style={{marginTop:12,padding:"12px",borderRadius:11,background:T.accentSolid,color:"#fff",fontWeight:800,fontSize:14,textAlign:"center"}}>Suscribirme · {fmt$(76500)}</div>
     </MockFrame>
   );
 }
@@ -320,7 +323,7 @@ function MetricsMock({ T }) {
 export function DeepDivesSection({ T }) {
   const rows = [
     { eyebrow:"Widget", title:"Compra única o suscripción, en la misma página de producto", text:"Tu cliente elige cómo comprar sin salir del producto. Vos definís el descuento, la frecuencia y los packs.",
-      points:["Packs x1 · x2 · x3 con precio tachado y etiqueta de \"más elegido\".","10 diseños para elegir, con tu color y tus textos.","Descuento por suscribirse o solo en el primer cobro."], mock:<WidgetMock T={T}/> },
+      points:["Compra única o Suscripción, en la misma página de producto y con el botón de tu tema.","Packs x1 · x2 · x3 con precio tachado y etiqueta de \"más elegido\", en 10 diseños con tu color.","Descuento por suscribirse o solo en el primer cobro."], mock:<WidgetMock T={T}/> },
     { eyebrow:"Piloto automático", title:"Cada cobro aprobado se convierte en una orden", text:"Mercado Pago cobra en la fecha que corresponde y Recurrentes arma la orden en tu negocio, con todo lo que necesitás para despachar.",
       points:["Orden paga con dirección, envío y stock descontado.","El cliente recibe el mail de confirmación como en cualquier compra.","Sin planillas ni pedidos cargados a mano."], mock:<TimelineMock T={T}/> },
     { eyebrow:"Portal del suscriptor", title:"Tus clientes se gestionan solos", text:"Cada suscriptor tiene su link para ver su plan y hacer cambios sin escribirte.",
