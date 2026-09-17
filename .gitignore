@@ -30,3 +30,7 @@ serviceAccountKey*.json
 secrets/
 # Claude Code: settings personales (permisos locales)
 .claude/settings.local.json
+
+# Worktrees y estado local de Claude Code (no son parte del producto)
+.claude/worktrees/
+.claude/agents/

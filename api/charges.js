@@ -7,9 +7,10 @@
 // último). Devuelve `error` del charge para mostrarlo en el dashboard.
 //
 // Vistas:
-//   ?view=upcoming → { upcoming:[{subscriber_id,email,name,plan_title,amount_ars,next_charge_at}],
-//                      count, amount_ars }  — subs activas con next_charge_at en los próximos
-//                      30 días (?days=1..90), ordenadas por fecha.
+//   ?view=upcoming → { upcoming:[{subscriber_id,email,name,plan_title,amount_ars,next_charge_at,
+//                      projected}], count, amount_ars } — subs activas con next_charge_at en los
+//                      próximos 30 días (?days=1..400), ordenadas por fecha. Con days>45 se
+//                      proyectan las renovaciones siguientes cada frequency_days (projected:true).
 //   ?view=errors   → { charges:[…], count } — charges con `error` (orden Shopify que falló)
 //                      de los últimos 60 días (?days=1..180), más recientes primero.
 import { db, requireMerchant } from "./_lib/firebase.js";
@@ -20,32 +21,53 @@ const subAmount = (s) => {
 };
 
 async function viewUpcoming(merchantRef, req, res) {
-  const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 90);
+  // Hasta 1 año para la vista calendario; el default sigue siendo 30 días.
+  const days = Math.min(Math.max(parseInt(req.query.days) || 30, 1), 400);
   const nowIso = new Date().toISOString();
-  const untilIso = new Date(Date.now() + days * 86400000).toISOString();
+  const untilMs = Date.now() + days * 86400000;
+  const untilIso = new Date(untilMs).toISOString();
+  const floorIso = new Date(Date.now() - 86400000).toISOString();
+  // MP solo nos dice el PRÓXIMO cobro de cada sub. Para proyectar más allá de
+  // ese cobro (calendario a un año) repetimos cada frequency_days del plan,
+  // marcando los estimados con projected:true (la fecha real la fija MP).
+  const projecting = days > 45;
   let docs;
   try {
     // Índice compuesto status + next_charge_at (firestore.indexes.json).
-    docs = (await merchantRef.collection("subscribers").where("status", "==", "active").where("next_charge_at", "<=", untilIso).get()).docs;
+    docs = projecting
+      ? (await merchantRef.collection("subscribers").where("status", "==", "active").get()).docs
+      : (await merchantRef.collection("subscribers").where("status", "==", "active").where("next_charge_at", "<=", untilIso).get()).docs;
   } catch (e) {
     if (!/FAILED_PRECONDITION|index/i.test(e.message || "")) throw e;
     docs = (await merchantRef.collection("subscribers").where("status", "==", "active").get()).docs;
   }
-  const upcoming = docs
-    .map(d => ({ id: d.id, ...d.data() }))
+  const upcoming = [];
+  for (const d of docs) {
+    const s = { id: d.id, ...d.data() };
     // Vencidas de hace más de 1 día no son "próximas" (el cron las está persiguiendo).
-    .filter(s => s.next_charge_at && s.next_charge_at <= untilIso && s.next_charge_at >= new Date(Date.now() - 86400000).toISOString())
-    .map(s => ({
+    if (!s.next_charge_at || s.next_charge_at < floorIso) continue;
+    const base = {
       subscriber_id: s.id,
       email: s.customer_email || null,
       name: s.customer_name || null,
       plan_title: s.plan_snapshot?.product_title || null,
       amount_ars: subAmount(s),
-      next_charge_at: s.next_charge_at,
-      overdue: s.next_charge_at < nowIso,
-    }))
-    .sort((a, b) => a.next_charge_at.localeCompare(b.next_charge_at));
-  return res.json({ upcoming, count: upcoming.length, amount_ars: upcoming.reduce((t, u) => t + u.amount_ars, 0), days });
+    };
+    const freq = Math.min(Math.max(parseInt(s.plan_snapshot?.frequency_days, 10) || 30, 1), 365);
+    let ms = Date.parse(s.next_charge_at);
+    if (!Number.isFinite(ms)) continue;
+    let n = 0;
+    // Tope de 40 cobros por sub: a 7 días de frecuencia un año son ~52, pero
+    // 40 alcanza para que el calendario no quede vacío y acota la respuesta.
+    while (ms <= untilMs && n < (projecting ? 40 : 1)) {
+      upcoming.push({ ...base, next_charge_at: new Date(ms).toISOString(), overdue: n === 0 && s.next_charge_at < nowIso, projected: n > 0 });
+      ms += freq * 86400000;
+      n++;
+      if (!projecting) break;
+    }
+  }
+  upcoming.sort((a, b) => a.next_charge_at.localeCompare(b.next_charge_at));
+  return res.json({ upcoming, count: upcoming.length, amount_ars: upcoming.reduce((t, u) => t + u.amount_ars, 0), days, projected: projecting });
 }
 
 async function viewErrors(merchantRef, req, res) {
