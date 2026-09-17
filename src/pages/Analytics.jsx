@@ -146,7 +146,7 @@ export function AnalyticsPage({ merchant }) {
           {/* Evolución mensual */}
           <div style={{ marginBottom:18 }}>
             {first ? <Loading T={T}/> : (
-              <AreaChart T={T} title={`Evolución · últimos ${months} meses`} tabs={chartTabs} dates={monthly.map(m => m.month)} fmtDate={monthTick} height={220}
+              <AreaChart T={T} title={`Evolución · ${a.months ? `${a.months} ${a.months === 1 ? "mes" : "meses"}` : "período"}`} tabs={chartTabs} dates={monthly.map(m => m.month)} fmtDate={monthTick} height={220}
                 total={(tab) => tab.id === "cobrado" ? fmtARS(sum("revenue_ars")) : tab.id === "activas" ? `${fmtN(curMonth?.active_end)} activas` : `+${fmtN(sum("new"))} · −${fmtN(sum("cancelled"))}`}/>
             )}
           </div>
