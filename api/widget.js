@@ -1154,7 +1154,11 @@ export default async function handler(req, res) {
               withNotOurs(TN_THEME_PRICE) + "{display:none !important}" +
               withNotOurs(TN_THEME_QTY) + "{display:none !important}" +
               // en suscripción: el botón del tema; en compra única: el nuestro
-              withNotOurs(TN_THEME_BUY).replace(/body\.rec-bundle-active /g, "body.rec-bundle-active.rec-sub-active ") + "{display:none !important}";
+              withNotOurs(TN_THEME_BUY).replace(/body\.rec-bundle-active /g, "body.rec-bundle-active.rec-sub-active ") + "{display:none !important}" +
+              // compra única: el botón nativo ocupa todo el ancho (su columna solía
+              // compartir la fila con el selector de cantidad, que ahora está oculto)
+              withNotOurs(TN_THEME_BUY).replace(/body\.rec-bundle-active /g, "body.rec-bundle-active:not(.rec-sub-active) ") + "{width:100% !important;max-width:100% !important;flex:1 1 100% !important;margin-left:0 !important;margin-right:0 !important}" +
+              TN_THEME_BUY.split(",").map(function (x) { return "body.rec-bundle-active:not(.rec-sub-active) *:has(> " + x.trim() + NOT_OURS + ")"; }).join(",") + "{width:100% !important;max-width:100% !important;flex:0 0 100% !important;padding-left:0 !important;padding-right:0 !important}";
           }
           document.head.appendChild(st);
         }
