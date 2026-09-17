@@ -110,6 +110,16 @@ export default async function handler(req, res) {
     let charges = snap.docs.map(d => ({ id: d.id, ...d.data(), error: d.data().error || null }));
     const hasMore = charges.length > limit;
     charges = charges.slice(0, limit);
+    // Nombre / mail / producto del suscriptor (los charges viejos no lo guardan): un
+    // getAll con máscara de campos por los ids únicos de la página.
+    try {
+      const ids = [...new Set(charges.filter(c => !c.customer_name && c.subscriber_id).map(c => String(c.subscriber_id)))].slice(0, 200);
+      if (ids.length) {
+        const docs = await db().getAll(...ids.map(id => merchantRef.collection("subscribers").doc(id)), { fieldMask: ["customer_name", "customer_email", "plan_snapshot.product_title"] });
+        const bySub = {}; for (const d of docs) if (d.exists) bySub[d.id] = d.data() || {};
+        charges = charges.map(c => { const s = bySub[String(c.subscriber_id)]; return s ? { ...c, customer_name: c.customer_name || s.customer_name || null, customer_email: c.customer_email || s.customer_email || null, plan_title: c.plan_title || s.plan_snapshot?.product_title || null } : c; });
+      }
+    } catch (e) { console.warn("[charges] join de suscriptores:", e.message); }
     const nextCursor = hasMore && charges.length ? (charges[charges.length - 1].created_at || null) : null;
 
     // Sumamos datos derivados (totales) para el header del panel — de la página actual.
