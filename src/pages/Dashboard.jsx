@@ -12,6 +12,7 @@ import GuidePage from "./Guide.jsx";
 import { useOnboarding, OnboardingContext } from "../lib/onboarding.js";
 import { merchantProfile } from "../../shared/platform/profile.js";
 import { BillingBanner } from "./Billing.jsx";
+import { PlanLimitBar, PlanLimitModal, PlanBlockedView, isBlocked, showsPlanLimit } from "./PlanLimit.jsx";
 import { HomeTab } from "./Home.jsx";
 import { PlansTab, WidgetTab } from "./Plans.jsx";
 import { SubscriptionsPage } from "./Subscriptions.jsx";
@@ -261,6 +262,11 @@ export default function Dashboard({ user, onLogout }) {
   // Perfil del negocio: qué hace falta conectar depende de qué vende y dónde
   // (servicios / link de suscripción no necesitan tienda). Histórico: Shopify + MP.
   const profile = useMemo(() => merchantProfile(merchant), [merchant]);
+  // Bloqueado (pasó los 15 sin pagar): se cierran las secciones donde CONFIGURA
+  // la venta. Cobros, Suscripciones, Analíticas y Configuración quedan abiertas
+  // en lectura, así puede seguir viendo su negocio y pagar (Thiago, 17-sept).
+  const PLAN_BLOCKED_TABS = ["planes", "widget", "retencion", "flujos", "portal"];
+  const blockedTab = (id) => isBlocked(merchant?.billing) && PLAN_BLOCKED_TABS.includes(id);
   const integrationsReady = profile.ready;
   const shop = merchant?.shopify_shop || null;
   const devMode = merchant?.dev_mode === true;
@@ -268,11 +274,9 @@ export default function Dashboard({ user, onLogout }) {
   // ── Plan de acción / onboarding (src/lib/onboarding.js) ──────────────
   const onb = useOnboarding({ merchant, user, goTab });
   const onbCtx = useMemo(() => ({ ...onb, openWizard: () => setWizardOpen(true) }), [onb]);
-  useEffect(() => {
-    if (!merchant || !onb.ready || onb.seen || merchant.admin_view) return;
-    if (onb.pending > 0) setWizardOpen(true); else onb.markSeen();
-    // eslint-disable-next-line
-  }, [merchant?.id, onb.ready]);
+  // El paso a paso NO se abre solo al entrar: quedaba viejo y cada sección ya
+  // avisa por su cuenta qué falta configurar antes de dejarte usarla. Sigue
+  // disponible a pedido, desde la Guía y desde el botón de Inicio.
   const closeWizard = useCallback(() => { setWizardOpen(false); onb.markSeen(); }, [onb.markSeen]);
   const pendientesSidebar = useMemo(() => onb.pendingSteps.filter(s => !s.locked).map(s => ({ key: s.id, n: s.n, label: s.title, onClick: () => onb.goStep(s) })), [onb.pendingSteps, onb.goStep]);
 
@@ -311,7 +315,10 @@ export default function Dashboard({ user, onLogout }) {
         </AppTopbar>
 
         {!loading && merchant?.admin_view && <AdminViewBanner T={T} merchant={merchant}/>}
-        {!loading && merchant?.billing && <BillingBanner T={T} billing={merchant.billing} onGo={()=>goConfig("facturacion")}/>}
+        {/* Límite del plan gratis: la barra roja manda y silencia el aviso amarillo
+            (dos avisos apilados no se leen; el rojo es el que importa). */}
+        {!loading && merchant?.billing && <PlanLimitBar T={T} billing={merchant.billing} onGo={()=>goConfig("facturacion")}/>}
+        {!loading && merchant?.billing && !showsPlanLimit(merchant.billing) && <BillingBanner T={T} billing={merchant.billing} onGo={()=>goConfig("facturacion")}/>}
 
         <PageView pageKey={tab} T={T}>
           <ErrorBoundary T={T}>
@@ -327,6 +334,8 @@ export default function Dashboard({ user, onLogout }) {
                     <button onClick={()=>{setActiveMerchantId(user?.uid,null);window.location.reload();}} style={{background:"transparent",color:T.textMd,border:`1px solid ${T.border}`,borderRadius:10,padding:"10px 16px",fontWeight:600,cursor:"pointer"}}>Volver a mi tienda principal</button>
                   </div>
                 </div>
+              ) : blockedTab(tab) ? (
+                <PlanBlockedView T={T} billing={merchant.billing} title={navItem.label} onGo={()=>goConfig("facturacion")} onGoCobros={()=>goTab("cobros")}/>
               ) : tab === "suscripciones" ? (
                 integrationsReady ? <SubscriptionsPage devMode={devMode} shop={shop}/> : needs("Suscripciones")
               ) : tab === "cobros" ? (
@@ -366,6 +375,7 @@ export default function Dashboard({ user, onLogout }) {
           <GuidePage merchant={merchant} goTab={(id)=>{ setGuideOpen(false); goTab(id); }} embedded/>
         </Modal>
       )}
+      {!loading && merchant?.billing && !merchant?.admin_view && <PlanLimitModal T={T} billing={merchant.billing} merchantId={merchant.id} onGo={()=>goConfig("facturacion")}/>}
       {ownerAsk && merchant && <OwnerInfoModal T={T} user={user} merchant={merchant} onSaved={(d) => { setOwnerAsk(false); setMerchant(m => m ? { ...m, owner_info_missing: false, owner_name: d.owner_name, owner_whatsapp: d.owner_whatsapp, contact_email: d.contact_email } : m); }}/>}
       <ToastContainer T={T}/>
     </div>

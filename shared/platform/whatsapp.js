@@ -210,6 +210,8 @@ export const waUsageMonth = (d = new Date()) => new Date(d.getTime() - 3 * 3600e
 //   alerts_events { subscribed, paused, cancelled, payment_failed } (faltan = true)
 //   alerts_email (bool, falta = true): "también por mail".
 export const ALERTS_PANEL_URL = "https://www.recurrentesapp.com/#/dashboard/suscripciones";
+// Facturacion: donde activa el plan (avisos del limite del plan gratis).
+export const BILLING_PANEL_URL = "https://www.recurrentesapp.com/#/dashboard/configuracion/facturacion";
 export const WA_MERCHANT_FOOTER = "Podés apagar estos avisos desde tu panel de Recurrentes.";
 export const ALERT_EVENTS = [
   { id: "subscribed",     label: "Alguien se suscribe",               template: "aviso_comercio_alta" },
@@ -265,8 +267,43 @@ export const WA_MERCHANT_TEMPLATES = [
     samples: ["LuminaLabs", "Ana", "$9.480", "Cápsulas LuminaLabs", ALERTS_PANEL_URL],
   },
 ];
-export const WA_MERCHANT_TEMPLATE_BY_EVENT = Object.fromEntries(WA_MERCHANT_TEMPLATES.map(t => [t.event, t]));
-const ALERT_FALLBACK = { marca: "tu tienda", nombre: "un cliente", producto: "tu plan", monto: "el monto del plan", link_panel: ALERTS_PANEL_URL };
+
+// ─── Avisos del LÍMITE DEL PLAN GRATIS ──────────────────────────────────────
+// Son sobre la CUENTA del comerciante (no sobre sus clientes), así que salen
+// SIEMPRE: no dependen de alerts_whatsapp_enabled ni de alerts_events. Si le
+// vamos a apagar el widget, se tiene que enterar.
+// Los tres repiten la frase clave: los suscriptores que ya tiene se siguen cobrando.
+export const WA_PLAN_TEMPLATES = [
+  {
+    name: "aviso_plan_limite", event: "plan_grace", category: "UTILITY", lang: "es_AR",
+    title: "Pasaste el plan gratis (aviso al comercio)",
+    body: "Llegaste a {{1}} suscriptores activos en {{2}} y el plan gratis cubre hasta {{3}}.\n\nTe damos {{4}} de regalo para que no pares de vender. Si los pasás sin activar tu plan, el widget deja de mostrarse en tu tienda y no entran suscripciones nuevas.\n\nTus suscriptores actuales se siguen cobrando igual.\n\nActivá tu plan: {{5}}\n\nEs un aviso automático de Recurrentes.",
+    footer: WA_MERCHANT_FOOTER,
+    vars: { "1": "subs", "2": "marca", "3": "free", "4": "gracia", "5": "link_panel" },
+    samples: ["11", "LuminaLabs", "10", "5", BILLING_PANEL_URL],
+  },
+  {
+    name: "aviso_plan_ultimo", event: "plan_last_call", category: "UTILITY", lang: "es_AR",
+    title: "Un suscriptor más y se apaga (aviso al comercio)",
+    body: "⚠️ {{1}} llegó a {{2}} suscriptores activos: con uno más se apaga tu widget y no entran suscripciones nuevas.\n\nTus suscriptores actuales se siguen cobrando igual, no perdés ninguno.\n\nActivá tu plan y listo: {{3}}\n\nEs un aviso automático de Recurrentes.",
+    footer: WA_MERCHANT_FOOTER,
+    vars: { "1": "marca", "2": "subs", "3": "link_panel" },
+    samples: ["LuminaLabs", "15", BILLING_PANEL_URL],
+  },
+  {
+    name: "aviso_plan_bloqueado", event: "plan_blocked", category: "UTILITY", lang: "es_AR",
+    title: "Widget apagado (aviso al comercio)",
+    body: "Tu widget está apagado: {{1}} llegó a {{2}} suscriptores activos y no entran suscripciones nuevas. Tu página de producto quedó como estaba antes.\n\nTus {{2}} suscriptores se siguen cobrando normal y cada cobro sigue generando su orden. No perdiste ninguno.\n\nActivá tu plan y vuelve a funcionar al instante: {{3}}\n\nEs un aviso automático de Recurrentes.",
+    footer: WA_MERCHANT_FOOTER,
+    vars: { "1": "marca", "2": "subs", "3": "link_panel" },
+    samples: ["LuminaLabs", "16", BILLING_PANEL_URL],
+  },
+];
+export const WA_PLAN_TEMPLATE_BY_EVENT = Object.fromEntries(WA_PLAN_TEMPLATES.map(t => [t.event, t]));
+export const PLAN_ALERT_EVENTS = WA_PLAN_TEMPLATES.map(t => t.event);
+
+export const WA_MERCHANT_TEMPLATE_BY_EVENT = Object.fromEntries([...WA_MERCHANT_TEMPLATES, ...WA_PLAN_TEMPLATES].map(t => [t.event, t]));
+const ALERT_FALLBACK = { marca: "tu tienda", nombre: "un cliente", producto: "tu plan", monto: "el monto del plan", link_panel: ALERTS_PANEL_URL, subs: "varios", free: "10", gracia: "5" };
 
 // Qué eventos avisa la tienda (los que faltan cuentan como prendidos).
 export function alertEventsOf(m) {
@@ -284,6 +321,9 @@ export function alertParams(event, values) {
   if (!t) return [];
   return Object.keys(t.vars).sort((a, b) => Number(a) - Number(b)).map(n => waParamText(values?.[t.vars[n]], ALERT_FALLBACK[t.vars[n]] || "-"));
 }
+// ¿Es un aviso del límite del plan? (van al panel de facturación, salen siempre)
+export const isPlanAlert = (event) => PLAN_ALERT_EVENTS.includes(event);
+
 // Texto del aviso con los datos puestos (mail de respaldo y vista previa).
 export function renderMerchantAlert(event, values) {
   const t = WA_MERCHANT_TEMPLATE_BY_EVENT[event];

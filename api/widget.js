@@ -135,12 +135,23 @@ export default async function handler(req, res) {
   let liveShippingQuotes = false; // true con tienda conectada: cotiza con el proveedor de envíos de la tienda
   // Doc crudo del merchant (widget_variant, widget_texts, etc. los lee buildBundleVM).
   let merchantDoc = null;
+  let sellBlocked = false;   // pasó el límite del plan gratis sin pagar
   try {
     const { db } = await import("./_lib/firebase.js");
     const snap = await db().collection("merchants").doc(merchantId).get();
     if (snap.exists) {
       const m = snap.data();
       merchantDoc = m;
+      // Límite del plan gratis: con más de 15 suscriptores activos y sin plan al
+      // día, el widget NO se pinta (la página queda como estaba antes). Usamos el
+      // contador cacheado en el doc (billing_cache) para no contar en cada vista
+      // de producto; lo refresca el panel y el cron. Si no hay cache, no bloquea:
+      // nunca apagamos la venta de nadie por una duda nuestra.
+      try {
+        const { enforcementOf } = await import("./_lib/plans_saas.js");
+        const cached = Number(m?.billing_cache?.subs);
+        if (Number.isFinite(cached)) sellBlocked = !enforcementOf(m, cached).sell;
+      } catch (e) { console.warn("[widget] enforcement:", e.message); }
       if (m.widget_mode_order === "once_first") widgetModeOrder = "once_first";
       if (m.widget_mode_default === "once") widgetModeDefault = "once";
       if (typeof m.widget_color === "string" && /^#[0-9a-fA-F]{6}$/.test(m.widget_color)) widgetColor = m.widget_color;
@@ -186,6 +197,21 @@ export default async function handler(req, res) {
   // El widget del producto lo pide después de fetchPlan cuando el plan es de
   // packs; el navegador no renderiza nada, sólo swapea el HTML del estado.
   // `bundle: null` si el plan no existe / no está activo / no tiene packs.
+  // Límite del plan gratis pasado sin pagar: el widget no se pinta y la página de
+  // producto queda EXACTA a como estaba antes de instalarnos (no escondemos el
+  // botón del tema, no tocamos nada). Las suscripciones que ya cobran siguen
+  // cobrando: esto solo corta las ventas nuevas.
+  if (sellBlocked) {
+    if (String(req.query.view || "") === "bundle") {
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.setHeader("Cache-Control", "public, max-age=60");
+      return res.json({ bundle: null, blocked: true });
+    }
+    // Cache corta: al activar el plan el widget tiene que volver enseguida.
+    res.setHeader("Cache-Control", "public, max-age=60");
+    return res.send(`console.warn("[Recurrentes] Suscripciones en pausa: activá tu plan en https://www.recurrentesapp.com para volver a recibir suscripciones.");`);
+  }
+
   if (String(req.query.view || "") === "bundle") {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.setHeader("Cache-Control", "public, max-age=60");

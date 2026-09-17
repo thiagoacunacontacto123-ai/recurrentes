@@ -36,7 +36,7 @@ import { emailMerchantAlert, effectiveBrand } from "./email.js";
 import { rateLimit } from "./ratelimit.js";
 import {
   normalizePhoneAR, maskPhone, ALERT_EVENT_IDS, ALERTS_PANEL_URL, WA_MERCHANT_TEMPLATE_BY_EVENT,
-  alertEventsOf, alertFirstName, alertParams, renderMerchantAlert,
+  alertEventsOf, alertFirstName, alertParams, renderMerchantAlert, isPlanAlert, BILLING_PANEL_URL,
 } from "../../shared/platform/whatsapp.js";
 import { waChargeUsd } from "../../shared/platform/pricing.js";
 
@@ -91,7 +91,9 @@ export async function alertRecipients(merchantId, merchant) {
 // Manda un aviso (WhatsApp y/o mail). Sin dedup: eso lo hace notifyMerchantWhatsApp.
 async function deliver({ merchantId, merchant, event, subscriberId, values, test = false }) {
   const wa = platformWaConfig();
-  const wantEmail = merchant?.alerts_email !== false;
+  // Los avisos del LÍMITE DEL PLAN salen siempre y también por mail: es sobre su
+  // cuenta, no sobre sus clientes, y si le vamos a apagar el widget se tiene que enterar.
+  const wantEmail = isPlanAlert(event) || merchant?.alerts_email !== false;
   const rcpt = await alertRecipients(merchantId, merchant);
   const tpl = WA_MERCHANT_TEMPLATE_BY_EVENT[event];
   const out = { ok: false, whatsapp: null, email: null };
@@ -124,7 +126,7 @@ async function deliver({ merchantId, merchant, event, subscriberId, values, test
   if ((wantEmail || !waOk) && emailReady() && rcpt.email) {
     const r = await emailMerchantAlert({
       to: rcpt.email, event, text: renderMerchantAlert(event, values), storeName: values.marca,
-      customerName: values.nombre, panelUrl: ALERTS_PANEL_URL, test,
+      customerName: values.nombre, panelUrl: isPlanAlert(event) ? BILLING_PANEL_URL : ALERTS_PANEL_URL, test,
     });
     out.email = r?.ok ? { ok: true, to: rcpt.email } : { ok: false, to: rcpt.email, error: String(r?.error || "No se pudo enviar el mail").slice(0, 300) };
   } else {
@@ -152,6 +154,48 @@ export async function notifyMerchantWhatsApp(event, merchantId, merchant, subscr
     return out;
   } catch (e) {
     console.warn(`[alerts] ${event} ${merchantId}/${subscriberId}:`, scrub(e?.message));
+    return { ok: false, error: scrub(e?.message) };
+  }
+}
+
+// ─── Aviso del límite del plan gratis (plan_grace / plan_last_call / plan_blocked) ──
+//
+// Sobre la CUENTA del comerciante, así que NO mira alerts_whatsapp_enabled ni
+// alerts_events: si le vamos a apagar el widget, se entera igual. Sale por el
+// número de Recurrentes y, además, por mail.
+//
+// Dedup: un aviso por evento y por tramo de suscriptores (merchants/{mid}/alert_log).
+// El de gracia se repite si sube de número (11 → 12 → …) porque cada uno es una
+// noticia distinta ("te quedan 4" vs "te quedan 3"), pero nunca dos veces por el
+// mismo número. El de bloqueo sale una sola vez por día, no en cada cobro.
+//
+// NUNCA lanza: esto corre en el camino del cobro y un aviso que falla no puede
+// romper una venta.
+export async function notifyPlanLimit(event, merchantId, merchant, { subs, free, grace } = {}) {
+  if (!isPlanAlert(event) || !merchantId) return null;
+  if (!platformWaConfig() && !emailReady()) return null;
+  try {
+    // Clave de dedup: el bloqueo, 1 por día; los avisos de gracia, 1 por número.
+    const key = event === "plan_blocked" ? arDay() : `n${subs}`;
+    const ref = db().collection("merchants").doc(merchantId).collection("alert_log").doc(alertLogId(event, "plan", key));
+    try {
+      await ref.create({ event, subscriber_id: "plan", key, subs: Number(subs) || 0, status: "sending", created_at: nowIso() });
+    } catch (e) {
+      if (e?.code === 6 || /already exists/i.test(e?.message || "")) return { ok: false, skipped: true, reason: "duplicate" };
+      throw e;
+    }
+    const values = {
+      marca: merchant?.store_name || merchant?.shopify_shop || "tu tienda",
+      subs: String(Number(subs) || 0),
+      free: String(Number(free) || 0),
+      gracia: String(Number(grace) || 0),
+      link_panel: BILLING_PANEL_URL,
+    };
+    const out = await deliver({ merchantId, merchant, event, subscriberId: null, values });
+    await ref.set({ status: out.ok ? "sent" : "error", whatsapp: out.whatsapp, email: out.email, updated_at: nowIso() }, { merge: true }).catch(() => {});
+    return out;
+  } catch (e) {
+    console.warn(`[alerts] ${event} ${merchantId}:`, scrub(e?.message));
     return { ok: false, error: scrub(e?.message) };
   }
 }

@@ -60,6 +60,26 @@ export async function fulfillCharge(merchant, subscriberId, sub, params, tag = "
   return { shopifyOrderId: null, orderStatusUrl: null, shopifyError };
 }
 
+// Una sub cambió de estado → cambia la cuenta de activos que usan el widget y el
+// checkout para el límite del plan gratis. Recontamos, invalidamos el cache (así
+// el corte y el desbloqueo son inmediatos) y, si cruzó un límite, le avisamos al
+// dueño por WhatsApp. Nunca lanza: esto corre en el camino del cobro.
+async function refreshPlanLimit(merchantId, merchant) {
+  try {
+    const { enforcementOf, planAlertEventFor } = await import("./plans_saas.js");
+    const mref = db().collection("merchants").doc(merchantId);
+    const agg = await mref.collection("subscribers").where("status", "in", ["active", "payment_failed"]).count().get();
+    const subs = Number(agg.data().count) || 0;
+    await mref.set({ billing_cache: { subs, at: new Date().toISOString() } }, { merge: true });
+    const enf = enforcementOf(merchant || {}, subs);
+    const event = planAlertEventFor(enf);
+    if (event) {
+      const { notifyPlanLimit } = await import("./merchantAlerts.js");
+      await notifyPlanLimit(event, merchantId, merchant, { subs, free: enf.free, grace: enf.grace_limit - enf.free });
+    }
+  } catch (e) { console.warn("[plan-limit] refresh:", e.message); }
+}
+
 const nowIso = () => new Date().toISOString();
 // Date.parse tolerante: MP manda fechas con offset (-04:00) y nosotros en Z.
 const ms = (s) => { const t = s ? Date.parse(s) : NaN; return Number.isFinite(t) ? t : 0; };
@@ -675,6 +695,10 @@ export async function syncSubscriber(merchantId, subscriberId) {
   updates.last_sync_at = nowIso();
   updates.last_sync_error = null;
   await subRef.update(updates);
+  // Cambió el estado de una sub → cambia la cuenta de activos que usan el widget
+  // y el checkout para el límite del plan gratis. Invalidamos el cache para que
+  // el corte (y el desbloqueo) sea inmediato, no con 5 minutos de atraso.
+  if (updates.status !== sub.status) await refreshPlanLimit(merchantId, merchant);
   // Aviso al comercio si MP la pausó / canceló (el portal y el panel avisan por su lado; dedup por día).
   await notifyMerchantStatusChange(merchantId, merchant, subscriberId, sub.status, updates.status, { ...sub, status: updates.status });
 
@@ -833,6 +857,11 @@ export async function linkPaymentToSubscriber(merchantId, subscriberId, paymentI
     if (orderStatusUrl) update.last_shopify_order_status_url = orderStatusUrl;
   }
   await subRef.update(update);
+
+  // Un suscriptor más (o uno que volvió): el contador cacheado que usan el widget
+  // y el checkout para el límite del plan gratis queda viejo. Lo invalidamos así
+  // el corte es inmediato y no con 5 minutos de retraso.
+  if (update.status === "active") await refreshPlanLimit(merchantId, merchant);
 
   // (25) Primera venta con orden creada: Meta CAPI + mail de activación (mismo
   // eventId que webhook/sync → Meta deduplica).

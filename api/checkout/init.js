@@ -303,6 +303,20 @@ export default async function handler(req, res) {
   const merchantSnap = await merchantRef.get();
   if (!merchantSnap.exists) return res.status(404).json({ error: "Merchant no encontrado" });
   const merchant = merchantSnap.data();
+
+  // Límite del plan gratis: con más de 15 suscriptores activos y sin plan al día
+  // NO entran suscripciones nuevas (ni leads: no tiene sentido guardar carritos de
+  // una tienda que no puede vender). El widget ya no se pinta, pero esto cierra
+  // también el endpoint directo. Las suscripciones que YA cobran no se tocan.
+  try {
+    const { enforcementOf } = await import("../_lib/plans_saas.js");
+    const cached = Number(merchant?.billing_cache?.subs);
+    // Sin cache no bloqueamos: nunca cortamos una venta por una duda nuestra.
+    if (Number.isFinite(cached) && !enforcementOf(merchant, cached).sell) {
+      return res.status(402).json({ error: "Esta tienda no está recibiendo suscripciones nuevas en este momento.", code: "plan_required" });
+    }
+  } catch (e) { console.warn("[checkout] enforcement:", e.message); }
+
   const planSnap = await merchantRef.collection("plans").doc(String(plan_id)).get();
   if (!planSnap.exists) return res.status(404).json({ error: "Plan no encontrado" });
   const plan = { id: planSnap.id, ...planSnap.data() };
