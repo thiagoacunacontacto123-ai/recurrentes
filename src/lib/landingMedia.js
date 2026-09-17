@@ -5,12 +5,13 @@
 // (faststart) para que arranquen en menos de un segundo: el navegador baja solo
 // los primeros segundos gracias a preload="none" + Range.
 //   · normal: 1382x900, CRF 28 · 62 MB — la que carga por defecto.
-//   · alta:   1658x1080 nativo, CRF 26 · más nítida para leer el panel.
+//   · alta:   1658x1080 nativo, CRF 18 · 156 MB — sin pérdida visible frente
+//              al .mov original; el texto del panel se lee como en la grabación.
 // Las dos con `tune stillimage` (es captura de pantalla: texto fino, poco
 // movimiento), que da mucha definición con poco bitrate.
 export const LANDING_VIDEO_SOURCES = [
   { id: "normal", label: "Normal", hint: "Carga más rápido", url: "/landing/recurrentes-demo.mp4" },
-  { id: "alta", label: "Alta", hint: "Más nítido", url: "/landing/recurrentes-demo-alta.mp4" },
+  { id: "alta", label: "Alta", hint: "Calidad original, se lee todo", url: "/landing/recurrentes-demo-alta.mp4" },
 ];
 export const LANDING_VIDEO_URL = LANDING_VIDEO_SOURCES[0].url;
 export const LANDING_VIDEO_POSTER = "/landing/recurrentes-demo-poster.jpg";

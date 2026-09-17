@@ -114,7 +114,7 @@ function FlowMap({ T, compact }) {
     <div className={compact ? "rec-flow-sm" : undefined}>
       <div className="rec-flow-grid rec-flow-head">
         {head(1, "Tu negocio", "Donde vendés")}<span/>
-        {head(2, "Tu pasarela", "Con qué cobrás")}<span/>
+        {head(2, "Nuestras pasarelas", "Con qué cobrás")}<span/>
         {head(3, "Tu panel", "Lo que pasa en cada cobro")}
       </div>
       <div className="rec-flow-grid">
@@ -208,6 +208,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         .rec-land-wrap{max-width:1100px;margin:0 auto;padding:0 24px;}
         @media (prefers-reduced-motion: reduce){ .rec-land-card{transition:none;} .rec-land-card:hover{transform:none;} }
         @media(max-width:900px){ .rec-land-hero{grid-template-columns:1fr!important;gap:32px;} .rec-land-grid,.rec-land-stores{grid-template-columns:repeat(2,1fr)!important;} }
+        @media(max-width:900px){ .rec-land-benefits{grid-template-columns:1fr!important;gap:18px!important;} }
         @media(max-width:640px){ .rec-land-grid,.rec-land-stores,.rec-land-pasos{grid-template-columns:1fr!important;} .rec-land-h1{font-size:34px!important;} .rec-land-wrap{padding:0 16px;} .hide-mobile{display:none!important;} }
       `}</style>
 
@@ -264,7 +265,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
               Vendé por <span style={{background:`linear-gradient(135deg, ${T.accentSolid}, #34d399)`,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent"}}>suscripción</span> en tu negocio online desde hoy mismo
             </h1>
             <p style={{fontSize:17,color:T.textMd,lineHeight:1.6,margin:"0 0 22px",maxWidth:520}}>
-              Tu Shopify, tu Tiendanube o tu curso: el cliente se suscribe una vez, <strong style={{color:T.text}}>Mercado Pago cobra solo</strong> cada período y Recurrentes crea la orden en tu tienda con el envío de siempre. Vos te ocupás de vender.
+              Tu tienda online, tu membresía, tu club o tu curso: el cliente se suscribe una vez, <strong style={{color:T.text}}>se le cobra solo</strong> cada período y Recurrentes crea la orden en tu tienda con el envío de siempre. Vos te ocupás de vender.
             </p>
             <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
               <button onClick={irRegistro} style={{...BtnSolid(T),padding:"13px 22px",fontSize:15}}>
@@ -272,16 +273,6 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </button>
               <button onClick={ir("rec-video")} style={{...BtnSecondary(T),padding:"12px 18px",fontSize:14}}>Ver el video</button>
-            </div>
-            {/* Llena el alto del panel de la derecha con datos concretos en vez
-                de aire (Thiago, 17-sept). */}
-            <div style={{marginTop:28,paddingTop:22,borderTop:`1px solid ${T.borderL || T.border}`,display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:16}}>
-              {[["2 min","lo que tarda el primer cobro en aparecer en tu panel"],["0%","de comisión nuestra sobre cada venta"],["1 línea","de código en tu tienda, o ninguna en Tiendanube"]].map(([v,d])=>(
-                <div key={v}>
-                  <div style={{fontSize:24,fontWeight:800,color:T.accent,letterSpacing:-0.8,lineHeight:1.1}}>{v}</div>
-                  <div style={{fontSize:12,color:T.textSm,lineHeight:1.5,marginTop:5}}>{d}</div>
-                </div>
-              ))}
             </div>
           </div>
 
@@ -314,6 +305,20 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Tres beneficios a lo ancho, debajo del hero y del panel (Thiago, 17-sept). */}
+        <div style={{marginTop:34,paddingTop:26,borderTop:`1px solid ${T.borderL || T.border}`,display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:24}} className="rec-land-benefits">
+          {[
+            ["Instalación gratis", "y sencilla: lo dejamos funcionando en tu negocio sin que pagues nada por ponerlo."],
+            ["0% de comisión", "por venta. Lo que te cobra tu cliente es tuyo: no nos quedamos con un peso de cada cobro."],
+            [`Tus primeros ${FREE_SUBSCRIBERS} suscriptores`, "son gratis. Empezás sin poner plata y recién pagás cuando ya te está funcionando."],
+          ].map(([v,d])=>(
+            <div key={v}>
+              <div style={{fontSize:25,fontWeight:800,color:T.accent,letterSpacing:-0.8,lineHeight:1.1,marginBottom:6}}>{v}</div>
+              <div style={{fontSize:13.5,color:T.textSm,lineHeight:1.55}}>{d}</div>
+            </div>
+          ))}
         </div>
       </section>
 
