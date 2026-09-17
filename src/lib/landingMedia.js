@@ -5,8 +5,9 @@
 // (faststart) para que arranquen en menos de un segundo: el navegador baja solo
 // los primeros segundos gracias a preload="none" + Range.
 //   · normal: 1382x900, CRF 28 · 62 MB — la que carga por defecto.
-//   · alta:   1658x1080 nativo, CRF 18 · 156 MB — sin pérdida visible frente
-//              al .mov original; el texto del panel se lee como en la grabación.
+//   · alta:   1658x1080 nativo (resolución de la grabación), CRF 23 · 94 MB —
+//              el texto del panel se lee nítido. Es el techo práctico: GitHub
+//              rechaza archivos de más de 100 MB.
 // Las dos con `tune stillimage` (es captura de pantalla: texto fino, poco
 // movimiento), que da mucha definición con poco bitrate.
 export const LANDING_VIDEO_SOURCES = [
