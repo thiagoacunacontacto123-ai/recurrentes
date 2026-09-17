@@ -33,9 +33,6 @@ const FLOW_PAYMENTS = [
   { n:"Stripe", s:"soon" },
   { n:"Whop", s:"soon" },
 ];
-// El hero muestra además lo que está en el radar (el mapa se queda con lo principal).
-const HERO_STORES = [...FLOW_STORES.filter(x => x.n !== "Link de pago"), { n:"VTEX", s:"radar" }, { n:"Wix", s:"radar" }, { n:"Jumpseller", s:"radar" }, { n:"Desarrollo propio", s:"live" }];
-const HERO_PAYMENTS = [...FLOW_PAYMENTS, { n:"PayPal", s:"radar" }];
 const FLOW_ACTIONS = [
   { t:"Cobro aprobado · $ 40.500", short:"Cobro aprobado · $ 40.500", s:"live" },
   { t:"Orden #1042 creada en tu negocio", short:"Orden #1042 en tu tienda", s:"live" },
@@ -269,26 +266,6 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
             <p style={{fontSize:17,color:T.textMd,lineHeight:1.6,margin:"0 0 22px",maxWidth:520}}>
               Tu Shopify, tu Tiendanube o tu curso: el cliente se suscribe una vez, <strong style={{color:T.text}}>Mercado Pago cobra solo</strong> cada período y Recurrentes crea la orden en tu tienda con el envío de siempre. Vos te ocupás de vender.
             </p>
-            {/* Mismas plataformas y estados que el mapa de abajo (FLOW_STORES / FLOW_PAYMENTS). */}
-            <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:26}}>
-              {[["Vendé en", HERO_STORES], ["Cobrá con", HERO_PAYMENTS]].map(([label, list]) => (
-                <div key={label} style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-                  <span style={{fontSize:11,fontWeight:800,color:T.textSm,textTransform:"uppercase",letterSpacing:0.6,minWidth:74}}>{label}</span>
-                  {list.map(it => {
-                    const c = it.s === "live" ? T.accentSolid : it.s === "soon" ? T.yellow : T.textSm;
-                    return (
-                      <span key={it.n} style={{display:"inline-flex",alignItems:"center",gap:7,padding:"5px 9px 5px 11px",borderRadius:9,background:T.card,
-                        border:`1px ${it.s === "live" ? "solid" : "dashed"} ${it.s === "live" ? T.accentSolid + "88" : T.border}`,fontSize:12.5,fontWeight:700,color:it.s === "radar" ? T.textMd : T.text}}>
-                        {it.n}
-                        <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,fontWeight:700,color:c,whiteSpace:"nowrap"}}>
-                          <span style={{width:5,height:5,borderRadius:99,background:c}}/>{FLOW_STATUS[it.s]}
-                        </span>
-                      </span>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
             <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
               <button onClick={irRegistro} style={{...BtnSolid(T),padding:"13px 22px",fontSize:15}}>
                 Empezar gratis
