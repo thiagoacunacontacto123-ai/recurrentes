@@ -14,6 +14,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { mpGetPayment, mpGetPreapproval, mpResolvePaymentLike, mpUpdatePreapproval, mpSearchPayments, isMpAuthError } from "../_lib/mp.js";
 import { claimCharge } from "../_lib/chargeclaim.js";
 import { timingSafeEqualStr } from "../_lib/token.js";
+import { rateLimit, clientIp } from "../_lib/ratelimit.js";
 import { fetchWithTimeout } from "../_lib/http.js";
 import { disputeConfirmed } from "../_lib/webhookguard.js";
 import {
@@ -104,6 +105,20 @@ export default async function handler(req, res) {
   if (!verifyMpSignature(req, queryDataId || id)) {
     console.warn(`[mp-webhook] firma inválida (type=${type} id=${id})`);
     return res.status(401).json({ error: "invalid signature" });
+  }
+
+  // Sin MP_WEBHOOK_SIGNING_SECRET configurado la firma NO se valida (arriba), así
+  // que este endpoint es público: un POST con un id inventado y sin ?mid= hace
+  // leer TODOS los merchants con MP y pegarle una vez a MP por cada uno. No puede
+  // inventar un cobro (el pago se relee con el token del comerciante), pero sí
+  // quemar lecturas de Firestore y el rate limit de MP. Tope por IP para los
+  // avisos sin hint de merchant; los de MP siempre traen ?mid= o user_id.
+  if (!process.env.MP_WEBHOOK_SIGNING_SECRET && !req.query.mid && body.user_id == null) {
+    const rl = await rateLimit(`mpwh:${clientIp(req)}`, { limit: 60, windowSec: 3600 });
+    if (!rl.ok) {
+      console.warn("[mp-webhook] rate limit por IP (webhook sin firma ni hint de tienda)");
+      return res.status(429).json({ error: "too many requests" });
+    }
   }
 
   let hintMid = String(req.query.mid || "");

@@ -1546,7 +1546,7 @@ function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates, waOptin
   var sumOpen = !(typeof window !== "undefined" && window.innerWidth < 760);  // resumen: abierto en desktop, colapsado en mobile
 
   function money(n){ return "$" + Math.round(Number(n) || 0).toLocaleString("es-AR"); }
-  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c]; }); }
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","'":"&#39;"}[c]; }); }
   function val(id){ var el = document.getElementById(id); return el ? el.value.trim() : ""; }
   // Atribución de Meta: cookies _fbp/_fbc (o fbclid de la URL) para que el evento
   // InitiateCheckout + Purchase se atribuyan al anuncio correcto.

@@ -123,3 +123,38 @@ test("(f) la tienda deshabilitó cancelar desde el portal → 403 sin tocar MP",
   assert.equal(res.statusCode, 403);
   assert.equal(W.mp.preapprovalUpdates.length, 0);
 });
+
+// ── REGRESIÓN: una sub CANCELADA no se toca desde el portal ──────────────────
+// El token del portal dura 180 días. Sin este corte, el link viejo de un cliente
+// que ya se dio de baja servía para mandar "resume": Recurrentes le pedía a MP
+// volver a autorizar el preapproval y le cobraban de nuevo.
+test("(f) sub cancelada: reactivar desde el portal se rechaza y MP no se toca", async () => {
+  W.seedSub("sub_ana", { ...W.sub("sub_ana"), status: "cancelled", cancelled_at: "2026-09-01T00:00:00.000Z" });
+
+  const res = await action("resume");
+
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.code, "sub_cancelled");
+  assert.equal(W.sub("sub_ana").status, "cancelled", "la sub tiene que seguir cancelada");
+  assert.deepEqual(W.mp.preapprovalUpdates, [], "no se puede tocar el preapproval en MP");
+});
+
+test("(f) sub cancelada: pausar y cancelar de nuevo también se rechazan", async () => {
+  W.seedSub("sub_ana", { ...W.sub("sub_ana"), status: "cancelled" });
+  for (const a of ["pause", "cancel"]) {
+    const res = await action(a);
+    assert.equal(res.statusCode, 409, `${a} tiene que dar 409`);
+  }
+  assert.deepEqual(W.mp.preapprovalUpdates, []);
+  assert.equal(W.resend.sent.length, 0, "no se manda otro mail de cancelación");
+});
+
+test("(f) sub cancelada: tampoco se puede cambiar la dirección", async () => {
+  W.seedSub("sub_ana", { ...W.sub("sub_ana"), status: "cancelled" });
+  const res = await invoke(handler, {
+    method: "POST", query: { action: "update-address", token: TOKEN },
+    body: { shipping_address: { address1: "Calle Falsa 123", city: "CABA", province: "CABA", zip: "1414" }, customer_phone: "1155550000" },
+  });
+  assert.equal(res.statusCode, 409);
+  assert.equal(W.sub("sub_ana").shipping_address.address1, "Av. Siempreviva 742", "la dirección no cambia");
+});

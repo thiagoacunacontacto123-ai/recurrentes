@@ -445,7 +445,7 @@ export async function syncSubscriber(merchantId, subscriberId) {
     try { addResults(await mpSearchPayments(token, { preapproval_id: pid })); }
     catch (e) {
       if (isMpAuthError(e)) return failSync("payments_search", e);
-      log(`payments_search por preapproval_id no disponible (${String(e.message).slice(0, 80)}); sigo por external_reference`);
+      console.warn(`[sync] payments_search por preapproval_id no disponible (${String(e.message).slice(0, 80)}); sigo por external_reference`);
     }
   }
   // 2) sigue siendo "dura": si falla, la sync devuelve error y no toca status.

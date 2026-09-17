@@ -557,11 +557,25 @@ export default async function handler(req, res) {
     const merchantSnap = await merchantRef.get();
     const merchant = merchantSnap.data() || {};
 
-    // Best effort: cancelar en MP por las dudas
+    // Cancelar en MP ANTES de borrar. Si MP no confirma la baja, NO borramos: el
+    // preapproval seguiría cobrándole al cliente todos los meses y, sin el
+    // suscriptor en Firestore, ningún cobro podría convertirse en orden ni
+    // aparecer en el panel — plata que entra a la cuenta del comerciante sin que
+    // nadie la vea y sin que el cliente reciba su pedido. Con `?force=1` el
+    // comerciante puede borrar igual (sub vieja cuyo preapproval ya no existe).
     if (merchant.mp_access_token && sub.mp_preapproval_id && sub.status !== "cancelled") {
       try {
         await mpUpdatePreapproval(merchant.mp_access_token, sub.mp_preapproval_id, { status: "cancelled" });
-      } catch (_) {}
+      } catch (e) {
+        const yaCancelada = /not found|does not exist|already|cancelled/i.test(String(e?.message || ""));
+        if (!yaCancelada && req.query.force !== "1") {
+          console.error(`[subscribers] no pude cancelar ${sub.mp_preapproval_id} en MP, NO borro:`, e.message);
+          return res.status(502).json({
+            error: "No pudimos cancelar la suscripción en Mercado Pago, así que no la borramos: si la borráramos, te seguiría cobrando sin que la veas. Probá de nuevo en unos minutos.",
+            code: "mp_cancel_failed",
+          });
+        }
+      }
     }
 
     // Borrar también los charges asociados

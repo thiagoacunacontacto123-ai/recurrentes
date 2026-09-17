@@ -247,6 +247,21 @@ export default async function handler(req, res) {
     // (active=false, mantiene historial para suscriptores que ya estaban en
     // este plan).
     if (req.query.hard === "1") {
+      // Borrado REAL: solo si NADIE lo está usando. Los cobros salen del
+      // plan_snapshot del suscriptor, así que borrarlo no corta la plata, pero deja
+      // al comerciante sin el plan del que vienen suscripciones vivas (el checkout
+      // de recupero y el widget dejan de encontrarlo). Con suscriptores vivos →
+      // 409 y se desactiva como siempre desde el panel.
+      const vivos = ["active", "paused", "payment_failed", "pending"];
+      const enUso = await merchantRef.collection("subscribers")
+        .where("plan_id", "==", String(id)).where("status", "in", vivos).limit(1).get()
+        .catch(() => null);
+      if (enUso && !enUso.empty) {
+        return res.status(409).json({
+          error: "Este plan tiene suscripciones vivas: desactivalo en lugar de borrarlo (las suscripciones actuales se siguen cobrando).",
+          code: "plan_in_use",
+        });
+      }
       await plansCol.doc(String(id)).delete();
     } else {
       await plansCol.doc(String(id)).update({ active: false, updated_at: new Date().toISOString() });

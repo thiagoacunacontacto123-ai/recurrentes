@@ -367,3 +367,35 @@ test("GET/HEAD de healthcheck de MP → 200 sin hacer nada", async () => {
   assert.equal(res.statusCode, 200);
   assert.equal(W.router.calls.length, 0);
 });
+
+// ── Sin firma configurada el webhook es público: tope por IP para el aviso que
+// NO dice de qué tienda es (sin ?mid= ni user_id). Ese caso hace leer TODOS los
+// merchants con MP y pegarle a MP con cada token: es la vía para quemar lecturas
+// de Firestore y el rate limit de MP desde afuera.
+test("sin firma ni hint de tienda: el aviso anónimo está limitado por IP", async () => {
+  W.seedSub("sub_ana", subscriber());
+  W.mp.addPayment(mpPayment({ id: 1310000080, amount: 12300, preapprovalId: "pre_ana" }), MP_TOKEN);
+
+  let last;
+  for (let i = 0; i < 61; i++) {
+    last = await invoke(webhook, mpWebhookReq(1310000080, {
+      userId: null, headers: { "x-forwarded-for": "203.0.113.9" },
+    }));
+  }
+  assert.equal(last.statusCode, 429, "pasado el tope, el aviso anónimo se rechaza");
+});
+
+test("el aviso legítimo de MP (con ?mid=&sid=) nunca entra al tope por IP", async () => {
+  W.seedSub("sub_ana", subscriber());
+  W.mp.addPreapproval(mpPreapproval({ id: "pre_ana", planId: "plan_adhoc_ana" }), MP_TOKEN);
+  W.mp.addPayment(mpPayment({ id: 1310000081, amount: 12300, preapprovalId: "pre_ana" }), MP_TOKEN);
+
+  // Muy por encima del tope por IP: el aviso que identifica la tienda no se limita.
+  for (let i = 0; i < 70; i++) {
+    const res = await invoke(webhook, mpWebhookReq(1310000081, {
+      query: { mid: MID, sid: "sub_ana" }, headers: { "x-forwarded-for": "203.0.113.10" },
+    }));
+    assert.equal(res.statusCode, 200, `entrega ${i + 1} tiene que pasar`);
+  }
+  assert.equal(W.shopify.orderPosts.length, 1, "y sigue creando UNA sola orden");
+});

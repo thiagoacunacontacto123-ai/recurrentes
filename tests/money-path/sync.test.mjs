@@ -144,3 +144,28 @@ test("(d) renovación rechazada detectada por sync → payment_failed + un solo 
   assert.equal(W.resend.byType("payment_failed").length, 1);
   assert.equal(W.resend.sent.length, 1);
 });
+
+// ── REGRESIÓN: cuenta de MP que NO acepta `preapproval_id` como filtro de pagos ──
+// Es el caso que el comentario de sync.js dice cubrir ("pasó en la cuenta de
+// Lumina"): la búsqueda 1 es "blanda" y el sync tiene que seguir por
+// external_reference. Si el catch de esa búsqueda explota, el cobro NO se
+// procesa: la sub queda pending y el cliente pagó sin orden.
+test("(d) MP rechaza el filtro preapproval_id (400): igual procesa el cobro por external_reference", async () => {
+  W.router.failNext("GET", "api.mercadopago.com", /^\/v1\/payments\/search$/, (call) => {
+    if (call.query.preapproval_id) {
+      return { status: 400, json: { message: "preapproval_id is not a possible param", error: "bad_request", status: 400 } };
+    }
+    return null;
+  });
+  // El pago SÍ trae el external_reference (mid:sid), que es la vía que queda viva.
+  W.mp.addPayment(mpPayment({
+    id: 1310000900, amount: 12300, preapprovalId: "pre_carla",
+    externalReference: `${MID}:sub_carla`,
+  }), MP_TOKEN);
+
+  const r = await syncSubscriber(MID, "sub_carla");
+
+  assert.equal(r.status, "active", "la sub tiene que quedar activa");
+  assert.equal(r.orders_created, 1, "el cobro tiene que terminar en una orden");
+  assert.equal(W.shopify.orderPosts.length, 1);
+});

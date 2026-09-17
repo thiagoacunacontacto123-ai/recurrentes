@@ -312,6 +312,10 @@ async function handleUpdateAddress(req, res) {
   const subSnap = await subRef.get();
   if (!subSnap.exists) return res.status(404).json({ error: "Suscripción no encontrada" });
   const sub = subSnap.data();
+  // Sub cancelada: no hay próximo envío que corregir (el token vive 180 días).
+  if (sub.status === "cancelled") {
+    return res.status(409).json({ error: "Esta suscripción está cancelada.", code: "sub_cancelled", status: "cancelled" });
+  }
   try {
     const m = (await db().collection("merchants").doc(merchantId).get()).data() || {};
     if (m.portal?.allow_address === false) return res.status(403).json({ error: "Esta tienda no permite cambiar la dirección desde el portal. Escribile a la tienda." });
@@ -470,6 +474,18 @@ async function handleSub(req, res) {
     const perms = merchant.portal || {};
     if (subAction === "pause" && perms.allow_pause === false) return res.status(403).json({ error: "Esta tienda no permite pausar desde el portal. Escribile a la tienda." });
     if (subAction === "cancel" && perms.allow_cancel === false) return res.status(403).json({ error: "Esta tienda no permite cancelar desde el portal. Escribile a la tienda." });
+    // Una sub CANCELADA no vuelve desde el portal: el token del portal vive 180
+    // días, así que sin esto cualquiera con el link viejo (o el propio cliente por
+    // error) podía mandar "resume" y hacer que MP volviera a cobrarle. Para
+    // resuscribirse hay que pasar por el checkout de nuevo. Tampoco tiene sentido
+    // pausar/cancelar algo ya cancelado.
+    if (sub.status === "cancelled") {
+      return res.status(409).json({
+        error: "Esta suscripción está cancelada. Si querés volver a suscribirte, hacelo desde la tienda.",
+        code: "sub_cancelled",
+        status: "cancelled",
+      });
+    }
     // Motivo válido = uno de los configurados por la tienda (o "otro"); si no, se descarta.
     const validCodes = new Set([...retentionFor(merchant).reasons.map(r => r.code), "otro"]);
     const cancelReasonCode = validCodes.has(rcRaw) ? rcRaw : null;

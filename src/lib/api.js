@@ -74,24 +74,40 @@ async function handleResponse(r, sentMid, uid) {
   return d;
 }
 
+// Sin internet (o con el servidor caído) `fetch` LANZA y el error sube a la
+// página: casi ninguna llama dentro de try/catch, así que la pantalla se quedaba
+// cargando para siempre, sin decir nada. Devolvemos el mismo shape que el resto
+// ({ error }) para que el panel muestre el aviso de siempre.
+const OFFLINE = "No pudimos conectarnos. Revisá tu conexión e intentá de nuevo.";
+
 export async function apiGet(path, params = {}) {
   const qs = new URLSearchParams(params).toString();
   const url = `/api/${path}${qs ? `?${qs}` : ""}`;
-  const h = await authHeaders();
-  const r = await fetch(url, { headers: { ...h } });
-  return handleResponse(r, h["X-Merchant-Id"], auth.currentUser?.uid);
+  try {
+    const h = await authHeaders();
+    const r = await fetch(url, { headers: { ...h } });
+    return await handleResponse(r, h["X-Merchant-Id"], auth.currentUser?.uid);
+  } catch (e) {
+    console.warn("[api] GET", path, e?.message || e);
+    return { error: OFFLINE, code: "network_error" };
+  }
 }
 
 export async function apiSend(path, method, body = null, params = {}) {
   const qs = new URLSearchParams(params).toString();
   const url = `/api/${path}${qs ? `?${qs}` : ""}`;
-  const h = await authHeaders();
-  const r = await fetch(url, {
-    method,
-    headers: { "Content-Type": "application/json", ...h },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  return handleResponse(r, h["X-Merchant-Id"], auth.currentUser?.uid);
+  try {
+    const h = await authHeaders();
+    const r = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json", ...h },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return await handleResponse(r, h["X-Merchant-Id"], auth.currentUser?.uid);
+  } catch (e) {
+    console.warn("[api]", method, path, e?.message || e);
+    return { error: OFFLINE, code: "network_error" };
+  }
 }
 
 export const apiPost = (p, b, q) => apiSend(p, "POST", b, q);
