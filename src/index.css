@@ -55,3 +55,7 @@ button {
 input, textarea, select {
   font-family: inherit;
 }
+
+/* Loader de la app: el logo de Recurrentes girando */
+@keyframes rec-logo-spin { to { transform: rotate(360deg); } }
+@keyframes rec-logo-pulse { 0%,100% { opacity: .55; } 50% { opacity: 1; } }

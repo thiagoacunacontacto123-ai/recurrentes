@@ -4,7 +4,7 @@ import { StoreTransferredScreen } from "./Transfer.jsx";
 import { auth } from "../lib/firebase.js";
 import { sendEmailVerification } from "firebase/auth";
 import { DS, useTheme, useT } from "../ui/theme.js";
-import { Card, Btn, Spinner, PageHeader, Callout, ToastContainer, PageView, toast, ErrorBoundary, Modal } from "../ui/components.jsx";
+import { Card, Btn, Spinner, PageHeader, Callout, ToastContainer, PageView, toast, ErrorBoundary, Modal, AppLoader } from "../ui/components.jsx";
 import { Sidebar, AppTopbar, MobileBottomNav, NewStoreModal, ManageStoreModal, NAV, TAB_ALIASES } from "../ui/Shell.jsx";
 import SettingsPage from "./Settings.jsx";
 import OnboardingWizard from "./Onboarding.jsx";
@@ -317,7 +317,7 @@ export default function Dashboard({ user, onLogout }) {
           <ErrorBoundary T={T}>
             <main style={{padding:"28px 32px 48px",maxWidth:1200,width:"100%"}} className="pad-mobile">
               {loading ? (
-                <div style={{color:T.textSm,fontSize:14}}>Cargando…</div>
+                <AppLoader T={T} minHeight="60vh"/>
               ) : loadError ? (
                 <div style={{maxWidth:520,margin:"40px auto",textAlign:"center"}}>
                   <div style={{fontSize:17,fontWeight:700,color:T.text,marginBottom:8}}>No pudimos cargar tu cuenta</div>

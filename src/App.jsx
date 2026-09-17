@@ -1,3 +1,4 @@
+import { AppLoader } from "./ui/components.jsx";
 import React, { useState, useEffect } from "react";
 import { auth, onAuthStateChanged } from "./lib/firebase.js";
 import { signOut } from "firebase/auth";
@@ -52,9 +53,7 @@ export default function App() {
 
   if (!authReady) {
     return (
-      <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",color:"var(--text-sm)",fontSize:14,fontFamily:"'Inter',system-ui,sans-serif"}}>
-        Cargando…
-      </div>
+      <AppLoader/>
     );
   }
 
