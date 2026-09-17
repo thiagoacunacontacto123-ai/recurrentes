@@ -1192,6 +1192,7 @@ function storeEntry(id, d, { role, uid, member }) {
     owner_email: d?.ownerEmail || d?.email || null,
     shopify_shop: d?.shopify_shop || null,
     mp_connected: !!d?.mp_access_token,
+    archived: !!d?.archived_at,             // tiendas archivadas (ej. INDATROPIC): fuera de los atajos
     // Miembro: permisos por sección (null = acceso total legacy vía teamUids sin teamMembers).
     secciones: role === "member" ? (member ? cleanSecciones(member.secciones) : null) : null,
     // Transferir a otra cuenta: solo el dueño REAL (ownerUid, o el propio id si falta).

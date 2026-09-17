@@ -233,7 +233,7 @@ function ReuseMpBox({ T, m, b, onChange }) {
     let alive = true;
     apiGet("merchant", { action: "workspace" }).then(d => {
       if (!alive) return;
-      const list = (d?.stores || []).filter(s => s.id !== m.id && s.role === "owner" && s.mp_connected);
+      const list = (d?.stores || []).filter(s => s.id !== m.id && s.role === "owner" && s.mp_connected && !s.archived);
       setOthers(list);
     }).catch(() => { if (alive) setOthers([]); });
     return () => { alive = false; };
