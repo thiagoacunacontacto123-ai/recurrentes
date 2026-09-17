@@ -37,10 +37,10 @@ const FLOW_PAYMENTS = [
 const HERO_STORES = [...FLOW_STORES.filter(x => x.n !== "Link de pago"), { n:"VTEX", s:"radar" }, { n:"Wix", s:"radar" }, { n:"Jumpseller", s:"radar" }, { n:"Desarrollo propio", s:"live" }];
 const HERO_PAYMENTS = [...FLOW_PAYMENTS, { n:"PayPal", s:"radar" }];
 const FLOW_ACTIONS = [
-  { t:"Cobro aprobado · $ 40.500", s:"live" },
-  { t:"Orden #1042 creada en tu negocio", s:"live" },
-  { t:"Flujo de mails · aviso de próximo cobro", s:"live" },
-  { t:"WhatsApp · le avisa al cliente antes de cada cobro", s:"soon" },
+  { t:"Cobro aprobado · $ 40.500", short:"Cobro aprobado · $ 40.500", s:"live" },
+  { t:"Orden #1042 creada en tu negocio", short:"Orden #1042 en tu tienda", s:"live" },
+  { t:"Flujo de mails · aviso de próximo cobro", short:"Mail de próximo cobro", s:"live" },
+  { t:"WhatsApp · le avisa al cliente antes de cada cobro", short:"WhatsApp al cliente", s:"soon" },
 ];
 const FLOW_STATUS = { live:"Disponible", soon:"Próximamente", radar:"En el radar" };
 const FLOW_ITEM_H = 44;
@@ -142,9 +142,9 @@ function FlowMap({ T, compact }) {
           </div>
           <div style={{fontSize:compact ? 8.5 : 10,fontWeight:700,color:T.textSm,letterSpacing:0.5,textTransform:"uppercase",marginBottom:compact ? 5 : 6}}>Acciones automáticas</div>
           <div style={{display:"flex",flexDirection:"column",gap:compact ? 5 : 7}}>
-            {FLOW_ACTIONS.map(a => (
-              <div key={a.t} style={{display:"flex",alignItems:"center",gap:7,fontSize:compact ? 10.5 : 12,lineHeight:1.35,color:a.s === "live" ? T.textMd : T.textSm}}>
-                <span style={{width:5,height:5,borderRadius:99,background:a.s === "live" ? T.accentSolid : T.yellow,flexShrink:0}}/>
+            {(compact ? FLOW_ACTIONS.map(a => ({ ...a, t: a.short || a.t })) : FLOW_ACTIONS).map(a => (
+              <div key={a.t} style={{display:"flex",alignItems:compact ? "flex-start" : "center",gap:7,fontSize:compact ? 10.5 : 12,lineHeight:1.4,color:a.s === "live" ? T.textMd : T.textSm}}>
+                <span style={{width:5,height:5,borderRadius:99,background:a.s === "live" ? T.accentSolid : T.yellow,flexShrink:0,marginTop:compact ? 4 : 0}}/>
                 <span style={{flex:1,minWidth:0}}>{a.t}</span>
                 {a.s !== "live" && <span style={{fontSize:compact ? 8 : 9.5,fontWeight:700,color:T.yellow,whiteSpace:"nowrap"}}>PRONTO</span>}
               </div>
@@ -202,7 +202,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
   return (
     <div style={{fontFamily:F,background:T.bg,minHeight:"100vh",color:T.text}}>
       <style>{`
-        .rec-land-hero{display:grid;grid-template-columns:1.1fr 0.9fr;gap:48px;align-items:center;}
+        .rec-land-hero{display:grid;grid-template-columns:1fr 1.06fr;gap:36px;align-items:center;}
         .rec-land-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
         .rec-land-pasos{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
         .rec-land-stores{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
@@ -241,7 +241,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         <style>{`
           .rec-flow-grid{display:grid;grid-template-columns:minmax(0,1fr) 72px minmax(0,1fr) 72px minmax(0,1.2fr);column-gap:10px;align-items:stretch;}
           /* Versión chica: el mismo mapa (curvas punteadas incluidas) dentro del panel del hero. */
-          .rec-flow-sm .rec-flow-grid{grid-template-columns:minmax(0,1fr) 34px minmax(0,0.92fr) 34px minmax(0,1.05fr);column-gap:5px;}
+          .rec-flow-sm .rec-flow-grid{grid-template-columns:minmax(0,0.78fr) 26px minmax(0,0.72fr) 26px minmax(0,1.32fr);column-gap:4px;}
           .rec-flow-sm .rec-flow-head{margin-bottom:9px;}
           .rec-flow-head{margin-bottom:14px;align-items:end;}
           .rec-flow-connwrap{position:relative;min-width:0;}
