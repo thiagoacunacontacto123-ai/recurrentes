@@ -292,3 +292,12 @@ Todo está en la rama `integracion`. Pasan las 68 pruebas automáticas, incluida
 - **Reintento automático de órdenes:** está apagado a propósito. Si Shopify tarda en responder, reintentar podría duplicar una orden. Primero miramos las alertas un par de semanas.
 - **Alertas de órdenes sin crear:** al publicar, si Lumina tuvo algún cobro de los últimos 3 días sin orden, le va a llegar un mail de aviso por cada uno. Es esperable.
 - **Tiendanube:** hay que confirmar en la tienda de prueba si acepta órdenes sin dirección (servicios o digitales).
+
+
+## Cobrar el plan de Recurrentes con Stripe (tu cuenta) — 2026-09-16
+Todo el código está; falta tu cuenta. Con estas dos variables en Vercel se prende solo:
+1. En https://dashboard.stripe.com/apikeys copiá la **clave secreta** (`sk_live_…`; para probar, la de test `sk_test_…`) → env `STRIPE_SAAS_SECRET_KEY`.
+2. En https://dashboard.stripe.com/webhooks → **Add destination** → **Your account** (no Connected accounts) → URL `https://www.recurrentesapp.com/api/public?action=stripe-saas-webhook` → eventos: `checkout.session.completed`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.updated`, `customer.subscription.deleted`. Copiá el **Signing secret** (`whsec_…`) → env `STRIPE_SAAS_WEBHOOK_SECRET`.
+3. Redeploy. En Configuración → Facturación, "Activar Starter · USD 49/mes" pasa a abrir Stripe Checkout (tarjeta, en dólares). Los productos/precios en Stripe se crean solos la primera vez ("Recurrentes · Starter", etc.).
+4. Cómo cobra: suscripción mensual en Stripe. Cada día a las 9:00 UTC el cron `sync-saas-tiers` mueve cada suscripción al tramo que le corresponde por suscriptores activos, sin prorrateo → la próxima factura sale por el tramo vigente. Si baja a ≤10 suscriptores, se cancela al fin del período. Rechazos → "past_due" con aviso y botón "Actualizar tarjeta" (portal de Stripe).
+5. Opcional: activá el **Customer portal** en https://dashboard.stripe.com/settings/billing/portal (para "Tarjeta y facturas").

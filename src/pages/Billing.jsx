@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { apiPost } from "../lib/api.js";
 import { DS as DS_ } from "../ui/theme.js";
 import { Card, BtnSolid, Badge, Callout, toast } from "../ui/components.jsx";
@@ -42,6 +42,38 @@ function usePlanRequest(reloadMerchant) {
   return { loadingId, choose };
 }
 
+// Pago con tarjeta (Stripe, cuenta de Recurrentes). Solo si el server lo habilitó.
+function useSaasStripe(reloadMerchant) {
+  const [busy, setBusy] = useState(null);
+  async function pay(id) {
+    if (busy) return; setBusy("pay");
+    try {
+      const r = await apiPost("merchant", { plan: id, return_origin: window.location.origin }, { action: "saas-checkout" });
+      if (!r?.url) throw new Error(r?.error || "No se pudo abrir el pago");
+      window.location.href = r.url;
+    } catch (e) { toast(e.message || "No se pudo abrir el pago", "error", 6000); setBusy(null); }
+  }
+  async function portal() {
+    if (busy) return; setBusy("portal");
+    try {
+      const r = await apiPost("merchant", { return_origin: window.location.origin }, { action: "saas-portal" });
+      if (!r?.url) throw new Error(r?.error || "No se pudo abrir el portal de pago");
+      window.location.href = r.url;
+    } catch (e) { toast(e.message || "No se pudo abrir el portal", "error", 6000); setBusy(null); }
+  }
+  // Vuelta de Stripe: #/config/facturacion?saas=ok|cancel
+  useEffect(() => {
+    const q = new URLSearchParams((window.location.hash.split("?")[1]) || "");
+    const r = q.get("saas");
+    if (!r) return;
+    try { window.history.replaceState(null, "", window.location.pathname + "#/config/facturacion"); } catch (_) {}
+    if (r === "ok") { toast("¡Plan activado! El pago quedó registrado. Gracias.", "success", 7000); reloadMerchant?.(); }
+    else toast("No se completó el pago. Podés intentarlo cuando quieras: nada se corta.", "info", 6000);
+    // eslint-disable-next-line
+  }, []);
+  return { busy, pay, portal };
+}
+
 // Escalera de tramos (6 escalones). `current` resalta el tramo del comerciante.
 // La usan Configuración → Facturación y la landing.
 export function PricingTable({ T, current }) {
@@ -80,7 +112,7 @@ export function PricingTable({ T, current }) {
 }
 
 // Card de estado: suscriptores activos, tramo actual y cuánto falta para el siguiente.
-function StatusCard({ T, billing, loadingId, onActivate }) {
+function StatusCard({ T, billing, loadingId, onActivate, stripe }) {
   const b = billing || {};
   const beta = b.plan === "beta";
   const n = b.active_subscribers || 0;
@@ -115,10 +147,35 @@ function StatusCard({ T, billing, loadingId, onActivate }) {
             : next ? `Hasta ${fmtN(max)} suscriptores seguís en ${tier.label}. Desde el ${fmtN(next.min)} pasás a ${next.label} (USD ${next.usd}/mes).` : "Estás en el último tramo: sin techo de suscriptores."}
         </div>
       </div>
+      {!beta && b.activated_plan && (
+        <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 }}>
+          {[["Plan activo", `${planLabel(b.activated_plan)} · USD ${TIER_BY_ID[b.activated_plan]?.usd || 0}/mes`], ["Activado el", fmtDia(b.plan_activated_at)], ["Último pago", fmtDia(b.last_paid_at)], ["Próximo cobro", fmtDia(b.next_payment_at)]].map(([k, v]) => (
+            <div key={k} style={{ background: T.surface, border: `1px solid ${T.borderL}`, borderRadius: 10, padding: "8px 12px" }}>
+              <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", color: T.textSm }}>{k}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginTop: 2 }}>{v}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {!beta && b.activated_plan && (
+        <div style={{ fontSize: 12, color: T.textSm, marginTop: 10, lineHeight: 1.55, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <span>Se cobra cada {b.cycle_days || 30} días desde tu primer pago. Ese día pagás el tramo que corresponda a tus suscriptores activos en ese momento: si creciste, el tramo nuevo entra en ese cobro, sin cargos a mitad de mes.</span>
+          {b.billing_method === "stripe" && stripe && <button onClick={stripe.portal} disabled={!!stripe.busy} style={{ ...BtnSolid(T), padding: "7px 12px", fontSize: 12, opacity: stripe.busy ? 0.6 : 1 }}>{stripe.busy === "portal" ? "Abriendo…" : "Tarjeta y facturas"}</button>}
+        </div>
+      )}
+      {b.saas_status === "past_due" && (
+        <Callout T={T} tone="danger" title="El último cobro de tu plan fue rechazado" style={{ marginTop: 12 }}
+          right={stripe && b.billing_method === "stripe" && <button onClick={stripe.portal} style={{ ...BtnSolid(T), padding: "8px 14px", fontSize: 12.5 }}>Actualizar tarjeta</button>}>
+          Nada se corta. Actualizá la tarjeta y Stripe lo reintenta solo.
+        </Callout>
+      )}
       {b.needs_activation && (
         <Callout T={T} tone="warning" title={`Te corresponde el plan ${tier.label}`} style={{ marginTop: 14 }}
-          right={onActivate && <button onClick={() => onActivate(b.tier)} disabled={!!loadingId || b.plan_requested === b.tier} style={{ ...BtnSolid(T), padding: "8px 14px", fontSize: 12.5, opacity: loadingId || b.plan_requested === b.tier ? 0.6 : 1 }}>{loadingId ? "Enviando…" : b.plan_requested === b.tier ? "Pedido enviado ✓" : `Activar ${tier.label}`}</button>}>
-          Tenés {fmtN(n)} suscriptores activos ({tierRangeLabel(tier).toLowerCase()}). Nada se corta: activalo y te contactamos para coordinar el pago.
+          right={b.stripe_available && stripe
+            ? <button onClick={() => stripe.pay(b.tier)} disabled={!!stripe.busy} style={{ ...BtnSolid(T), padding: "8px 14px", fontSize: 12.5, opacity: stripe.busy ? 0.6 : 1 }}>{stripe.busy === "pay" ? "Abriendo el pago…" : `Activar ${tier.label} · USD ${tier.usd}/mes`}</button>
+            : onActivate && <button onClick={() => onActivate(b.tier)} disabled={!!loadingId || b.plan_requested === b.tier} style={{ ...BtnSolid(T), padding: "8px 14px", fontSize: 12.5, opacity: loadingId || b.plan_requested === b.tier ? 0.6 : 1 }}>{loadingId ? "Enviando…" : b.plan_requested === b.tier ? "Pedido enviado ✓" : `Activar ${tier.label}`}</button>}>
+          Tenés {fmtN(n)} suscriptores activos ({tierRangeLabel(tier).toLowerCase()}). Nada se corta.{" "}
+          {b.stripe_available ? <>Pagás con tarjeta, en dólares, y desde ahí se cobra cada 30 días el tramo que te corresponda ese día. {onActivate && <button onClick={() => onActivate(b.tier)} disabled={!!loadingId} style={{ background: "none", border: "none", color: T.textMd, textDecoration: "underline", cursor: "pointer", fontFamily: F, fontSize: 12, padding: 0 }}>{b.plan_requested === b.tier ? "Pedido enviado ✓" : "Prefiero coordinarlo por otro medio"}</button>}</> : "Activalo y te contactamos para coordinar el pago."}
         </Callout>
       )}
       {b.plan_requested && (
@@ -133,16 +190,17 @@ function StatusCard({ T, billing, loadingId, onActivate }) {
 const FAQS = [
   { q: "¿Qué es un suscriptor activo?", a: "Un cliente con su suscripción cobrando: activa o con un pago fallido que Mercado Pago está reintentando. Pausados, cancelados y los que nunca pagaron no cuentan." },
   { q: "¿Qué pasa si paso de tramo?", a: "Nada se corta: los cobros, las órdenes y el panel siguen. Te avisamos y activás el plan que corresponde." },
-  { q: "¿Cómo se paga?", a: "Por ahora te contactamos al activar el plan y lo coordinamos a mano, en dólares y sin contrato. El pago con tarjeta llega pronto." },
+  { q: "¿Cómo se paga?", a: "Con tarjeta, en dólares, sin contrato. Se cobra cada 30 días desde tu primer pago, y ese día pagás el tramo que corresponda a tus suscriptores activos en ese momento. Si creciste, el tramo nuevo entra en ese cobro; nunca cobramos diferenciales a mitad de mes. Si bajás de 10 suscriptores, dejás de pagar." },
 ];
 
 // Configuración → Facturación ("Tu plan de Recurrentes").
 export function PlanPage({ T, DS = DS_, merchant, reloadMerchant }) {
   const billing = merchant?.billing || {};
   const { loadingId, choose } = usePlanRequest(reloadMerchant);
+  const stripe = useSaasStripe(reloadMerchant);
   return (
     <div style={{ fontFamily: F, maxWidth: 980 }}>
-      <StatusCard T={T} billing={billing} loadingId={loadingId} onActivate={choose}/>
+      <StatusCard T={T} billing={billing} loadingId={loadingId} onActivate={choose} stripe={stripe}/>
       {merchant?.whatsapp_sender && (
         <Card T={T} padding="md" style={{ marginBottom: 16 }}>
           <WhatsAppUsageLine T={T} merchant={merchant}/>

@@ -1,0 +1,186 @@
+// Cobro del plan de Recurrentes al COMERCIANTE por Stripe (cuenta de Thiago).
+//
+// Modelo (decisión 2026-09-16): suscripción mensual en Stripe por el tramo que le
+// corresponde al activar. El ciclo es por fecha: cada renovación cobra el tramo que
+// corresponda a los suscriptores activos EN ESE MOMENTO. No hay diferenciales a
+// mitad de ciclo: el cron diario `sync-saas-tiers` alinea el precio de la
+// suscripción con el tramo actual (sin prorrateo), así la próxima factura sale por
+// el tramo vigente. Si baja al tramo gratis, la suscripción se cancela al fin del
+// período; si vuelve a crecer, activa de nuevo.
+//
+// Env (Vercel): STRIPE_SAAS_SECRET_KEY (sk_live_…), STRIPE_SAAS_WEBHOOK_SECRET
+// (whsec_… del endpoint /api/public?action=stripe-saas-webhook). Sin la clave, todo
+// esto es no-op y el panel sigue con "Activar plan → te contactamos".
+//
+// Campos en merchants/{mid}: saas_stripe_customer_id, saas_stripe_subscription_id,
+// saas_stripe_price_tier, saas_status (active|past_due|cancelled), saas_last_paid_at,
+// saas_current_period_end, plan_activated, plan_activated_at.
+import { db } from "./firebase.js";
+import { appBaseUrl } from "./config.js";
+import { PRICING_TIERS, TIER_BY_ID, tierFor } from "../../shared/platform/pricing.js";
+import { formEncode, verifyStripeSignature } from "./providers/stripe.js";
+import { readRawBody } from "./providers/rawBody.js";
+
+const API = "https://api.stripe.com";
+export const saasStripeAvailable = () => !!String(process.env.STRIPE_SAAS_SECRET_KEY || "").trim();
+
+async function stripe(method, path, params) {
+  const key = String(process.env.STRIPE_SAAS_SECRET_KEY || "").trim();
+  if (!key) throw new Error("Stripe (SaaS) no está configurado: falta STRIPE_SAAS_SECRET_KEY");
+  const headers = { Authorization: `Bearer ${key}` };
+  let url = `${API}${path}`, body;
+  if (params && (method === "GET" || method === "DELETE")) { const qs = formEncode(params).toString(); if (qs) url += `?${qs}`; }
+  else if (params) { headers["Content-Type"] = "application/x-www-form-urlencoded"; body = formEncode(params).toString(); }
+  const r = await fetch(url, { method, headers, body });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(data?.error?.message || `Stripe HTTP ${r.status}`); e.status = r.status; e.code = data?.error?.code || null; throw e; }
+  return data;
+}
+
+// Precio mensual por tramo, creado una vez y cacheado en system/stripe_saas_prices.
+async function ensurePrice(tierId) {
+  const tier = TIER_BY_ID[tierId];
+  if (!tier || !tier.usd) throw new Error(`Tramo inválido: ${tierId}`);
+  const ref = db().collection("system").doc("stripe_saas_prices");
+  const snap = await ref.get();
+  const cache = snap.exists ? (snap.data() || {}) : {};
+  const mode = /^sk_test_/.test(String(process.env.STRIPE_SAAS_SECRET_KEY || "")) ? "test" : "live";
+  const key = `${mode}:${tierId}:${tier.usd}`;
+  if (cache[key]) return cache[key];
+  const product = await stripe("POST", "/v1/products", { name: `Recurrentes · ${tier.label}`, metadata: { tier: tierId, app: "recurrentes" } });
+  const price = await stripe("POST", "/v1/prices", { product: product.id, currency: "usd", unit_amount: tier.usd * 100, recurring: { interval: "month" }, metadata: { tier: tierId } });
+  await ref.set({ [key]: price.id }, { merge: true });
+  return price.id;
+}
+
+const base = (origin) => (String(origin || "").startsWith(appBaseUrl()) ? origin : appBaseUrl()).replace(/\/$/, "");
+
+export async function createSaasCheckout({ merchantId, merchant, tierId, email, returnOrigin }) {
+  const price = await ensurePrice(tierId);
+  const b = base(returnOrigin);
+  const params = {
+    mode: "subscription",
+    "line_items[0][price]": price, "line_items[0][quantity]": 1,
+    client_reference_id: merchantId,
+    success_url: `${b}/#/config/facturacion?saas=ok`,
+    cancel_url: `${b}/#/config/facturacion?saas=cancel`,
+    allow_promotion_codes: "true",
+    metadata: { merchant_id: merchantId, tier: tierId },
+    "subscription_data[metadata][merchant_id]": merchantId,
+    "subscription_data[metadata][tier]": tierId,
+    "subscription_data[description]": `Plan ${TIER_BY_ID[tierId].label} de Recurrentes · ${merchant.store_name || merchant.shopify_shop || merchantId}`,
+  };
+  if (merchant.saas_stripe_customer_id) params.customer = merchant.saas_stripe_customer_id;
+  else if (email) params.customer_email = email;
+  const session = await stripe("POST", "/v1/checkout/sessions", params);
+  return session.url;
+}
+
+export async function createSaasPortal({ merchant, returnOrigin }) {
+  const s = await stripe("POST", "/v1/billing_portal/sessions", { customer: merchant.saas_stripe_customer_id, return_url: `${base(returnOrigin)}/#/config/facturacion` });
+  return s.url;
+}
+
+// ─── Webhook /api/public?action=stripe-saas-webhook ─────────────────────────
+const tsIso = (sec) => (Number.isFinite(Number(sec)) && Number(sec) > 0 ? new Date(Number(sec) * 1000).toISOString() : null);
+const idOf = (v) => (v && typeof v === "object" ? v.id : v) || null;
+
+async function merchantBySubscription(subId) {
+  if (!subId) return null;
+  const q = await db().collection("merchants").where("saas_stripe_subscription_id", "==", String(subId)).limit(1).get();
+  return q.empty ? null : q.docs[0];
+}
+async function tierOfSubscription(sub) {
+  const fromMeta = sub?.metadata?.tier;
+  if (TIER_BY_ID[fromMeta]) return fromMeta;
+  const price = sub?.items?.data?.[0]?.price;
+  if (TIER_BY_ID[price?.metadata?.tier]) return price.metadata.tier;
+  return null;
+}
+
+export async function handleSaasWebhook(req, res) {
+  const secret = String(process.env.STRIPE_SAAS_WEBHOOK_SECRET || "").trim();
+  if (!secret) return res.status(503).json({ error: "webhook no configurado" });
+  let raw;
+  try { raw = await readRawBody(req); } catch (e) { return res.status(400).json({ error: "body" }); }
+  const sig = verifyStripeSignature(raw, req.headers["stripe-signature"], secret);
+  if (!sig.ok) { console.warn("[saas-webhook] firma inválida:", sig.reason); return res.status(400).json({ error: "firma inválida" }); }
+  let event; try { event = JSON.parse(raw.toString("utf8")); } catch (_) { return res.status(400).json({ error: "json" }); }
+  const now = new Date().toISOString();
+  const obj = event.data?.object || {};
+  try {
+    // Idempotencia por evento.
+    const evRef = db().collection("system").doc("stripe_saas_events").collection("seen").doc(String(event.id || ""));
+    if (event.id) { const seen = await evRef.get(); if (seen.exists) return res.json({ ok: true, dup: true }); await evRef.set({ type: event.type, at: now }); }
+
+    if (event.type === "checkout.session.completed" && obj.mode === "subscription") {
+      const mid = obj.client_reference_id || obj.metadata?.merchant_id;
+      if (mid) {
+        const subId = idOf(obj.subscription);
+        const sub = subId ? await stripe("GET", `/v1/subscriptions/${subId}`) : null;
+        const tier = (await tierOfSubscription(sub)) || obj.metadata?.tier || null;
+        const ref = db().collection("merchants").doc(String(mid));
+        const cur = (await ref.get()).data() || {};
+        await ref.set({
+          saas_stripe_customer_id: idOf(obj.customer), saas_stripe_subscription_id: subId, saas_stripe_price_tier: tier,
+          saas_status: "active", saas_last_paid_at: now, saas_current_period_end: tsIso(sub?.current_period_end),
+          plan_activated: tier || cur.plan_activated || null, plan_activated_at: cur.plan_activated_at || now,
+          plan_requested: null, plan_requested_at: null,
+        }, { merge: true });
+      }
+    } else if (event.type === "invoice.paid" || event.type === "invoice.payment_succeeded") {
+      const subId = idOf(obj.subscription) || idOf(obj.parent?.subscription_details?.subscription);
+      const doc = await merchantBySubscription(subId);
+      if (doc) {
+        const line = obj.lines?.data?.[0];
+        const tier = TIER_BY_ID[line?.price?.metadata?.tier] ? line.price.metadata.tier : (doc.data().saas_stripe_price_tier || doc.data().plan_activated);
+        await doc.ref.set({ saas_status: "active", saas_last_paid_at: tsIso(obj.status_transitions?.paid_at) || now, saas_current_period_end: tsIso(line?.period?.end), plan_activated: tier || null, saas_last_invoice_url: obj.hosted_invoice_url || null }, { merge: true });
+      }
+    } else if (event.type === "invoice.payment_failed") {
+      const subId = idOf(obj.subscription) || idOf(obj.parent?.subscription_details?.subscription);
+      const doc = await merchantBySubscription(subId);
+      if (doc) await doc.ref.set({ saas_status: "past_due", saas_payment_failed_at: now }, { merge: true });
+    } else if (event.type === "customer.subscription.updated") {
+      const doc = await merchantBySubscription(obj.id);
+      if (doc) await doc.ref.set({ saas_current_period_end: tsIso(obj.current_period_end), saas_cancel_at_period_end: !!obj.cancel_at_period_end, saas_stripe_price_tier: (await tierOfSubscription(obj)) || doc.data().saas_stripe_price_tier || null }, { merge: true });
+    } else if (event.type === "customer.subscription.deleted") {
+      const doc = await merchantBySubscription(obj.id);
+      if (doc) await doc.ref.set({ saas_status: "cancelled", saas_cancelled_at: now, plan_activated: null, saas_stripe_subscription_id: null, saas_current_period_end: null }, { merge: true });
+    }
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("[saas-webhook]", event.type, e.message);
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+// ─── Cron diario: alinear el precio de cada suscripción con el tramo actual ───
+// Sin prorrateo: la próxima factura sale por el tramo vigente ese día.
+export async function syncSaasTiers({ countActive }) {
+  if (!saasStripeAvailable()) return { skipped: "no_stripe" };
+  const q = await db().collection("merchants").where("saas_status", "in", ["active", "past_due"]).get();
+  const out = { checked: 0, changed: 0, to_free: 0, errors: 0 };
+  for (const d of q.docs) {
+    const m = d.data(); const subId = m.saas_stripe_subscription_id;
+    if (!subId || m.archived_at || m.deleted) continue;
+    out.checked++;
+    try {
+      const n = await countActive(d.id, m);
+      const tier = tierFor(n);
+      const current = m.saas_stripe_price_tier || m.plan_activated || null;
+      if (tier.usd === 0) {
+        if (!m.saas_cancel_at_period_end) { await stripe("POST", `/v1/subscriptions/${subId}`, { cancel_at_period_end: "true" }); await d.ref.set({ saas_cancel_at_period_end: true }, { merge: true }); out.to_free++; }
+        continue;
+      }
+      if (tier.id === current && !m.saas_cancel_at_period_end) continue;
+      const sub = await stripe("GET", `/v1/subscriptions/${subId}`);
+      const item = sub.items?.data?.[0];
+      if (!item) continue;
+      const price = await ensurePrice(tier.id);
+      await stripe("POST", `/v1/subscriptions/${subId}`, { "items[0][id]": item.id, "items[0][price]": price, proration_behavior: "none", cancel_at_period_end: "false", "metadata[tier]": tier.id });
+      await d.ref.set({ saas_stripe_price_tier: tier.id, saas_cancel_at_period_end: false, saas_tier_synced_at: new Date().toISOString() }, { merge: true });
+      out.changed++;
+    } catch (e) { out.errors++; console.warn("[sync-saas-tiers]", d.id, e.message); }
+  }
+  return out;
+}

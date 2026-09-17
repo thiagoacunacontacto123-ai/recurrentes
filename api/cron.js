@@ -85,6 +85,13 @@ export default async function handler(req, res) {
   if (action === "run-flows") return runFlowsCron(res);
   if (action === "retry-fulfillment") return fulfillmentCron(res);
   if (action === "reconcile-mp") return reconcileCron(res);
+  if (action === "sync-saas-tiers") {
+    // Diario: la suscripción de Stripe de cada comercio pasa al tramo que le corresponde hoy (sin prorrateo).
+    const { syncSaasTiers } = await import("./_lib/saasBilling.js");
+    const { activeSubscribers } = await import("./merchant.js");
+    const r = await syncSaasTiers({ countActive: activeSubscribers });
+    return res.json({ ok: true, ...r });
+  }
   if (action !== "sync-all-pending") {
     return res.status(400).json({ error: "action no reconocida" });
   }

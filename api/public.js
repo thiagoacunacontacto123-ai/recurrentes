@@ -113,6 +113,7 @@ export default async function handler(req, res) {
   const action = String(req.query.action || "");
   if (action === "plan") return handlePlan(req, res);
   if (action === "widget-seen") return handleWidgetSeen(req, res);
+  if (action === "stripe-saas-webhook") return (await import("./_lib/saasBilling.js")).handleSaasWebhook(req, res);
   if (action === "tn-product") return handleTnProduct(req, res);
   if (action === "sub")  return handleSub(req, res);
   if (action === "discount") return handleDiscount(req, res);

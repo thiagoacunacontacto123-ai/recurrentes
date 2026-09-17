@@ -96,6 +96,10 @@
     {
       "path": "/api/cron?action=reconcile-mp",
       "schedule": "17 * * * *"
+    },
+    {
+      "path": "/api/cron?action=sync-saas-tiers",
+      "schedule": "0 9 * * *"
     }
   ]
 }

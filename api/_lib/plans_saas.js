@@ -44,13 +44,36 @@ export function isBeta(m = {}) {
 
 // Contrato `billing` que devuelve GET /api/merchant. Solo informa al dashboard:
 // widget, checkout, webhooks y cron NUNCA miran esto (y no hay bloqueo: locked=false).
-export function buildBilling(m = {}, activeSubscribers = 0) {
+// Ciclo de cobro del SaaS: cada 30 días desde el primer pago (plan_activated_at).
+// Ese día se cobra el tramo que corresponda a los suscriptores activos en ese
+// momento; nunca se cobran diferenciales a mitad de ciclo. Con Stripe, el fin de
+// período real viene del webhook (saas_current_period_end).
+export const SAAS_CYCLE_DAYS = 30;
+export function nextSaasPaymentAt(m = {}, now = Date.now()) {
+  const end = Date.parse(m.saas_current_period_end || "");
+  if (Number.isFinite(end) && end > now) return new Date(end).toISOString();
+  const start = Date.parse(m.plan_activated_at || "");
+  if (!Number.isFinite(start)) return null;
+  let t = start;
+  while (t <= now) t += SAAS_CYCLE_DAYS * 86400000;
+  return new Date(t).toISOString();
+}
+
+export function buildBilling(m = {}, activeSubscribers = 0, { stripeAvailable = false } = {}) {
   const n = Math.max(0, Math.floor(Number(activeSubscribers) || 0));
   const beta = isBeta(m);
   const tier = tierFor(n);
   const next = nextTier(tier.id);
   const activated = activatedTierId(m);
   return {
+    // Fechas del ciclo (solo informativo para el panel).
+    plan_activated_at: m.plan_activated_at || null,
+    last_paid_at: m.saas_last_paid_at || m.plan_activated_at || null,
+    next_payment_at: activated ? nextSaasPaymentAt(m) : null,
+    cycle_days: SAAS_CYCLE_DAYS,
+    billing_method: m.saas_stripe_subscription_id ? "stripe" : (activated ? "manual" : null),
+    saas_status: m.saas_status || (activated ? "active" : null),   // active | past_due | cancelled
+    stripe_available: !!stripeAvailable,
     plan: beta ? "beta" : tier.id,
     plan_label: beta ? "Beta" : tier.label,
     plan_usd: beta ? 0 : tier.usd,
