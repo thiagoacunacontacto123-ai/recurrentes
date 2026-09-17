@@ -1064,6 +1064,7 @@ export default async function handler(req, res) {
         // La cantidad del tema = la del pack, para que el botón nativo agregue lo
         // correcto (Tiendanube y Shopify: en compra única manda el botón del tema).
         var q = packQty();
+        window.__recPackQty = q;
         var inputs = document.querySelectorAll('.js-quantity-input, input[name^="quantity"]');
         var found = 0;
         for (var i = 0; i < inputs.length; i++) {
@@ -1084,6 +1085,50 @@ export default async function handler(req, res) {
           h.value = q;
         }
       }
+      // Shopify, compra única: algunos temas (Horizon y derivados) arman el pedido
+      // a /cart/add desde su propio estado y mandan cantidad 1 aunque el form tenga
+      // otra. Interceptamos SOLO las llamadas a /cart/add de esta página mientras
+      // la compra única está activa y ponemos la cantidad del pack. El tema sigue
+      // manejando la respuesta (mini-carrito, drawer, redirect: lo suyo).
+      (function patchCartAdd() {
+        if (IS_TN || window.__recCartPatched) return;
+        window.__recCartPatched = true;
+        function onceActive() { return document.body.classList.contains("rec-bundle-active") && !document.body.classList.contains("rec-sub-active") && (window.__recPackQty || 0) > 1; }
+        function isCartAdd(url) { url = String(url || ""); return url.indexOf("/cart/add") !== -1; }
+        function fixBody(body) {
+          var q = String(window.__recPackQty);
+          try {
+            if (body instanceof FormData) { body.set("quantity", q); return body; }
+            if (body instanceof URLSearchParams) { body.set("quantity", q); return body; }
+            if (typeof body === "string") {
+              var t = body.trim();
+              if (t.charAt(0) === "{") {
+                var j = JSON.parse(t);
+                if (Array.isArray(j.items)) { for (var i = 0; i < j.items.length; i++) j.items[i].quantity = window.__recPackQty; }
+                else j.quantity = window.__recPackQty;
+                return JSON.stringify(j);
+              }
+              var p = new URLSearchParams(body); p.set("quantity", q); return p.toString();
+            }
+          } catch (e) {}
+          return body;
+        }
+        var of = window.fetch;
+        if (of) window.fetch = function (input, init) {
+          try {
+            var url = typeof input === "string" ? input : (input && input.url) || "";
+            if (isCartAdd(url) && onceActive() && init && init.body) init.body = fixBody(init.body);
+          } catch (e) {}
+          return of.apply(this, arguments);
+        };
+        var XO = XMLHttpRequest.prototype.open, XS = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.open = function (m, url) { this.__recUrl = url; return XO.apply(this, arguments); };
+        XMLHttpRequest.prototype.send = function (body) {
+          try { if (isCartAdd(this.__recUrl) && onceActive() && body) body = fixBody(body); } catch (e) {}
+          return XS.call(this, body);
+        };
+      })();
+
       function applyMode() {
         // Suscripción: se esconden los botones de compra del tema (no el form
         // entero, para no perder el selector de variantes), el buy box custom
