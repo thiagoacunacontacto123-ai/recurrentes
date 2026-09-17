@@ -312,7 +312,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         {/* Tres beneficios a lo ancho, debajo del hero y del panel (Thiago, 17-sept). */}
         <div style={{marginTop:34,paddingTop:26,borderTop:`1px solid ${T.borderL || T.border}`,display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:24}} className="rec-land-benefits">
           {[
-            ["Instalación gratis", "y sencilla: lo dejamos funcionando en tu negocio sin que pagues nada por ponerlo."],
+            ["Instalación gratis", "y sencilla: la hacés vos en 10 minutos o te la dejamos lista nosotros."],
             ["0% de comisión", "por venta. Lo que te cobra tu cliente es tuyo: no nos quedamos con un peso de cada cobro."],
             [`Tus primeros ${FREE_SUBSCRIBERS} suscriptores`, "son gratis. Empezás sin poner plata y recién pagás cuando ya te está funcionando."],
           ].map(([v,d])=>(
