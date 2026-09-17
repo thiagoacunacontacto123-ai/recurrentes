@@ -32,6 +32,8 @@ const FLOW_STORES = [
 const FLOW_PAYMENTS = [
   { n:"Mercado Pago", s:"live" },
   { n:"Mobbex", s:"soon" },
+  { n:"Increase", s:"soon" },
+  { n:"Lyra", s:"soon" },
   { n:"Stripe", s:"soon" },
   { n:"Whop", s:"soon" },
 ];
@@ -328,9 +330,9 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         {/* Tres beneficios a lo ancho, debajo del hero y del panel (Thiago, 17-sept). */}
         <div style={{marginTop:34,paddingTop:26,borderTop:`1px solid ${T.borderL || T.border}`,display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:24}} className="rec-land-benefits">
           {[
-            ["Instalación gratis", "y sencilla: la hacés vos en 10 minutos o te la dejamos lista nosotros."],
-            ["0% de comisión", "por venta. Lo que te cobra tu cliente es tuyo: no nos quedamos con un peso de cada cobro."],
-            [`Primeros ${FREE_SUBSCRIBERS} gratis`, "suscriptores sin pagar nada: arrancás gratis y recién pagás cuando ya te funciona."],
+            ["Instalación gratis", "Y sencilla: la hacés vos en 10 minutos o te la dejamos lista nosotros."],
+            ["0% de comisión", "Por venta. Lo que te cobra tu cliente es tuyo: no nos quedamos con un peso de cada cobro."],
+            [`Primeros ${FREE_SUBSCRIBERS} gratis`, "Suscriptores sin pagar nada: arrancás gratis y recién pagás cuando ya te funciona."],
           ].map(([v,d])=>(
             <div key={v}>
               <div style={{fontSize:25,fontWeight:800,color:T.accent,letterSpacing:-0.8,lineHeight:1.1,marginBottom:6}}>{v}</div>
