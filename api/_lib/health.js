@@ -178,6 +178,11 @@ export async function buildHealth({ now = Date.now() } = {}) {
   if (!env.email.configured) warnings.push("Resend/EMAIL_FROM sin configurar: no salen mails");
   if (!env.mercadopago.vars.MP_WEBHOOK_SIGNING_SECRET) warnings.push("MP_WEBHOOK_SIGNING_SECRET sin configurar: la firma de los webhooks de MP no se valida");
   if (!env.admin.vars.PLATFORM_ALERT_EMAIL) warnings.push("PLATFORM_ALERT_EMAIL sin configurar: las órdenes que no se crean solo se avisan al comerciante");
+  // Es el riesgo más alto que queda del camino del cobro: el cliente pagó, Shopify
+  // falló y nadie reintenta solo. El módulo está probado (6 barreras contra la orden
+  // duplicada); apagado, cada cobro sin orden depende de que alguien lo vea y toque
+  // "Reintentar" a mano.
+  if (process.env.FULFILL_RETRY_ENABLED !== "1") warnings.push("FULFILL_RETRY_ENABLED apagado: los cobros aprobados cuya orden falló se avisan pero NO se reintentan solos");
   if (!env.admin.vars.ADMIN_EMAILS) warnings.push("ADMIN_EMAILS vacío: este chequeo solo se puede abrir con CRON_SECRET");
 
   return {
