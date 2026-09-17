@@ -22,9 +22,9 @@ const F = "'Inter',system-ui,sans-serif";
 const FLOW_STORES = [
   { n:"Shopify", s:"live" },
   { n:"Tiendanube", s:"live" },
-  { n:"Link de suscripción", s:"live" },
-  { n:"Desarrollo propio", s:"live" },
-  { n:"WooCommerce", s:"soon" },
+  { n:"Link de pago", s:"live" },
+  { n:"Tu propia web", s:"live" },
+  { n:"WooCommerce", d:null, s:"soon" },
   { n:"Empretienda", s:"soon" },
   { n:"Impultienda", s:"soon" },
   { n:"VTEX", s:"soon" },
@@ -80,10 +80,10 @@ function FlowItem({ T, it, compact }) {
   const c = live ? T.accentSolid : soon ? T.yellow : T.textSm;
   return (
     <div title={compact ? FLOW_STATUS[it.s] : undefined}
-      style={{height:compact ? FLOW_ITEM_H_SM : FLOW_ITEM_H,display:"flex",alignItems:"center",gap:compact ? 6 : 8,padding:compact ? "0 9px" : "0 12px",borderRadius:compact ? 8 : 10,background:T.card,
+      style={{height:compact ? FLOW_ITEM_H_SM : FLOW_ITEM_H,display:"flex",alignItems:"center",gap:compact ? 6 : 8,padding:compact ? "0 8px" : "0 12px",borderRadius:compact ? 8 : 10,background:T.card,
       border:`${compact ? 1 : 1.5}px ${live ? "solid" : "dashed"} ${live ? T.accentSolid : c + "88"}`,minWidth:0}}>
       <span style={{width:compact ? 6 : 7,height:compact ? 6 : 7,borderRadius:99,background:c,flexShrink:0}}/>
-      <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:compact ? 11.5 : 13,fontWeight:700,color:live ? T.text : T.textMd}}>
+      <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:compact ? 11 : 13,fontWeight:700,color:live ? T.text : T.textMd}}>
         {it.n}{it.d && <span style={{fontWeight:500,color:T.textSm}}> · {it.d}</span>}
       </span>
       {!compact && <span style={{fontSize:10,fontWeight:700,color:c,whiteSpace:"nowrap",textTransform:"uppercase",letterSpacing:0.3}}>{FLOW_STATUS[it.s]}</span>}
