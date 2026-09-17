@@ -5,7 +5,7 @@ import { RecLogo } from "../ui/Shell.jsx";
 import { PricingTable } from "./Billing.jsx";
 import { FREE_SUBSCRIBERS } from "../../shared/platform/pricing.js";
 import { SectionsStyle, ProblemSection, DeepDivesSection, TrustSection, FaqSection, BigFooter, VideoSection, ComparisonSection, ReviewsSection } from "./LandingSections.jsx";
-import { LANDING_VIDEO_URL, LANDING_VIDEO_POSTER, LANDING_VIDEO_DURATION, LANDING_VIDEO_SOURCES } from "../lib/landingMedia.js";
+import { LANDING_VIDEO_URL, LANDING_VIDEO_POSTER, LANDING_VIDEO_DURATION } from "../lib/landingMedia.js";
 
 const F = "'Inter',system-ui,sans-serif";
 
@@ -326,7 +326,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
 
       {/* Interés: el video (panel por dentro, en la tienda, precios). */}
       <SectionsStyle T={T}/>
-      <VideoSection T={T} url={LANDING_VIDEO_URL} sources={LANDING_VIDEO_SOURCES} poster={LANDING_VIDEO_POSTER} duration={LANDING_VIDEO_DURATION}/>
+      <VideoSection T={T} url={LANDING_VIDEO_URL} poster={LANDING_VIDEO_POSTER} duration={LANDING_VIDEO_DURATION}/>
 
       {/* Comparativa justo debajo del video (Thiago, 17-sept). */}
       <ComparisonSection T={T}/>
