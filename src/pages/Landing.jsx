@@ -280,7 +280,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
               <RotatingWords T={T}/>
             </div>
             <h1 className="rec-land-h1" style={{fontSize:50,fontWeight:800,lineHeight:1.06,margin:"0 0 18px",letterSpacing:-1.6,color:T.text,textWrap:"balance"}}>
-              Vendé por <span style={{background:`linear-gradient(135deg, ${T.accentSolid}, #34d399)`,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent"}}>suscripción</span> en tu negocio online desde hoy mismo
+              Vendé por <span style={{background:`linear-gradient(135deg, ${T.accentSolid}, #34d399)`,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent"}}>suscripción</span> en tu negocio desde hoy mismo
             </h1>
             <p style={{fontSize:18,color:T.textMd,lineHeight:1.62,margin:"0 0 22px",maxWidth:470,textWrap:"pretty"}}>
               Tu cliente se suscribe <strong style={{color:T.text}}>una sola vez</strong>.<br/>
