@@ -17,21 +17,21 @@ const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0
 export const PRESETS_DIAS = [
   { id: "today", label: "Hoy", days: 0 },
   { id: "yest", label: "Ayer", days: -1 },
-  { id: "7d", label: "Últimos 7 días", days: 7 },
-  { id: "14d", label: "Últimos 14 días", days: 14 },
-  { id: "30d", label: "Últimos 30 días", days: 30 },
-  { id: "90d", label: "Últimos 90 días", days: 90 },
+  { id: "7d", label: "Últimos 7 días", short: "7 días", days: 7 },
+  { id: "14d", label: "Últimos 14 días", short: "14 días", days: 14 },
+  { id: "30d", label: "Últimos 30 días", short: "30 días", days: 30 },
+  { id: "90d", label: "Últimos 90 días", short: "90 días", days: 90 },
   { id: "mes", label: "Este mes", range: () => [ymd(mesAR(0)), hoyAR()] },
   { id: "mes-1", label: "Mes pasado", range: () => { const a = mesAR(-1), b = mesAR(0); b.setDate(0); return [ymd(a), ymd(b)]; } },
 ];
 // Presets para vistas mensuales (Analíticas).
 export const PRESETS_MESES = [
-  { id: "3m", label: "Últimos 3 meses", range: () => [ymd(mesAR(-2)), hoyAR()] },
-  { id: "6m", label: "Últimos 6 meses", range: () => [ymd(mesAR(-5)), hoyAR()] },
-  { id: "12m", label: "Últimos 12 meses", range: () => [ymd(mesAR(-11)), hoyAR()] },
+  { id: "3m", label: "Últimos 3 meses", short: "3 meses", range: () => [ymd(mesAR(-2)), hoyAR()] },
+  { id: "6m", label: "Últimos 6 meses", short: "6 meses", range: () => [ymd(mesAR(-5)), hoyAR()] },
+  { id: "12m", label: "Últimos 12 meses", short: "12 meses", range: () => [ymd(mesAR(-11)), hoyAR()] },
   { id: "anio", label: "Este año", range: () => { const h = new Date(hoyAR() + "T12:00:00"); return [`${h.getFullYear()}-01-01`, hoyAR()]; } },
   { id: "anio-1", label: "Año pasado", range: () => { const y = new Date(hoyAR() + "T12:00:00").getFullYear() - 1; return [`${y}-01-01`, `${y}-12-31`]; } },
-  { id: "24m", label: "Últimos 24 meses", range: () => [ymd(mesAR(-23)), hoyAR()] },
+  { id: "24m", label: "Últimos 24 meses", short: "24 meses", range: () => [ymd(mesAR(-23)), hoyAR()] },
 ];
 export function rangoDePreset(p) {
   if (p.range) return p.range();
@@ -116,7 +116,7 @@ export default function DateRangePicker({ T, since, until, onChange, presets, la
           <div ref={ddRef} role="dialog" aria-label="Elegir período" style={sheet}>
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${esMobile ? 2 : 3}, 1fr)`, gap: esMobile ? 8 : 6, marginBottom: 10 }}>
               {PRESETS.map(p => { const act = presetActivo(p); return (
-                <button key={p.id} type="button" onClick={() => applyPreset(p)} style={{ padding: esMobile ? "10px 10px" : "6px 10px", fontSize: esMobile ? 12 : 11, fontWeight: act ? 700 : 500, border: `1px solid ${act ? T.accentSolid : T.border}`, borderRadius: 8, background: act ? T.accentSolid + "1c" : T.surface, color: act ? T.accent : T.textMd, cursor: "pointer", fontFamily: F, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.label}</button>
+                <button key={p.id} type="button" onClick={() => applyPreset(p)} style={{ padding: esMobile ? "10px 10px" : "6px 10px", fontSize: esMobile ? 12 : 11, fontWeight: act ? 700 : 500, border: `1px solid ${act ? T.accentSolid : T.border}`, borderRadius: 8, background: act ? T.accentSolid + "1c" : T.surface, color: act ? T.accent : T.textMd, cursor: "pointer", fontFamily: F, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={p.label}>{p.short || p.label}</button>
               ); })}
             </div>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
