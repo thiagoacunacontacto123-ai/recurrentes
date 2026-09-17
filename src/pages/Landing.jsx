@@ -266,8 +266,8 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
             </h1>
             <p style={{fontSize:18,color:T.textMd,lineHeight:1.62,margin:"0 0 22px",maxWidth:470,textWrap:"pretty"}}>
               Tu cliente se suscribe <strong style={{color:T.text}}>una sola vez</strong>.<br/>
-              Después <strong style={{color:T.text}}>se le cobra solo</strong> y el pedido se registra sin que hagas nada.<br/>
-              Vos vendés una vez y te compran siempre.
+              Elige cuánto y cada cuánto quiere recibirlo.<br/>
+              Desde ahí <strong style={{color:T.text}}>se le cobra solo</strong>, y el pedido se registra sin que hagas nada.
             </p>
             <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
               <button onClick={irRegistro} style={{...BtnSolid(T),padding:"13px 22px",fontSize:15}}>
