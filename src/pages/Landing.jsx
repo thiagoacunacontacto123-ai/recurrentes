@@ -264,8 +264,10 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
             <h1 className="rec-land-h1" style={{fontSize:50,fontWeight:800,lineHeight:1.06,margin:"0 0 18px",letterSpacing:-1.6,color:T.text,textWrap:"balance"}}>
               Vendé por <span style={{background:`linear-gradient(135deg, ${T.accentSolid}, #34d399)`,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent"}}>suscripción</span> en tu negocio online desde hoy mismo
             </h1>
-            <p style={{fontSize:17,color:T.textMd,lineHeight:1.6,margin:"0 0 22px",maxWidth:520}}>
-              Tu tienda online, tu membresía, tu club o tu curso: el cliente se suscribe una vez, <strong style={{color:T.text}}>se le cobra solo</strong> cada período y Recurrentes crea la orden en tu tienda con el envío de siempre. Vos te ocupás de vender.
+            <p style={{fontSize:18,color:T.textMd,lineHeight:1.62,margin:"0 0 22px",maxWidth:470,textWrap:"pretty"}}>
+              Tu cliente se suscribe <strong style={{color:T.text}}>una sola vez</strong>.<br/>
+              Después le <strong style={{color:T.text}}>cobra solo</strong> y el pedido sale sin que hagas nada.<br/>
+              Vos vendés una vez y te compran siempre.
             </p>
             <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
               <button onClick={irRegistro} style={{...BtnSolid(T),padding:"13px 22px",fontSize:15}}>
