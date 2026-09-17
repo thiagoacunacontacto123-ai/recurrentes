@@ -97,7 +97,7 @@ const FLOW_MLABEL = new Map([[FLOW_STORES, "1 · Tu negocio"], [FLOW_PAYMENTS, "
 function FlowColumn({ T, items, label = FLOW_MLABEL.get(items), compact }) {
   const h = compact ? FLOW_ITEM_H_SM : FLOW_ITEM_H;
   return (
-    <div style={{display:"flex",flexDirection:"column",justifyContent:"space-around",height:"100%",minHeight:items.length * (h + (compact ? 7 : 12)),minWidth:0}}>
+    <div className="rec-flow-col" style={{display:"flex",flexDirection:"column",justifyContent:"space-around",height:"100%",minHeight:items.length * (h + (compact ? 7 : 12)),minWidth:0}}>
       {label && <div className="rec-flow-mlabel" style={{fontSize:11,fontWeight:800,color:T.accent,letterSpacing:0.6,textTransform:"uppercase"}}>{label}</div>}
       {items.map(it => <FlowItem key={it.n} T={T} it={it} compact={compact}/>)}
     </div>
@@ -201,16 +201,26 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
   return (
     <div style={{fontFamily:F,background:T.bg,minHeight:"100vh",color:T.text}}>
       <style>{`
-        .rec-land-hero{display:grid;grid-template-columns:1fr 1.06fr;gap:36px;align-items:center;}
+        .rec-land-hero{display:grid;grid-template-columns:0.86fr 1.22fr;gap:30px;align-items:center;}
         .rec-land-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
         .rec-land-pasos{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
         .rec-land-stores{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
         .rec-land-card{transition:transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;}
         .rec-land-card:hover{transform:translateY(-3px);box-shadow:0 14px 34px rgba(0,0,0,0.18);}
-        .rec-land-wrap{max-width:1100px;margin:0 auto;padding:0 24px;}
+        .rec-land-wrap{max-width:1180px;margin:0 auto;padding:0 24px;}
+        .rec-hero-sec{padding-top:56px;}
+        @media(max-width:640px){ .rec-hero-sec{padding-top:18px;} }
         @media (prefers-reduced-motion: reduce){ .rec-land-card{transition:none;} .rec-land-card:hover{transform:none;} }
         @media(max-width:900px){ .rec-land-hero{grid-template-columns:1fr!important;gap:32px;} .rec-land-grid,.rec-land-stores{grid-template-columns:repeat(2,1fr)!important;} }
         @media(max-width:900px){ .rec-land-benefits{grid-template-columns:1fr!important;gap:18px!important;} }
+        /* ── Celular (Thiago, 17-sept): la pauta entra por acá, así que todo tiene
+           que leerse sin deslizar de costado. ── */
+        @media(max-width:640px){
+          .rec-land-hero{gap:22px!important;}
+          .rec-land-h1{font-size:31px!important;letter-spacing:-1.1px!important;}
+          .rec-nav-login{padding:6px 10px!important;font-size:12px!important;}
+          .rec-nav-cta{padding:7px 12px!important;font-size:12px!important;}
+        }
         @media(max-width:640px){ .rec-land-grid,.rec-land-stores,.rec-land-pasos{grid-template-columns:1fr!important;} .rec-land-h1{font-size:34px!important;} .rec-land-wrap{padding:0 16px;} .hide-mobile{display:none!important;} }
       `}</style>
 
@@ -230,18 +240,18 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
                 ?<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
                 :<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>}
             </button>
-            <button onClick={irLogin} style={{...BtnSecondary(T),padding:"7px 14px",fontSize:13,fontWeight:600}}>Iniciar sesión</button>
-            <button onClick={irRegistro} className="hide-mobile" style={{...BtnSolid(T),padding:"8px 16px",fontSize:13}}>Empezar gratis</button>
+            <button onClick={irLogin} className="rec-nav-login" style={{...BtnSecondary(T),padding:"7px 14px",fontSize:13,fontWeight:600}}>Iniciar sesión</button>
+            <button onClick={irRegistro} className="rec-nav-cta" style={{...BtnSolid(T),padding:"8px 16px",fontSize:13}}>Empezar gratis</button>
           </div>
         </div>
       </nav>
 
       {/* Hero + panel de conectores (id rec-tiendas: el nav apunta acá) */}
-      <section id="rec-tiendas" className="rec-land-wrap" style={{paddingTop:56,paddingBottom:24}}>
+      <section id="rec-tiendas" className="rec-land-wrap rec-hero-sec" style={{paddingBottom:24}}>
         <style>{`
           .rec-flow-grid{display:grid;grid-template-columns:minmax(0,1fr) 72px minmax(0,1fr) 72px minmax(0,1.2fr);column-gap:10px;align-items:stretch;}
           /* Versión chica: el mismo mapa (curvas punteadas incluidas) dentro del panel del hero. */
-          .rec-flow-sm .rec-flow-grid{grid-template-columns:minmax(0,0.78fr) 26px minmax(0,0.72fr) 26px minmax(0,1.32fr);column-gap:4px;}
+          .rec-flow-sm .rec-flow-grid{grid-template-columns:minmax(0,0.8fr) 46px minmax(0,0.7fr) 46px minmax(0,1.24fr);column-gap:6px;}
           .rec-flow-sm .rec-flow-head{margin-bottom:9px;}
           .rec-flow-head{margin-bottom:14px;align-items:end;}
           .rec-flow-connwrap{position:relative;min-width:0;}
@@ -250,9 +260,13 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
           @keyframes recFlow{to{stroke-dashoffset:-12;}}
           @media (prefers-reduced-motion: reduce){ .rec-flow-live{animation:none;} }
           @media(max-width:900px){
-            .rec-flow-grid{grid-template-columns:1fr;row-gap:10px;}
-            .rec-flow-head,.rec-flow-connwrap{display:none;}
+            .rec-flow-grid{grid-template-columns:1fr!important;row-gap:10px;}
+            .rec-flow-head,.rec-flow-connwrap{display:none!important;}
+            .rec-flow-sm .rec-flow-grid{grid-template-columns:1fr!important;column-gap:0!important;row-gap:8px;}
             .rec-flow-sm .rec-flow-mobile-arrow{font-size:16px;}
+            /* apilado: los chips van en fila horizontal que envuelve, no en columna alta */
+            .rec-flow-sm .rec-flow-col{flex-direction:row!important;flex-wrap:wrap!important;gap:6px!important;height:auto!important;min-height:0!important;justify-content:flex-start!important;}
+            .rec-flow-sm .rec-flow-col > div{height:auto!important;padding:7px 10px!important;}
             .rec-flow-mobile-arrow{display:block;text-align:center;font-size:22px;font-weight:800;color:${T.accentSolid};line-height:1;}
             .rec-flow-mlabel{display:block;}
           }

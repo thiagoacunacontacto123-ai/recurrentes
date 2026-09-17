@@ -30,6 +30,20 @@ export function SectionsStyle({ T }) {
       .ls-calc{display:grid;grid-template-columns:minmax(0,0.9fr) minmax(0,1.1fr);gap:24px;align-items:stretch;}
       .ls-foot{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:28px;}
       .ls-reviews{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:stretch;}
+      .ls-video-parts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
+      /* Tabla comparativa: en celular cada columna se lee sin deslizar */
+      .ls-cmp-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+      .ls-cmp{width:100%;border-collapse:separate;border-spacing:0;min-width:720px;font-size:13.5px;}
+      @media(max-width:640px){
+        .ls-video-parts{grid-template-columns:1fr;}
+        .ls-cmp-wrap{overflow-x:visible;}
+        .ls-cmp{min-width:0;font-size:12.5px;}
+        .ls-cmp thead{display:none;}
+        .ls-cmp tr{display:block;background:transparent;border:1px solid var(--border);border-radius:14px;padding:10px 12px;margin-bottom:10px;}
+        .ls-cmp td{display:grid!important;grid-template-columns:1fr auto;gap:10px;align-items:start;padding:7px 0!important;border:none!important;background:transparent!important;}
+        .ls-cmp td:first-child{grid-template-columns:1fr;font-weight:800;padding-bottom:4px!important;border-bottom:1px solid var(--border-light)!important;margin-bottom:4px;}
+        .ls-cmp td[data-col]::before{content:attr(data-col);color:var(--text-sm);font-weight:600;font-size:11.5px;}
+      }
       .ls-range{width:100%;accent-color:${T.accentSolid};}
       .ls-faq summary{list-style:none;cursor:pointer;}
       .ls-faq summary::-webkit-details-marker{display:none;}
@@ -608,7 +622,7 @@ export function VideoSection({ T, url, poster, duration }) {
             )}
           </div>
         </div>
-        <div className="ls-grid4" style={{gridTemplateColumns:"repeat(3,1fr)",maxWidth:960,margin:"22px auto 0"}}>
+        <div className="ls-video-parts" style={{maxWidth:960,margin:"22px auto 0"}}>
           {parts.map(([n, t, d]) => (
             <div key={n} style={{display:"flex",gap:12,alignItems:"flex-start",padding:"14px 16px",background:T.card,border:`1px solid ${T.border}`,borderRadius:14}}>
               <span style={{fontSize:11,fontWeight:800,color:T.accent,letterSpacing:0.6,marginTop:2}}>{n}</span>
@@ -662,8 +676,8 @@ export function ComparisonSection({ T }) {
       <div className="ls-wrap">
         <SectionHead T={T} eyebrow="Comparativa" title="Hecho para vender por suscripción en Argentina"
           sub="Las apps internacionales cobran con pasarelas que acá no existen y se pagan en dólares más un porcentaje de cada venta. Comparamos funciones, no marcas: los nombres van difuminados."/>
-        <div style={{overflowX:"auto",borderRadius:18,border:`1px solid ${T.border}`,background:T.card}}>
-          <table style={{width:"100%",borderCollapse:"separate",borderSpacing:0,minWidth:720,fontSize:13.5}}>
+        <div className="ls-cmp-wrap" style={{borderRadius:18,border:`1px solid ${T.border}`,background:T.card}}>
+          <table className="ls-cmp">
             <thead>
               <tr>
                 <th style={{textAlign:"left",padding:"16px 18px",fontSize:11,fontWeight:800,color:T.textSm,letterSpacing:0.6,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,width:"34%"}}>Qué mirar</th>
@@ -684,7 +698,7 @@ export function ComparisonSection({ T }) {
                 <tr key={label}>
                   <td style={{padding:"13px 18px",color:T.text,fontWeight:600,borderBottom:i === COMPARE_ROWS.length - 1 ? "none" : `1px solid ${T.borderL || T.border}`,lineHeight:1.45}}>{label}</td>
                   {vals.map((v, j) => (
-                    <td key={j} style={{padding:"13px 18px",borderBottom:i === COMPARE_ROWS.length - 1 ? "none" : `1px solid ${T.borderL || T.border}`,background:j === 0 ? T.accentSolid + "0a" : "transparent",verticalAlign:"top",lineHeight:1.45}}>
+                    <td key={j} data-col={j === 0 ? "Recurrentes" : COMPARE_COLS[j].sub} style={{padding:"13px 18px",borderBottom:i === COMPARE_ROWS.length - 1 ? "none" : `1px solid ${T.borderL || T.border}`,background:j === 0 ? T.accentSolid + "0a" : "transparent",verticalAlign:"top",lineHeight:1.45}}>
                       <CompareCell T={T} v={v} hero={j === 0}/>
                     </td>
                   ))}
