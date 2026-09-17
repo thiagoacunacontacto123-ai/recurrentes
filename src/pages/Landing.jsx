@@ -22,10 +22,12 @@ const F = "'Inter',system-ui,sans-serif";
 const FLOW_STORES = [
   { n:"Shopify", s:"live" },
   { n:"Tiendanube", s:"live" },
-  { n:"Impultienda", s:"soon" },
+  { n:"Link de suscripción", s:"live" },
+  { n:"Desarrollo propio", s:"live" },
   { n:"WooCommerce", s:"soon" },
   { n:"Empretienda", s:"soon" },
-  { n:"Link de pago", s:"live" },
+  { n:"Impultienda", s:"soon" },
+  { n:"VTEX", s:"soon" },
 ];
 const FLOW_PAYMENTS = [
   { n:"Mercado Pago", s:"live" },
@@ -37,7 +39,7 @@ const FLOW_ACTIONS = [
   { t:"Cobro aprobado · $ 40.500", short:"Cobro aprobado · $ 40.500", s:"live" },
   { t:"Orden #1042 creada en tu negocio", short:"Orden #1042 en tu tienda", s:"live" },
   { t:"Flujo de mails · aviso de próximo cobro", short:"Mail de próximo cobro", s:"live" },
-  { t:"WhatsApp · le avisa al cliente antes de cada cobro", short:"WhatsApp al cliente", s:"soon" },
+  { t:"WhatsApp · le avisa al cliente antes de cada cobro", short:"WhatsApp al cliente", s:"live" },
 ];
 const FLOW_STATUS = { live:"Disponible", soon:"Próximamente", radar:"En el radar" };
 const FLOW_ITEM_H = 44;
@@ -124,7 +126,7 @@ function FlowMap({ T, compact }) {
         <FlowColumn T={T} items={FLOW_PAYMENTS} compact={compact}/>
         <div className="rec-flow-connwrap"><FlowConnector T={T} left={FLOW_PAYMENTS} mode="merge"/></div>
         <div className="rec-flow-mobile-arrow" aria-hidden="true">↓</div>
-        <div style={{alignSelf:"center",background:T.card,border:`1.5px solid ${T.accentSolid}`,borderRadius:compact ? 13 : 16,padding:compact ? 12 : 16,boxShadow:`0 18px 44px ${T.accentSolid}22`,minWidth:0}}>
+        <div style={{alignSelf:compact ? "stretch" : "center",display:"flex",flexDirection:"column",background:T.card,border:`1.5px solid ${T.accentSolid}`,borderRadius:compact ? 13 : 16,padding:compact ? 13 : 16,boxShadow:`0 18px 44px ${T.accentSolid}22`,minWidth:0}}>
           <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:compact ? 9 : 12}}>
             <RecLogo size={compact ? 18 : 22}/><span style={{fontSize:compact ? 12 : 14,fontWeight:800,color:T.text}}>Recurrentes</span>
             <span style={{marginLeft:"auto",fontSize:compact ? 8.5 : 10,fontWeight:700,color:T.accent,background:T.accentSolid+"18",borderRadius:99,padding:"2px 7px"}}>EN VIVO</span>
@@ -137,8 +139,8 @@ function FlowMap({ T, compact }) {
               </div>
             ))}
           </div>
-          <div style={{fontSize:compact ? 8.5 : 10,fontWeight:700,color:T.textSm,letterSpacing:0.5,textTransform:"uppercase",marginBottom:compact ? 5 : 6}}>Acciones automáticas</div>
-          <div style={{display:"flex",flexDirection:"column",gap:compact ? 5 : 7}}>
+          <div style={{fontSize:compact ? 8.5 : 10,fontWeight:700,color:T.textSm,letterSpacing:0.5,textTransform:"uppercase",marginBottom:compact ? 6 : 6}}>Acciones automáticas</div>
+          <div style={{display:"flex",flexDirection:"column",gap:compact ? 7 : 7,flex:compact ? 1 : "none",justifyContent:compact ? "space-around" : "flex-start"}}>
             {(compact ? FLOW_ACTIONS.map(a => ({ ...a, t: a.short || a.t })) : FLOW_ACTIONS).map(a => (
               <div key={a.t} style={{display:"flex",alignItems:compact ? "flex-start" : "center",gap:7,fontSize:compact ? 10.5 : 12,lineHeight:1.4,color:a.s === "live" ? T.textMd : T.textSm}}>
                 <span style={{width:5,height:5,borderRadius:99,background:a.s === "live" ? T.accentSolid : T.yellow,flexShrink:0,marginTop:compact ? 4 : 0}}/>
@@ -314,7 +316,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
           {[
             ["Instalación gratis", "y sencilla: la hacés vos en 10 minutos o te la dejamos lista nosotros."],
             ["0% de comisión", "por venta. Lo que te cobra tu cliente es tuyo: no nos quedamos con un peso de cada cobro."],
-            [`Tus primeros ${FREE_SUBSCRIBERS} suscriptores`, "son gratis. Empezás sin poner plata y recién pagás cuando ya te está funcionando."],
+            [`Primeros ${FREE_SUBSCRIBERS} gratis`, "suscriptores sin pagar nada: arrancás gratis y recién pagás cuando ya te funciona."],
           ].map(([v,d])=>(
             <div key={v}>
               <div style={{fontSize:25,fontWeight:800,color:T.accent,letterSpacing:-0.8,lineHeight:1.1,marginBottom:6}}>{v}</div>
