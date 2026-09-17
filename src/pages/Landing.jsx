@@ -209,7 +209,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         .rec-land-card:hover{transform:translateY(-3px);box-shadow:0 14px 34px rgba(0,0,0,0.18);}
         .rec-land-wrap{max-width:1180px;margin:0 auto;padding:0 24px;}
         .rec-hero-sec{padding-top:56px;}
-        @media(max-width:640px){ .rec-hero-sec{padding-top:26px;} }
+        @media(max-width:640px){ .rec-hero-sec{padding-top:28px!important;padding-bottom:28px!important;} }
         @media (prefers-reduced-motion: reduce){ .rec-land-card{transition:none;} .rec-land-card:hover{transform:none;} }
         @media(max-width:900px){ .rec-land-hero{grid-template-columns:1fr!important;gap:32px;} .rec-land-grid,.rec-land-stores{grid-template-columns:repeat(2,1fr)!important;} }
         @media(max-width:900px){ .rec-land-benefits{grid-template-columns:1fr!important;gap:18px!important;} }
@@ -221,7 +221,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
           .rec-nav-login{padding:6px 10px!important;font-size:12px!important;}
           .rec-nav-cta{padding:7px 12px!important;font-size:12px!important;}
         }
-        @media(max-width:640px){ .rec-land-grid,.rec-land-stores,.rec-land-pasos{grid-template-columns:1fr!important;} .rec-land-h1{font-size:34px!important;} .rec-land-wrap{padding:0 16px;} .hide-mobile{display:none!important;} }
+        @media(max-width:640px){ .rec-land-grid,.rec-land-stores,.rec-land-pasos{grid-template-columns:1fr!important;} .rec-land-h1{font-size:34px!important;} .rec-land-wrap{padding-left:16px;padding-right:16px;} .hide-mobile{display:none!important;} }
       `}</style>
 
       {/* Nav */}
