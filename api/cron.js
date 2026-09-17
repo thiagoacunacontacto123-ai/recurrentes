@@ -152,12 +152,15 @@ export default async function handler(req, res) {
           console.error(`[cron] refresh token MP ${m.id} falló: ${rf.error}`);
         }
 
-        // 1) + 2) ACTIVAS — una sola lectura de la colección.
+        // 1) + 2) ACTIVAS.
         //   A: cobro recurrente vencido (next_charge_at + 5 min de margen): MP debería
         //      haber cobrado y el webhook no llegó → procesar cobro + orden Shopify.
         //   B: activa SIN ORDEN reciente (72h): el preapproval quedó authorized pero
         //      el webhook de pago no creó la orden.
-        const actives = await merchantSubs.where("status", "==", "active").get();
+        // Se leen SOLO las que pueden entrar (activesForRun): traer todas las activas
+        // cada 2 min es lo que hace escalar el costo de Firestore (100 tiendas × 200
+        // activas ≈ 14 M lecturas/día). Sin los índices, cae a la lectura completa.
+        const actives = await activesForRun(merchantSubs, now);
         const vencidas = [], sinOrden = [];
         for (const subDoc of actives.docs) {
           const d = subDoc.data();
@@ -432,6 +435,40 @@ export async function pendingsForRun(subsCol, full, now = Date.now()) {
     }
   }
   return subsCol.where("status", "==", "pending").get();
+}
+
+/**
+ * Pasos 1 y 2: las activas que el loop puede llegar a tocar, en vez de TODAS.
+ * El filtro de abajo descarta el resto igual, así que el resultado es idéntico —
+ * cambia lo que se factura.
+ *   · cobro vencido      → (status, next_charge_at ≤ ahora − 5 min)
+ *   · sin orden / sin next_charge_at → (status, created_at ≥ ahora − 72 h)
+ * Se unen sin duplicar. Si algún índice no está, una sola lectura completa
+ * (comportamiento anterior) para no dejar cobros sin procesar.
+ */
+export async function activesForRun(subsCol, now = Date.now()) {
+  const base = subsCol.where("status", "==", "active");
+  try {
+    const [vencidas, recientes] = await Promise.all([
+      base.where("next_charge_at", "<=", new Date(now - 5 * 60 * 1000).toISOString()).get(),
+      base.where("created_at", ">=", new Date(now - 72 * H).toISOString()).get(),
+    ]);
+    const docs = [...vencidas.docs];
+    const vistos = new Set(docs.map(d => d.id));
+    for (const d of recientes.docs) if (!vistos.has(d.id)) { vistos.add(d.id); docs.push(d); }
+    // Activas viejas SIN next_charge_at (activadas por webhooks viejos que no lo
+    // guardaban): no las devuelve ninguna de las dos queries de arriba, y el loop las
+    // sincroniza 1 vez por día. Se las busca una vez por hora para no volver a leer
+    // toda la colección en cada corrida.
+    if (new Date(now).getMinutes() < 2) {
+      const sinFecha = await base.where("next_charge_at", "==", null).limit(50).get().catch(() => null);
+      if (sinFecha) for (const d of sinFecha.docs) if (!vistos.has(d.id)) { vistos.add(d.id); docs.push(d); }
+    }
+    return { docs };
+  } catch (e) {
+    console.warn("[cron] activas acotadas sin índice, lectura completa:", e.message);
+    return base.get();
+  }
 }
 
 // Paso 4: canceladas creadas en los últimos 90 días (el mismo corte que aplica el
