@@ -4,13 +4,16 @@ import { BtnSolid, BtnSecondary } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
 import { PricingTable } from "./Billing.jsx";
 import { FREE_SUBSCRIBERS } from "../../shared/platform/pricing.js";
-import { SectionsStyle, ProblemSection, UseCasesSection, DeepDivesSection, MonthStorySection, CalculatorSection, ExtrasSection, TrustSection, FaqSection, BigFooter } from "./LandingSections.jsx";
+import { SectionsStyle, ProblemSection, DeepDivesSection, TrustSection, FaqSection, BigFooter, VideoSection, ComparisonSection } from "./LandingSections.jsx";
+import { LANDING_VIDEO_URL, LANDING_VIDEO_POSTER, LANDING_VIDEO_DURATION } from "../lib/landingMedia.js";
 
 const F = "'Inter',system-ui,sans-serif";
 
 // Landing pública de Recurrentes (tema T, marca verde). Comunicación en modo
-// Argentina, para tiendas online: Shopify hoy; Tiendanube e Impultienda (ebooks)
-// muy pronto. Los botones llevan a #/registro y #/login — el login vive en Auth.jsx.
+// Argentina, para tiendas online: Shopify y Tiendanube hoy; el resto en camino.
+// Orden AIDA (Thiago, 17-sept): Atención (hero) → Interés (integraciones + video)
+// → Deseo (dolor → solución → comparativa → confianza → precios) → Acción (CTA).
+// Los botones llevan a #/registro y #/login — el login vive en Auth.jsx.
 
 // ─── Mapa "todo se conecta": tiendas → pasarelas → panel ─────────────────
 // Estados honestos (ver CLAUDE.md → Integraciones evaluadas): live = ya
@@ -18,17 +21,21 @@ const F = "'Inter',system-ui,sans-serif";
 // en AR, pasarelas sin cobro recurrente) no aparecen.
 const FLOW_STORES = [
   { n:"Shopify", s:"live" },
-  { n:"Tiendanube", s:"soon" },
+  { n:"Tiendanube", s:"live" },
   { n:"Impultienda", s:"soon" },
+  { n:"WooCommerce", s:"soon" },
+  { n:"Empretienda", s:"soon" },
   { n:"Link de pago", s:"live" },
-  { n:"Desarrollo propio", s:"live" },
 ];
 const FLOW_PAYMENTS = [
   { n:"Mercado Pago", s:"live" },
   { n:"Mobbex", s:"soon" },
-  { n:"Stripe", s:"radar" },
-  { n:"Whop", s:"radar" },
+  { n:"Stripe", s:"soon" },
+  { n:"Whop", s:"soon" },
 ];
+// El hero muestra además lo que está en el radar (el mapa se queda con lo principal).
+const HERO_STORES = [...FLOW_STORES.filter(x => x.n !== "Link de pago"), { n:"VTEX", s:"radar" }, { n:"Wix", s:"radar" }, { n:"Jumpseller", s:"radar" }, { n:"Desarrollo propio", s:"live" }];
+const HERO_PAYMENTS = [...FLOW_PAYMENTS, { n:"PayPal", s:"radar" }];
 const FLOW_ACTIONS = [
   { t:"Cobro aprobado · $ 40.500", s:"live" },
   { t:"Orden #1042 creada en tu negocio", s:"live" },
@@ -184,7 +191,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
   const ir = (id) => () => { try { document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }); } catch (_) {} };
 
   const PASOS = [
-    { n:"1", t:"Conectá tu negocio y Mercado Pago", d:"Autorizás Recurrentes en tu negocio y vinculás la cuenta de Mercado Pago que cobra. Diez minutos, sin código." },
+    { n:"1", t:"Conectá tu tienda y Mercado Pago", d:"Tiendanube en un clic, Shopify en dos pasos, Mercado Pago en un clic. Diez minutos, sin código." },
     { n:"2", t:"Creá tus planes", d:"Elegís el producto, cada cuántos días se cobra, el descuento y los packs. En Tiendanube el widget se pone solo; en Shopify es una línea en el tema." },
     { n:"3", t:"Cobrá y despachá en piloto automático", d:"Cada cobro crea la orden en tu negocio. Tus clientes gestionan su suscripción desde el portal." },
   ];
@@ -212,7 +219,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
             <span style={{fontWeight:800,fontSize:18,letterSpacing:-0.3}}>Recurrentes</span>
           </a>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            {[["Funciones","rec-funciones"],["Integraciones","rec-tiendas"],["Precios","rec-precios"],["Preguntas","rec-faq"]].map(([l,id])=>(
+            {[["Integraciones","rec-tiendas"],["Video","rec-video"],["Funciones","rec-funciones"],["Comparar","rec-comparar"],["Precios","rec-precios"]].map(([l,id])=>(
               <button key={id} onClick={ir(id)} className="hide-mobile" style={{background:"transparent",border:"none",color:T.textMd,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:F,padding:"6px 10px"}}>{l}</button>
             ))}
             <button onClick={onToggleDark} title={darkMode?"Modo claro":"Modo oscuro"} aria-label={darkMode?"Modo claro":"Modo oscuro"} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:8,color:T.textMd,cursor:"pointer",padding:"6px 8px",display:"flex",alignItems:"center"}}>
@@ -238,11 +245,11 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
               Vendé por <span style={{background:`linear-gradient(135deg, ${T.accentSolid}, #34d399)`,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent"}}>suscripción</span> en tu negocio online desde hoy mismo
             </h1>
             <p style={{fontSize:17,color:T.textMd,lineHeight:1.6,margin:"0 0 22px",maxWidth:520}}>
-              Tu tienda online o tu curso: el cliente se suscribe una vez, <strong style={{color:T.text}}>Mercado Pago cobra solo</strong> cada período y Recurrentes crea la orden en tu negocio o te muestra quién está al día. Vos te ocupás de vender.
+              Tu Shopify, tu Tiendanube o tu curso: el cliente se suscribe una vez, <strong style={{color:T.text}}>Mercado Pago cobra solo</strong> cada período y Recurrentes crea la orden en tu tienda con el envío de siempre. Vos te ocupás de vender.
             </p>
             {/* Mismas plataformas y estados que el mapa de abajo (FLOW_STORES / FLOW_PAYMENTS). */}
             <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:26}}>
-              {[["Vendé en", FLOW_STORES], ["Cobrá con", FLOW_PAYMENTS]].map(([label, list]) => (
+              {[["Vendé en", HERO_STORES], ["Cobrá con", HERO_PAYMENTS]].map(([label, list]) => (
                 <div key={label} style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
                   <span style={{fontSize:11,fontWeight:800,color:T.textSm,textTransform:"uppercase",letterSpacing:0.6,minWidth:74}}>{label}</span>
                   {list.map(it => {
@@ -330,7 +337,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         `}</style>
         <div className="rec-land-wrap">
           <h2 style={{fontSize:28,fontWeight:800,letterSpacing:-0.7,textAlign:"center",margin:"0 0 10px",textWrap:"balance"}}>Todo se conecta con Recurrentes</h2>
-          <p style={{fontSize:14,color:T.textSm,textAlign:"center",maxWidth:600,margin:"0 auto 32px",lineHeight:1.6}}>Tu negocio vende, tu pasarela cobra y Recurrentes hace el resto: cobra cada período, crea la orden y te muestra todo en un panel. Arrancamos con Shopify y Mercado Pago, y vamos sumando las plataformas que usan los negocios online.</p>
+          <p style={{fontSize:14,color:T.textSm,textAlign:"center",maxWidth:620,margin:"0 auto 32px",lineHeight:1.6}}>Tu negocio vende, tu pasarela cobra y Recurrentes hace el resto: cobra cada período, crea la orden y te muestra todo en un panel. Hoy con Shopify y Tiendanube sobre Mercado Pago; WooCommerce, Empretienda, Impultienda y más pasarelas están en camino.</p>
           <FlowMap T={T}/>
           <div style={{marginTop:22,display:"flex",justifyContent:"center",gap:"8px 18px",flexWrap:"wrap",fontSize:12,color:T.textSm}}>
             {[["Disponible",T.accentSolid],["Próximamente",T.yellow],["En el radar",T.textSm]].map(([l,c])=>(
@@ -340,14 +347,16 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         </div>
       </section>
 
-      {/* Secciones largas (LandingSections.jsx): problema → rubros → funciones →
-          un mes de ejemplo → calculadora → 3 pasos → extras → confianza. */}
+      {/* Interés: el video (panel por dentro, en la tienda, precios). */}
       <SectionsStyle T={T}/>
+      <VideoSection T={T} url={LANDING_VIDEO_URL} poster={LANDING_VIDEO_POSTER} duration={LANDING_VIDEO_DURATION}/>
+
+      {/* Deseo: dolor → solución → comparativa. (Rubros, mes de ejemplo,
+          calculadora y extras siguen en LandingSections.jsx, fuera de la home
+          para que sea más corta.) */}
       <ProblemSection T={T}/>
-      <UseCasesSection T={T}/>
       <DeepDivesSection T={T}/>
-      <MonthStorySection T={T}/>
-      <CalculatorSection T={T}/>
+      <ComparisonSection T={T}/>
 
       {/* Empezá en tres pasos */}
       <section id="rec-como-funciona" style={{background:T.surface,borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,padding:"72px 0"}}>
@@ -366,7 +375,6 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         </div>
       </section>
 
-      <ExtrasSection T={T}/>
       <TrustSection T={T}/>
 
       {/* Precios */}

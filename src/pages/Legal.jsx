@@ -39,7 +39,7 @@ function useStyles(Tp) {
   };
 }
 
-function Frame({ T, title, children, sub, draft = true }) {
+function Frame({ T, title, children, sub, draft = false }) {
   const s = useStyles(T);
   return (
     <div style={s.page}>

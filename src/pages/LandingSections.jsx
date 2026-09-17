@@ -503,7 +503,8 @@ const FAQS = [
   ["¿Qué pasa si falla un cobro?", "Mercado Pago lo reintenta y le avisamos al cliente con un link para actualizar la tarjeta. Vos lo ves marcado en el panel."],
   ["¿Mis clientes pueden pausar o cancelar?", "Sí, desde su portal y sin escribirte. Si querés, antes de cancelar les ofrecemos pausar uno, dos o tres meses."],
   ["¿Con qué medios paga el cliente?", "Con tarjeta de crédito, y con débito o dinero en cuenta cuando Mercado Pago lo habilita para suscripciones."],
-  ["¿Funciona con Tiendanube?", "Muy pronto. Hoy funciona con Shopify y con el link de suscripción, que sirve para cualquier negocio aunque no tenga tienda."],
+  ["¿Funciona con Tiendanube?", "Sí, ya funciona: instalás la app desde Tiendanube en un clic y el widget de suscripción aparece solo en tus productos con plan. Con Shopify es una línea en el tema."],
+  ["¿Y con WooCommerce, Empretienda o Impultienda?", "Están en camino. Mientras tanto, el link de suscripción sirve para cualquier negocio, tenga la tienda que tenga."],
   ["¿Puedo vender sin tienda online?", "Sí. Cada plan tiene su link: lo compartís por Instagram, WhatsApp o tu web, y el cliente se suscribe desde ahí."],
   ["¿Cuánto cuesta Recurrentes?", `Es gratis hasta ${FREE_SUBSCRIBERS} suscriptores activos. Después pagás según cuántos clientes tenés cobrando, desde USD 49 por mes, con todo incluido.`],
   ["¿Qué cuenta como suscriptor activo?", "Un cliente con su suscripción cobrando, o con un pago que Mercado Pago está reintentando. Los pausados y cancelados no cuentan."],
@@ -570,3 +571,137 @@ export function BigFooter({ T, onGo, onRegister }) {
   );
 }
 
+
+
+// ─── Video: Recurrentes en acción (después de las integraciones) ─────────
+export function VideoSection({ T, url, poster, duration }) {
+  const ref = React.useRef(null);
+  const [playing, setPlaying] = React.useState(false);
+  if (!url) return null;
+  const play = () => { try { ref.current?.play(); } catch (_) {} };
+  const parts = [
+    ["01", "Por dentro", "El panel: suscriptores, cobros, analíticas y el widget."],
+    ["02", "En tu tienda", "Cómo lo ve tu cliente: packs, suscripción y compra única."],
+    ["03", "Precios", "Gratis hasta 10 suscriptores y cómo se cobra el plan."],
+  ];
+  return (
+    <section className="ls-sec" id="rec-video">
+      <div className="ls-wrap">
+        <SectionHead T={T} eyebrow="Recurrentes en acción" title="Mirá cómo funciona, de punta a punta"
+          sub={`El panel por dentro, cómo se ve en tu tienda y cuánto cuesta. ${duration ? duration + ", " : ""}sin vueltas.`}/>
+        <div style={{position:"relative",maxWidth:960,margin:"0 auto"}}>
+          <div style={{position:"absolute",inset:-40,background:`radial-gradient(circle at 50% 30%, ${T.accentSolid}26 0%, transparent 60%)`,filter:"blur(34px)",pointerEvents:"none"}}/>
+          <div style={{position:"relative",background:"#0b0f0d",border:`1px solid ${T.border}`,borderRadius:20,overflow:"hidden",boxShadow:"0 30px 80px rgba(0,0,0,0.35)",aspectRatio:"1658 / 1080"}}>
+            <video ref={ref} src={url} poster={poster} controls playsInline preload="none"
+              onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
+              style={{display:"block",width:"100%",height:"100%",objectFit:"contain",background:"#0b0f0d"}}/>
+            {!playing && (
+              <button type="button" onClick={play} aria-label="Reproducir el video"
+                style={{position:"absolute",inset:0,width:"100%",height:"100%",background:"linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.35))",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:14,color:"#fff",fontFamily:F}}>
+                <span style={{width:84,height:84,borderRadius:99,background:`linear-gradient(135deg, ${T.accentSolid}, #059669)`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 18px 44px ${T.accentSolid}66`}}>
+                  <svg width="34" height="34" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                </span>
+                <span style={{fontSize:14,fontWeight:700,textShadow:"0 2px 10px rgba(0,0,0,0.6)"}}>Ver el recorrido completo{duration ? ` · ${duration}` : ""}</span>
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="ls-grid4" style={{gridTemplateColumns:"repeat(3,1fr)",maxWidth:960,margin:"22px auto 0"}}>
+          {parts.map(([n, t, d]) => (
+            <div key={n} style={{display:"flex",gap:12,alignItems:"flex-start",padding:"14px 16px",background:T.card,border:`1px solid ${T.border}`,borderRadius:14}}>
+              <span style={{fontSize:11,fontWeight:800,color:T.accent,letterSpacing:0.6,marginTop:2}}>{n}</span>
+              <div><div style={{fontSize:14,fontWeight:800,color:T.text}}>{t}</div><div style={{fontSize:12.5,color:T.textSm,lineHeight:1.55,marginTop:2}}>{d}</div></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Comparativa (nombres difuminados: comparamos funciones, no marcas) ──
+// Columnas: Recurrentes · la alternativa local · las apps internacionales de
+// Shopify. Valores: true ✓ · false ✗ · "~" según el caso · texto libre.
+const COMPARE_ROWS = [
+  ["Cobra con Mercado Pago (crédito y débito en pesos)", true, true, ["✗", "Necesitan Shopify Payments, que no existe en Argentina"]],
+  ["Funciona en Shopify", true, true, true],
+  ["Funciona en Tiendanube", true, false, false],
+  ["Checkout propio con los envíos reales de tu tienda", true, "~", ["~", "Solo dentro del checkout de Shopify"]],
+  ["Packs x1 · x2 · x3 con precio propio y compra única con el botón del tema", true, "~", "~"],
+  ["Portal del cliente: pausar, cancelar, cambiar dirección", true, "~", true],
+  ["Avisos por WhatsApp y mails con tu marca", true, false, ["~", "Mails, en inglés"]],
+  ["Precio", ["Gratis hasta 10 · desde USD 49", true], "A cotizar", "USD 99 a 499 por mes"],
+  ["Comisión sobre cada venta", ["Ninguna", true], "—", ["Sí", "1% a 2% de cada cobro"]],
+  ["Soporte en español por WhatsApp", true, true, false],
+];
+const COMPARE_COLS = [
+  { key:"rec", title:"Recurrentes", real:true },
+  { key:"local", title:"Puentify", sub:"Alternativa local" },
+  { key:"intl", title:"Recharge · Skio · Appstle", sub:"Apps internacionales" },
+];
+function CompareCell({ T, v, hero }) {
+  const ok = (c) => <Check c={c} size={16}/>;
+  const no = (c) => <Cross c={c} size={16}/>;
+  if (v === true) return <span style={{display:"inline-flex",alignItems:"center",gap:6,color:T.accent,fontWeight:700}}>{ok(T.accent)}{hero ? "Sí" : "Sí"}</span>;
+  if (v === false) return <span style={{display:"inline-flex",alignItems:"center",gap:6,color:T.textSm}}>{no(T.textSm)}No</span>;
+  if (v === "~") return <span style={{display:"inline-flex",alignItems:"center",gap:6,color:T.yellow,fontWeight:600}}><span style={{fontSize:14}}>~</span>Según el caso</span>;
+  if (Array.isArray(v)) {
+    const [main, note] = v;
+    if (note === true) return <span style={{color:T.accent,fontWeight:800}}>{main}</span>;
+    const icon = main === "✗" ? no(T.textSm) : main === "~" ? <span style={{fontSize:14,color:T.yellow}}>~</span> : null;
+    return <span style={{display:"inline-flex",flexDirection:"column",gap:2}}><span style={{display:"inline-flex",alignItems:"center",gap:6,color:main === "✗" ? T.textSm : T.text,fontWeight:600}}>{icon}{main === "✗" ? "No" : main === "~" ? "Parcial" : main}</span><span style={{fontSize:11.5,color:T.textSm,lineHeight:1.4}}>{note}</span></span>;
+  }
+  return <span style={{color:T.textMd,fontWeight:600}}>{v}</span>;
+}
+export function ComparisonSection({ T }) {
+  return (
+    <section className="ls-sec-alt" id="rec-comparar">
+      <div className="ls-wrap">
+        <SectionHead T={T} eyebrow="Comparativa" title="Hecho para vender por suscripción en Argentina"
+          sub="Las apps internacionales cobran con pasarelas que acá no existen y se pagan en dólares más un porcentaje de cada venta. Comparamos funciones, no marcas: los nombres van difuminados."/>
+        <div style={{overflowX:"auto",borderRadius:18,border:`1px solid ${T.border}`,background:T.card}}>
+          <table style={{width:"100%",borderCollapse:"separate",borderSpacing:0,minWidth:720,fontSize:13.5}}>
+            <thead>
+              <tr>
+                <th style={{textAlign:"left",padding:"16px 18px",fontSize:11,fontWeight:800,color:T.textSm,letterSpacing:0.6,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,width:"34%"}}>Qué mirar</th>
+                {COMPARE_COLS.map(c => (
+                  <th key={c.key} style={{textAlign:"left",padding:"14px 18px",borderBottom:`1px solid ${T.border}`,background:c.real ? T.accentSolid + "12" : "transparent",borderTop:c.real ? `3px solid ${T.accentSolid}` : "3px solid transparent"}}>
+                    {c.real
+                      ? <span style={{display:"inline-flex",alignItems:"center",gap:8,fontSize:15,fontWeight:800,color:T.text}}><RecLogoMini/> {c.title}</span>
+                      : <span style={{display:"flex",flexDirection:"column",gap:3}}>
+                          <span aria-hidden="true" style={{fontSize:15,fontWeight:800,color:T.textMd,filter:"blur(5px)",userSelect:"none",pointerEvents:"none"}}>{c.title}</span>
+                          <span style={{fontSize:11,fontWeight:700,color:T.textSm,letterSpacing:0.4,textTransform:"uppercase"}}>{c.sub}</span>
+                        </span>}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {COMPARE_ROWS.map(([label, ...vals], i) => (
+                <tr key={label}>
+                  <td style={{padding:"13px 18px",color:T.text,fontWeight:600,borderBottom:i === COMPARE_ROWS.length - 1 ? "none" : `1px solid ${T.borderL || T.border}`,lineHeight:1.45}}>{label}</td>
+                  {vals.map((v, j) => (
+                    <td key={j} style={{padding:"13px 18px",borderBottom:i === COMPARE_ROWS.length - 1 ? "none" : `1px solid ${T.borderL || T.border}`,background:j === 0 ? T.accentSolid + "0a" : "transparent",verticalAlign:"top",lineHeight:1.45}}>
+                      <CompareCell T={T} v={v} hero={j === 0}/>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p style={{fontSize:12,color:T.textSm,textAlign:"center",margin:"16px auto 0",maxWidth:720,lineHeight:1.6}}>Información pública de cada producto a septiembre de 2026. "Según el caso" quiere decir que depende del plan o del tema de la tienda.</p>
+      </div>
+    </section>
+  );
+}
+function RecLogoMini() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true" style={{display:"block",flexShrink:0}}>
+      <defs><linearGradient id="recCmpGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#34d399"/><stop offset="100%" stopColor="#059669"/></linearGradient></defs>
+      <circle cx="16" cy="16" r="16" fill="url(#recCmpGrad)"/>
+      <path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round"/>
+      <path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
