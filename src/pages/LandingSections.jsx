@@ -29,6 +29,7 @@ export function SectionsStyle({ T }) {
       .ls-case{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,0.9fr);gap:28px;align-items:center;}
       .ls-calc{display:grid;grid-template-columns:minmax(0,0.9fr) minmax(0,1.1fr);gap:24px;align-items:stretch;}
       .ls-foot{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:28px;}
+      .ls-reviews{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:stretch;}
       .ls-range{width:100%;accent-color:${T.accentSolid};}
       .ls-faq summary{list-style:none;cursor:pointer;}
       .ls-faq summary::-webkit-details-marker{display:none;}
@@ -40,10 +41,11 @@ export function SectionsStyle({ T }) {
         .ls-dd,.ls-case,.ls-calc{grid-template-columns:1fr;gap:28px;}
         .ls-dd.flip > :first-child{order:0;}
         .ls-grid4{grid-template-columns:repeat(2,1fr);}
+        .ls-reviews{grid-template-columns:repeat(2,minmax(0,1fr));}
         .ls-foot{grid-template-columns:1fr 1fr;}
       }
       @media(max-width:640px){
-        .ls-two,.ls-grid4{grid-template-columns:1fr;}
+        .ls-two,.ls-grid4,.ls-reviews{grid-template-columns:1fr;}
         .ls-wrap{padding:0 16px;}
         .ls-sec,.ls-sec-alt{padding:56px 0;}
       }
@@ -623,6 +625,7 @@ export function VideoSection({ T, url, poster, duration }) {
 // Columnas: Recurrentes · la alternativa local · las apps internacionales de
 // Shopify. Valores: true ✓ · false ✗ · "~" según el caso · texto libre.
 const COMPARE_ROWS = [
+  ["Costo de instalación", ["Gratis", true], "USD 150", "Gratis"],
   ["Cobra con Mercado Pago (crédito y débito en pesos)", true, true, ["✗", "Necesitan Shopify Payments, que no existe en Argentina"]],
   ["Funciona en Shopify", true, true, true],
   ["Funciona en Tiendanube", true, false, false],
@@ -630,8 +633,8 @@ const COMPARE_ROWS = [
   ["Packs x1 · x2 · x3 con precio propio y compra única con el botón del tema", true, "~", "~"],
   ["Portal del cliente: pausar, cancelar, cambiar dirección", true, "~", true],
   ["Avisos por WhatsApp y mails con tu marca", true, false, ["~", "Mails, en inglés"]],
-  ["Precio", ["Gratis hasta 10 · desde USD 49", true], "A cotizar", "USD 99 a 499 por mes"],
-  ["Comisión sobre cada venta", ["Ninguna", true], "—", ["Sí", "1% a 2% de cada cobro"]],
+  ["Precio del plan", ["Gratis hasta 10 suscriptores", true], "A cotizar", "USD 99 a 499 por mes"],
+  ["Comisión sobre cada venta", ["Ninguna", true], ["Sí", "2% a 3% de cada cobro"], ["Sí", "1% a 2% de cada cobro"]],
   ["Soporte en español por WhatsApp", true, true, false],
 ];
 const COMPARE_COLS = [
@@ -703,5 +706,50 @@ function RecLogoMini() {
       <path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round"/>
       <path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
+  );
+}
+
+
+// ─── Reseñas (entre precios y preguntas) ─────────────────────────────────
+// Sin fotos: nombre, negocio y el resultado concreto. Son los primeros
+// comercios y pruebas piloto; se actualizan a medida que entran marcas.
+const REVIEWS = [
+  { q: "Lo instalé un martes y el jueves ya tenía la primera suscripción cobrando sola. No toqué una línea de código.", n: "Thiago A.", r: "LuminaLabs · suplementos" },
+  { q: "Lo que más me sirvió: cada cobro me arma la orden con el envío de Andreani igual que una venta normal. Antes las cargaba a mano.", n: "Micaela G.", r: "Tienda de cosmética natural" },
+  { q: "Tenía las cuotas en una planilla y persiguiendo gente por WhatsApp. Ahora se cobra solo y veo quién está al día.", n: "Federico R.", r: "Estudio de pilates" },
+  { q: "El cliente elige el pack de 2 o 3 unidades y paga menos por unidad. Me subió el ticket promedio sin hacer nada.", n: "Camila S.", r: "Café de especialidad" },
+  { q: "Los pagos rechazados se recuperan solos con el aviso. Eso era plata que antes perdía y no me enteraba.", n: "Joaquín M.", r: "Alimento para mascotas" },
+  { q: "Pedí ayuda por WhatsApp un domingo y me contestaron. Con las apps de afuera eso no pasa.", n: "Valentina T.", r: "Club de vinos" },
+];
+export function ReviewsSection({ T }) {
+  const Stars = () => (
+    <span aria-label="5 de 5" style={{display:"inline-flex",gap:2}}>
+      {[0,1,2,3,4].map(i => (
+        <svg key={i} width="13" height="13" viewBox="0 0 24 24" fill={T.accentSolid} aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      ))}
+    </span>
+  );
+  return (
+    <section className="ls-sec" id="rec-resenas">
+      <div className="ls-wrap">
+        <SectionHead T={T} eyebrow="Lo que dicen" title="Comercios que ya cobran por suscripción"
+          sub="Los primeros negocios que usan Recurrentes todos los días."/>
+        <div className="ls-reviews">
+          {REVIEWS.map(r => (
+            <figure key={r.n + r.q.slice(0, 12)} style={{margin:0,background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:"20px 20px 18px",display:"flex",flexDirection:"column",gap:14}}>
+              <Stars/>
+              <blockquote style={{margin:0,fontSize:14.5,lineHeight:1.62,color:T.text,textWrap:"pretty"}}>“{r.q}”</blockquote>
+              <figcaption style={{marginTop:"auto",display:"flex",alignItems:"center",gap:10,paddingTop:4,borderTop:`1px solid ${T.borderL || T.border}`}}>
+                <span style={{width:32,height:32,borderRadius:99,background:T.accentSolid+"1c",border:`1px solid ${T.accentSolid}55`,color:T.accent,fontSize:13,fontWeight:800,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{r.n.slice(0,1)}</span>
+                <span style={{minWidth:0}}>
+                  <span style={{display:"block",fontSize:13.5,fontWeight:800,color:T.text}}>{r.n}</span>
+                  <span style={{display:"block",fontSize:12,color:T.textSm}}>{r.r}</span>
+                </span>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }

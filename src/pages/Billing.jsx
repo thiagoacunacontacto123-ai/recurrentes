@@ -74,12 +74,18 @@ function useSaasStripe(reloadMerchant) {
   return { busy, pay, portal };
 }
 
-// Escalera de tramos (6 escalones). `current` resalta el tramo del comerciante.
+// Escalera de tramos (10 escalones → 2 filas de 5 en desktop, 2 columnas en
+// mobile). `current` resalta el tramo del comerciante.
 // La usan Configuración → Facturación y la landing.
 export function PricingTable({ T, current }) {
   return (
     <div style={{ fontFamily: F }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 150px), 1fr))", gap: 10 }}>
+      <style>{`
+        .rec-pricing-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;}
+        @media(max-width:1000px){ .rec-pricing-grid{grid-template-columns:repeat(3,minmax(0,1fr));} }
+        @media(max-width:700px){ .rec-pricing-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;} }
+      `}</style>
+      <div className="rec-pricing-grid">
         {PRICING_TIERS.map(t => {
           const on = current === t.id;
           const free = t.usd === 0;

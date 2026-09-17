@@ -4,7 +4,7 @@ import { BtnSolid, BtnSecondary } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
 import { PricingTable } from "./Billing.jsx";
 import { FREE_SUBSCRIBERS } from "../../shared/platform/pricing.js";
-import { SectionsStyle, ProblemSection, DeepDivesSection, TrustSection, FaqSection, BigFooter, VideoSection, ComparisonSection } from "./LandingSections.jsx";
+import { SectionsStyle, ProblemSection, DeepDivesSection, TrustSection, FaqSection, BigFooter, VideoSection, ComparisonSection, ReviewsSection } from "./LandingSections.jsx";
 import { LANDING_VIDEO_URL, LANDING_VIDEO_POSTER, LANDING_VIDEO_DURATION } from "../lib/landingMedia.js";
 
 const F = "'Inter',system-ui,sans-serif";
@@ -102,8 +102,67 @@ function FlowColumn({ T, items, label = FLOW_MLABEL.get(items) }) {
   );
 }
 
+// Chip compacto para el panel del hero (nombre + punto de estado).
+function FlowChip({ T, it }) {
+  const c = it.s === "live" ? T.accentSolid : it.s === "soon" ? T.yellow : T.textSm;
+  return (
+    <span title={FLOW_STATUS[it.s]} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 10px",borderRadius:9,background:it.s === "live" ? T.accentSolid + "12" : T.bg,
+      border:`1px ${it.s === "live" ? "solid" : "dashed"} ${it.s === "live" ? T.accentSolid + "88" : T.border}`,fontSize:12,fontWeight:700,color:it.s === "radar" ? T.textSm : T.text,whiteSpace:"nowrap"}}>
+      <span style={{width:6,height:6,borderRadius:99,background:c,flexShrink:0}}/>{it.n}
+    </span>
+  );
+}
+// Versión compacta del mapa (dentro del panel del hero): 3 pasos apilados.
+function FlowMapCompact({ T }) {
+  const Paso = ({ n, t, sub, children }) => (
+    <div>
+      <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:8}}>
+        <span style={{width:18,height:18,borderRadius:99,background:T.accentSolid,color:"#fff",fontSize:10,fontWeight:800,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{n}</span>
+        <span style={{fontSize:12.5,fontWeight:800,color:T.text}}>{t}</span>
+        <span style={{fontSize:11,color:T.textSm}}>{sub}</span>
+      </div>
+      {children}
+    </div>
+  );
+  const flecha = <div aria-hidden="true" style={{textAlign:"center",fontSize:15,color:T.accentSolid,lineHeight:1,margin:"9px 0"}}>↓</div>;
+  return (
+    <div>
+      <Paso n={1} t="Donde vendés" sub="tu negocio">
+        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{FLOW_STORES.map(it => <FlowChip key={it.n} T={T} it={it}/>)}</div>
+      </Paso>
+      {flecha}
+      <Paso n={2} t="Con qué cobrás" sub="tu pasarela">
+        <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{FLOW_PAYMENTS.map(it => <FlowChip key={it.n} T={T} it={it}/>)}</div>
+      </Paso>
+      {flecha}
+      <Paso n={3} t="Lo que pasa en cada cobro" sub="tu panel">
+        <div style={{background:T.bg,border:`1px solid ${T.accentSolid}44`,borderRadius:12,padding:"12px 13px"}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:11}}>
+            {[["Suscriptores","128"],["MRR","$ 5,2M"]].map(([l,v])=>(
+              <div key={l}>
+                <div style={{fontSize:9,color:T.textSm,textTransform:"uppercase",fontWeight:800,letterSpacing:0.5}}>{l}</div>
+                <div style={{fontSize:19,fontWeight:800,color:T.text,letterSpacing:-0.5,fontVariantNumeric:"tabular-nums"}}>{v}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:7}}>
+            {FLOW_ACTIONS.map(a => (
+              <div key={a.t} style={{display:"flex",alignItems:"center",gap:8,fontSize:11.5,color:a.s === "live" ? T.textMd : T.textSm,lineHeight:1.35}}>
+                <span style={{width:5,height:5,borderRadius:99,background:a.s === "live" ? T.accentSolid : T.yellow,flexShrink:0}}/>
+                <span style={{flex:1,minWidth:0}}>{a.t}</span>
+                {a.s !== "live" && <span style={{fontSize:9,fontWeight:800,color:T.yellow,whiteSpace:"nowrap"}}>PRONTO</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      </Paso>
+    </div>
+  );
+}
+
 // Tiendas → pasarelas → panel de Recurrentes con las acciones de cada cobro.
-function FlowMap({ T }) {
+function FlowMap({ T, compact }) {
+  if (compact) return <FlowMapCompact T={T}/>;
   const head = (n, t, sub) => (
     <div>
       <div style={{fontSize:11,fontWeight:800,color:T.accent,letterSpacing:0.6,textTransform:"uppercase"}}>{n} · {t}</div>
@@ -219,7 +278,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
             <span style={{fontWeight:800,fontSize:18,letterSpacing:-0.3}}>Recurrentes</span>
           </a>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            {[["Integraciones","rec-tiendas"],["Video","rec-video"],["Funciones","rec-funciones"],["Comparar","rec-comparar"],["Precios","rec-precios"]].map(([l,id])=>(
+            {[["Integraciones","rec-tiendas"],["Video","rec-video"],["Funciones","rec-funciones"],["Comparar","rec-comparar"],["Precios","rec-precios"],["Reseñas","rec-resenas"]].map(([l,id])=>(
               <button key={id} onClick={ir(id)} className="hide-mobile" style={{background:"transparent",border:"none",color:T.textMd,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:F,padding:"6px 10px"}}>{l}</button>
             ))}
             <button onClick={onToggleDark} title={darkMode?"Modo claro":"Modo oscuro"} aria-label={darkMode?"Modo claro":"Modo oscuro"} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:8,color:T.textMd,cursor:"pointer",padding:"6px 8px",display:"flex",alignItems:"center"}}>
@@ -233,8 +292,23 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="rec-land-wrap" style={{paddingTop:72,paddingBottom:64}}>
+      {/* Hero + panel de conectores (id rec-tiendas: el nav apunta acá) */}
+      <section id="rec-tiendas" className="rec-land-wrap" style={{paddingTop:72,paddingBottom:56}}>
+        <style>{`
+          .rec-flow-grid{display:grid;grid-template-columns:minmax(0,1fr) 72px minmax(0,1fr) 72px minmax(0,1.2fr);column-gap:10px;align-items:stretch;}
+          .rec-flow-head{margin-bottom:14px;align-items:end;}
+          .rec-flow-connwrap{position:relative;min-width:0;}
+          .rec-flow-mobile-arrow,.rec-flow-mlabel{display:none;}
+          .rec-flow-live{animation:recFlow 1.1s linear infinite;}
+          @keyframes recFlow{to{stroke-dashoffset:-12;}}
+          @media (prefers-reduced-motion: reduce){ .rec-flow-live{animation:none;} }
+          @media(max-width:900px){
+            .rec-flow-grid{grid-template-columns:1fr;row-gap:10px;}
+            .rec-flow-head,.rec-flow-connwrap{display:none;}
+            .rec-flow-mobile-arrow{display:block;text-align:center;font-size:22px;font-weight:800;color:${T.accentSolid};line-height:1;}
+            .rec-flow-mlabel{display:block;}
+          }
+        `}</style>
         <div className="rec-land-hero">
           <div>
             <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"5px 12px",borderRadius:20,background:T.accentSolid+"16",border:`1px solid ${T.accentSolid}44`,color:T.accent,fontSize:11,fontWeight:700,letterSpacing:0.4,marginBottom:20,textTransform:"uppercase"}}>
@@ -283,66 +357,25 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
             </div>
           </div>
 
-          {/* Mock del widget + panel */}
-          <div style={{position:"relative"}} className="hide-mobile">
-            <div style={{position:"absolute",inset:-40,background:`radial-gradient(circle at 60% 40%, ${T.accentSolid}22 0%, transparent 60%)`,filter:"blur(30px)",pointerEvents:"none"}}/>
-            <div style={{position:"relative",background:T.card,border:`1px solid ${T.border}`,borderRadius:18,padding:20,boxShadow:"0 24px 60px rgba(0,0,0,0.25)"}}>
-              <div style={{fontSize:11,fontWeight:700,color:T.textSm,letterSpacing:0.5,textTransform:"uppercase",marginBottom:10}}>En tu página de producto</div>
-              <div style={{border:`1.5px solid ${T.border}`,borderRadius:12,padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,color:T.textMd}}>
-                <div><div style={{fontSize:13,fontWeight:600,color:T.text}}>Compra única</div><div style={{fontSize:11,color:T.textSm}}>Comprá una vez al precio normal.</div></div>
-                <div style={{fontSize:13,fontWeight:700}}>$ 45.000</div>
+          {/* Panel de conectores: la explicación y el mapa visual, todo junto.
+              Reemplaza a la sección "Todo se conecta" que estaba más abajo
+              (Thiago, 17-sept): así el video pasa a ser lo segundo que se ve. */}
+          <div style={{position:"relative"}}>
+            <div style={{position:"absolute",inset:-36,background:`radial-gradient(circle at 60% 35%, ${T.accentSolid}26 0%, transparent 62%)`,filter:"blur(30px)",pointerEvents:"none"}}/>
+            <div style={{position:"relative",background:T.card,border:`1px solid ${T.border}`,borderRadius:20,padding:"18px 18px 16px",boxShadow:"0 26px 64px rgba(0,0,0,0.28)"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:14}}>
+                <div style={{fontSize:11,fontWeight:800,color:T.textSm,letterSpacing:0.6,textTransform:"uppercase"}}>Todo se conecta</div>
+                <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:10,fontWeight:800,color:T.accent,background:T.accentSolid+"18",borderRadius:99,padding:"3px 9px",letterSpacing:0.4}}>
+                  <span style={{width:6,height:6,borderRadius:99,background:T.accentSolid}}/>EN VIVO
+                </span>
               </div>
-              <div style={{border:`1.5px solid ${T.accentSolid}`,background:T.accentSolid+"12",borderRadius:12,padding:"12px 14px",display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                <div><div style={{fontSize:13,fontWeight:700,color:T.text,display:"flex",alignItems:"center",gap:8}}>Suscripción <span style={{fontSize:10,background:T.accentSolid,color:"#fff",borderRadius:99,padding:"2px 8px",fontWeight:800}}>-10%</span></div><div style={{fontSize:11,color:T.textSm}}>Te llega cada 30 días. Pausás o cancelás cuando quieras.</div></div>
-                <div style={{fontSize:13,fontWeight:800,color:T.accent}}>$ 40.500</div>
-              </div>
-              <div style={{height:1,background:T.border,margin:"4px 0 14px"}}/>
-              <div style={{fontSize:11,fontWeight:700,color:T.textSm,letterSpacing:0.5,textTransform:"uppercase",marginBottom:10}}>En tu panel</div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
-                {[["Suscriptores","128",T.accent],["MRR","$ 5,2M",T.text],["Próx. cobros","31",T.text]].map(([l,v,c])=>(
-                  <div key={l} style={{background:T.bg,border:`1px solid ${T.border}`,borderRadius:10,padding:"10px 12px"}}>
-                    <div style={{fontSize:9,color:T.textSm,textTransform:"uppercase",fontWeight:700,letterSpacing:0.5}}>{l}</div>
-                    <div style={{fontSize:18,fontWeight:800,color:c,letterSpacing:-0.5,marginTop:3,fontVariantNumeric:"tabular-nums"}}>{v}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{marginTop:10,display:"flex",flexDirection:"column",gap:6}}>
-                {[["Cobro aprobado · Orden #1042 creada",T.accent],["Cobro aprobado · Orden #1041 creada",T.accent],["Pago rechazado · Aviso enviado al cliente",T.yellow]].map(([t,c],i)=>(
-                  <div key={i} style={{display:"flex",alignItems:"center",gap:8,fontSize:11,color:T.textMd}}>
-                    <span style={{width:6,height:6,borderRadius:99,background:c,flexShrink:0}}/>{t}
-                  </div>
+              <FlowMap T={T} compact/>
+              <div style={{marginTop:14,paddingTop:12,borderTop:`1px solid ${T.borderL || T.border}`,display:"flex",gap:"6px 14px",flexWrap:"wrap",fontSize:11,color:T.textSm}}>
+                {[["Disponible",T.accentSolid],["Próximamente",T.yellow],["En el radar",T.textSm]].map(([l,c])=>(
+                  <span key={l} style={{display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:7,height:7,borderRadius:99,background:c}}/>{l}</span>
                 ))}
               </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Todo se conecta: tiendas → pasarelas → panel de Recurrentes */}
-      <section id="rec-tiendas" style={{background:T.surface,borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,padding:"56px 0"}}>
-        <style>{`
-          .rec-flow-grid{display:grid;grid-template-columns:minmax(0,1fr) 72px minmax(0,1fr) 72px minmax(0,1.2fr);column-gap:10px;align-items:stretch;}
-          .rec-flow-head{margin-bottom:14px;align-items:end;}
-          .rec-flow-connwrap{position:relative;min-width:0;}
-          .rec-flow-mobile-arrow,.rec-flow-mlabel{display:none;}
-          .rec-flow-live{animation:recFlow 1.1s linear infinite;}
-          @keyframes recFlow{to{stroke-dashoffset:-12;}}
-          @media (prefers-reduced-motion: reduce){ .rec-flow-live{animation:none;} }
-          @media(max-width:900px){
-            .rec-flow-grid{grid-template-columns:1fr;row-gap:10px;}
-            .rec-flow-head,.rec-flow-connwrap{display:none;}
-            .rec-flow-mobile-arrow{display:block;text-align:center;font-size:22px;font-weight:800;color:${T.accentSolid};line-height:1;}
-            .rec-flow-mlabel{display:block;}
-          }
-        `}</style>
-        <div className="rec-land-wrap">
-          <h2 style={{fontSize:28,fontWeight:800,letterSpacing:-0.7,textAlign:"center",margin:"0 0 10px",textWrap:"balance"}}>Todo se conecta con Recurrentes</h2>
-          <p style={{fontSize:14,color:T.textSm,textAlign:"center",maxWidth:620,margin:"0 auto 32px",lineHeight:1.6}}>Tu negocio vende, tu pasarela cobra y Recurrentes hace el resto: cobra cada período, crea la orden y te muestra todo en un panel. Hoy con Shopify y Tiendanube sobre Mercado Pago; WooCommerce, Empretienda, Impultienda y más pasarelas están en camino.</p>
-          <FlowMap T={T}/>
-          <div style={{marginTop:22,display:"flex",justifyContent:"center",gap:"8px 18px",flexWrap:"wrap",fontSize:12,color:T.textSm}}>
-            {[["Disponible",T.accentSolid],["Próximamente",T.yellow],["En el radar",T.textSm]].map(([l,c])=>(
-              <span key={l} style={{display:"inline-flex",alignItems:"center",gap:6}}><span style={{width:8,height:8,borderRadius:99,background:c}}/>{l}</span>
-            ))}
           </div>
         </div>
       </section>
@@ -351,12 +384,13 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
       <SectionsStyle T={T}/>
       <VideoSection T={T} url={LANDING_VIDEO_URL} poster={LANDING_VIDEO_POSTER} duration={LANDING_VIDEO_DURATION}/>
 
-      {/* Deseo: dolor → solución → comparativa. (Rubros, mes de ejemplo,
-          calculadora y extras siguen en LandingSections.jsx, fuera de la home
-          para que sea más corta.) */}
+      {/* Comparativa justo debajo del video (Thiago, 17-sept). */}
+      <ComparisonSection T={T}/>
+
+      {/* Deseo: dolor → solución. (Rubros, mes de ejemplo, calculadora y extras
+          siguen en LandingSections.jsx, fuera de la home para que sea más corta.) */}
       <ProblemSection T={T}/>
       <DeepDivesSection T={T}/>
-      <ComparisonSection T={T}/>
 
       {/* Empezá en tres pasos */}
       <section id="rec-como-funciona" style={{background:T.surface,borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,padding:"72px 0"}}>
@@ -390,6 +424,9 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         <PricingTable T={T}/>
         <p style={{fontSize:12,color:T.textSm,textAlign:"center",margin:"22px auto 0",maxWidth:600,lineHeight:1.6}}>Precios en dólares · sin contrato, cancelás cuando quieras · suscriptor activo = cliente con su suscripción cobrando (los pausados y cancelados no cuentan).</p>
       </section>
+
+      {/* Reseñas: entre precios y preguntas (Thiago, 17-sept). */}
+      <ReviewsSection T={T}/>
 
       <FaqSection T={T}/>
 
