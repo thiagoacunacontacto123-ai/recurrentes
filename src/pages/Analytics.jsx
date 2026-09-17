@@ -3,13 +3,15 @@ import { apiGet } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
 import { Card, KPI, Btn, DSBadge, Spinner, DSTable, PageHeader, SubTabs, CardHeader, Loading, Tip, Callout } from "../ui/components.jsx";
 import { KpiCard, Segmented, AreaChart, BarList, Panel } from "../ui/charts.jsx";
+import DateRangePicker, { PRESETS_MESES, rangoDePreset } from "../ui/DateRangePicker.jsx";
 import { OnbEmpty } from "./Onboarding.jsx";
 import { fmtARS, fmtPct, downloadCsv } from "./_shared.jsx";
 
 // GET /api/stats?action=analytics&months=N. Si el backend todavía no lo tiene,
 // armamos lo básico desde GET /api/stats (sin mensual ni motivos).
-export async function fetchAnalytics(months = 6) {
-  const d = await apiGet("stats", { action: "analytics", months });
+export async function fetchAnalytics(range = 6) {
+  const params = typeof range === "object" && range ? { action: "analytics", since: range.since, until: range.until } : { action: "analytics", months: range };
+  const d = await apiGet("stats", params);
   if (d && !d.error && (d.monthly || d.mrr != null)) return { ...d, _fallback: false };
   const s = await apiGet("stats");
   if (!s || s.error) return null;
@@ -26,9 +28,19 @@ export async function fetchAnalytics(months = 6) {
 const MONTH_LABEL = (ym) => { try { const [y, m] = String(ym).split("-").map(Number); return new Date(y, (m || 1) - 1, 1).toLocaleDateString("es-AR", { month:"short" }).replace(".", ""); } catch (_) { return ym; } };
 export const REASON_LABELS = { sin_motivo:"Sin motivo", precio:"Me resulta caro", stock:"Todavía tengo producto", no_uso:"Ya no lo uso", calidad:"No me convenció", otro:"Otro motivo", too_expensive:"Muy caro", too_much:"Tengo de sobra", quality:"No me gustó el producto", shipping:"Problemas con el envío", switching:"Cambio a otra marca", temporary:"Es temporal", other:"Otro" };
 
-const MONTHS_KEY = "rec_analytics_months";
-const PERIODS = [{ id:6, label:"6 meses" }, { id:12, label:"12 meses" }];
-const readMonths = () => { try { const m = parseInt(localStorage.getItem(MONTHS_KEY)); return [6, 12].includes(m) ? m : 6; } catch (_) { return 6; } };
+// Período del calendario (Growith-style) con atajos de meses. Default: últimos 6 meses.
+const RANGE_KEY = "rec_analytics_range";
+const readRange = () => {
+  try {
+    const r = JSON.parse(localStorage.getItem(RANGE_KEY) || "null");
+    if (r && /^\d{4}-\d{2}-\d{2}$/.test(r.since) && /^\d{4}-\d{2}-\d{2}$/.test(r.until)) {
+      if (r.preset) { const p = PRESETS_MESES.find(x => x.id === r.preset); if (p) { const [s, u] = rangoDePreset(p); return { since: s, until: u, preset: p.id }; } }
+      return r;
+    }
+  } catch (_) {}
+  const [since, until] = rangoDePreset(PRESETS_MESES.find(p => p.id === "6m"));
+  return { since, until, preset: "6m" };
+};
 const fmtN = (n) => Math.round(Number(n) || 0).toLocaleString("es-AR");
 const fmtDM = (iso) => { try { const d = new Date(iso); return `${d.getDate()}/${d.getMonth() + 1}`; } catch (_) { return ""; } };
 const monthTick = (ym) => `${MONTH_LABEL(ym)} ${String(ym).slice(2, 4)}`;
@@ -37,21 +49,21 @@ const monthTick = (ym) => `${MONTH_LABEL(ym)} ${String(ym).slice(2, 4)}`;
 // gráfico con pestañas, próximos 30 días por semana, motivos de baja y mes a mes.
 export function AnalyticsPage({ merchant }) {
   const T = useT();
-  const [months, setMonths] = useState(readMonths);
+  const [range, setRange] = useState(readRange);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
-  async function load(m = months) {
+  async function load(r = range) {
     setLoading(true);
     try {
-      const d = await fetchAnalytics(m);
+      const d = await fetchAnalytics(r);
       if (!d) setErr("No pudimos cargar las métricas"); else { setData(d); setErr(""); }
     } catch (e) { setErr(e.message || "Error"); }
     finally { setLoading(false); }
   }
-  useEffect(() => { load(months); /* eslint-disable-next-line */ }, [months]);
-  const pickMonths = (m) => { setMonths(m); try { localStorage.setItem(MONTHS_KEY, String(m)); } catch (_) {} };
+  useEffect(() => { load(range); /* eslint-disable-next-line */ }, [range.since, range.until]);
+  const pickRange = (since, until, preset) => { const r = { since, until, preset: preset || null }; setRange(r); try { localStorage.setItem(RANGE_KEY, JSON.stringify(r)); } catch (_) {} };
 
   const a = data || {};
   const monthly = Array.isArray(a.monthly) ? a.monthly : [];
@@ -69,7 +81,7 @@ export function AnalyticsPage({ merchant }) {
   const first = loading && !data;
 
   function exportCsv() {
-    downloadCsv(`analiticas-${months}m-${new Date().toISOString().slice(0, 10)}.csv`, ["mes", "cobrado_ars", "nuevas", "canceladas", "activas_cierre"], monthly.map(m => [m.month, Math.round(m.revenue_ars || 0), m.new || 0, m.cancelled || 0, m.active_end || 0]));
+    downloadCsv(`analiticas-${range.since}_${range.until}.csv`, ["mes", "cobrado_ars", "nuevas", "canceladas", "activas_cierre"], monthly.map(m => [m.month, Math.round(m.revenue_ars || 0), m.new || 0, m.cancelled || 0, m.active_end || 0]));
   }
 
   const kpiLabel = (text, tip) => <span style={{ display:"inline-flex", alignItems:"center" }}>{text}<Tip T={T} text={tip}/></span>;
@@ -92,7 +104,7 @@ export function AnalyticsPage({ merchant }) {
     <div>
       <PageHeader T={T} title="Analíticas" subtitle="Cómo viene el negocio recurrente: ingresos, base de suscriptores, churn y recupero."
         right={<>
-          <Segmented T={T} options={PERIODS} value={months} onChange={pickMonths} ariaLabel="Período"/>
+          <DateRangePicker T={T} since={range.since} until={range.until} onChange={pickRange} presets={PRESETS_MESES}/>
           <Btn T={T} variant="secondary" size="sm" onClick={exportCsv} disabled={monthly.length === 0} style={{ height:34 }}>⬇ CSV mensual</Btn>
           <Btn T={T} variant="secondary" size="sm" onClick={() => load()} disabled={loading} style={{ height:34 }}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>
         </>}/>

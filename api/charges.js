@@ -89,6 +89,14 @@ export default async function handler(req, res) {
   if (req.query.subscriber_id) {
     q = q.where("subscriber_id", "==", String(req.query.subscriber_id));
   }
+  // Rango del calendario (?since&until, YYYY-MM-DD en zona Argentina).
+  const okDay = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ""));
+  if (okDay(req.query.since) && okDay(req.query.until) && !req.query.subscriber_id) {
+    let a = String(req.query.since), b = String(req.query.until); if (a > b) [a, b] = [b, a];
+    const AR = 3 * 3600 * 1000;
+    q = q.where("created_at", ">=", new Date(Date.parse(a + "T00:00:00Z") + AR).toISOString())
+         .where("created_at", "<=", new Date(Date.parse(b + "T23:59:59.999Z") + AR).toISOString());
+  }
   q = q.orderBy("created_at", "desc");
   if (req.query.cursor) q = q.startAfter(String(req.query.cursor));
   q = q.limit(limit + 1);

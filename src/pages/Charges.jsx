@@ -3,6 +3,7 @@ import { apiGet, apiPost } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
 import { KPI, Btn, InputStyle, DSBadge, Spinner, DSTable, CellStack, PageHeader, SubTabs, Loading, appConfirm, toast } from "../ui/components.jsx";
 import { KpiCard, Segmented, AreaChart } from "../ui/charts.jsx";
+import DateRangePicker, { PRESETS_DIAS, rangoDePreset } from "../ui/DateRangePicker.jsx";
 import { OnbEmpty } from "./Onboarding.jsx";
 import { TIPS } from "../lib/onboarding.js";
 import { MONO, fmtARS, fmtDateTime, fmtDateOnly, ExtLink, mpPaymentUrl, shopifyOrderUrl, orderLabel, weekBucket, hashQuery } from "./_shared.jsx";
@@ -32,9 +33,20 @@ export async function fetchErrors(processed = null) {
 // ─── Página: Cobros — estilo Growith: período 7/30/90 con KPIs + sparkline,
 // gráfico diario (cobrado / cantidad), estados en píldoras con contador,
 // búsqueda y tabla densa. Mismas acciones que antes (reintentar orden).
-const DAYS_KEY = "rec_charges_days";
-const PERIODS = [{ id:7, label:"7 días" }, { id:30, label:"30 días" }, { id:90, label:"90 días" }];
-const readDays = () => { try { const d = parseInt(localStorage.getItem(DAYS_KEY)); return [7, 30, 90].includes(d) ? d : 30; } catch (_) { return 30; } };
+// Período del calendario (Growith-style), persistido. Default: últimos 30 días.
+const RANGE_KEY = "rec_charges_range";
+const defaultRange = () => { const [since, until] = rangoDePreset(PRESETS_DIAS.find(p => p.id === "30d")); return { since, until }; };
+const readRange = () => {
+  try {
+    const r = JSON.parse(localStorage.getItem(RANGE_KEY) || "null");
+    if (r && /^\d{4}-\d{2}-\d{2}$/.test(r.since) && /^\d{4}-\d{2}-\d{2}$/.test(r.until)) {
+      // Un preset relativo guardado ("Últimos 30 días") se recalcula a hoy.
+      if (r.preset) { const p = PRESETS_DIAS.find(x => x.id === r.preset); if (p) { const [s, u] = rangoDePreset(p); return { since: s, until: u, preset: p.id }; } }
+      return r;
+    }
+  } catch (_) {}
+  return { ...defaultRange(), preset: "30d" };
+};
 const fmtN = (n) => Math.round(Number(n) || 0).toLocaleString("es-AR");
 const fmtShortDate = (key) => { const [, m, d] = String(key).split("-"); return d ? `${parseInt(d)}/${parseInt(m)}` : key; };
 const SearchIcon = ({ color }) => (
@@ -45,7 +57,7 @@ export function ChargesPage({ shop = null }) {
   const T = useT();
   const iS = InputStyle(T);
   const [view, setView] = useState(() => { const v = hashQuery().get("view"); return ["processed", "upcoming", "errors"].includes(v) ? v : "processed"; });
-  const [days, setDays] = useState(readDays);
+  const [range, setRange] = useState(readRange);
   const [period, setPeriod] = useState(null);
   const [search, setSearch] = useState("");
   const [charges, setCharges] = useState([]);
@@ -57,8 +69,8 @@ export function ChargesPage({ shop = null }) {
   const [cursor, setCursor] = useState(null);
   const [retrying, setRetrying] = useState(null);
 
-  async function loadProcessed(more = false) {
-    const params = { limit: 200 };
+  async function loadProcessed(more = false, r = range) {
+    const params = { limit: 200, since: r.since, until: r.until };
     if (more && cursor) params.cursor = cursor;
     const d = await apiGet("charges", params);
     const list = d?.charges || [];
@@ -67,8 +79,8 @@ export function ChargesPage({ shop = null }) {
     if (!more) setTotals(d?.totals || { amount_ars:0, ok:0, failed:0, total:0 });
     return list;
   }
-  async function loadStats(d = days) {
-    const st = await apiGet("stats", { days: d }).catch(() => null);
+  async function loadStats(r = range) {
+    const st = await apiGet("stats", { since: r.since, until: r.until }).catch(() => null);
     if (st && !st.error) { setThisMonth(st.revenue?.this_month || null); setPeriod(st.period || null); }
     return st;
   }
@@ -86,9 +98,9 @@ export function ChargesPage({ shop = null }) {
     } finally { setLoading(false); }
   }
   useEffect(() => { loadAll(); }, []);
-  // Cambiar el período solo recarga las métricas (la tabla no depende del período).
-  useEffect(() => { if (period) loadStats(days); /* eslint-disable-next-line */ }, [days]);
-  const pickDays = (d) => { setDays(d); try { localStorage.setItem(DAYS_KEY, String(d)); } catch (_) {} };
+  // Cambiar el período recarga métricas y la lista de cobros procesados.
+  useEffect(() => { if (period) { loadStats(range); loadProcessed(false, range); } /* eslint-disable-next-line */ }, [range.since, range.until]);
+  const pickRange = (since, until, preset) => { const r = { since, until, preset: preset || null }; setRange(r); try { localStorage.setItem(RANGE_KEY, JSON.stringify(r)); } catch (_) {} };
 
   // Reintenta la orden Shopify de un charge que quedó con error (mismo payment_id).
   async function retryOrder(c) {
@@ -172,7 +184,7 @@ export function ChargesPage({ shop = null }) {
   const first = loading && charges.length === 0;
   const k = period?.kpis || {};
   const ser = period?.series || {};
-  const pl = `${days} días`;
+  const pl = period?.days ? `${period.days} días` : "período";
   const ticket = k.cobros?.value ? k.cobrado.value / k.cobros.value : 0;
   const shown = view === "processed" ? chargesF.length : view === "upcoming" ? upcomingF.length : errorsF.length;
   const chartTabs = [
@@ -184,7 +196,7 @@ export function ChargesPage({ shop = null }) {
     <div>
       <PageHeader T={T} title="Cobros" subtitle="Lo que Mercado Pago cobró, lo que viene y lo que falló. Cada cobro OK genera una orden en tu negocio."
         right={<>
-          <Segmented T={T} options={PERIODS} value={days} onChange={pickDays} ariaLabel="Período"/>
+          <DateRangePicker T={T} since={range.since} until={range.until} onChange={pickRange}/>
           <Btn T={T} variant="secondary" size="sm" onClick={loadAll} disabled={loading} style={{ height:34 }}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>
         </>}/>
 

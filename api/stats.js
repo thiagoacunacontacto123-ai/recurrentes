@@ -42,9 +42,13 @@ export default async function handler(req, res) {
     // Período del Inicio (?days=7|30|90, default 30). Charges desde el inicio del
     // período ANTERIOR (para los deltas) o del mes pasado (revenue.last_month),
     // lo que sea más viejo. Índice simple sobre created_at.
-    const days = [7, 30, 90].includes(parseInt(req.query.days)) ? parseInt(req.query.days) : 30;
+    // Período: ?since=YYYY-MM-DD&until=YYYY-MM-DD (calendario, zona AR) o ?days=7|30|90.
+    const rango = parseRango(req.query);
+    const days = rango ? rango.days : ([7, 30, 90].includes(parseInt(req.query.days)) ? parseInt(req.query.days) : 30);
     const _now = new Date();
-    const periodFromIso = new Date(_now.getTime() - 2 * days * 86400000 - 86400000).toISOString();
+    const endMs = rango ? Math.min(_now.getTime(), rango.endMs) : _now.getTime();
+    const endIsNow = !rango || rango.endMs >= _now.getTime();
+    const periodFromIso = new Date(endMs - 2 * days * 86400000 - 86400000).toISOString();
     const lastMonthFromIso = new Date(_now.getFullYear(), _now.getMonth() - 1, 1).toISOString();
     const windowFromIso = periodFromIso < lastMonthFromIso ? periodFromIso : lastMonthFromIso;
     const chargesQ = merchantRef.collection("charges").where("created_at", ">=", windowFromIso).orderBy("created_at", "desc").limit(5000);
@@ -156,7 +160,7 @@ export default async function handler(req, res) {
       },
       growth: { new_7d: new7, new_30d: new30, cancelled_30d: cancelled30, churn_rate_pct: Math.round(churnRate * 10) / 10 },
       upcoming_charges: upcomingCharges.slice(0, 10),
-      period: buildPeriod(subs, charges, days, mrr),
+      period: buildPeriod(subs, charges, days, mrr, endMs, { endIsNow }),
     });
   } catch (e) {
     return res.status(500).json({ error: e.message });
@@ -316,7 +320,21 @@ const aliveAtIso = (s, tIso) => {
   return left == null || left > tIso;
 };
 
-export function buildPeriod(subs, charges, days, mrrNow, nowMs = Date.now()) {
+// Rango del calendario: {since, until} "YYYY-MM-DD" (zona AR) → días (1..366) y fin
+// del último día en ms. null si no vienen o son inválidos.
+export function parseRango(q = {}) {
+  const ok = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ""));
+  if (!ok(q.since) || !ok(q.until)) return null;
+  let since = String(q.since), until = String(q.until);
+  if (since > until) [since, until] = [until, since];
+  const a = Date.parse(since + "T00:00:00Z"), b = Date.parse(until + "T00:00:00Z");
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  const days = Math.min(366, Math.max(1, Math.round((b - a) / DAY_MS) + 1));
+  return { since, until, days, startIso: new Date(a + AR_OFFSET_MS).toISOString(), endIso: arDayEndIso(until), endMs: Date.parse(arDayEndIso(until)) };
+}
+
+export function buildPeriod(subs, charges, days, mrrNow, nowMs = Date.now(), opts = {}) {
+  const endIsNow = opts.endIsNow !== false;
   const keys = [], prevKeys = [];
   for (let i = days - 1; i >= 0; i--) keys.push(arDay(new Date(nowMs - i * DAY_MS).toISOString()));
   for (let i = 2 * days - 1; i >= days; i--) prevKeys.push(arDay(new Date(nowMs - i * DAY_MS).toISOString()));
@@ -353,14 +371,14 @@ export function buildPeriod(subs, charges, days, mrrNow, nowMs = Date.now()) {
   const nowIso = new Date(nowMs).toISOString();
   const activas = [], mrr = [];
   keys.forEach((k, i) => {
-    const t = i === keys.length - 1 ? nowIso : arDayEndIso(k);
+    const t = i === keys.length - 1 && endIsNow ? nowIso : arDayEndIso(k);
     let n = 0, m = 0;
     for (const s of subs) if (aliveAtIso(s, t)) { n++; m += mrrOfSub(s); }
     activas.push(n); mrr.push(Math.round(m));
   });
-  const activeNow = subs.filter(s => s.status === "active").length;
-  activas[activas.length - 1] = activeNow;
-  mrr[mrr.length - 1] = Math.round(mrrNow);
+  // Si el período termina hoy, el último punto son las activas/MRR reales de ahora.
+  const activeNow = endIsNow ? subs.filter(s => s.status === "active").length : activas[activas.length - 1];
+  if (endIsNow) { activas[activas.length - 1] = activeNow; mrr[mrr.length - 1] = Math.round(mrrNow); }
 
   // Valores al cierre del período anterior (para el delta de activas y MRR).
   const startIso = arDayEndIso(prevKeys[prevKeys.length - 1]);
@@ -373,7 +391,7 @@ export function buildPeriod(subs, charges, days, mrrNow, nowMs = Date.now()) {
   return {
     days, from: keys[0], to: keys[keys.length - 1],
     kpis: {
-      mrr: { value: Math.round(mrrNow), prev: Math.round(mrrPrev) },
+      mrr: { value: endIsNow ? Math.round(mrrNow) : mrr[mrr.length - 1], prev: Math.round(mrrPrev) },
       activas: { value: activeNow, prev: activasPrev },
       cobrado: { value: Math.round(cur.cobrado), prev: Math.round(prev.cobrado) },
       cobros: { value: cur.cobros, prev: prev.cobros },
@@ -410,28 +428,38 @@ const isSimCharge = (id, c) => c.simulated === true || String(c.mp_payment_id ||
 const monthKey = (iso) => String(iso || "").slice(0, 7);
 
 async function analytics(merchantId, req, res) {
-  const months = Math.min(Math.max(parseInt(req.query.months) || 6, 1), 24);
+  // ?months=N (viejo) o ?since&until del calendario: los meses van del mes de `since`
+  // al mes de `until` (máx. 36); las métricas "30 días" siguen siendo de hoy.
+  const rango = parseRango(req.query);
+  const anchor = rango ? new Date(Date.parse(rango.until + "T12:00:00Z") + AR_OFFSET_MS) : new Date();
+  let months = Math.min(Math.max(parseInt(req.query.months) || 6, 1), 24);
+  if (rango) {
+    const a = new Date(rango.since + "T12:00:00Z"), b = new Date(rango.until + "T12:00:00Z");
+    months = Math.min(36, Math.max(1, (b.getUTCFullYear() - a.getUTCFullYear()) * 12 + (b.getUTCMonth() - a.getUTCMonth()) + 1));
+  }
+  const cacheKey = rango ? `${months}:${rango.since}:${rango.until}` : String(months);
   const fresh = req.query.fresh === "1";
   const mRef = db().collection("merchants").doc(merchantId);
   try {
     const mSnap = await mRef.get();
     const merchant = mSnap.data() || {};
     const c = merchant.analytics_cache;
-    if (!fresh && c && c.months === months && c.data && c.at && Date.now() - Date.parse(c.at) < ANALYTICS_CACHE_MS) {
+    if (!fresh && c && (c.key || String(c.months)) === cacheKey && c.data && c.at && Date.now() - Date.parse(c.at) < ANALYTICS_CACHE_MS) {
       return res.json({ ...c.data, cached: true });
     }
 
     const now = new Date();
     const nowIso = now.toISOString();
     const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const windowStart = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+    const windowStart = new Date(anchor.getFullYear(), anchor.getMonth() - (months - 1), 1);
     const windowStartIso = windowStart.toISOString();
+    const windowEndIso = rango ? rango.endIso : null;
     const cutoff30 = new Date(Date.now() - 30 * 86400000).toISOString();
     const cutoff90 = new Date(Date.now() - 90 * 86400000).toISOString();
 
     const [subsSnap, chargesSnap, cancelSnap] = await Promise.all([
       mRef.collection("subscribers").get(),
-      mRef.collection("charges").where("created_at", ">=", windowStartIso).orderBy("created_at", "desc").limit(5000).get(),
+      (windowEndIso ? mRef.collection("charges").where("created_at", ">=", windowStartIso).where("created_at", "<=", windowEndIso) : mRef.collection("charges").where("created_at", ">=", windowStartIso)).orderBy("created_at", "desc").limit(5000).get(),
       mRef.collection("cancellations").orderBy("created_at", "desc").limit(500).get().catch(e => { console.warn("[analytics] cancellations:", e.message); return { docs: [] }; }),
     ]);
     const subs = subsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -511,7 +539,7 @@ async function analytics(merchantId, req, res) {
     // Serie mensual (viejo → nuevo).
     const monthly = [];
     for (let i = months - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const d = new Date(anchor.getFullYear(), anchor.getMonth() - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const endIso = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999).toISOString();
       const mCharges = approved.filter(ch => monthKey(ch.created_at) === key);
@@ -564,10 +592,12 @@ async function analytics(merchantId, req, res) {
         recovery_pct: failed30.length ? Math.round((recovered30.length / failed30.length) * 1000) / 10 : 0,
       },
       months,
+      since: rango ? rango.since : null,
+      until: rango ? rango.until : null,
       charges_in_window: charges.length,
       generated_at: nowIso,
     };
-    mRef.set({ analytics_cache: { at: nowIso, months, data } }, { merge: true }).catch(e => console.warn("[analytics] cache:", e.message));
+    mRef.set({ analytics_cache: { at: nowIso, months, key: cacheKey, data } }, { merge: true }).catch(e => console.warn("[analytics] cache:", e.message));
     return res.json({ ...data, cached: false });
   } catch (e) {
     return res.status(500).json({ error: e.message });
