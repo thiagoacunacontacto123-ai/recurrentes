@@ -250,7 +250,7 @@ function ReuseMpBox({ T, m, b, onChange }) {
     finally { setBusy(""); }
   }
   return (
-    <div style={{ marginBottom:14, padding:"12px 14px", background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:10 }}>
+    <div style={{ margin:"-4px 0 14px", padding:"12px 14px", background:T.surface, border:`1px solid ${T.accentSolid}55`, borderRadius:10 }}>
       <div style={{ fontWeight:700, color:T.text, marginBottom:4 }}>¿Cobrás con la misma cuenta de Mercado Pago que otra de tus tiendas?</div>
       <div style={{ fontSize:DS.font.md, color:T.textMd, lineHeight:1.6, marginBottom:10 }}>Un clic y esta tienda queda conectada con esa misma cuenta. Después la podés cambiar cuando quieras.</div>
       <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
@@ -510,7 +510,6 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
               A veces es algo puntual. Si los cobros nuevos no aparecen en Recurrentes, reconectá tu cuenta.
             </Callout>
           )}
-          {!mpOk && <ReuseMpBox T={T} m={m} b={b} onChange={onChange}/>}
           <div style={{ fontSize:DS.font.md, color:T.textMd, lineHeight:1.7, marginBottom:12 }}>
             Cuenta: <S T={T}>{m.mp_email || (m.mp_user_id ? `ID ${m.mp_user_id}` : "—")}</S><br/>
             Cómo está conectada: <S T={T}>{mpOauth ? "conexión automática con Mercado Pago" : "Access Token pegado a mano"}</S>{m.mp_connected_at ? ` · desde el ${fmtDateShort(m.mp_connected_at)}` : ""}<br/>
@@ -523,6 +522,8 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
             {!mpOauth && <button type="button" style={b.ghost} onClick={() => openMp(true)}>Cambiar Access Token</button>}
           </div>
         </Row>
+        {/* Sin MP acá pero con MP en otra tienda del dueño: la fila cerrada no muestra hijos, va afuera. */}
+        {!mpOk && <ReuseMpBox T={T} m={m} b={b} onChange={onChange}/>}
         {m.mobbex_available && <MobbexRow T={T} m={m} profile={profile} onChange={onChange} open={open === "mobbex"} onToggle={() => toggle("mobbex")}/>}
         {soonProviders.filter(p => !(p.id === "mobbex" && m.mobbex_available)).map(p => <Row key={p.id} T={T} id={p.id} label={p.label} soon sub={p.desc}/>)}
         <UsdProviderRows T={T} m={m} onChange={onChange} open={open} toggle={toggle} ui={{ Row, Modal, Steps, CopyCode, S }}/>{/* Stripe / Whop si su *_ENABLED está prendido */}
