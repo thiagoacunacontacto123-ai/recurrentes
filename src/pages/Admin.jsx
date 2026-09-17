@@ -33,6 +33,8 @@ const FILTERS = [
   { id:"beta", label:"Beta" },
   { id:"activar", label:"A activar" },
   { id:"sin_conectar", label:"Sin conectar" },
+  // Mis tiendas (Lumina y las demos): no cuentan en los números del negocio.
+  { id:"mias", label:"Mías" },
 ];
 const SORTS = [["recientes","Más nuevos"], ["mrr","Mayor MRR"], ["subs","Más suscriptores"], ["actividad","Actividad reciente"]];
 const PLAN_OPTIONS = [
@@ -100,7 +102,7 @@ export function AdminPage() {
   const loadList = useCallback(async () => {
     setListLoading(true);
     try {
-      const d = await apiGet("stats", { action: "admin-merchants", q: qDeb, filter, sort, page, limit: 25 });
+      const d = await apiGet("stats", { action: "admin-merchants", q: qDeb, filter: filter === "mias" ? "todos" : filter, sort, page, limit: 25, ...(filter === "mias" ? { internal: "1" } : {}) });
       if (d && !d.error) setList(d); else toast(d?.error || "No pudimos cargar los comercios", "error");
     } catch (e) { toast(e.message || "No pudimos cargar los comercios", "error"); }
     finally { setListLoading(false); }
@@ -214,7 +216,7 @@ export function AdminPage() {
               style={{ ...InputStyle(T), flex:"1 1 240px", maxWidth:360, padding:"8px 12px" }}/>
             <div className="no-scrollbar" style={{ overflowX:"auto", maxWidth:"100%" }}>
               <Segmented T={T} ariaLabel="Filtrar comercios" value={filter} onChange={(v) => { setFilter(v); setPage(1); }}
-                options={FILTERS.map(f => ({ ...f, count: list?.counts?.[f.id] }))}/>
+                options={FILTERS.map(f => ({ ...f, count: f.id === "mias" ? data?.internal?.count : list?.counts?.[f.id] }))}/>
             </div>
           </div>
           <DSTable T={T} columns={columns} rows={list?.rows || []} rowKey={r => r.id} onRowClick={r => setOpenId(r.id)} minWidth={1000}

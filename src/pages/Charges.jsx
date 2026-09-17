@@ -3,7 +3,7 @@ import { apiGet, apiPost } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
 import { KPI, Btn, InputStyle, DSBadge, Spinner, DSTable, CellStack, PageHeader, SubTabs, Loading, appConfirm, toast } from "../ui/components.jsx";
 import { KpiCard, Segmented, AreaChart } from "../ui/charts.jsx";
-import DateRangePicker, { PRESETS_DIAS, rangoDePreset } from "../ui/DateRangePicker.jsx";
+import DateRangePicker, { PRESETS_DIAS, rangoDePreset, hoyAR } from "../ui/DateRangePicker.jsx";
 import { OnbEmpty } from "./Onboarding.jsx";
 import { TIPS } from "../lib/onboarding.js";
 import { MONO, fmtARS, fmtDateTime, fmtDateOnly, ExtLink, mpPaymentUrl, shopifyOrderUrl, orderLabel, weekBucket, hashQuery } from "./_shared.jsx";
@@ -42,7 +42,9 @@ const readRange = () => {
     if (r && /^\d{4}-\d{2}-\d{2}$/.test(r.since) && /^\d{4}-\d{2}-\d{2}$/.test(r.until)) {
       // Un preset relativo guardado ("Últimos 30 días") se recalcula a hoy.
       if (r.preset) { const p = PRESETS_DIAS.find(x => x.id === r.preset); if (p) { const [s, u] = rangoDePreset(p); return { since: s, until: u, preset: p.id }; } }
-      return r;
+      // Rango fijo guardado (de un preset viejo o de antes): si ya venció, no sirve
+      // mostrar un período que terminó hace semanas. Se recalcula al default.
+      if (r.until >= hoyAR()) return r;
     }
   } catch (_) {}
   return { ...defaultRange(), preset: "30d" };

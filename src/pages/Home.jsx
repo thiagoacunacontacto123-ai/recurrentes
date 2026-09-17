@@ -6,7 +6,7 @@ import { KpiCard, AreaChart, Segmented } from "../ui/charts.jsx";
 import { PlanDeAccionCard } from "./Onboarding.jsx";
 import { fmtARS, fmtDayMonth } from "./_shared.jsx";
 import { fetchUpcoming, fetchErrors } from "./Charges.jsx";
-import DateRangePicker, { PRESETS_DIAS, rangoDePreset } from "../ui/DateRangePicker.jsx";
+import DateRangePicker, { PRESETS_DIAS, rangoDePreset, hoyAR } from "../ui/DateRangePicker.jsx";
 import { merchantProfile } from "../../shared/platform/profile.js";
 
 // ─── Inicio (estilo dashboard de Growith) ───────────────────────────────
@@ -22,7 +22,9 @@ const readRange = () => {
     const r = JSON.parse(localStorage.getItem(RANGE_KEY) || "null");
     if (r && /^\d{4}-\d{2}-\d{2}$/.test(r.since) && /^\d{4}-\d{2}-\d{2}$/.test(r.until)) {
       if (r.preset) { const p = PRESETS_DIAS.find(x => x.id === r.preset); if (p) { const [s, u] = rangoDePreset(p); return { since: s, until: u, preset: p.id }; } }
-      return r;
+      // Rango fijo guardado (de un preset viejo o de antes): si ya venció, no sirve
+      // mostrar un período que terminó hace semanas. Se recalcula al default.
+      if (r.until >= hoyAR()) return r;
     }
   } catch (_) {}
   const [since, until] = rangoDePreset(PRESETS_DIAS.find(p => p.id === "30d"));

@@ -33,8 +33,23 @@ export function activatedTierId(m = {}) {
   return null;
 }
 
+// Tiendas internas (las de Thiago: Lumina y las demos). Nunca pagan plan y no
+// cuentan en el MRR ni en los comercios del Admin, así los números del negocio son
+// solo de clientes reales (Thiago, 17-sept). Se marcan con `internal: true` en el
+// doc, o automáticamente si el mail del dueño está en ADMIN_EMAILS.
+export function isInternal(m = {}, adminEmails = []) {
+  if (m.internal === true) return true;
+  const mails = (Array.isArray(adminEmails) ? adminEmails : []).map(e => String(e || "").trim().toLowerCase()).filter(Boolean);
+  if (!mails.length) return false;
+  for (const v of [m.email, m.ownerEmail, m.contact_email]) {
+    if (v && mails.includes(String(v).trim().toLowerCase())) return true;
+  }
+  return false;
+}
+
 // Beta = `plan: "beta"` explícito, o cuenta vieja (antes del corte) sin plan pago.
 export function isBeta(m = {}) {
+  if (m.internal === true) return true;   // tienda propia: siempre sin cargo
   const raw = String(m.plan || "").trim().toLowerCase();
   if (raw === "beta") return true;
   if (activatedTierId(m)) return false;

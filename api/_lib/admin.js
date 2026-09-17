@@ -38,7 +38,8 @@ import { FieldValue } from "firebase-admin/firestore";
 import { db, requireAdmin } from "./firebase.js";
 import { merchantProfile, CHANNELS, PAYMENT_PROVIDERS, BUSINESS_TYPES } from "../../shared/platform/profile.js";
 import { PRICING_TIERS, TIER_BY_ID, BILLABLE_STATUSES, tierRank } from "../../shared/platform/pricing.js";
-import { buildBilling, activatedTierId, isBeta, PLAN_BY_ID } from "./plans_saas.js";
+import { buildBilling, activatedTierId, isBeta, isInternal, PLAN_BY_ID } from "./plans_saas.js";
+import { adminEmails } from "./adminAuth.js";
 import { klaviyoEnabled } from "./klaviyo.js";
 import { waUsageMonth } from "../../shared/platform/whatsapp.js";
 
@@ -64,7 +65,7 @@ const statsRef = () => db().collection("admin_cache").doc("merchant_stats");
 // saber si está conectado: nunca salen en la respuesta.
 const LIST_FIELDS = [
   "email", "store_name", "shop_name", "shopify_shop", "owner_name", "owner_whatsapp", "contact_email",
-  "created_at", "is_store", "ownerUid", "deleted", "teamUids", "archived_at",
+  "created_at", "is_store", "ownerUid", "deleted", "teamUids", "archived_at", "internal", "ownerEmail",
   "plan", "plan_activated", "plan_activated_at", "plan_requested", "plan_requested_at",
   "billing_cache", "business_type", "channel", "payment_provider",
   "shopify_token", "mp_access_token", "mp_email", "klaviyo_api_key", "flows_enabled", "flows_active_triggers",
@@ -209,6 +210,8 @@ function rowOf(m, s, ownerEmails = {}) {
   return {
     id: m.id,
     name: storeName(m),
+    // Tienda propia (Lumina, demos): gratis siempre y fuera de los números del negocio.
+    internal: isInternal(m, adminEmails()),
     owner_name: m.owner_name || "",
     owner_whatsapp: m.owner_whatsapp || "",
     whatsapp_url: whatsappUrl(m.owner_whatsapp),
@@ -304,8 +307,17 @@ function matches(r, needle) {
 // MP pero Recurrentes la ignora: no es un comercio del negocio.
 const liveRows = (data) => {
   const owners = ownerEmailMap(data.merchants);
-  return data.merchants.filter(m => m.deleted !== true && !m.archived_at).map(m => rowOf(m, data.stats[m.id], owners));
+  const mails = adminEmails();
+  return data.merchants
+    .filter(m => m.deleted !== true && !m.archived_at)
+    .map(m => {
+      // El mail del dueño puede vivir en el doc del login, no en la tienda extra.
+      const withOwner = m.email || m.ownerEmail ? m : { ...m, ownerEmail: owners[m.ownerUid] || null };
+      return { ...rowOf(m, data.stats[m.id], owners), internal: isInternal(withOwner, mails) };
+    });
 };
+// Comercios del negocio: sin las tiendas internas (las mías).
+const clientRows = (data) => liveRows(data).filter(r => !r.internal);
 
 // ─── GET admin-overview ──────────────────────────────────────────────────────
 async function overview(query) {
@@ -314,9 +326,14 @@ async function overview(query) {
   // Tiendas archivadas (ej. INDATROPIC: sigue cobrando en MP pero Recurrentes la
   // ignora) no cuentan en ningún agregado: inflaban "suscripciones activas" y el
   // MRR total con números de una tienda muerta.
-  const rows = liveRows(data);
+  const allRows = liveRows(data);
+  // Los agregados (comercios, MRR, suscripciones, MRR del SaaS) miran SOLO comercios
+  // de clientes: las tiendas internas (las mías) quedan fuera para no inflar nada.
+  const rows = allRows.filter(r => !r.internal);
+  const internalRows = allRows.filter(r => r.internal);
+  const internalIds = new Set(internalRows.map(r => r.id));
   // Altas por día siguen contando logins (una tienda extra no es un alta nueva).
-  const accounts = data.merchants.filter(m => m.deleted !== true && m.is_store !== true && !m.archived_at);
+  const accounts = data.merchants.filter(m => m.deleted !== true && m.is_store !== true && !m.archived_at && !internalIds.has(m.id));
 
   // Altas por día (hora AR, 90 días). Solo logins: las tiendas extra no son altas.
   const keys = dayKeys(90, nowMs);
@@ -384,6 +401,8 @@ async function overview(query) {
     by_business_type: dist("business_type", BUSINESS_TYPES),
     by_tier: byTier,
     whatsapp: waTotals(data),
+    // Mis tiendas, aparte: para verlas sin que ensucien los números del negocio.
+    internal: { count: internalRows.length, subs: sum(internalRows.map(r => r.subs)), mrr: Math.round(sum(internalRows.map(r => r.mrr))), names: internalRows.map(r => r.name) },
     saas: { paying: paying.length, usd_month: sum(paying.map(r => TIER_BY_ID[r.plan_activated]?.usd || 0)), beta: rows.filter(r => r.beta).length },
     needs_activation: rows.filter(r => r.needs_activation).sort((a, b) => b.subs - a.subs).map(r => ({
       id: r.id, name: r.name, tier: r.tier, tier_label: TIER_BY_ID[r.tier]?.label || r.tier, tier_usd: TIER_BY_ID[r.tier]?.usd || 0,
@@ -397,7 +416,8 @@ async function overview(query) {
 // ─── GET admin-merchants (paginado, con búsqueda) ────────────────────────────
 async function merchantsList(query) {
   const data = await loadAll({ fresh: query.fresh === "1" });
-  let rows = liveRows(data);
+  // Por defecto la tabla muestra comercios de clientes. `?internal=1` trae las mías.
+  let rows = query.internal === "1" ? liveRows(data).filter(r => r.internal) : clientRows(data);
   const counts = Object.fromEntries(Object.entries(FILTERS).map(([k, fn]) => [k, rows.filter(fn).length]));
   const filter = FILTERS[query.filter] ? query.filter : "todos";
   const sort = SORTS[query.sort] ? query.sort : "recientes";

@@ -3,7 +3,7 @@ import { apiGet } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
 import { Card, KPI, Btn, DSBadge, Spinner, DSTable, PageHeader, SubTabs, CardHeader, Loading, Tip, Callout } from "../ui/components.jsx";
 import { KpiCard, Segmented, AreaChart, BarList, Panel } from "../ui/charts.jsx";
-import DateRangePicker, { PRESETS_MESES, rangoDePreset } from "../ui/DateRangePicker.jsx";
+import DateRangePicker, { PRESETS_MESES, rangoDePreset, hoyAR } from "../ui/DateRangePicker.jsx";
 import { OnbEmpty } from "./Onboarding.jsx";
 import { fmtARS, fmtPct, downloadCsv } from "./_shared.jsx";
 
@@ -35,7 +35,9 @@ const readRange = () => {
     const r = JSON.parse(localStorage.getItem(RANGE_KEY) || "null");
     if (r && /^\d{4}-\d{2}-\d{2}$/.test(r.since) && /^\d{4}-\d{2}-\d{2}$/.test(r.until)) {
       if (r.preset) { const p = PRESETS_MESES.find(x => x.id === r.preset); if (p) { const [s, u] = rangoDePreset(p); return { since: s, until: u, preset: p.id }; } }
-      return r;
+      // Rango fijo guardado (de un preset viejo o de antes): si ya venció, no sirve
+      // mostrar un período que terminó hace semanas. Se recalcula al default.
+      if (r.until >= hoyAR()) return r;
     }
   } catch (_) {}
   const [since, until] = rangoDePreset(PRESETS_MESES.find(p => p.id === "6m"));
