@@ -220,7 +220,7 @@ export function PlansPage({ merchant, onMerchantChange, forceSub = null }) {
   return (
     <div>
       {/* Cerró el Paso 2 de Shopify sin verificar el widget → recordatorio hasta que lo veamos en la tienda. */}
-      {profile.channel === "shopify" && merchant?.shopify_shop && !merchant?.widget_last_seen_at && !readFlag(widgetKey(merchant?.id)) && (
+      {profile.channel === "shopify" && merchant?.shopify_shop && !merchant?.widget_last_seen_at && !merchant?.widget_installed_ack && !readFlag(widgetKey(merchant?.id)) && (
         <Callout T={T} tone="warning" title="Falta el paso 2: el widget todavía no está en tu tienda" style={{ marginBottom:16 }}
           right={<Btn T={T} variant="solid" size="sm" onClick={() => { try { window.location.hash = "#/dashboard/planes?store_step2=shopify"; } catch (_) {} }}>Abrir el paso 2</Btn>}>
           Sin la línea del widget en theme.liquid, tus clientes no ven la suscripción en los productos. Son 3 pasos.

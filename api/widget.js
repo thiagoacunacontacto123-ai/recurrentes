@@ -218,11 +218,23 @@ export default async function handler(req, res) {
     // ?legacy=1 sirve el embed viejo, por si hay que compararlo.
     if (String(req.query.legacy || "") !== "1") {
       return res.send(`(function(){
+  var base = ${JSON.stringify(apiBase)};
+  var url;
   try {
     var q = new URLSearchParams(window.location.search);
     if (!q.get("merchant")) q.set("merchant", ${JSON.stringify(merchantId)});
-    window.location.replace(${JSON.stringify(apiBase)} + "/#/checkout?" + q.toString());
-  } catch (e) { window.location.href = ${JSON.stringify(apiBase)} + "/#/checkout?merchant=" + ${JSON.stringify(encodeURIComponent(merchantId))}; }
+    url = base + "/#/checkout?" + q.toString();
+  } catch (e) { url = base + "/#/checkout?merchant=" + ${JSON.stringify(encodeURIComponent(merchantId))}; }
+  // Tapa la página del comercio al instante (mismo color y logo que el checkout).
+  try {
+    var o = document.createElement("div");
+    o.setAttribute("style", "position:fixed;inset:0;z-index:2147483647;background:#0c1512;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;font-family:'Inter',system-ui,sans-serif");
+    o.innerHTML = '<svg width="52" height="52" viewBox="0 0 32 32" style="display:block;animation:rc-go 1.1s linear infinite"><defs><linearGradient id="rcGoG" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#34d399"/><stop offset="100%" stop-color="#059669"/></linearGradient></defs><circle cx="16" cy="16" r="16" fill="url(#rcGoG)"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+      '<div style="font-size:13px;font-weight:600;color:#8fb3a7">Abriendo el checkout seguro…</div>' +
+      '<style>@keyframes rc-go{to{transform:rotate(360deg)}}</style>';
+    (document.body || document.documentElement).appendChild(o);
+  } catch (e) {}
+  window.location.replace(url);
 })();`);
     }
     return res.send(buildCheckoutEmbed({ merchantId, apiBase, color: widgetColor, shippingRates: checkoutShippingRates, waOptin, liveQuotes: liveShippingQuotes }));

@@ -98,7 +98,7 @@ export function computeSteps({ merchant, user, plansCount }) {
     || (m.widget_variant && m.widget_variant !== "v01")
     || (color !== "#10b981")
     || (Number.isInteger(m.widget_radius) && m.widget_radius !== 14);
-  const snippetOk = readFlag(widgetKey(mid)) || !!m.widget_last_seen_at;
+  const snippetOk = readFlag(widgetKey(mid)) || !!m.widget_last_seen_at || m.widget_installed_ack === true;
   const linkOk = readFlag(linkKey(mid));
   const ratesOk = Array.isArray(m.checkout_shipping_rates) && m.checkout_shipping_rates.length > 0;
   // El dominio sale de Shopify (store_domain_effective) o se carga a mano (store_domain).

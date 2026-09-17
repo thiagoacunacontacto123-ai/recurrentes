@@ -128,6 +128,7 @@ export default async function handler(req, res) {
         shopify_connected_at: merchant.shopify_connected_at || null,
         // Última vez que widget.js cargó en la tienda (beacon) → verificación de la instalación.
         internal: merchant.internal === true,   // tienda propia: sin cargo, fuera de los números del Admin
+        widget_installed_ack: merchant.widget_installed_ack === true,   // widget ya puesto (ej. desarrollo a medida): no mostrar el aviso del snippet
         widget_last_seen_at: merchant.widget_last_seen_at || null,
         widget_last_seen_host: merchant.widget_last_seen_host || null,
         shopify_has_own_app: !!(merchant.shopify_client_id && merchant.shopify_client_secret),

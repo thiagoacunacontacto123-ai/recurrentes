@@ -34,7 +34,8 @@ test("(h) widget del producto: JavaScript válido con el API base y el merchant 
 test("(h) checkout on-store (?view=checkout): redirige al checkout de Recurrentes con los mismos parámetros", async () => {
   const res = await invoke(widget, { method: "GET", query: { merchant: MID, view: "checkout" } });
   assert.equal(res.statusCode, 200);
-  assert.ok(res.body.includes(`${JSON.stringify(APP)} + "/#/checkout?"`), "manda al checkout alojado en APP_BASE_URL");
+  assert.ok(res.body.includes(`var base = ${JSON.stringify(APP)};`) && res.body.includes('"/#/checkout?"'), "manda al checkout alojado en APP_BASE_URL");
+  assert.ok(res.body.includes("Abriendo el checkout seguro"), "tapa la página del comercio mientras redirige (sin parpadeo)");
   assert.ok(res.body.includes("window.location.search"), "conserva merchant/product/variant/qty/base/sub_off de la URL");
   assert.ok(!res.body.includes("var SHIPPING_RATES"), "ya no sirve el formulario on-store");
   assert.ok(compiles(res.body));
