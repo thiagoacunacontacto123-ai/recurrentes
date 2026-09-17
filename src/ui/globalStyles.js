@@ -217,7 +217,7 @@ if (typeof document !== "undefined" && !document.getElementById("rec-global-css"
     ══════════════════════════════════════ */
     *{box-sizing:border-box;}
     body{
-      margin:0;overflow-x:hidden;
+      margin:0;overflow-x:clip;
       font-family:'Inter',system-ui,sans-serif;
       -webkit-font-smoothing:antialiased;
       -moz-osx-font-smoothing:grayscale;
