@@ -602,7 +602,7 @@ export function VideoSection({ T, url, poster, duration, sources }) {
     ["03", "Precios", "Gratis hasta 10 suscriptores y cómo se cobra el plan."],
   ];
   return (
-    <section className="ls-sec" id="rec-video">
+    <section className="ls-sec" id="rec-video" style={{paddingTop:34}}>
       <div className="ls-wrap">
         <SectionHead T={T} eyebrow="Recurrentes en acción" title="Mirá cómo funciona, de punta a punta"
           sub={`El panel por dentro, cómo se ve en tu tienda y cuánto cuesta. ${duration ? duration + ", " : ""}sin vueltas.`}/>

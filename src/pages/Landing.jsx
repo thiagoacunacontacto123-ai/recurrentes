@@ -234,7 +234,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
       </nav>
 
       {/* Hero + panel de conectores (id rec-tiendas: el nav apunta acá) */}
-      <section id="rec-tiendas" className="rec-land-wrap" style={{paddingTop:72,paddingBottom:56}}>
+      <section id="rec-tiendas" className="rec-land-wrap" style={{paddingTop:56,paddingBottom:24}}>
         <style>{`
           .rec-flow-grid{display:grid;grid-template-columns:minmax(0,1fr) 72px minmax(0,1fr) 72px minmax(0,1.2fr);column-gap:10px;align-items:stretch;}
           /* Versión chica: el mismo mapa (curvas punteadas incluidas) dentro del panel del hero. */
@@ -271,7 +271,17 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
                 Empezar gratis
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </button>
-              <button onClick={ir("rec-como-funciona")} style={{...BtnSecondary(T),padding:"12px 18px",fontSize:14}}>Ver cómo funciona</button>
+              <button onClick={ir("rec-video")} style={{...BtnSecondary(T),padding:"12px 18px",fontSize:14}}>Ver el video</button>
+            </div>
+            {/* Llena el alto del panel de la derecha con datos concretos en vez
+                de aire (Thiago, 17-sept). */}
+            <div style={{marginTop:28,paddingTop:22,borderTop:`1px solid ${T.borderL || T.border}`,display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:16}}>
+              {[["2 min","lo que tarda el primer cobro en aparecer en tu panel"],["0%","de comisión nuestra sobre cada venta"],["1 línea","de código en tu tienda, o ninguna en Tiendanube"]].map(([v,d])=>(
+                <div key={v}>
+                  <div style={{fontSize:24,fontWeight:800,color:T.accent,letterSpacing:-0.8,lineHeight:1.1}}>{v}</div>
+                  <div style={{fontSize:12,color:T.textSm,lineHeight:1.5,marginTop:5}}>{d}</div>
+                </div>
+              ))}
             </div>
           </div>
 
