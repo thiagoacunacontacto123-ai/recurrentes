@@ -273,13 +273,6 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
               </button>
               <button onClick={ir("rec-como-funciona")} style={{...BtnSecondary(T),padding:"12px 18px",fontSize:14}}>Ver cómo funciona</button>
             </div>
-            <div style={{display:"flex",gap:18,flexWrap:"wrap",marginTop:22,fontSize:12,color:T.textSm}}>
-              {[`Gratis hasta ${FREE_SUBSCRIBERS} suscriptores`,"Listo en 10 minutos","Cancelás cuando quieras"].map(t=>(
-                <span key={t} style={{display:"inline-flex",alignItems:"center",gap:6}}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>{t}
-                </span>
-              ))}
-            </div>
           </div>
 
           {/* Panel de conectores: la explicación y el mapa visual, todo junto.
@@ -295,7 +288,16 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
                 </span>
               </div>
               <FlowMap T={T} compact/>
-              <div style={{marginTop:14,paddingTop:12,borderTop:`1px solid ${T.borderL || T.border}`,display:"flex",gap:"6px 14px",flexWrap:"wrap",fontSize:11,color:T.textSm}}>
+              {/* Los avisos del hero viven acá (Thiago, 17-sept): aprovecha el
+                  espacio libre del panel y el texto de la izquierda queda limpio. */}
+              <div style={{marginTop:14,paddingTop:13,borderTop:`1px solid ${T.borderL || T.border}`,display:"flex",gap:"8px 16px",flexWrap:"wrap",fontSize:12,fontWeight:600,color:T.textMd}}>
+                {[`Gratis hasta ${FREE_SUBSCRIBERS} suscriptores`,"Listo en 10 minutos","Cancelás cuando quieras"].map(t=>(
+                  <span key={t} style={{display:"inline-flex",alignItems:"center",gap:6}}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}><polyline points="20 6 9 17 4 12"/></svg>{t}
+                  </span>
+                ))}
+              </div>
+              <div style={{marginTop:10,display:"flex",gap:"6px 14px",flexWrap:"wrap",fontSize:11,color:T.textSm}}>
                 {[["Disponible",T.accentSolid],["Próximamente",T.yellow],["En el radar",T.textSm]].map(([l,c])=>(
                   <span key={l} style={{display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:7,height:7,borderRadius:99,background:c}}/>{l}</span>
                 ))}
