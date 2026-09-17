@@ -1065,13 +1065,23 @@ export default async function handler(req, res) {
         // correcto (Tiendanube y Shopify: en compra única manda el botón del tema).
         var q = packQty();
         var inputs = document.querySelectorAll('.js-quantity-input, input[name^="quantity"]');
+        var found = 0;
         for (var i = 0; i < inputs.length; i++) {
           var inp = inputs[i];
           if (inp.closest && (inp.closest("#recurrentes-widget") || inp.closest(".rc-once"))) continue;
+          found++;
           if (String(inp.value) !== String(q)) {
             inp.value = q;
             try { inp.dispatchEvent(new Event("input", { bubbles: true })); inp.dispatchEvent(new Event("change", { bubbles: true })); } catch(e) {}
           }
+        }
+        // Shopify: temas sin input de cantidad en el DOM (Horizon y derivados mandan
+        // 1 por defecto). Le sumamos al form un hidden "quantity" con la del pack:
+        // el submit del tema usa FormData(form) y lo incluye.
+        if (!found && !IS_TN && form && (form.getAttribute("action") || "").indexOf("/cart/add") !== -1) {
+          var h = form.querySelector('input[type="hidden"][name="quantity"][data-rc-qty]');
+          if (!h) { h = document.createElement("input"); h.type = "hidden"; h.name = "quantity"; h.setAttribute("data-rc-qty", "1"); form.appendChild(h); }
+          h.value = q;
         }
       }
       function applyMode() {
