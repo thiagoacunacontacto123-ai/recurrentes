@@ -40,9 +40,9 @@ export function SectionsStyle({ T }) {
         .ls-cmp{min-width:0;font-size:12.5px;}
         .ls-cmp thead{display:none;}
         .ls-cmp tr{display:block;background:transparent;border:1px solid var(--border);border-radius:14px;padding:10px 12px;margin-bottom:10px;}
-        .ls-cmp td{display:grid!important;grid-template-columns:1fr auto;gap:10px;align-items:start;padding:7px 0!important;border:none!important;background:transparent!important;}
-        .ls-cmp td:first-child{grid-template-columns:1fr;font-weight:800;padding-bottom:4px!important;border-bottom:1px solid var(--border-light)!important;margin-bottom:4px;}
-        .ls-cmp td[data-col]::before{content:attr(data-col);color:var(--text-sm);font-weight:600;font-size:11.5px;}
+        .ls-cmp td{display:grid!important;grid-template-columns:auto 1fr;gap:4px 10px;align-items:baseline;padding:6px 0!important;border:none!important;background:transparent!important;}
+        .ls-cmp td:first-child{display:block!important;font-weight:800;font-size:13.5px;padding-bottom:7px!important;border-bottom:1px solid var(--border-light)!important;margin-bottom:6px;}
+        .ls-cmp td[data-col]::before{content:attr(data-col) ":";color:var(--text-sm);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.3px;white-space:nowrap;}
       }
       .ls-range{width:100%;accent-color:${T.accentSolid};}
       .ls-faq summary{list-style:none;cursor:pointer;}
