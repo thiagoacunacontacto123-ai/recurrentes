@@ -249,7 +249,7 @@ export default async function handler(req, res) {
     const action = String(req.query.action || "");
     // Integraciones: solo el dueño (propio o viaOwner). Un miembro del equipo no
     // conecta/desconecta MP ni Shopify de una tienda ajena.
-    const ownerOnly = ["save-mp-token", "mp-oauth-start", "disconnect-mp", "disconnect-shopify", "save-meta", "save-klaviyo", "disconnect-klaviyo", "klaviyo-test", "import-shipping-rates"];
+    const ownerOnly = ["save-mp-token", "mp-reuse", "mp-oauth-start", "disconnect-mp", "disconnect-shopify", "save-meta", "save-klaviyo", "disconnect-klaviyo", "klaviyo-test", "import-shipping-rates"];
     if (ownerOnly.includes(action) && ctx.role !== "owner") return res.status(403).json({ error: "Solo el dueño de la tienda puede administrar las integraciones." });
     // El perfil del negocio (tipo / canal / pasarela) cambia cómo se cumple cada cobro: solo el dueño.
     if (action === "save-settings" && ctx.role !== "owner" && ["business_type", "channel", "payment_provider"].some(k => k in (req.body || {}))) {
@@ -261,6 +261,7 @@ export default async function handler(req, res) {
     if (action === "save-mobbex")          return saveMobbex(merchantId, req, res);
     if (action === "disconnect-mobbex")    return disconnectMobbex(merchantId, res);
     if (action === "save-mp-token")        return saveMpToken(merchantId, req, res);
+    if (action === "mp-reuse")             return mpReuse(ctx, merchantId, req, res);
     if (action === "save-klaviyo" || action === "klaviyo-test") return res.status(410).json({ error: "Klaviyo ya no está disponible: los mails los manda Recurrentes (Flujos de email)." });
     if (action === "disconnect-klaviyo")   return disconnectKlaviyo(merchantId, res);
     if (action === "save-widget-settings") return saveWidgetSettings(merchantId, req, res);
@@ -1084,6 +1085,48 @@ async function saveMpToken(merchantId, req, res) {
       mp_reconnect_reason: FieldValue.delete(),
     }, { merge: true });
     return res.json({ ok: true, mp_user_id: me.id, email: me.email });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+}
+
+// Usar la cuenta de Mercado Pago de OTRA tienda del mismo dueño (tiendas extra,
+// demos). Copia las credenciales del lado del servidor: nunca pasan por el
+// navegador. Queda como "manual" (sin refresh propio): si la tienda origen
+// renueva por OAuth, esta sigue con el access token copiado hasta que venza.
+async function mpReuse(ctx, merchantId, req, res) {
+  const from = String(req.body?.from_merchant_id || "").trim();
+  if (!from || from === merchantId) return res.status(400).json({ error: "Elegí otra de tus tiendas." });
+  try {
+    const srcSnap = await db().collection("merchants").doc(from).get();
+    const src = srcSnap.exists ? srcSnap.data() : null;
+    const srcOwner = src ? String(src.ownerUid || from) : null;
+    if (!src || src.deleted === true || srcOwner !== ctx.uid) return res.status(403).json({ error: "Esa tienda no es tuya." });
+    if (!src.mp_access_token) return res.status(400).json({ error: "Esa tienda no tiene Mercado Pago conectado." });
+    await db().collection("merchants").doc(merchantId).set({
+      mp_access_token: src.mp_access_token,
+      mp_user_id: src.mp_user_id || null,
+      mp_email: src.mp_email || null,
+      mp_country: src.mp_country || null,
+      mp_public_key: src.mp_public_key || null,
+      mp_live_mode: src.mp_live_mode === false ? false : FieldValue.delete(),
+      mp_connected_at: new Date().toISOString(),
+      mp_method: "manual",
+      mp_shared_from: from,
+      mp_disconnected_at: null,
+      mp_refresh_token: FieldValue.delete(),
+      mp_token_expires_at: FieldValue.delete(),
+      mp_token_refreshed_at: FieldValue.delete(),
+      mp_scope: FieldValue.delete(),
+      mp_token_invalid_at: FieldValue.delete(),
+      mp_token_error: FieldValue.delete(),
+      mp_token_refresh_error: FieldValue.delete(),
+      mp_token_refresh_error_at: FieldValue.delete(),
+      mp_reconnect_required: FieldValue.delete(),
+      mp_reconnect_required_at: FieldValue.delete(),
+      mp_reconnect_reason: FieldValue.delete(),
+    }, { merge: true });
+    return res.json({ ok: true, mp_user_id: src.mp_user_id || null, email: src.mp_email || null, from_name: src.store_name || null });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }

@@ -224,6 +224,46 @@ function ProfileStrip({ T, profile }) {
   );
 }
 
+// Sin MP en esta tienda pero con MP en otra tienda del mismo dueño (tiendas extra,
+// demos): un botón y listo. La copia la hace el servidor (mp-reuse).
+function ReuseMpBox({ T, m, b, onChange }) {
+  const [others, setOthers] = useState(null);
+  const [busy, setBusy] = useState("");
+  useEffect(() => {
+    let alive = true;
+    apiGet("merchant", { action: "workspace" }).then(d => {
+      if (!alive) return;
+      const list = (d?.stores || []).filter(s => s.id !== m.id && s.role === "owner" && s.mp_connected);
+      setOthers(list);
+    }).catch(() => { if (alive) setOthers([]); });
+    return () => { alive = false; };
+  }, [m.id]);
+  if (!others || !others.length) return null;
+  async function reuse(s) {
+    setBusy(s.id);
+    try {
+      const d = await apiPatch("merchant", { from_merchant_id: s.id }, { action: "mp-reuse" });
+      if (d?.error) throw new Error(d.error);
+      toast(`Mercado Pago conectado con la cuenta de ${s.name || "tu otra tienda"}`, "success");
+      onChange?.();
+    } catch (e) { toast(e.message || "No se pudo copiar la conexión", "error", 6000); }
+    finally { setBusy(""); }
+  }
+  return (
+    <div style={{ marginBottom:14, padding:"12px 14px", background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:10 }}>
+      <div style={{ fontWeight:700, color:T.text, marginBottom:4 }}>¿Cobrás con la misma cuenta de Mercado Pago que otra de tus tiendas?</div>
+      <div style={{ fontSize:DS.font.md, color:T.textMd, lineHeight:1.6, marginBottom:10 }}>Un clic y esta tienda queda conectada con esa misma cuenta. Después la podés cambiar cuando quieras.</div>
+      <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+        {others.map(s => (
+          <button key={s.id} type="button" style={b.solid} disabled={!!busy} onClick={() => reuse(s)}>
+            {busy === s.id ? "Conectando…" : `Usar la cuenta de ${s.name || s.id}`}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function IntegrationsTab({ merchant, onChange, embedded = false }) {
   const T = useT();
   const iS = InputStyle(T);
@@ -470,6 +510,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
               A veces es algo puntual. Si los cobros nuevos no aparecen en Recurrentes, reconectá tu cuenta.
             </Callout>
           )}
+          {!mpOk && <ReuseMpBox T={T} m={m} b={b} onChange={onChange}/>}
           <div style={{ fontSize:DS.font.md, color:T.textMd, lineHeight:1.7, marginBottom:12 }}>
             Cuenta: <S T={T}>{m.mp_email || (m.mp_user_id ? `ID ${m.mp_user_id}` : "—")}</S><br/>
             Cómo está conectada: <S T={T}>{mpOauth ? "conexión automática con Mercado Pago" : "Access Token pegado a mano"}</S>{m.mp_connected_at ? ` · desde el ${fmtDateShort(m.mp_connected_at)}` : ""}<br/>
