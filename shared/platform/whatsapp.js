@@ -273,12 +273,15 @@ export const WA_MERCHANT_TEMPLATES = [
 // SIEMPRE: no dependen de alerts_whatsapp_enabled ni de alerts_events. Si le
 // vamos a apagar el widget, se tiene que enterar.
 // Los tres repiten la frase clave: los suscriptores que ya tiene se siguen cobrando.
+// Pie de los avisos del plan: NO se pueden apagar (son sobre la cuenta), así que
+// no podemos prometer lo mismo que en los avisos de clientes.
+export const WA_PLAN_FOOTER = "Sobre tu plan de Recurrentes. Este aviso no se puede apagar.";
 export const WA_PLAN_TEMPLATES = [
   {
     name: "aviso_plan_limite", event: "plan_grace", category: "UTILITY", lang: "es_AR",
     title: "Pasaste el plan gratis (aviso al comercio)",
     body: "Llegaste a {{1}} suscriptores activos en {{2}} y el plan gratis cubre hasta {{3}}.\n\nTe damos {{4}} de regalo para que no pares de vender. Si los pasás sin activar tu plan, el widget deja de mostrarse en tu tienda y no entran suscripciones nuevas.\n\nTus suscriptores actuales se siguen cobrando igual.\n\nActivá tu plan: {{5}}\n\nEs un aviso automático de Recurrentes.",
-    footer: WA_MERCHANT_FOOTER,
+    footer: WA_PLAN_FOOTER,
     vars: { "1": "subs", "2": "marca", "3": "free", "4": "gracia", "5": "link_panel" },
     samples: ["11", "LuminaLabs", "10", "5", BILLING_PANEL_URL],
   },
@@ -286,15 +289,15 @@ export const WA_PLAN_TEMPLATES = [
     name: "aviso_plan_ultimo", event: "plan_last_call", category: "UTILITY", lang: "es_AR",
     title: "Un suscriptor más y se apaga (aviso al comercio)",
     body: "⚠️ {{1}} llegó a {{2}} suscriptores activos: con uno más se apaga tu widget y no entran suscripciones nuevas.\n\nTus suscriptores actuales se siguen cobrando igual, no perdés ninguno.\n\nActivá tu plan y listo: {{3}}\n\nEs un aviso automático de Recurrentes.",
-    footer: WA_MERCHANT_FOOTER,
+    footer: WA_PLAN_FOOTER,
     vars: { "1": "marca", "2": "subs", "3": "link_panel" },
     samples: ["LuminaLabs", "15", BILLING_PANEL_URL],
   },
   {
     name: "aviso_plan_bloqueado", event: "plan_blocked", category: "UTILITY", lang: "es_AR",
     title: "Widget apagado (aviso al comercio)",
-    body: "Tu widget está apagado: {{1}} llegó a {{2}} suscriptores activos y no entran suscripciones nuevas. Tu página de producto quedó como estaba antes.\n\nTus {{2}} suscriptores se siguen cobrando normal y cada cobro sigue generando su orden. No perdiste ninguno.\n\nActivá tu plan y vuelve a funcionar al instante: {{3}}\n\nEs un aviso automático de Recurrentes.",
-    footer: WA_MERCHANT_FOOTER,
+    body: "Tu widget está apagado: {{1}} llegó a {{2}} suscriptores activos y no entran suscripciones nuevas. Tu página de producto quedó como estaba antes.\n\nTus suscriptores se siguen cobrando normal y cada cobro sigue generando su orden. No perdiste ninguno.\n\nActivá tu plan y vuelve a funcionar al instante: {{3}}\n\nEs un aviso automático de Recurrentes.",
+    footer: WA_PLAN_FOOTER,
     vars: { "1": "marca", "2": "subs", "3": "link_panel" },
     samples: ["LuminaLabs", "16", BILLING_PANEL_URL],
   },

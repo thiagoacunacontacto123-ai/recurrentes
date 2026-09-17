@@ -148,6 +148,20 @@ Es un aviso automático de Recurrentes.
 ```
 Ejemplos: LuminaLabs · Ana · $9.480 · Cápsulas LuminaLabs · https://www.recurrentesapp.com/#/dashboard/suscripciones
 
+
+### Avisos del límite del plan gratis (Utilidad · Español (ARG) `es_AR`) — 2026-09-17
+
+Al DUEÑO de la tienda, cuando pasa los 10 suscriptores sin pagar el plan (11–15 gracia, 16+ bloqueado). Salen **siempre** (no dependen de "Avisos para vos"): por eso el pie NO promete que se puedan apagar. Mismo texto que `WA_PLAN_TEMPLATES` en `shared/platform/whatsapp.js`. Pie en las tres: `Sobre tu plan de Recurrentes. Este aviso no se puede apagar.` Sin encabezado ni botones. "Tipo de variable": Número.
+
+| Nombre exacto | Cuándo | Variables (ejemplos) |
+|---|---|---|
+| `aviso_plan_limite` | pasó los 10 (te quedan ≥2 de gracia) | 1 subs `11` · 2 marca `LuminaLabs` · 3 gratis `10` · 4 gracia `5` · 5 link `https://www.recurrentesapp.com/#/dashboard/configuracion/facturacion` |
+| `aviso_plan_ultimo` | queda 1 o 0 de gracia (14 o 15) | 1 marca `LuminaLabs` · 2 subs `15` · 3 link (el mismo) |
+| `aviso_plan_bloqueado` | 16+ (widget apagado) | 1 marca `LuminaLabs` · 2 subs `16` · 3 link (el mismo) |
+
+Los cuerpos exactos se imprimen con: `node -e "import('./shared/platform/whatsapp.js').then(m=>m.WA_PLAN_TEMPLATES.forEach(t=>console.log(t.name+'\n'+t.body+'\n')))"`.
+Sin aprobar (o sin número de Recurrentes cargado): el mismo aviso sale por mail al dueño. No se pierde.
+
 ## Tareas de Thiago
 
 1. **Verificar el negocio** en Meta Business: https://business.facebook.com/settings/security → Centro de seguridad → Verificación (sube el límite de 250 clientes nuevos por día).
