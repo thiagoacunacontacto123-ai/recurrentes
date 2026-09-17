@@ -32,8 +32,6 @@ const FLOW_STORES = [
 const FLOW_PAYMENTS = [
   { n:"Mercado Pago", s:"live" },
   { n:"Mobbex", s:"soon" },
-  { n:"Increase", s:"soon" },
-  { n:"Lyra", s:"soon" },
   { n:"Stripe", s:"soon" },
   { n:"Whop", s:"soon" },
 ];
