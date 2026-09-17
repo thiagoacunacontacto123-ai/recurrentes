@@ -1534,6 +1534,11 @@ async function memberInvite(ctx, req, res) {
   const body = req.body || {};
   const email = emailLower(body.email);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return res.status(400).json({ error: "Email inválido" });
+  // Cada invitación manda un mail CON LA MARCA DE RECURRENTES a un email
+  // arbitrario. Sin tope, una cuenta sirve para spamear desde nuestro dominio y
+  // quemar la reputación del remitente (que es compartida por todas las tiendas).
+  const rl = await rateLimit(`invite:${ctx.merchantId}`, { limit: 20, windowSec: 86400 });
+  if (!rl.ok) return res.status(429).json({ error: "Demasiadas invitaciones por hoy. Probá mañana o escribinos." });
   const secciones = cleanSecciones(body.secciones);
   const name = String(body.name || "").trim().slice(0, 60);
   const ref = db().collection("merchants").doc(ctx.merchantId);
@@ -1547,6 +1552,11 @@ async function memberInvite(ctx, req, res) {
       const yaMiembro = Object.values(d.teamMembers || {}).some(m => emailLower(m?.email) === email);
       if (yaMiembro) throw Object.assign(new Error("Ese email ya es miembro."), { status: 400 });
       const invites = (Array.isArray(d.teamInvites) ? d.teamInvites : []).filter(i => emailLower(i.email) !== email);
+      // teamInvites vive DENTRO del doc del merchant (tope duro de 1 MB en
+      // Firestore): sin límite, invitar en loop puede dejar el doc inservible y
+      // con él toda la tienda. 50 invitaciones pendientes es mucho más que
+      // cualquier equipo real.
+      if (invites.length >= 50) throw Object.assign(new Error("Hay demasiadas invitaciones pendientes. Cancelá las que no uses antes de invitar a alguien más."), { status: 400 });
       invites.push({ email, name, secciones, ts: Date.now(), invited_by: ctx.uid });
       tx.set(ref, { teamInvites: invites, teamInviteEmails: FieldValue.arrayUnion(email) }, { merge: true });
     });
