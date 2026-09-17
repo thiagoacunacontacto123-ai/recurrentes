@@ -526,7 +526,7 @@ const FAQS = [
   ["¿Qué cuenta como suscriptor activo?", "Un cliente con su suscripción cobrando, o con un pago que Mercado Pago está reintentando. Los pausados y cancelados no cuentan."],
   ["¿Puedo dar descuentos?", "Sí: descuento por suscribirse, packs con mejor precio, cupones y descuento solo en el primer cobro."],
   ["¿Mercado Pago me cobra comisión?", "Sí, la comisión habitual de Mercado Pago por cada cobro, como en cualquier venta. Recurrentes no suma comisión por cobro: pagás un plan según tus suscriptores."],
-  ["¿Sirve si no hago envíos?", "Sí. Para cursos, contenido o membresías el checkout no pide dirección ni envío, y cada cobro queda registrado en el panel."],
+  ["¿Qué pasa con los envíos?", "Cada cobro crea la orden con la dirección y el método de envío que eligió tu cliente, igual que una venta normal. Si cambia de dirección, lo hace desde su portal y el próximo pedido ya sale con la nueva."],
 ];
 export function FaqSection({ T }) {
   return (
@@ -553,7 +553,7 @@ export function BigFooter({ T, onGo, onRegister }) {
   const link = { background:"none", border:"none", padding:0, color:T.textSm, fontSize:13, cursor:"pointer", fontFamily:F, textAlign:"left", textDecoration:"none" };
   const cols = [
     ["Producto", [["Cómo funciona","rec-como-funciona"],["Funciones","rec-funciones"],["Integraciones","rec-tiendas"],["Precios","rec-precios"],["Calculadora","rec-calculadora"]]],
-    ["Para", [["Tiendas online","rec-casos"],["Cursos y ebooks","rec-casos"],["Membresías y clubes","rec-casos"],["Gimnasios y estudios","rec-casos"]]],
+    ["Para", [["Tiendas online","rec-tiendas"],["Suplementos","rec-tiendas"],["Café y alimentos","rec-tiendas"],["Cosmética","rec-tiendas"]]],
     ["Recurrentes", [["Preguntas frecuentes","rec-faq"],["Términos","#/terminos"],["Privacidad","#/privacidad"],["Soporte por WhatsApp","https://wa.me/5491164117974"]]],
   ];
   return (

@@ -160,10 +160,10 @@ function FlowMap({ T, compact }) {
 // invisibles en la misma celda (la etiqueta no salta). Sin animación si el
 // usuario pidió reducir movimiento.
 const BUSINESS_WORDS = [
-  "tiendas online", "cursos", "membresías", "clubes", "gimnasios", "yoga y pilates",
-  "academias", "comunidades", "newsletters", "cajas de suscripción", "clubes de vino",
-  "café de especialidad", "suplementos", "alimento para mascotas", "ebooks",
-  "software", "coworkings", "mentorías", "podcasts",
+  "tiendas online", "suplementos", "café de especialidad", "alimento para mascotas",
+  "cosmética", "cuidado de la piel", "cajas de suscripción", "clubes de vino",
+  "cerveza artesanal", "yerba mate", "productos de limpieza", "pañales",
+  "vitaminas", "snacks saludables", "flores", "aceite de oliva",
 ];
 function RotatingWords({ T }) {
   const [i, setI] = React.useState(0);
@@ -182,7 +182,7 @@ function RotatingWords({ T }) {
         {BUSINESS_WORDS.map(w => <span key={w} style={{gridArea:"1 / 1",visibility:"hidden",whiteSpace:"nowrap"}}>{w}</span>)}
         <span key={i} className="rec-word" style={{gridArea:"1 / 1",whiteSpace:"nowrap",color:T.accent}}>{BUSINESS_WORDS[i]}</span>
       </span>
-      <span style={{position:"absolute",width:1,height:1,overflow:"hidden",clip:"rect(0 0 0 0)",whiteSpace:"nowrap"}}>tiendas online, cursos, membresías, clubes, gimnasios y más</span>
+      <span style={{position:"absolute",width:1,height:1,overflow:"hidden",clip:"rect(0 0 0 0)",whiteSpace:"nowrap"}}>tiendas online de suplementos, café, cosmética, mascotas y más</span>
     </span>
   );
 }
