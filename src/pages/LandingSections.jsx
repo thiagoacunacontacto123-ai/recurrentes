@@ -216,7 +216,8 @@ const DEMO_PLAN = {
     { qty: 3, price_ars: 135000, badge: "Mejor precio" },
   ],
 };
-const DEMO_MERCHANT = { widget_variant: "v01", widget_color: "#10b981", widget_radius: 14, widget_mode_default: "sub" };
+// v03 "Compacto": el que menos alto ocupa, para que entre al lado del texto (v01 medía 1244 px).
+const DEMO_MERCHANT = { widget_variant: "v03", widget_color: "#10b981", widget_radius: 14, widget_mode_default: "sub" };
 function WidgetMock({ T }) {
   return (
     <MockFrame T={T} label="Widget en tu producto">
