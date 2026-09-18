@@ -218,6 +218,21 @@ export default function Portal() {
             )}
           </div>}
 
+          {/* Medio de pago: la tarjeta de una suscripción de Mercado Pago se cambia en la cuenta
+              de MP del cliente ("Mis suscripciones"). Sin esto, el aviso de pago rechazado
+              mandaba al portal y acá no había nada que tocar. */}
+          {(status === "active" || status === "paused" || status === "payment_failed") && (
+            <div style={{padding:"12px 14px",background:"var(--surface)",borderRadius:10,fontSize:12,color:"var(--text-md)",lineHeight:1.55,marginBottom:18}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                <div>
+                  <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5,marginBottom:4}}>Medio de pago</div>
+                  <div>{status === "payment_failed" ? <span style={{color:"var(--yellow)"}}>El último cobro fue rechazado. Actualizá la tarjeta y el próximo intento se cobra solo.</span> : "Se cobra con la tarjeta que cargaste en Mercado Pago."}</div>
+                </div>
+                <a href="https://www.mercadopago.com.ar/subscriptions" target="_blank" rel="noopener noreferrer" style={{...btnSecondary,padding:"6px 12px",fontSize:12,textDecoration:"none",display:"inline-block"}}>💳 Cambiar tarjeta en Mercado Pago</a>
+              </div>
+            </div>
+          )}
+
           {/* Acciones */}
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
             {status === "active" && canPause && (
