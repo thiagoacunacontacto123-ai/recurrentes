@@ -12,6 +12,7 @@ import GuidePage from "./Guide.jsx";
 import { useOnboarding, OnboardingContext } from "../lib/onboarding.js";
 import { merchantProfile } from "../../shared/platform/profile.js";
 import { BillingBanner } from "./Billing.jsx";
+import WhatsAppFlowsPage from "./WhatsAppFlows.jsx";
 import { PlanLimitBar, PlanLimitModal, PlanBlockedView, isBlocked, showsPlanLimit } from "./PlanLimit.jsx";
 import { HomeTab } from "./Home.jsx";
 import { PlansTab, WidgetTab } from "./Plans.jsx";
@@ -265,7 +266,7 @@ export default function Dashboard({ user, onLogout }) {
   // Bloqueado (pasó los 15 sin pagar): se cierran las secciones donde CONFIGURA
   // la venta. Cobros, Suscripciones, Analíticas y Configuración quedan abiertas
   // en lectura, así puede seguir viendo su negocio y pagar (Thiago, 17-sept).
-  const PLAN_BLOCKED_TABS = ["planes", "widget", "retencion", "flujos", "portal"];
+  const PLAN_BLOCKED_TABS = ["planes", "widget", "retencion", "flujos", "whatsapp", "portal"];
   const blockedTab = (id) => isBlocked(merchant?.billing) && PLAN_BLOCKED_TABS.includes(id);
   const integrationsReady = profile.ready;
   const shop = merchant?.shopify_shop || null;
@@ -286,7 +287,8 @@ export default function Dashboard({ user, onLogout }) {
   const navList = useMemo(() => {
     const secs = merchant?.role === "member" && merchant?.member_secciones && Object.keys(merchant.member_secciones).length ? merchant.member_secciones : null;
     // Widget acompaña al permiso de Planes (los permisos guardados antes no lo conocen).
-    const base = secs ? NAV.filter(n => n.id === "analiticas" || secs[n.id] === true || (n.id === "widget" && secs.planes === true) || n.adminOnly) : NAV;
+    // Flujos de WhatsApp acompaña al permiso de Flujos (los permisos guardados antes no lo conocen).
+    const base = secs ? NAV.filter(n => n.id === "analiticas" || secs[n.id] === true || (n.id === "widget" && secs.planes === true) || (n.id === "whatsapp" && secs.flujos === true) || n.adminOnly) : NAV;
     return base.filter(n => !n.adminOnly || isAdmin);
   }, [merchant?.role, merchant?.member_secciones, isAdmin]);
   useEffect(() => { if (loading) return; if (!navList.some(n => n.id === tab)) goTab("analiticas"); }, [navList, tab, goTab, loading]);
@@ -348,6 +350,8 @@ export default function Dashboard({ user, onLogout }) {
                 integrationsReady ? <RetentionPage merchant={merchant} reloadMerchant={reloadMerchant} goTab={goTab}/> : needs("Retención")
               ) : tab === "flujos" ? (
                 <FlowsPage merchant={merchant}/>
+              ) : tab === "whatsapp" ? (
+                <WhatsAppFlowsPage merchant={merchant} goConfig={goConfig}/>
               ) : tab === "portal" ? (
                 <CustomerPortalPage merchant={merchant} reloadMerchant={reloadMerchant} goTab={goTab}/>
               ) : tab === "analiticas" ? (

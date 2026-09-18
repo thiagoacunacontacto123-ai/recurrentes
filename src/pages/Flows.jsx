@@ -60,7 +60,8 @@ export function FlowsPage({ merchant }) {
   async function load() {
     setLoading(true);
     const d = await apiGet("merchant", { action: "flows" }).catch(e => ({ error: e.message }));
-    if (d?.error) setErr(d.error); else { setFlows(d.flows || []); setErr(""); }
+    // Los flujos de sistema de WhatsApp (uno por plantilla) se manejan en "Flujos de WhatsApp".
+    if (d?.error) setErr(d.error); else { setFlows((d.flows || []).filter(f => !f.wa_template)); setErr(""); }
     setLoading(false);
   }
   useEffect(() => { load(); }, []);

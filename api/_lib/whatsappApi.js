@@ -2,6 +2,10 @@
 //   GET  ?action=whatsapp-templates   → { templates:[…] } plantillas de la WABA propia, o las de
 //        Recurrentes si la tienda manda desde el número de Recurrentes (editor de flujos)
 //   GET  ?action=whatsapp-usage       → { usage:{ month, wa_sent, wa_cost_usd, … }, charge_usd, sender }
+//   GET  ?action=whatsapp-flows       → sección "Flujos de WhatsApp": las 4 plantillas a clientes con su
+//        interruptor (cada una es un flujo de sistema `wa_template`), precio, uso del mes y de los 3 últimos
+//   POST ?action=whatsapp-template-toggle { name, active } → prende/apaga esa plantilla (crea el flujo de
+//        sistema si no existe). Solo el dueño; requiere WhatsApp prendido (Recurrentes o propio).
 //   POST ?action=whatsapp-platform    { enabled, optin_confirmed } → prende / apaga los avisos desde
 //        el número de Recurrentes. Al prenderlo crea (una vez) el flujo "Aviso de próximo cobro".
 //   POST ?action=whatsapp-save        { phone_number_id, waba_id, access_token, app_secret?, optin_confirmed }
@@ -22,9 +26,10 @@ import {
 import { syncFlowsIndex } from "./flows.js";
 import { normalizePhoneAR, templateParams, sanitizeWhatsappStep, WA_TEMPLATES, templateVarCount } from "../../shared/platform/whatsapp.js";
 import { FLOW_VARIABLES, FLOW_MAX_FLOWS, defaultWhatsappFlow, sanitizeFlow } from "../../shared/platform/flows.js";
-import { waChargeUsd } from "../../shared/platform/pricing.js";
+import { waChargeUsd, WHATSAPP_MARKUP } from "../../shared/platform/pricing.js";
+import { waUsageMonth, renderTemplateBody } from "../../shared/platform/whatsapp.js";
 
-const OWNER_ONLY = ["whatsapp-save", "whatsapp-disconnect", "whatsapp-test", "whatsapp-platform"];
+const OWNER_ONLY = ["whatsapp-save", "whatsapp-disconnect", "whatsapp-test", "whatsapp-platform", "whatsapp-template-toggle"];
 const mRef = (mid) => db().collection("merchants").doc(mid);
 const clearCache = (mid) => { try { clearMerchantCache?.(mid); } catch (_) {} };
 
@@ -45,9 +50,61 @@ async function ensurePlatformFlow(mid, uid) {
   if (error) return null;
   const now = new Date().toISOString();
   const ref = col.doc();
-  await ref.set({ ...flow, stats: { entered: 0, sent: 0, completed: 0, exited: 0, converted: 0 }, created_at: now, updated_at: now, created_by: uid || null, created_from: "whatsapp_platform" });
+  await ref.set({ ...flow, wa_template: "aviso_proximo_cobro", stats: { entered: 0, sent: 0, completed: 0, exited: 0, converted: 0 }, created_at: now, updated_at: now, created_by: uid || null, created_from: "whatsapp_platform" });
   await syncFlowsIndex(mid);
   return ref.id;
+}
+
+
+// ── Sección "Flujos de WhatsApp": un flujo de sistema por plantilla ──────────
+// El comercio no edita textos: solo prende/apaga cada plantilla de Recurrentes.
+// Cada interruptor es un flujo con `wa_template: <name>` y un único paso whatsapp,
+// oculto en el editor de mail (Flows.jsx lo filtra). Así hereda dedup, opt-out,
+// cobro (× WHATSAPP_MARKUP) y message_log del motor de siempre.
+function isSystemWaFlow(f, name) {
+  if (!f) return false;
+  if (f.wa_template) return f.wa_template === name;
+  // Flujo creado antes de existir la sección (ensurePlatformFlow viejo): un solo paso whatsapp con esa plantilla.
+  const steps = Array.isArray(f.steps) ? f.steps : [];
+  return steps.length === 1 && steps[0]?.type === "whatsapp" && steps[0]?.template === name;
+}
+async function systemWaFlows(mid) {
+  const snap = await mRef(mid).collection("flows").get();
+  const out = {};
+  for (const t of WA_TEMPLATES) {
+    const d = snap.docs.find(x => isSystemWaFlow(x.data(), t.name));
+    if (d) out[t.name] = { id: d.id, ...d.data() };
+  }
+  return { byTemplate: out, total: snap.size };
+}
+// Meses en hora AR: el actual y los 2 anteriores.
+function lastMonths(n = 3) {
+  const out = []; const now = new Date(Date.now() - 3 * 3600e3);
+  for (let i = 0; i < n; i++) { const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1)); out.push(d.toISOString().slice(0, 7)); }
+  return out;
+}
+async function whatsappFlowsView(mid, merchant) {
+  const sender = waSender(merchant);
+  const price = waPriceUsd();
+  const { byTemplate } = await systemWaFlows(mid);
+  const sample = { nombre: "Ana", marca: effectiveBrand(merchant) || "tu tienda", proximo_cobro: "15 de octubre", producto: "tu producto", monto: "$9.480", link_portal: `${appBaseUrl()}/#/portal` };
+  const templates = WA_TEMPLATES.map(t => {
+    const f = byTemplate[t.name] || null;
+    return {
+      name: t.name, title: t.title, trigger: t.trigger,
+      preview: renderTemplateBody(t.body, t.vars, sample), footer: t.footer,
+      days_before: f?.days_before ?? (t.trigger === "upcoming_charge" ? 3 : null),
+      active: f?.active === true, flow_id: f?.id || null, sent: Number(f?.stats?.sent) || 0,
+    };
+  });
+  const months = [];
+  for (const m of lastMonths(3)) months.push(await getWaUsage(mid, m));
+  return {
+    available: platformWaAvailable(), sender: sender?.mode || null, enabled: Boolean(sender),
+    platform_enabled: merchant.whatsapp_platform_enabled === true, own_connected: whatsappEnabled(merchant),
+    price_usd: price, charge_usd: sender?.mode === "own" ? 0 : waChargeUsd(price), markup: WHATSAPP_MARKUP,
+    usage: months[0], months, templates,
+  };
 }
 
 export async function whatsappApi(ctx, action, req, res) {
@@ -74,6 +131,39 @@ export async function whatsappApi(ctx, action, req, res) {
       const usage = await getWaUsage(mid);
       const price = waPriceUsd();
       return res.json({ usage, sender: waSender(merchant)?.mode || null, price_usd: price, charge_usd: waChargeUsd(price) });
+    }
+
+    if (action === "whatsapp-flows") {
+      const merchant = (await mRef(mid).get()).data() || {};
+      return res.json(await whatsappFlowsView(mid, merchant));
+    }
+
+    if (action === "whatsapp-template-toggle") {
+      const b = req.body || {};
+      const name = String(b.name || "").trim();
+      const t = WA_TEMPLATES.find(x => x.name === name);
+      if (!t) return res.status(400).json({ error: "Plantilla desconocida" });
+      const merchant = (await mRef(mid).get()).data() || {};
+      if (!waSender(merchant)) return res.status(400).json({ error: "Primero prendé los avisos por WhatsApp en Integraciones.", code: "not_enabled" });
+      const active = b.active === true;
+      const { byTemplate, total } = await systemWaFlows(mid);
+      const now = new Date().toISOString();
+      const col = mRef(mid).collection("flows");
+      let f = byTemplate[name];
+      if (!f) {
+        if (!active) return res.json({ ok: true, ...(await whatsappFlowsView(mid, merchant)) });
+        if (total >= FLOW_MAX_FLOWS) return res.status(400).json({ error: `Llegaste al máximo de ${FLOW_MAX_FLOWS} flujos. Borrá alguno en Flujos de email.` });
+        const { flow, error } = sanitizeFlow({ ...defaultWhatsappFlow(name), active: true });
+        if (error) return res.status(400).json({ error });
+        const ref = col.doc();
+        await ref.set({ ...flow, wa_template: name, stats: { entered: 0, sent: 0, completed: 0, exited: 0, converted: 0 }, created_at: now, updated_at: now, created_by: ctx.uid || null, created_from: "whatsapp_flows" });
+      } else {
+        // Adopta el flujo viejo (sin wa_template) para que el editor de mail deje de mostrarlo.
+        await col.doc(f.id).set({ active, wa_template: name, updated_at: now }, { merge: true });
+      }
+      await syncFlowsIndex(mid);
+      clearCache(mid);
+      return res.json({ ok: true, ...(await whatsappFlowsView(mid, merchant)) });
     }
 
     if (action === "whatsapp-platform") {

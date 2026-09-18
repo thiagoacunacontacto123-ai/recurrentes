@@ -98,11 +98,11 @@ function PlatformRow({ T, merchant: m, onChange, ui }) {
         <div style={{ fontSize: DS.font.md, fontWeight: 700, color: T.text, marginBottom: 6 }}>Avisos por WhatsApp desde el número de Recurrentes</div>
         <div style={{ ...small, marginBottom: 10 }}>
           Cuando lo prendés, cada cliente recibe un WhatsApp <S T={T}>3 días antes de cada cobro</S>, con la fecha, el monto y el link a su portal para pausar o cambiar algo.
-          Desde <a href="#/dashboard/flujos" style={{ color: T.accent, fontWeight: 700, textDecoration: "none" }}>Flujos</a> podés sumar el aviso de <S T={T}>pago rechazado</S>, el de <S T={T}>suscripción activa</S> y el de <S T={T}>renovación cobrada</S>.
+          Desde <a href="#/dashboard/whatsapp" style={{ color: T.accent, fontWeight: 700, textDecoration: "none" }}>Flujos de WhatsApp</a> podés sumar el aviso de <S T={T}>pago rechazado</S>, el de <S T={T}>suscripción activa</S> y el de <S T={T}>renovación cobrada</S>.
           Salen desde el número de Recurrentes, siempre con el nombre de tu tienda. Si un cliente responde, le contestamos solos que escriba a tu mail de atención al cliente.
         </div>
         <div style={{ ...small, marginBottom: 12 }}>
-          Precio: <S T={T}>{price} por aviso</S> (lo que cobra Meta más 10%). <S T={T}>Se suma a tu plan a fin de mes.</S> Solo le llega a quien dejó su teléfono y no pidió la baja: quien responde BAJA deja de recibirlos.
+          Precio: <S T={T}>{price} por aviso</S> (lo que cobra Meta más 50%). <S T={T}>Se suma a tu plan a fin de mes.</S> Solo le llega a quien dejó su teléfono y no pidió la baja: quien responde BAJA deja de recibirlos.
         </div>
         {enabled && <WhatsAppUsageLine T={T} merchant={m} style={{ marginBottom: 12 }}/>}
         {available && (
