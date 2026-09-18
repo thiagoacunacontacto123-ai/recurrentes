@@ -198,13 +198,10 @@ function AppearanceSection({ T, merchant, profile, reloadMerchant, goTab }) {
           </div>
         </Field>
         <Hint T={T}>Cada cliente recibe su link con token propio en el mail de activación. También lo copiás desde la ficha de cada suscripción.</Hint>
-        <div style={{ marginTop:12 }}>
-          <Btn T={T} variant="primary" size="sm" onClick={() => window.open(`${window.location.origin}/#/portal?demo=${encodeURIComponent(merchant?.id || "")}`, "_blank", "noopener")}>Ver cómo lo ve tu cliente →</Btn>
-          <Hint T={T}>Abre el portal real con una suscripción de ejemplo, con tu marca y tus acciones habilitadas. Nada de lo que toques ahí se guarda.</Hint>
-        </div>
       </Panel>
 
-      {/* Vista previa en vivo */}
+      {/* Vista previa en vivo + portal real de un cliente ficticio */}
+      <div style={{ display:"grid", gap:12 }}>
       <div style={{ border:`1px solid ${T.border}`, borderRadius:12, overflow:"hidden", background:T.bg }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px", background:T.surface, borderBottom:`1px solid ${T.borderL}` }}>
           <span style={{ fontSize:10, color:T.textSm, fontWeight:700, textTransform:"uppercase", letterSpacing:0.5 }}>Vista previa · portal</span>
@@ -226,6 +223,18 @@ function AppearanceSection({ T, merchant, profile, reloadMerchant, goTab }) {
             </div>
           ) : <div style={{ fontSize:11, color:T.textSm }}>Sin acciones habilitadas: el cliente solo ve su suscripción.</div>}
         </div>
+      </div>
+      {/* Portal REAL con una clienta ficticia ("Ana"): abre en otra pestaña, nada se guarda. */}
+      {(() => { const demoUrl = `${window.location.origin}/#/portal?demo=${encodeURIComponent(merchant?.id || "")}`; return (
+        <div style={{ border:`1px solid ${T.accentSolid}44`, background:T.accentSolid + "0d", borderRadius:12, padding:"12px 14px", display:"flex", gap:12, alignItems:"center", flexWrap:"wrap" }}>
+          <div style={{ flex:"1 1 220px", minWidth:0 }}>
+            <div style={{ fontSize:DS.font.base, fontWeight:700, color:T.text }}>Miralo con los ojos de tu cliente</div>
+            <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, marginTop:2 }}>Abre el portal real con una suscripción de ejemplo, con tu marca, tu color y las acciones que habilitaste. Podés tocar todo: nada se guarda.</div>
+            <a href={demoUrl} target="_blank" rel="noopener noreferrer" style={{ display:"block", fontFamily:MONO, fontSize:DS.font.sm, color:T.accent, marginTop:6, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{demoUrl}</a>
+          </div>
+          <Btn T={T} variant="solid" size="sm" onClick={() => window.open(demoUrl, "_blank", "noopener")}>Abrir el portal de ejemplo ↗</Btn>
+        </div>
+      ); })()}
       </div>
     </div>
   );
