@@ -51,6 +51,21 @@ export default async function handler(req, res) {
     const periodFromIso = new Date(endMs - 2 * days * 86400000 - 86400000).toISOString();
     const lastMonthFromIso = new Date(_now.getFullYear(), _now.getMonth() - 1, 1).toISOString();
     const windowFromIso = periodFromIso < lastMonthFromIso ? periodFromIso : lastMonthFromIso;
+    // Cache corto del Inicio en merchants/{mid}.home_cache { at, key, data }. Cada
+    // apertura del panel leía TODAS las suscripciones de la tienda (con 500 subs
+    // son ~10.000 lecturas por día por tienda solo en mirar los números). Se
+    // invalida solo cuando una sub cambia de estado (refreshPlanLimit en sync.js)
+    // y con ?fresh=1. Nunca toca el cobro: solo lo que se muestra.
+    const HOME_CACHE_MS = 3 * 60 * 1000;
+    const cacheKey = rango ? `r:${rango.since}:${rango.until}` : `d:${days}`;
+    const fresh = req.query.fresh === "1";
+    if (!fresh) {
+      const mSnap = await merchantRef.get();
+      const c = mSnap.data()?.home_cache;
+      if (c && c.key === cacheKey && c.data && c.at && Date.now() - Date.parse(c.at) < HOME_CACHE_MS) {
+        return res.json({ ...c.data, cached: true });
+      }
+    }
     const chargesQ = merchantRef.collection("charges").where("created_at", ">=", windowFromIso).orderBy("created_at", "desc").limit(5000);
     const [subsSnap, chargesSnap] = await Promise.all([
       merchantRef.collection("subscribers").get(),
@@ -146,7 +161,7 @@ export default async function handler(req, res) {
       }))
       .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
 
-    return res.json({
+    const data = {
       mrr,
       totals: {
         subscribers: subs.length,
@@ -161,7 +176,11 @@ export default async function handler(req, res) {
       growth: { new_7d: new7, new_30d: new30, cancelled_30d: cancelled30, churn_rate_pct: Math.round(churnRate * 10) / 10 },
       upcoming_charges: upcomingCharges.slice(0, 10),
       period: buildPeriod(subs, charges, days, mrr, endMs, { endIsNow }),
-    });
+    };
+    // Guardar el cache nunca bloquea ni rompe la respuesta.
+    merchantRef.set({ home_cache: { at: new Date().toISOString(), key: cacheKey, data } }, { merge: true })
+      .catch(e => console.warn("[stats] home_cache:", e.message));
+    return res.json({ ...data, cached: false });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }

@@ -70,7 +70,8 @@ async function refreshPlanLimit(merchantId, merchant) {
     const mref = db().collection("merchants").doc(merchantId);
     const agg = await mref.collection("subscribers").where("status", "in", ["active", "payment_failed"]).count().get();
     const subs = Number(agg.data().count) || 0;
-    await mref.set({ billing_cache: { subs, at: new Date().toISOString() } }, { merge: true });
+    // También cae el cache del Inicio (stats.js): los números cambiaron.
+    await mref.set({ billing_cache: { subs, at: new Date().toISOString() }, home_cache: FieldValue.delete() }, { merge: true });
     const enf = enforcementOf(merchant || {}, subs);
     const event = planAlertEventFor(enf);
     if (event) {
