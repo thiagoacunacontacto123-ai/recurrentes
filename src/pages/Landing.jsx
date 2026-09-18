@@ -35,11 +35,11 @@ const FLOW_PAYMENTS = [
   { n:"Stripe", s:"soon" },
   { n:"Whop", s:"soon" },
 ];
+// Dos ítems, no cuatro (Thiago, 18-sept): la suscripción cobrada y creada en la
+// tienda, y la confirmación al cliente. Más aire abajo del panel de conectores.
 const FLOW_ACTIONS = [
-  { t:"Cobro aprobado · $ 40.500", short:"Cobro aprobado · $ 40.500", s:"live" },
-  { t:"Orden #1042 creada en tu negocio", short:"Orden #1042 en tu tienda", s:"live" },
-  { t:"Flujo de mails · aviso de próximo cobro", short:"Mail de próximo cobro", s:"live" },
-  { t:"WhatsApp · le avisa al cliente antes de cada cobro", short:"WhatsApp al cliente", s:"live" },
+  { t:"Suscripción · pago n.º 3 aprobado · creada en tu tienda", short:"Suscripción · pago n.º 3 aprobado · creada en tu tienda", s:"live" },
+  { t:"Mail y WhatsApp de confirmación de pedido", short:"Mail y WhatsApp de confirmación de pedido", s:"live" },
 ];
 const FLOW_STATUS = { live:"Disponible", soon:"Próximamente", radar:"En el radar" };
 const FLOW_ITEM_H = 44;
