@@ -288,6 +288,15 @@ export const WA_MERCHANT_TEMPLATES = [
 // no podemos prometer lo mismo que en los avisos de clientes.
 export const WA_PLAN_FOOTER = "Sobre tu plan de Recurrentes. Este aviso no se puede apagar.";
 export const WA_PLAN_TEMPLATES = [
+  // Llegó justo a 10 (el tope del plan gratis): aviso previo, antes de la tolerancia.
+  {
+    name: "aviso_plan_tope", event: "plan_at_limit", category: "UTILITY", lang: "es_AR",
+    title: "Llegaste al tope del plan gratis (aviso al comercio)",
+    body: "Aviso sobre el estado de tu cuenta de Recurrentes: {{1}} llegó a {{2}} suscriptores activos, el máximo del plan gratis.\n\nCon el próximo suscriptor entrás en el período de tolerancia. Para seguir sin interrupciones, completá la activación del plan en tu panel: {{3}}\n\nEs un aviso automático de Recurrentes.",
+    footer: WA_PLAN_FOOTER,
+    vars: { "1": "marca", "2": "subs", "3": "link_panel" },
+    samples: ["LuminaLabs", "10", BILLING_PANEL_URL],
+  },
   // Redactadas como AVISO DE ESTADO DE CUENTA (categoría Utilidad). La primera
   // versión ("te damos 5 de regalo", "no pares de vender") Meta la reclasificó como
   // Marketing (5× más cara y con reglas más duras): por eso los nombres nuevos.

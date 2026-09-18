@@ -155,6 +155,7 @@ Al DUEÑO de la tienda, cuando pasa los 10 suscriptores sin pagar el plan (11–
 
 | Nombre exacto | Cuándo | Variables (ejemplos) |
 |---|---|---|
+| `aviso_plan_tope` | llegó justo a 10 (tope del plan gratis) | 1 marca · 2 subs `10` · 3 link |
 | `aviso_plan_gracia` | pasó los 10 (te quedan ≥2 de gracia) | 1 subs `11` · 2 marca `LuminaLabs` · 3 gratis `10` · 4 gracia `5` · 5 link `https://www.recurrentesapp.com/#/dashboard/configuracion/facturacion` |
 | `aviso_plan_borde` | queda 1 o 0 de gracia (14 o 15) | 1 marca `LuminaLabs` · 2 subs `15` · 3 link (el mismo) |
 | `aviso_plan_bloqueado` | 16+ (widget apagado) | 1 marca `LuminaLabs` · 2 subs `16` · 3 link (el mismo) |

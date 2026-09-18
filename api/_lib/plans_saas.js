@@ -70,7 +70,10 @@ export function saasPaid(m = {}) {
   if (isBeta(m)) return true;
   if (!activatedTierId(m)) return false;
   const st = String(m.saas_status || "").trim().toLowerCase();
-  return st !== "past_due" && st !== "cancelled";
+  // Canceló pero el período que pagó sigue corriendo (pagó el 1, canceló el 20: tiene
+  // plan hasta el 30). Lo que pagó, lo usa.
+  if (st === "cancelled") return Date.parse(m.saas_paid_until || "") > Date.now();
+  return st !== "past_due";
 }
 
 // Estado del límite del plan gratis (ok / grace / blocked). Es lo que mira el
@@ -85,8 +88,10 @@ export function enforcementOf(m = {}, activeSubscribers = 0) {
 export function planAlertEventFor(enf) {
   if (!enf) return null;
   if (enf.state === "blocked") return "plan_blocked";
-  if (enf.state !== "grace") return null;
-  return enf.grace_left <= 1 ? "plan_last_call" : "plan_grace";
+  if (enf.state === "grace") return enf.grace_left <= 1 ? "plan_last_call" : "plan_grace";
+  // Justo en el tope del plan gratis (10) y sin plan pago: aviso previo (Thiago, 18-sept).
+  if (enf.state === "ok" && enf.tier_usd === 0 && enf.subs === enf.free && !enf.paid) return "plan_at_limit";
+  return null;
 }
 
 // Invalida el contador cacheado de suscriptores activos (`billing_cache`) del

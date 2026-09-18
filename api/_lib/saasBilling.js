@@ -168,7 +168,12 @@ export async function handleSaasWebhook(req, res) {
     } else if (event.type === "customer.subscription.deleted") {
       const doc = await merchantBySubscription(obj.id);
       if (doc) {
-        await doc.ref.set({ saas_status: "cancelled", saas_cancelled_at: now, plan_activated: null, saas_stripe_subscription_id: null, saas_current_period_end: null }, { merge: true });
+        // Si canceló a mitad de período (Stripe la borró ya), lo que pagó sigue valiendo
+        // hasta el fin del período: plan_activated queda y saasPaid mira saas_paid_until.
+        // El cron sync-saas-tiers lo limpia cuando vence.
+        const endMs = Number(obj.current_period_end) * 1000;
+        const paidUntil = Number.isFinite(endMs) && endMs > Date.now() + 60000 ? new Date(endMs).toISOString() : null;
+        await doc.ref.set({ saas_status: "cancelled", saas_cancelled_at: now, saas_stripe_subscription_id: null, saas_current_period_end: null, saas_paid_until: paidUntil, ...(paidUntil ? {} : { plan_activated: null }) }, { merge: true });
         // Ramal admin: se dio de baja del plan.
         await notifyAdmin("plan_cancelled", { merchantId: doc.id, store: storeLabel(doc.data(), doc.id), detail: "Baja de la suscripción al plan en Stripe", key: `sub_${obj.id}` });
       }
@@ -184,6 +189,11 @@ export async function handleSaasWebhook(req, res) {
 // Sin prorrateo: la próxima factura sale por el tramo vigente ese día.
 export async function syncSaasTiers({ countActive }) {
   if (!saasStripeAvailable()) return { skipped: "no_stripe" };
+  // Cancelados cuyo período pagado ya venció: recién ahora pierden el plan.
+  try {
+    const exp = await db().collection("merchants").where("saas_status", "==", "cancelled").where("saas_paid_until", "<=", new Date().toISOString()).get();
+    for (const d of exp.docs) if (d.data().plan_activated) await d.ref.set({ plan_activated: null, saas_paid_until: null }, { merge: true });
+  } catch (e) { console.warn("[sync-saas-tiers] vencidos:", e.message); }
   const q = await db().collection("merchants").where("saas_status", "in", ["active", "past_due"]).get();
   const out = { checked: 0, changed: 0, to_free: 0, errors: 0 };
   for (const d of q.docs) {

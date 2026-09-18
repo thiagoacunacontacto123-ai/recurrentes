@@ -44,7 +44,7 @@ export function enforcementFor({ activeSubscribers = 0, paid = false } = {}) {
   const graceLeft = Math.max(0, GRACE_LIMIT - n);           // cuántos más antes del bloqueo
 
   if (paid || tier.usd === 0) {
-    return { state: ENF_OK, subs: n, tier: tier.id, tier_usd: tier.usd, over: 0, grace_left: GRACE_SUBSCRIBERS, grace_limit: GRACE_LIMIT, free: FREE_SUBSCRIBERS, sell: true, panel: "full" };
+    return { state: ENF_OK, subs: n, tier: tier.id, tier_usd: tier.usd, over: 0, grace_left: GRACE_SUBSCRIBERS, grace_limit: GRACE_LIMIT, free: FREE_SUBSCRIBERS, sell: true, panel: "full", paid: !!paid };
   }
   if (n > GRACE_LIMIT) {
     return { state: ENF_BLOCKED, subs: n, tier: tier.id, tier_usd: tier.usd, over, grace_left: 0, grace_limit: GRACE_LIMIT, free: FREE_SUBSCRIBERS, sell: false, panel: "readonly" };

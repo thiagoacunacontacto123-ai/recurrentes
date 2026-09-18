@@ -158,5 +158,5 @@ test("(p) todas las plantillas de Recurrentes tienen ejemplos, variables secuenc
     assert.equal(vars.length, uniq.length, `${t.name}: sin variables repetidas (Meta las rechaza)`);
     assert.equal((t.samples || []).length, uniq.length, `${t.name}: un ejemplo por variable`);
   }
-  assert.equal(WA_ALL_TEMPLATES.length, 21, "5 a clientes + 5 a comercios + 3 del plan + 1 admin genérica + 6 admin por evento + 1 bienvenida");
+  assert.equal(WA_ALL_TEMPLATES.length, 22, "5 a clientes + 5 a comercios + 4 del plan + 1 admin genérica + 6 admin por evento + 1 bienvenida");
 });

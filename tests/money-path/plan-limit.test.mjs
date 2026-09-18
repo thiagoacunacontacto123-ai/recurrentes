@@ -11,7 +11,8 @@ import { invoke } from "../helpers/http.mjs";
 import { seedDoc } from "../helpers/fake-firestore.mjs";
 
 const { enforcementFor, enforcementCopy, GRACE_LIMIT } = await loadApi("shared/platform/enforcement.js");
-const { buildBilling, planAlertEventFor, enforcementOf } = await loadApi("api/_lib/plans_saas.js");
+const plansSaas = await loadApi("api/_lib/plans_saas.js");
+const { buildBilling, planAlertEventFor, enforcementOf } = plansSaas;
 const { default: widget } = await loadApi("api/widget.js");
 
 const nueva = (o = {}) => ({ created_at: "2026-09-20T00:00:00.000Z", ...o });
@@ -135,9 +136,21 @@ test("(o) el checkout acepta normalmente en gracia", async () => {
   assert.notEqual(res.statusCode, 402, "con 15 todavía entra");
 });
 
-test("(o) escalada del aviso por WhatsApp: gracia → último aviso → bloqueado", () => {
+test("(o) canceló pero el período pagado sigue: mantiene el plan hasta que vence", () => {
+  const { saasPaid } = plansSaas;
+  const futuro = new Date(Date.now() + 10 * 86400000).toISOString();
+  const pasado = new Date(Date.now() - 86400000).toISOString();
+  assert.equal(saasPaid(nueva({ plan_activated: "starter", saas_status: "cancelled", saas_paid_until: futuro })), true, "pagó el 1, canceló el 20: plan hasta el 30");
+  assert.equal(saasPaid(nueva({ plan_activated: "starter", saas_status: "cancelled", saas_paid_until: pasado })), false, "venció: vuelve a la regla por cantidad");
+  assert.equal(buildBilling(nueva({ plan_activated: "starter", saas_status: "cancelled", saas_paid_until: futuro }), 16, {}).can_sell, true);
+  assert.equal(buildBilling(nueva({ plan_activated: "starter", saas_status: "cancelled", saas_paid_until: pasado }), 16, {}).can_sell, false);
+});
+
+test("(o) escalada del aviso por WhatsApp: tope (10) → gracia → último aviso → bloqueado", () => {
   const ev = (n) => planAlertEventFor(enforcementOf(nueva(), n));
-  assert.equal(ev(10), null, "en el plan gratis no molestamos");
+  assert.equal(ev(9), null, "por debajo del tope no molestamos");
+  assert.equal(ev(10), "plan_at_limit", "justo en 10: aviso previo");
+  assert.equal(planAlertEventFor(enforcementOf(nueva({ plan_activated: "starter", saas_status: "active" }), 10)), null, "con plan pago, nada");
   assert.equal(ev(11), "plan_grace");
   assert.equal(ev(13), "plan_grace");
   assert.equal(ev(14), "plan_last_call", "queda 1: el aviso fuerte");

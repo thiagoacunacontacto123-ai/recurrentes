@@ -17,7 +17,6 @@ import { TIER_BY_ID } from "../../shared/platform/pricing.js";
 
 const F = "'Inter',system-ui,sans-serif";
 const fmtN = (n) => Number(n || 0).toLocaleString("es-AR");
-const SEEN_KEY = (mid, state) => `rec_planlimit_${state}_${mid || "x"}`;
 
 export const isGrace = (b) => b?.enforcement === "grace";
 export const isBlocked = (b) => b?.enforcement === "blocked";
@@ -103,18 +102,13 @@ export function PlanLimitModal({ T, billing, merchantId, onGo }) {
   const b = billing || {};
   const blocked = isBlocked(b);
   const copy = b.enforcement_copy || null;
-  const [open, setOpen] = useState(() => {
-    if (!showsPlanLimit(b)) return false;
-    if (blocked) return true;   // bloqueado: siempre lo ve
-    try { return sessionStorage.getItem(SEEN_KEY(merchantId, b.enforcement)) !== "1"; } catch (_) { return true; }
-  });
+  // Sale CADA vez que entra al panel (Thiago, 18-sept): se puede cerrar para operar,
+  // pero en la próxima carga vuelve. Sin memoria por sesión.
+  const [open, setOpen] = useState(() => showsPlanLimit(b));
   const { pay, busy, tier } = usePlanCheckout(b);
   if (!showsPlanLimit(b) || !open || !copy) return null;
   const t = TIER_BY_ID[tier];
-  const close = () => {
-    setOpen(false);
-    try { sessionStorage.setItem(SEEN_KEY(merchantId, b.enforcement), "1"); } catch (_) {}
-  };
+  const close = () => setOpen(false);
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center", padding: 18, fontFamily: F }}>
       <Card T={T} padding="xl" style={{ maxWidth: 520, width: "100%", border: `2px solid ${T.red}`, textAlign: "center" }}>
