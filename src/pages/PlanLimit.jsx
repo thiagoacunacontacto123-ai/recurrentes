@@ -23,6 +23,19 @@ export const isGrace = (b) => b?.enforcement === "grace";
 export const isBlocked = (b) => b?.enforcement === "blocked";
 export const showsPlanLimit = (b) => isGrace(b) || isBlocked(b);
 
+// "Ver planes": va a Facturación y baja hasta la tabla de planes (si ya estaba ahí,
+// igual baja: antes no pasaba nada y parecía roto).
+export function goToPlans(onGo) {
+  try { onGo?.(); } catch (_) {}
+  let tries = 0;
+  const tick = () => {
+    const el = document.querySelector("[data-pricing-table]");
+    if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
+    if (++tries < 20) setTimeout(tick, 100);
+  };
+  setTimeout(tick, 50);
+}
+
 // Arranca el pago: Stripe Checkout si está configurado, si no el pedido a mano.
 export function usePlanCheckout(billing, tierId) {
   const [busy, setBusy] = useState(false);
@@ -116,7 +129,7 @@ export function PlanLimitModal({ T, billing, merchantId, onGo }) {
           <Btn T={T} variant="solid" onClick={pay} disabled={busy} style={{ background: T.red, borderColor: T.red }}>
             {busy ? <Spinner size={13} color="#fff"/> : (t ? `Activar ${t.label} · USD ${t.usd}/mes` : copy.cta)}
           </Btn>
-          <Btn T={T} variant="secondary" onClick={onGo}>Ver planes</Btn>
+          <Btn T={T} variant="secondary" onClick={() => { close(); goToPlans(onGo); }}>Ver planes</Btn>
           {!blocked && <Btn T={T} variant="ghost" onClick={close} style={{ color: T.textSm }}>Seguir por ahora</Btn>}
         </div>
         {blocked && (
@@ -156,7 +169,7 @@ export function PlanBlockedView({ T, billing, title, onGo, onGoCobros }) {
           <Btn T={T} variant="solid" onClick={pay} disabled={busy} style={{ background: T.red, borderColor: T.red }}>
             {busy ? <Spinner size={13} color="#fff"/> : (t ? `Activar ${t.label} · USD ${t.usd}/mes` : "Activar plan")}
           </Btn>
-          <Btn T={T} variant="secondary" onClick={onGo}>Ver planes</Btn>
+          <Btn T={T} variant="secondary" onClick={() => goToPlans(onGo)}>Ver planes</Btn>
           {onGoCobros && <Btn T={T} variant="ghost" onClick={onGoCobros} style={{ color: T.textSm }}>Ver mis cobros</Btn>}
         </div>
       </Card>

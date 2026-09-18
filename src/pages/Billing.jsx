@@ -79,7 +79,7 @@ function useSaasStripe(reloadMerchant) {
 // La usan Configuración → Facturación y la landing.
 export function PricingTable({ T, current }) {
   return (
-    <div style={{ fontFamily: F }}>
+    <div data-pricing-table="1" style={{ fontFamily: F }}>
       <style>{`
         .rec-pricing-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;}
         @media(max-width:1000px){ .rec-pricing-grid{grid-template-columns:repeat(3,minmax(0,1fr));} }
