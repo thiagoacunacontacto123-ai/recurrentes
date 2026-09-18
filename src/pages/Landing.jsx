@@ -263,11 +263,14 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
             .rec-flow-grid{grid-template-columns:1fr!important;row-gap:10px;}
             .rec-flow-head,.rec-flow-connwrap{display:none!important;}
             .rec-flow-sm .rec-flow-grid{grid-template-columns:1fr!important;column-gap:0!important;row-gap:8px;}
-            .rec-flow-sm .rec-flow-mobile-arrow{font-size:16px;}
+            /* Flechas al doble de largas (Thiago): 16→32 en el panel chico, 22→44 en el grande. */
+            .rec-flow-sm .rec-flow-mobile-arrow{font-size:32px;margin:2px 0;}
+            /* "1 · Tu negocio" / "2 · Tu pasarela" en su propia línea, arriba de los chips. */
+            .rec-flow-mlabel{display:block!important;flex:0 0 100%!important;width:100%;margin:0 0 2px;}
             /* apilado: los chips van en fila horizontal que envuelve, no en columna alta */
             .rec-flow-sm .rec-flow-col{flex-direction:row!important;flex-wrap:wrap!important;gap:6px!important;height:auto!important;min-height:0!important;justify-content:flex-start!important;}
             .rec-flow-sm .rec-flow-col > div{height:auto!important;padding:7px 10px!important;}
-            .rec-flow-mobile-arrow{display:block;text-align:center;font-size:22px;font-weight:800;color:${T.accentSolid};line-height:1;}
+            .rec-flow-mobile-arrow{display:block;text-align:center;font-size:44px;font-weight:800;color:${T.accentSolid};line-height:1;margin:2px 0;}
             .rec-flow-mlabel{display:block;}
           }
         `}</style>

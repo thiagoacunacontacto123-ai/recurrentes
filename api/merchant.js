@@ -1666,6 +1666,18 @@ async function saveOwner(ctx, req, res) {
   if (!wa) return res.status(400).json({ error: "Ingresá un WhatsApp válido, con código de área" });
   if (!EMAIL_RE.test(email)) return res.status(400).json({ error: "Ingresá un email de contacto válido" });
   await getOrCreateMerchant(ctx.uid, ctx.email || null);
+  const prev = (await db().collection("merchants").doc(ctx.uid).get()).data() || {};
   await db().collection("merchants").doc(ctx.uid).set({ owner_name: name, owner_whatsapp: wa, contact_email: email, owner_info_at: new Date().toISOString() }, { merge: true });
+  // Ramal admin: alguien dejó su número por primera vez → aviso a Thiago para ir
+  // a hablarle. Solo la primera vez (dedup "first") y nunca por el propio admin.
+  if (!prev.owner_whatsapp) {
+    try {
+      const { isAdminEmail } = await import("./_lib/adminAuth.js");
+      if (!isAdminEmail(ctx.email)) {
+        const { notifyAdmin } = await import("./_lib/adminAlerts.js");
+        await notifyAdmin("signup", { merchantId: ctx.uid, store: `${name} (${prev.store_name || prev.shopify_shop || email})`, detail: `WhatsApp ${wa} · ${email}`, key: "first" });
+      }
+    } catch (e) { console.warn("[save-owner] admin alert:", e.message); }
+  }
   return res.json({ ok: true, owner_name: name, owner_whatsapp: wa, contact_email: email });
 }

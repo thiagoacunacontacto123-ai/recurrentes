@@ -20,6 +20,9 @@ import { appBaseUrl } from "./config.js";
 import { PRICING_TIERS, TIER_BY_ID, tierFor } from "../../shared/platform/pricing.js";
 import { formEncode, verifyStripeSignature } from "./providers/stripe.js";
 import { readRawBody } from "./providers/rawBody.js";
+import { notifyAdmin } from "./adminAlerts.js";
+
+const storeLabel = (m, mid) => m?.store_name || m?.shopify_shop || m?.email || mid;
 
 const API = "https://api.stripe.com";
 export const saasStripeAvailable = () => !!String(process.env.STRIPE_SAAS_SECRET_KEY || "").trim();
@@ -127,6 +130,8 @@ export async function handleSaasWebhook(req, res) {
           plan_activated: tier || cur.plan_activated || null, plan_activated_at: cur.plan_activated_at || now,
           plan_requested: null, plan_requested_at: null,
         }, { merge: true });
+        // Ramal admin: alguien pagó el plan por primera vez.
+        await notifyAdmin("plan_paid", { merchantId: String(mid), store: storeLabel(cur, mid), detail: `${TIER_BY_ID[tier]?.label || tier || "plan"} · USD ${TIER_BY_ID[tier]?.usd ?? "?"} · primer pago`, key: `cs_${obj.id || event.id}` });
       }
     } else if (event.type === "invoice.paid" || event.type === "invoice.payment_succeeded") {
       const subId = idOf(obj.subscription) || idOf(obj.parent?.subscription_details?.subscription);
@@ -135,6 +140,10 @@ export async function handleSaasWebhook(req, res) {
         const line = obj.lines?.data?.[0];
         const tier = TIER_BY_ID[line?.price?.metadata?.tier] ? line.price.metadata.tier : (doc.data().saas_stripe_price_tier || doc.data().plan_activated);
         await doc.ref.set({ saas_status: "active", saas_last_paid_at: tsIso(obj.status_transitions?.paid_at) || now, saas_current_period_end: tsIso(line?.period?.end), plan_activated: tier || null, saas_last_invoice_url: obj.hosted_invoice_url || null }, { merge: true });
+        // Ramal admin: cobro del plan (primer pago o renovación). Dedup por factura.
+        if (obj.billing_reason !== "subscription_create") {
+          await notifyAdmin("plan_paid", { merchantId: doc.id, store: storeLabel(doc.data(), doc.id), detail: `Renovación ${TIER_BY_ID[tier]?.label || tier || ""} · USD ${Math.round((Number(obj.amount_paid) || 0) / 100)}`, key: `in_${obj.id || event.id}` });
+        }
       }
     } else if (event.type === "invoice.payment_failed") {
       const subId = idOf(obj.subscription) || idOf(obj.parent?.subscription_details?.subscription);
@@ -145,7 +154,11 @@ export async function handleSaasWebhook(req, res) {
       if (doc) await doc.ref.set({ saas_current_period_end: tsIso(obj.current_period_end), saas_cancel_at_period_end: !!obj.cancel_at_period_end, saas_stripe_price_tier: (await tierOfSubscription(obj)) || doc.data().saas_stripe_price_tier || null }, { merge: true });
     } else if (event.type === "customer.subscription.deleted") {
       const doc = await merchantBySubscription(obj.id);
-      if (doc) await doc.ref.set({ saas_status: "cancelled", saas_cancelled_at: now, plan_activated: null, saas_stripe_subscription_id: null, saas_current_period_end: null }, { merge: true });
+      if (doc) {
+        await doc.ref.set({ saas_status: "cancelled", saas_cancelled_at: now, plan_activated: null, saas_stripe_subscription_id: null, saas_current_period_end: null }, { merge: true });
+        // Ramal admin: se dio de baja del plan.
+        await notifyAdmin("plan_cancelled", { merchantId: doc.id, store: storeLabel(doc.data(), doc.id), detail: "Baja de la suscripción al plan en Stripe", key: `sub_${obj.id}` });
+      }
     }
     return res.json({ ok: true });
   } catch (e) {

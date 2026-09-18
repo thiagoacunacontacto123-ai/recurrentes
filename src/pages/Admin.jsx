@@ -169,6 +169,8 @@ export function AdminPage() {
       <PageHeader T={T} title="Admin de Recurrentes" subtitle="Todos los comercios: altas, planes, suscripciones y cobros. Solo lo ves vos."
         right={<Btn T={T} variant="secondary" size="sm" onClick={refreshAll} disabled={refreshing}>{refreshing ? "Actualizando…" : "Actualizar números"}</Btn>}/>
 
+      <WaTemplatesCard T={T}/>
+
       {ovErr && <Callout T={T} tone="danger" title="No pudimos cargar el resumen" style={{ marginBottom:14 }}>{ovErr}</Callout>}
       {ov?.stats_pending > 0 && (
         <Callout T={T} tone="info" style={{ marginBottom:14 }} right={<Btn T={T} variant="secondary" size="sm" onClick={refreshAll} disabled={refreshing}>Calcular ahora</Btn>}>
@@ -579,5 +581,59 @@ export function AdminViewBanner({ T, merchant }) {
       <span style={{ flex:1, minWidth:200 }}>Estás viendo el panel de <b>{name}</b> como admin. Es solo lectura: nada de lo que toques se guarda.</span>
       <Btn T={T} variant="secondary" size="sm" onClick={salir}>Salir de "ver como"</Btn>
     </div>
+  );
+}
+
+// ─── Plantillas de WhatsApp de Recurrentes en Meta ───────────────────────────
+// Lista el estado de cada plantilla (clientes, comercios, límite del plan, admin)
+// y las crea por API con un botón: nada de cargarlas a mano en WhatsApp Manager.
+const WA_STATUS = { APPROVED: ["Aprobada", "green"], PENDING: ["En revisión", "yellow"], REJECTED: ["Rechazada", "red"], MISSING: ["Falta crear", "textSm"], PAUSED: ["Pausada", "red"], DISABLED: ["Deshabilitada", "red"] };
+function WaTemplatesCard({ T }) {
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  async function load() {
+    setBusy(true); setErr(null);
+    try { const d = await apiGet("stats", { action: "admin-wa-templates" }); if (d?.error) setErr(d.error); else setData(d); }
+    catch (e) { setErr(e.message); } finally { setBusy(false); }
+  }
+  async function sync() {
+    setBusy(true); setErr(null);
+    try {
+      const r = await apiPost("stats", {}, { action: "admin-wa-templates-sync" });
+      if (r?.error) setErr(r.error);
+      else toast(`Creadas ${r.created?.length || 0} · ya estaban ${r.skipped?.length || 0}${r.errors?.length ? ` · con error ${r.errors.length}` : ""}`, r.errors?.length ? "warning" : "success", 7000);
+      if (r?.errors?.length) setErr(r.errors.map(e => `${e.name}: ${e.detail || e.error}`).join(" · "));
+      await load();
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  }
+  useEffect(() => { if (open && !data) load(); /* eslint-disable-next-line */ }, [open]);
+  const missing = (data?.templates || []).filter(t => t.status === "MISSING").length;
+  return (
+    <Callout T={T} tone="info" style={{ marginBottom:14 }} title="Plantillas de WhatsApp en Meta"
+      right={<div style={{ display:"flex", gap:8 }}>
+        <Btn T={T} variant="secondary" size="sm" onClick={() => setOpen(o => !o)}>{open ? "Ocultar" : "Ver estado"}</Btn>
+        {open && data?.available && <Btn T={T} variant="solid" size="sm" onClick={sync} disabled={busy || missing === 0}>{busy ? "Enviando a Meta…" : missing ? `Crear ${missing} en Meta` : "Todas creadas"}</Btn>}
+      </div>}>
+      Los avisos a clientes, a comercios, del límite del plan y a vos salen con plantillas que Meta tiene que aprobar. Acá las creás por API y ves cómo van.
+      {open && (
+        <div style={{ marginTop:10 }}>
+          {err && <div style={{ color:T.red, fontSize:DS.font.sm, marginBottom:8 }}>{err}</div>}
+          {data && !data.available && <div style={{ color:T.textSm, fontSize:DS.font.sm }}>{data.reason}</div>}
+          {busy && !data && <div style={{ color:T.textSm, fontSize:DS.font.sm }}>Consultando a Meta…</div>}
+          {data?.available && (
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(260px, 1fr))", gap:6 }}>
+              {data.templates.map(t => { const [lbl, col] = WA_STATUS[t.status] || [t.status, "textSm"]; return (
+                <div key={t.name} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, padding:"6px 8px", border:`1px solid ${T.border}`, borderRadius:8, background:T.card }}>
+                  <CellStack T={T} main={t.title} sub={t.name}/>
+                  <span title={t.rejected_reason || ""}><DSBadge T={T} color={T[col] || T.textSm} size="sm">{lbl}</DSBadge></span>
+                </div>
+              ); })}
+            </div>
+          )}
+        </div>
+      )}
+    </Callout>
   );
 }

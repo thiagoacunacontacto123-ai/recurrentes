@@ -113,7 +113,9 @@ export const scrub = (s) => String(s || "")
   .slice(0, 400);
 
 // ── HTTP a la Graph API ────────────────────────────────────────────
-async function graph(path, { token, method = "GET", body, timeoutMs = 8000 } = {}) {
+// Exportada como graphRequest para módulos que hablan con Meta fuera del envío
+// (crear plantillas por API en waTemplates.js).
+export async function graph(path, { token, method = "GET", body, timeoutMs = 8000 } = {}) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), timeoutMs);
   try {
@@ -515,3 +517,4 @@ export function verifyWaSignature(raw, header, secrets) {
   return (secrets || []).filter(Boolean).some(s =>
     timingSafeEqualStr("sha256=" + crypto.createHmac("sha256", s).update(raw).digest("hex"), given));
 }
+export const graphRequest = graph;

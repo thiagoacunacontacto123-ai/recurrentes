@@ -305,8 +305,27 @@ export const WA_PLAN_TEMPLATES = [
 export const WA_PLAN_TEMPLATE_BY_EVENT = Object.fromEntries(WA_PLAN_TEMPLATES.map(t => [t.event, t]));
 export const PLAN_ALERT_EVENTS = WA_PLAN_TEMPLATES.map(t => t.event);
 
-export const WA_MERCHANT_TEMPLATE_BY_EVENT = Object.fromEntries([...WA_MERCHANT_TEMPLATES, ...WA_PLAN_TEMPLATES].map(t => [t.event, t]));
-const ALERT_FALLBACK = { marca: "tu tienda", nombre: "un cliente", producto: "tu plan", monto: "el monto del plan", link_panel: ALERTS_PANEL_URL, subs: "varios", free: "10", gracia: "5" };
+// ─── Aviso INTERNO al equipo de Recurrentes (Thiago) ────────────────────────
+// Una sola plantilla genérica para todo el ramal admin (registro con número,
+// pago del plan, baja, gracia/bloqueo): Meta aprueba 1 y cualquier evento nuevo
+// entra sin plantilla nueva. Va al WhatsApp del dueño de la cuenta admin.
+export const WA_ADMIN_FOOTER = "Aviso interno de Recurrentes.";
+export const WA_ADMIN_TEMPLATE = {
+  name: "aviso_admin", event: "admin", category: "UTILITY", lang: "es_AR",
+  title: "Aviso interno al equipo de Recurrentes",
+  body: "Recurrentes · aviso interno: {{1}}.\n\nTienda: {{2}}\nDetalle: {{3}}\n\nAbrir el panel: {{4}}\n\nEs un aviso automático para el equipo de Recurrentes.",
+  footer: WA_ADMIN_FOOTER,
+  vars: { "1": "evento", "2": "tienda", "3": "detalle", "4": "link_panel" },
+  samples: ["Pagó el plan", "LuminaLabs", "Starter · USD 49 · primer pago", "https://www.recurrentesapp.com/#/dashboard/admin"],
+};
+export const ADMIN_PANEL_URL = "https://www.recurrentesapp.com/#/dashboard/admin";
+
+// Todas las plantillas que Recurrentes necesita aprobadas en su WABA (clientes +
+// comercios + límite del plan + admin). Las crea por API admin-wa-templates-sync.
+export const WA_ALL_TEMPLATES = [...WA_TEMPLATES, ...WA_MERCHANT_TEMPLATES, ...WA_PLAN_TEMPLATES, WA_ADMIN_TEMPLATE];
+
+export const WA_MERCHANT_TEMPLATE_BY_EVENT = Object.fromEntries([...WA_MERCHANT_TEMPLATES, ...WA_PLAN_TEMPLATES, WA_ADMIN_TEMPLATE].map(t => [t.event, t]));
+const ALERT_FALLBACK = { marca: "tu tienda", nombre: "un cliente", producto: "tu plan", monto: "el monto del plan", link_panel: ALERTS_PANEL_URL, subs: "varios", free: "10", gracia: "5", evento: "novedad", tienda: "una tienda", detalle: "-" };
 
 // Qué eventos avisa la tienda (los que faltan cuentan como prendidos).
 export function alertEventsOf(m) {

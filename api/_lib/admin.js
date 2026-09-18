@@ -576,8 +576,12 @@ export async function adminHandler(req, res) {
       if (action === "admin-overview") return res.json(await overview(req.query || {}));
       if (action === "admin-merchants") return res.json(await merchantsList(req.query || {}));
       if (action === "admin-merchant") return await merchantDetail(req, res);
+      // Plantillas de WhatsApp de Recurrentes en Meta (estado por plantilla).
+      if (action === "admin-wa-templates") return res.json(await (await import("./waTemplates.js")).listPlatformTemplates());
     } else if (req.method === "POST") {
       if (action === "admin-set-plan") return await setPlan(admin, req, res);
+      // Crea en Meta las plantillas que faltan (quedan en revisión).
+      if (action === "admin-wa-templates-sync") return res.json(await (await import("./waTemplates.js")).syncPlatformTemplates());
       if (action === "admin-note") return await addNote(admin, req, res);
       if (action === "admin-view-as") return await viewAsStart(admin, req, res);
     } else {

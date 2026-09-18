@@ -484,6 +484,23 @@ export async function emailMerchantAlert({ to, event, text, storeName, customerN
   return sendEmail({ from: platformFrom(), to, subject: title, html, tags: { type: "merchant_alert", event: event || "na" } });
 }
 
+// ─── Aviso INTERNO al equipo de Recurrentes (ramal admin) ────────────────────
+// Respaldo del WhatsApp al admin (sin número de Recurrentes cargado, plantilla
+// sin aprobar o error de Meta). `to` = mails de ADMIN_EMAILS (o ADMIN_EMAIL).
+export async function emailAdminAlert({ to, event, text, storeName, panelUrl }) {
+  const store = plain(storeName, 60) || "una tienda";
+  const title = `[Recurrentes] ${plain(event, 60) || "Aviso"} · ${store}`;
+  const body = String(text || "").split(/\n{2,}/).map(p => `<p style="margin:0 0 12px;">${escapeHtml(p).replace(/\n/g, "<br/>")}</p>`).join("");
+  const html = baseTemplate({
+    title, body,
+    ctaLabel: panelUrl ? "Abrir el Admin" : undefined,
+    ctaUrl: panelUrl || undefined,
+    brand: "Recurrentes", accent: "#10b981",
+    footerNote: "Aviso interno de Recurrentes: te llega porque tu mail está en ADMIN_EMAILS.",
+  });
+  return sendEmail({ from: platformFrom(), to, subject: title, html, tags: { type: "admin_alert", event: "admin" } });
+}
+
 // ─── Aviso al COMERCIANTE: se cobró pero la orden no se creó (_lib/fulfillretry.js).
 // Uno solo por cobro (el dedup lo hace el que llama). `platform:true` → versión
 // interna para PLATFORM_ALERT_EMAIL, sin datos del cliente.

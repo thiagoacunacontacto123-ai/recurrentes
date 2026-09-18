@@ -183,3 +183,19 @@ Sin aprobar (o sin número de Recurrentes cargado): el mismo aviso sale por mail
 4. El backend canjea el `code`, que vence en unos 30 s: `GET /oauth/access_token?client_id=WHATSAPP_APP_ID&client_secret=WHATSAPP_APP_SECRET&code=…`.
 5. `POST /{waba-id}/subscribed_apps` y `POST /{phone-number-id}/register` con `{ messaging_product:"whatsapp", pin:"<6 dígitos>" }`.
 6. Se guardan los mismos campos que hoy guarda `whatsapp-save`, así que el resto del código no cambia.
+
+## Ramal ADMIN (avisos internos a Thiago) — 2026-09-17
+
+El número de Recurrentes también le avisa al equipo (`api/_lib/adminAlerts.js`, `notifyAdmin`). Una sola plantilla genérica **`aviso_admin`** (Utilidad · es_AR): `{{1}}` qué pasó · `{{2}}` tienda · `{{3}}` detalle · `{{4}}` link al Admin. Pie: `Aviso interno de Recurrentes.`
+
+| Evento | Cuándo | Dedup |
+|---|---|---|
+| `signup` | alguien deja su WhatsApp al registrarse (`save-owner`, la primera vez; nunca el propio admin) | `first` |
+| `plan_paid` | primer pago del plan (checkout de Stripe) y cada renovación (`invoice.paid`) | id de sesión / factura |
+| `plan_cancelled` | baja de la suscripción al plan en Stripe | id de suscripción |
+| `plan_grace` / `plan_last_call` / `plan_blocked` | la tienda pasó los 10 sin pagar / quedan ≤1 / se bloqueó | por número de suscriptores; bloqueo 1 por día |
+
+Destinatario: env `ADMIN_WHATSAPP` (uno o varios) o, si falta, el `owner_whatsapp` de las cuentas con mail en `ADMIN_EMAILS` (Configuración → Avisos para vos). Sin WhatsApp o si falla → mail a `ADMIN_EMAILS`. No suma uso a ningún comercio. Log: `system/admin_alerts/log`.
+
+## Plantillas por API (Admin → "Plantillas de WhatsApp en Meta")
+`GET /api/stats?action=admin-wa-templates` lista el estado en Meta de cada plantilla de `WA_ALL_TEMPLATES`; `POST ?action=admin-wa-templates-sync` crea las que faltan en la WABA de Recurrentes (`api/_lib/waTemplates.js`, con `example.body_text` para que Meta las revise). Quedan PENDING hasta que Meta apruebe (minutos a 24 h). Rechazadas no se pisan: se arreglan a mano o se borran y se vuelve a correr.

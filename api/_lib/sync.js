@@ -76,6 +76,9 @@ async function refreshPlanLimit(merchantId, merchant) {
     if (event) {
       const { notifyPlanLimit } = await import("./merchantAlerts.js");
       await notifyPlanLimit(event, merchantId, merchant, { subs, free: enf.free, grace: enf.grace_limit - enf.free });
+      // Ramal admin: Thiago se entera cuando una tienda entra en gracia / se bloquea.
+      const { notifyAdmin } = await import("./adminAlerts.js");
+      await notifyAdmin(event, { merchantId, store: merchant?.store_name || merchant?.shopify_shop || merchantId, detail: `${subs} suscriptores activos sin plan pago`, key: event === "plan_blocked" ? new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10) : `n${subs}` });
     }
   } catch (e) { console.warn("[plan-limit] refresh:", e.message); }
 }
