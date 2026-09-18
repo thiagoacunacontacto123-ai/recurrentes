@@ -306,11 +306,11 @@ Cómo cobra: suscripción mensual en Stripe. Cada día a las 9:00 UTC el cron `s
 3. **Customer portal**: https://dashboard.stripe.com/settings/billing/portal → activarlo (guardar con lo que viene por defecto alcanza). Lo usa el botón "Tarjeta y facturas" del panel; sin activarlo, ese botón da error.
 4. Podés borrar la clave secreta vieja (`sk_live_…vmcW`) desde los tres puntos en Claves de API: no se usó en ningún lado.
 
-### WhatsApp de Recurrentes — HECHO el 2026-09-18 (falta solo la aprobación de Meta)
+### WhatsApp de Recurrentes — HECHO el 2026-09-18
 
-✅ App de Meta "Recurrentes" publicada (En vivo) · ✅ número +1 305 686 9014 (Zadarma, recibe SMS) verificado · ✅ token permanente (usuario del sistema `recurrentes-api`) · ✅ webhook verificado y suscrito a `messages` · ✅ método de pago (Visa ····4063) en la WABA Recurrentes · ✅ env `WHATSAPP_*` en Vercel · ✅ **las 13 plantillas creadas por API desde Admin, todas "En revisión"**.
+✅ App publicada · ✅ número +1 305 686 9014 verificado **y registrado en la Cloud API** (PIN en `system/whatsapp_platform`) · ✅ token permanente · ✅ webhook · ✅ método de pago · ✅ env en Vercel · ✅ **la prueba del ramal admin te llegó por WhatsApp** · ✅ 14 plantillas en tu WABA (11 aprobadas al 18-sept; en revisión: `carrito_sin_pagar`, `aviso_plan_gracia`, `aviso_plan_borde`, `renovacion_cobrada`, `suscripcion_activa`, `aviso_plan_bloqueado`).
 
-Qué falta:
-1. **Esperar que Meta apruebe las plantillas** (minutos a 24 h). Se ve en Admin → "Plantillas de WhatsApp en Meta" → Ver estado. Si alguna queda "Rechazada", avisale a Claude con el motivo que muestra el hover.
-2. Cuando `aviso_admin` esté "Aprobada": Admin → **Enviarme una prueba**. Te tiene que llegar un WhatsApp del +1 305 al …7974. Ese es el check final del ramal admin.
-3. Opcional: Zadarma → My profile → Notifications → "Incoming SMS by email", por si Meta vuelve a pedir un código alguna vez.
+Lo único que te queda:
+1. En WhatsApp Manager → Plantillas, **borrá `aviso_plan_limite` y `aviso_plan_ultimo`** (Meta las reclasificó como Marketing; ya no las usa el código, las reemplazan `aviso_plan_gracia` y `aviso_plan_borde`). Es limpieza, no urge.
+2. Mirar en Admin → "Plantillas de WhatsApp en Meta" que las 6 en revisión pasen a Aprobada (minutos a 24 h). Si alguna queda Rechazada, pasale el motivo a Claude.
+3. Opcional: Zadarma → My profile → Notifications → "Incoming SMS by email", por si Meta vuelve a pedir un código.
