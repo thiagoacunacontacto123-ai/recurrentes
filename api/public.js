@@ -204,7 +204,7 @@ async function handleTnProduct(req, res) {
     const hit = (products || []).find(p => String(p.handle || "").toLowerCase() === handle);
     if (!hit) return res.json({ product: null });
     const variant = Array.isArray(hit.variants) && hit.variants[0] ? String(hit.variants[0].id) : null;
-    res.setHeader("Cache-Control", "public, max-age=300");
+    res.setHeader("Cache-Control", "public, max-age=300, s-maxage=300, stale-while-revalidate=600");
     return res.json({ product: { id: String(hit.id), variant_id: variant, title: hit.title || "" } });
   } catch (e) {
     console.warn(`[public/tn-product] ${merchantId}:`, e.message);
@@ -213,6 +213,10 @@ async function handleTnProduct(req, res) {
 }
 
 async function handlePlan(req, res) {
+  // Lo pide el widget en CADA visita a una página de producto de CADA tienda: es el
+  // endpoint más pedido de la app. La CDN de Vercel lo guarda 60 s (s-maxage) → Firestore
+  // se lee una vez por minuto por producto, no por visitante. Un cambio de plan tarda ≤60 s.
+  res.setHeader("Cache-Control", "public, max-age=60, s-maxage=60, stale-while-revalidate=300");
   const merchantId = String(req.query.merchant || "");
   const productId = String(req.query.product || "");
   const variantId = String(req.query.variant || "");

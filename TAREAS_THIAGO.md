@@ -336,7 +336,16 @@ El botón "Traer los de Shopify / Tiendanube" en Configuración → Descuentos n
 
 
 ## Estado al 2026-09-18 (tarde) — qué falta de tu lado
-- [ ] **Índices de Firestore** (2 clics; links más arriba).
+- [ ] **Índices de Firestore (ahora son 4 de grupo, y sirven para que el cron aguante 1000 tiendas)**. La forma corta, desde la carpeta del proyecto (te va a abrir el navegador para loguearte con tu Google):
+  ```bash
+  npx firebase-tools login
+  ```
+  ```bash
+  npx firebase-tools deploy --only firestore:indexes --project recurrentes-16fbd
+  ```
+  Eso crea TODOS los índices de `firestore.indexes.json` de una (los de cada tienda y los 4 de grupo). Tardan unos minutos en decir "Habilitado". Hasta que existan, el cron sigue funcionando con el recorrido tienda por tienda de siempre (en Admin → Salud, `cron_last.mode` dice `per-merchant`; cuando pase a `global` ya está).
+  Si preferís a mano: https://console.firebase.google.com/project/recurrentes-16fbd/firestore/indexes → Crear índice → ID de colección `subscribers`, alcance **Grupo de colecciones**, y uno por cada par: `status` Asc + `next_charge_at` Asc · `status` Asc + `updated_at` Asc · `status` Asc + `created_at` Asc · `status` Asc + `resume_at` Asc.
+- [ ] **Números de WhatsApp (regla tuya, 18-sept): cada 100 tiendas con WhatsApp prendido, comprá un número nuevo de afuera** (como el de Zadarma) y agregalo a la WABA. Avisame cuando llegues a ~80 tiendas con WhatsApp: ahí armo el reparto de tiendas entre números (hoy el código manda todo por el único número).
 - [ ] **Tiendanube Partners → Permisos → Cupones: leer** (`read_coupons`).
 - [ ] **Meta**: plantillas en revisión aprobadas y app En vivo (vos decís que ya está: solo confirmar que a un número que NO sea de prueba le llegue un aviso).
 - [x] Stripe verificado (Mercury vinculada) — según Thiago.

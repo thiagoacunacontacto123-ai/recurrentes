@@ -94,7 +94,7 @@ async function merchantIdForTiendanubeStore(storeId) {
 
 export default async function handler(req, res) {
   res.setHeader("Content-Type", "application/javascript; charset=utf-8");
-  res.setHeader("Cache-Control", "public, max-age=300");
+  res.setHeader("Cache-Control", "public, max-age=300, s-maxage=300, stale-while-revalidate=600"); // s-maxage: la CDN de Vercel lo sirve sin ejecutar la función
   res.setHeader("Access-Control-Allow-Origin", "*");
 
   let merchantId = String(req.query.merchant || "");
@@ -204,17 +204,17 @@ export default async function handler(req, res) {
   if (sellBlocked) {
     if (String(req.query.view || "") === "bundle") {
       res.setHeader("Content-Type", "application/json; charset=utf-8");
-      res.setHeader("Cache-Control", "public, max-age=60");
+      res.setHeader("Cache-Control", "public, max-age=60, s-maxage=60, stale-while-revalidate=120");
       return res.json({ bundle: null, blocked: true });
     }
     // Cache corta: al activar el plan el widget tiene que volver enseguida.
-    res.setHeader("Cache-Control", "public, max-age=60");
+    res.setHeader("Cache-Control", "public, max-age=60, s-maxage=60, stale-while-revalidate=120");
     return res.send(`console.warn("[Recurrentes] Suscripciones en pausa: activá tu plan en https://www.recurrentesapp.com para volver a recibir suscripciones.");`);
   }
 
   if (String(req.query.view || "") === "bundle") {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    res.setHeader("Cache-Control", "public, max-age=60");
+    res.setHeader("Cache-Control", "public, max-age=60, s-maxage=60, stale-while-revalidate=120");
     const planId = String(req.query.plan || "").trim().slice(0, 80);
     if (!planId || !/^[A-Za-z0-9_-]+$/.test(planId)) return res.status(400).json({ error: "Falta plan" });
     try {
@@ -236,7 +236,7 @@ export default async function handler(req, res) {
   if (String(req.query.view || "") === "checkout") {
     // Cache corta para el checkout: así un deploy nuevo (ej. cambios de captura de
     // carrito) se propaga en ≤60s a la storefront, en vez de quedar 5 min viejo.
-    res.setHeader("Cache-Control", "public, max-age=60");
+    res.setHeader("Cache-Control", "public, max-age=60, s-maxage=60, stale-while-revalidate=120");
     // Un solo checkout (16-sept): la página on-store ya no muestra el formulario;
     // manda al checkout de Recurrentes con los mismos parámetros (merchant, product,
     // variant, qty, freq_days, base, sub_off, code…). Cubre a Lumina (su tema arma la

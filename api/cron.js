@@ -110,16 +110,11 @@ export default async function handler(req, res) {
   let merchantsProcessed = 0, subsProcessed = 0, activated = 0, errors = 0;
   let tokensRefreshed = 0, plansCancelled = 0, resumed = 0, tokensReconnect = 0;
   let partial = false;
+  let mode = "per-merchant", merchantsTotal = 0;
   const outOfTime = () => (Date.now() - start) > BUDGET_MS;
 
   try {
-    merchantsSnap = await db().collection("merchants").where("mp_access_token", "!=", "").get();
     const now = Date.now();
-
-    // Rotar merchants por corrida para que ninguno quede siempre último.
-    const all = merchantsSnap.docs;
-    const offset = all.length ? minute % all.length : 0;
-    const merchants = [...all.slice(offset), ...all.slice(0, offset)];
 
     // sync con contabilidad común
     const runSync = async (mid, sid, label, countActivatedBy = "status") => {
@@ -135,6 +130,124 @@ export default async function handler(req, res) {
         return null;
       }
     };
+
+    // ── MODO GLOBAL (ver collectDueGlobal) ──────────────────────────────────
+    const runGlobal = async (due) => {
+      const byMid = new Map();
+      for (const [bucket, docs] of Object.entries(due)) {
+        for (const doc of docs) {
+          const mid = doc.ref.parent.parent.id;
+          if (!byMid.has(mid)) byMid.set(mid, { vencidas: [], recientes: [], failed: [], pendings: [], resumes: [], cancelled: [], orphans: [], sinFecha: [] });
+          byMid.get(mid)[bucket].push(doc);
+        }
+      }
+      // 0) Tokens OAuth de MP por vencer (7 días): solo las tiendas que lo necesitan.
+      try {
+        const exp = await db().collection("merchants").where("mp_token_expires_at", "<=", new Date(now + 8 * D).toISOString()).limit(200).get();
+        for (const m of exp.docs) {
+          if (outOfTime()) break;
+          const md = m.data();
+          if (md.archived_at || !md.mp_refresh_token) continue;
+          const rf = await refreshMpTokenIfNeeded(m.ref, md, now).catch(e => ({ status: "error", error: e.message }));
+          if (rf.status === "refreshed") { tokensRefreshed += 1; console.log(`[cron] token MP refrescado para ${m.id}`); }
+          else if (rf.status === "reconnect") { tokensReconnect += 1; console.warn(`[cron] token MP de ${m.id}: MP rechazó el refresh (${rf.error}) → reconectar`); }
+          else if (rf.status === "error") console.error(`[cron] refresh token MP ${m.id} falló: ${rf.error}`);
+        }
+      } catch (e) { console.warn("[cron] refresh de tokens (global):", e.message); }
+      const mids = [...byMid.keys()];
+      merchantsTotal = mids.length;
+      if (!mids.length) return;
+      const snaps = await db().getAll(...mids.map(id => db().collection("merchants").doc(id)));
+      for (const m of snaps) {
+        if (outOfTime()) { partial = true; break; }
+        const md = m.exists ? m.data() : null;
+        const b = byMid.get(m.id);
+        if (!md || md.archived_at || !md.mp_access_token) continue;
+        merchantsProcessed += 1;
+        try {
+          // 1) + 2) activas: mismos filtros que el recorrido por tienda.
+          const vencidas = [], sinOrden = [], vistos = new Set();
+          for (const subDoc of [...b.vencidas, ...b.recientes, ...b.sinFecha]) {
+            if (vistos.has(subDoc.id)) continue; vistos.add(subDoc.id);
+            const d = subDoc.data();
+            const created = ms(d.checkout_started_at || d.created_at);
+            if (created && now - created < 60 * 1000) continue;
+            const nextChargeMs = ms(d.next_charge_at);
+            if (nextChargeMs && nextChargeMs <= now - 5 * 60 * 1000) { vencidas.push(subDoc); continue; }
+            if (!nextChargeMs && (d.mp_preapproval_plan_id || d.mp_preapproval_id) && (!d.last_sync_at || now - ms(d.last_sync_at) > 24 * H)) {
+              if (vencidas.filter(x => !ms(x.data().next_charge_at)).length < 10) { vencidas.push(subDoc); continue; }
+            }
+            if ((d.shopify_orders || []).length === 0 && created && now - created < 72 * H) sinOrden.push(subDoc);
+          }
+          for (const subDoc of b.failed) { const d = subDoc.data(); if (!d.last_sync_at || now - ms(d.last_sync_at) > 6 * H) vencidas.push(subDoc); }
+          for (const subDoc of vencidas) { if (outOfTime()) { partial = true; break; } await runSync(m.id, subDoc.id, "active-vencida", "charges"); }
+          for (const subDoc of sinOrden) { if (outOfTime()) { partial = true; break; } await runSync(m.id, subDoc.id, "active-sin-orden", "charges"); }
+          if (partial) break;
+          // 3) pendings del flujo de plan (< 72 h, sin leads), máx 40 por tienda.
+          const pendCandidates = b.pendings.filter(subDoc => {
+            const d = subDoc.data();
+            if (d.capture === true || !d.mp_preapproval_plan_id) return false;
+            const created = ms(d.checkout_started_at || d.created_at);
+            if (!created || now - created < 60 * 1000) return false;
+            return now - created < 72 * H;
+          }).sort((x, y) => { const dx = x.data(), dy = y.data(); return String(dx.last_sync_at || dx.updated_at || "").localeCompare(String(dy.last_sync_at || dy.updated_at || "")); }).slice(0, MAX_PENDINGS_PER_MERCHANT);
+          for (const subDoc of pendCandidates) { if (outOfTime()) { partial = true; break; } await runSync(m.id, subDoc.id, "pending", "status"); }
+          if (partial) break;
+          // 4) canceladas recientes (self-heal), cada 30 min.
+          let nc = 0;
+          for (const subDoc of b.cancelled) {
+            if (outOfTime()) { partial = true; break; }
+            if (nc >= MAX_CANCELLED_PER_MERCHANT) break;
+            const d = subDoc.data(); const created = ms(d.created_at);
+            if (!created || now - created > 90 * D || now - created < 60 * 1000) continue;
+            nc += 1; await runSync(m.id, subDoc.id, "cancelled", "status");
+          }
+          if (partial) break;
+          // 5) planes MP huérfanos (> 14 días), una vez por hora.
+          let no = 0;
+          for (const subDoc of b.orphans) {
+            if (outOfTime()) { partial = true; break; }
+            if (no >= MAX_ORPHAN_PLANS_PER_MERCHANT) break;
+            const d = subDoc.data();
+            if (!d.mp_preapproval_plan_id || d.mp_preapproval_id || d.last_charge_at || d.mp_plan_cancelled_at) continue;
+            if ((d.shopify_orders || []).length > 0) continue;
+            if ((d.mp_plan_cancel_attempts || 0) >= 3) continue;
+            no += 1;
+            const r = await cancelOrphanPlan(m.id, md, subDoc);
+            if (r.cancelled) plansCancelled += 1;
+            if (r.authError) break;
+          }
+          if (partial) break;
+          // 7) pausas por retención vencidas.
+          for (const subDoc of b.resumes.slice(0, MAX_RESUMES_PER_MERCHANT)) {
+            if (outOfTime()) { partial = true; break; }
+            const r = await resumeFromRetention(m.id, md, subDoc);
+            if (r.resumed) resumed += 1;
+            if (r.authError) break;
+          }
+          if (partial) break;
+        } catch (e) {
+          errors += 1;
+          console.error(`[cron] merchant ${m.id} fallo (global):`, e.message);
+        }
+      }
+    };
+
+    let merchants = [];
+    if (process.env.CRON_GLOBAL !== "0") {
+      let due = null;
+      try { due = await collectDueGlobal(now, minute); }
+      catch (e) { console.warn("[cron] modo global no disponible (¿faltan índices COLLECTION_GROUP?), recorrido por tienda:", String(e.message || e).slice(0, 220)); }
+      if (due) { mode = "global"; await runGlobal(due); }
+    }
+    if (mode !== "global") {
+      merchantsSnap = await db().collection("merchants").where("mp_access_token", "!=", "").get();
+      merchantsTotal = merchantsSnap.size;
+      // Rotar merchants por corrida para que ninguno quede siempre último.
+      const all = merchantsSnap.docs;
+      const offset = all.length ? minute % all.length : 0;
+      merchants = [...all.slice(offset), ...all.slice(0, offset)];
+    }
 
     for (const m of merchants) {
       if (outOfTime()) { partial = true; break; }
@@ -255,18 +368,9 @@ export default async function handler(req, res) {
             const created = ms(d.created_at);
             if (!created || now - created < 14 * D) continue;
             n += 1;
-            try {
-              await mpCancelPreapprovalPlan(md.mp_access_token, d.mp_preapproval_plan_id);
-              await subDoc.ref.update({ mp_plan_cancelled_at: nowIso() });
-              plansCancelled += 1;
-            } catch (e) {
-              console.warn(`[cron] cancelar plan huérfano ${d.mp_preapproval_plan_id} (${m.id}/${subDoc.id}):`, e.message);
-              await subDoc.ref.update({
-                mp_plan_cancel_error: String(e.message || e).slice(0, 300),
-                mp_plan_cancel_attempts: (d.mp_plan_cancel_attempts || 0) + 1,
-              }).catch(() => {});
-              if (isMpAuthError(e)) break; // token roto: no insistir con el resto
-            }
+            const r = await cancelOrphanPlan(m.id, md, subDoc);
+            if (r.cancelled) plansCancelled += 1;
+            if (r.authError) break; // token roto: no insistir con el resto
           }
           if (partial) break;
         }
@@ -280,51 +384,9 @@ export default async function handler(req, res) {
             const due = await merchantSubs.where("resume_at", "<=", nowIso()).limit(MAX_RESUMES_PER_MERCHANT).get();
             for (const subDoc of due.docs) {
               if (outOfTime()) { partial = true; break; }
-              const d = subDoc.data();
-              // Ya no está pausada (la reactivó/canceló alguien a mano): limpiar y seguir.
-              if (d.status !== "paused" || !d.mp_preapproval_id) {
-                await subDoc.ref.update({ resume_at: FieldValue.delete() }).catch(() => {});
-                continue;
-              }
-              try {
-                try {
-                  await mpUpdatePreapproval(md.mp_access_token, d.mp_preapproval_id, { status: "authorized" });
-                } catch (e) {
-                  if (isMpAuthError(e)) throw e;
-                  if (!/already|authorized preapproval|same status/i.test(String(e.message || ""))) throw e;
-                }
-                let pre = null;
-                try { pre = await mpGetPreapproval(md.mp_access_token, d.mp_preapproval_id); } catch (_) {}
-                if (pre && pre.status && pre.status !== "authorized") {
-                  // MP no la dejó activa (ej. cancelada por el cliente en MP): no forzamos.
-                  await subDoc.ref.update({ resume_at: FieldValue.delete(), resume_error: `mp_status=${pre.status}`, resume_error_at: nowIso(), mp_preapproval_status: pre.status }).catch(() => {});
-                  continue;
-                }
-                await subDoc.ref.update({
-                  status: "active",
-                  mp_preapproval_status: "authorized",
-                  next_charge_at: pre?.next_payment_date || d.next_charge_at || null,
-                  resume_at: FieldValue.delete(),
-                  resumed_at: nowIso(),
-                  resumed_by: "cron_retention",
-                  resume_error: FieldValue.delete(),
-                  resume_attempts: FieldValue.delete(),
-                  updated_at: nowIso(),
-                });
-                resumed += 1;
-                console.log(`[cron] sub ${m.id}/${subDoc.id} reactivada tras pausa por retención`);
-              } catch (e) {
-                const attempts = (d.resume_attempts || 0) + 1;
-                console.warn(`[cron] reactivar ${m.id}/${subDoc.id} falló (intento ${attempts}):`, e.message);
-                await subDoc.ref.update({
-                  resume_attempts: attempts,
-                  resume_error: String(e.message || e).slice(0, 300),
-                  resume_error_at: nowIso(),
-                  // Tras 3 intentos dejamos de insistir: queda pausada y visible en el panel.
-                  ...(attempts >= MAX_RESUME_ATTEMPTS ? { resume_at: FieldValue.delete(), resume_gave_up_at: nowIso() } : {}),
-                }).catch(() => {});
-                if (isMpAuthError(e)) break; // token roto: no insistir con el resto
-              }
+              const r = await resumeFromRetention(m.id, md, subDoc);
+              if (r.resumed) resumed += 1;
+              if (r.authError) break; // token roto: no insistir con el resto
             }
           } catch (e) {
             console.warn(`[cron] query resume_at ${m.id}:`, e.message);
@@ -344,9 +406,10 @@ export default async function handler(req, res) {
     const elapsed = Date.now() - start;
     const summary = {
       ok: true,
+      mode,
       partial,
       merchants_processed: merchantsProcessed,
-      merchants_total: merchantsSnap.size,
+      merchants_total: merchantsTotal,
       subs_processed: subsProcessed,
       activated,
       errors,
@@ -356,7 +419,7 @@ export default async function handler(req, res) {
       resumed,
       elapsed_ms: elapsed,
     };
-    console.log(`[cron] sync-all-pending: ${merchantsProcessed}/${merchantsSnap.size} merchants, ${subsProcessed} subs, ${activated} activadas, ${errors} errores${partial ? " (PARCIAL: presupuesto agotado)" : ""} (${elapsed}ms)`);
+    console.log(`[cron] sync-all-pending (${mode}): ${merchantsProcessed}/${merchantsTotal} merchants, ${subsProcessed} subs, ${activated} activadas, ${errors} errores${partial ? " (PARCIAL: presupuesto agotado)" : ""} (${elapsed}ms)`);
     await db().collection("system").doc("cron_last").set({ ...summary, at: nowIso() }, { merge: true }).catch(() => {});
     await cronHeartbeat("sync-all-pending", summary);
     return res.json(summary);
@@ -366,8 +429,8 @@ export default async function handler(req, res) {
     // el error adentro para que el cron siga vivo y reintente el próximo tick.
     console.error("[cron] error global:", e.message);
     const out = {
-      ok: false, error: e.message, partial,
-      merchants_processed: merchantsProcessed, merchants_total: merchantsSnap ? merchantsSnap.size : null,
+      ok: false, error: e.message, partial, mode,
+      merchants_processed: merchantsProcessed, merchants_total: merchantsTotal || null,
       subs_processed: subsProcessed, activated, errors: errors + 1, elapsed_ms: Date.now() - start,
     };
     await db().collection("system").doc("cron_last").set({ ...out, at: nowIso() }, { merge: true }).catch(() => {});
@@ -424,6 +487,100 @@ async function reconcileCron(res) {
     const out = { ok: false, error: e.message, elapsed_ms: Date.now() - start };
     await cronHeartbeat("reconcile-mp", out);
     return res.status(200).json(out);
+  }
+}
+
+// ─── Modo global del cron (escala) ───────────────────────────────────
+// En vez de recorrer tienda por tienda (≈5 consultas por tienda cada 2 min, y con 1000
+// tiendas ya no entra en los 4 min de presupuesto), una tanda de consultas
+// collectionGroup trae SOLO las suscripciones que tienen algo que hacer ahora, en todas
+// las tiendas a la vez. Mismos filtros que el recorrido por tienda; cambia el costo:
+// ~6 consultas por corrida en total. Requiere los índices COLLECTION_GROUP de
+// firestore.indexes.json (status+next_charge_at, status+created_at, status+updated_at,
+// status+resume_at). Si falta alguno, Firestore tira FAILED_PRECONDITION y el handler
+// cae al recorrido por tienda de siempre. CRON_GLOBAL=0 lo apaga.
+const GLOBAL_LIMIT = 400;
+export async function collectDueGlobal(now = Date.now(), minute = new Date(now).getMinutes()) {
+  const cg = () => db().collectionGroup("subscribers");
+  const iso = (t) => new Date(t).toISOString();
+  const none = Promise.resolve({ docs: [] });
+  const [vencidas, recientes, failed, pendings, resumes, cancelled, orphans, sinFecha] = await Promise.all([
+    cg().where("status", "==", "active").where("next_charge_at", "<=", iso(now - 5 * 60 * 1000)).orderBy("next_charge_at").limit(GLOBAL_LIMIT).get(),
+    cg().where("status", "==", "active").where("created_at", ">=", iso(now - 72 * H)).limit(GLOBAL_LIMIT).get(),
+    cg().where("status", "==", "payment_failed").orderBy("updated_at").limit(GLOBAL_LIMIT).get(),
+    cg().where("status", "==", "pending").where("updated_at", ">=", iso(now - 72 * H)).limit(GLOBAL_LIMIT).get(),
+    cg().where("status", "==", "paused").where("resume_at", "<=", iso(now)).limit(GLOBAL_LIMIT).get(),
+    minute % 30 === 0 ? cg().where("status", "==", "cancelled").where("created_at", ">=", iso(now - 90 * D)).limit(300).get() : none,
+    minute < 2 ? cg().where("status", "==", "pending").where("created_at", "<=", iso(now - 14 * D)).limit(200).get() : none,
+    minute < 2 ? cg().where("status", "==", "active").where("next_charge_at", "==", null).limit(50).get() : none,
+  ]);
+  return { vencidas: vencidas.docs, recientes: recientes.docs, failed: failed.docs, pendings: pendings.docs, resumes: resumes.docs, cancelled: cancelled.docs, orphans: orphans.docs, sinFecha: sinFecha.docs };
+}
+
+// Paso 5: plan ad-hoc de MP de un lead que nunca autorizó → cancelarlo. Lo usan los dos modos.
+async function cancelOrphanPlan(mid, md, subDoc) {
+  const d = subDoc.data();
+  try {
+    await mpCancelPreapprovalPlan(md.mp_access_token, d.mp_preapproval_plan_id);
+    await subDoc.ref.update({ mp_plan_cancelled_at: nowIso() });
+    return { cancelled: true, authError: false };
+  } catch (e) {
+    console.warn(`[cron] cancelar plan huérfano ${d.mp_preapproval_plan_id} (${mid}/${subDoc.id}):`, e.message);
+    await subDoc.ref.update({
+      mp_plan_cancel_error: String(e.message || e).slice(0, 300),
+      mp_plan_cancel_attempts: (d.mp_plan_cancel_attempts || 0) + 1,
+    }).catch(() => {});
+    return { cancelled: false, authError: isMpAuthError(e) };
+  }
+}
+
+// Paso 7: reactivar una sub pausada desde el portal cuyo `resume_at` venció. Lo usan los
+// dos modos. → { resumed, authError }. Nunca lanza.
+async function resumeFromRetention(mid, md, subDoc) {
+  const d = subDoc.data();
+  // Ya no está pausada (la reactivó/canceló alguien a mano): limpiar y seguir.
+  if (d.status !== "paused" || !d.mp_preapproval_id) {
+    await subDoc.ref.update({ resume_at: FieldValue.delete() }).catch(() => {});
+    return { resumed: false, authError: false };
+  }
+  try {
+    try {
+      await mpUpdatePreapproval(md.mp_access_token, d.mp_preapproval_id, { status: "authorized" });
+    } catch (e) {
+      if (isMpAuthError(e)) throw e;
+      if (!/already|authorized preapproval|same status/i.test(String(e.message || ""))) throw e;
+    }
+    let pre = null;
+    try { pre = await mpGetPreapproval(md.mp_access_token, d.mp_preapproval_id); } catch (_) {}
+    if (pre && pre.status && pre.status !== "authorized") {
+      // MP no la dejó activa (ej. cancelada por el cliente en MP): no forzamos.
+      await subDoc.ref.update({ resume_at: FieldValue.delete(), resume_error: `mp_status=${pre.status}`, resume_error_at: nowIso(), mp_preapproval_status: pre.status }).catch(() => {});
+      return { resumed: false, authError: false };
+    }
+    await subDoc.ref.update({
+      status: "active",
+      mp_preapproval_status: "authorized",
+      next_charge_at: pre?.next_payment_date || d.next_charge_at || null,
+      resume_at: FieldValue.delete(),
+      resumed_at: nowIso(),
+      resumed_by: "cron_retention",
+      resume_error: FieldValue.delete(),
+      resume_attempts: FieldValue.delete(),
+      updated_at: nowIso(),
+    });
+    console.log(`[cron] sub ${mid}/${subDoc.id} reactivada tras pausa por retención`);
+    return { resumed: true, authError: false };
+  } catch (e) {
+    const attempts = (d.resume_attempts || 0) + 1;
+    console.warn(`[cron] reactivar ${mid}/${subDoc.id} falló (intento ${attempts}):`, e.message);
+    await subDoc.ref.update({
+      resume_attempts: attempts,
+      resume_error: String(e.message || e).slice(0, 300),
+      resume_error_at: nowIso(),
+      // Tras 3 intentos dejamos de insistir: queda pausada y visible en el panel.
+      ...(attempts >= MAX_RESUME_ATTEMPTS ? { resume_at: FieldValue.delete(), resume_gave_up_at: nowIso() } : {}),
+    }).catch(() => {});
+    return { resumed: false, authError: isMpAuthError(e) };
   }
 }
 
