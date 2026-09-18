@@ -62,7 +62,7 @@ export default function WhatsAppFlowsPage({ merchant, goConfig }) {
           {data.available ? (
             <>
               Se prende con un interruptor en <strong style={{ color: T.text }}>Integraciones → WhatsApp</strong>, sin configurar nada. Después volvés acá y elegís qué avisos mandar.<br/>
-              <strong style={{ color: T.text }}>Costo:</strong> cada mensaje cuesta <strong style={{ color: T.text }}>{fmtUsd(charge)}</strong> y se suma a tu plan a fin de mes. Solo pagás los que salen: si no tenés cobros, no gastás nada.
+              <strong style={{ color: T.text }}>Costo:</strong> cada mensaje cuesta <strong style={{ color: T.text }}>{fmtUsd(charge)}</strong> y se suma a tu plan a fin de mes. Pagás solo los mensajes que se mandan: si no sale ninguno, no pagás nada.
             </>
           ) : "Estamos terminando de habilitar el número de Recurrentes con Meta. Mientras tanto podés conectar tu propio número desde Integraciones → WhatsApp."}
         </Callout>
