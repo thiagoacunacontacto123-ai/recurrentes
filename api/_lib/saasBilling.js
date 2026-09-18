@@ -21,6 +21,7 @@ import { PRICING_TIERS, TIER_BY_ID, tierFor } from "../../shared/platform/pricin
 import { formEncode, verifyStripeSignature } from "./providers/stripe.js";
 import { readRawBody } from "./providers/rawBody.js";
 import { notifyAdmin } from "./adminAlerts.js";
+import { creditCommission, pushPendingCredit, ownerUidOf } from "./referrals.js";
 
 const storeLabel = (m, mid) => m?.store_name || m?.shopify_shop || m?.email || mid;
 
@@ -132,6 +133,12 @@ export async function handleSaasWebhook(req, res) {
         }, { merge: true });
         // Ramal admin: alguien pagó el plan por primera vez.
         await notifyAdmin("plan_paid", { merchantId: String(mid), store: storeLabel(cur, mid), detail: `${TIER_BY_ID[tier]?.label || tier || "plan"} · USD ${TIER_BY_ID[tier]?.usd ?? "?"} · primer pago`, key: `cs_${obj.id || event.id}` });
+        // Afiliados: comisión al referente del dueño, y si el que paga tenía crédito
+        // pendiente propio, ya tiene customer en Stripe → se empuja como saldo.
+        await creditCommission({ mid: String(mid), merchant: cur, tierId: tier, key: `cs_${obj.id || event.id}`, kind: "primer_pago", stripeCall: stripe });
+        const payerUid = ownerUidOf(String(mid), cur);
+        if (payerUid !== String(mid)) await db().collection("merchants").doc(payerUid).set({ saas_stripe_customer_id: idOf(obj.customer) }, { merge: true }).catch(() => {});
+        await pushPendingCredit(payerUid, stripe);
       }
     } else if (event.type === "invoice.paid" || event.type === "invoice.payment_succeeded") {
       const subId = idOf(obj.subscription) || idOf(obj.parent?.subscription_details?.subscription);
@@ -143,6 +150,8 @@ export async function handleSaasWebhook(req, res) {
         // Ramal admin: cobro del plan (primer pago o renovación). Dedup por factura.
         if (obj.billing_reason !== "subscription_create") {
           await notifyAdmin("plan_paid", { merchantId: doc.id, store: storeLabel(doc.data(), doc.id), detail: `Renovación ${TIER_BY_ID[tier]?.label || tier || ""} · USD ${Math.round((Number(obj.amount_paid) || 0) / 100)}`, key: `in_${obj.id || event.id}` });
+          // Afiliados: cada renovación también comisiona (15% del precio de lista, para siempre).
+          await creditCommission({ mid: doc.id, merchant: doc.data(), tierId: tier, key: `in_${obj.id || event.id}`, kind: "renovacion", stripeCall: stripe });
         }
       }
     } else if (event.type === "invoice.payment_failed") {
@@ -201,3 +210,5 @@ export async function syncSaasTiers({ countActive }) {
   }
   return out;
 }
+// Para módulos que necesitan hablar con Stripe sin importar todo esto (referrals.js recibe esta función).
+export const stripeRequest = stripe;

@@ -19,6 +19,7 @@ const ICON = {
   analiticas:    "M18 20V10M12 20V4M6 20v-6M2 20h20",
   flujos:        "M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zM22 6l-10 7L2 6",
   admin:         "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
+  afiliados:     "M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z",
   whatsapp:      "M21 11.5a8.4 8.4 0 01-8.5 8.4 8.4 8.4 0 01-4-1L3 21l2.1-5.4A8.4 8.4 0 1121 11.5zM8.5 10h.01M12 10h.01M15.5 10h.01",
 };
 // `section` agrupa el menú como Growith (el Sidebar pinta el título cuando
@@ -35,6 +36,7 @@ export const NAV = [
   { id:"flujos",        label:"Flujos de email",    short:"Flujos",   icon:ICON.flujos, section:"Clientes" },
   { id:"whatsapp",      label:"Flujos de WhatsApp", short:"WhatsApp", icon:ICON.whatsapp, section:"Clientes" },
   { id:"portal",        label:"Portal del cliente", short:"Portal",   icon:ICON.portal, section:"Clientes" },
+  { id:"afiliados",     label:"Afiliados",          short:"Afiliados", icon:ICON.afiliados, section:"Recurrentes" }, // solo dueños (Dashboard lo filtra para miembros)
   { id:"admin",         label:"Admin",              short:"Admin",    icon:ICON.admin, section:"Recurrentes", adminOnly:true }, // solo super-admins (merchant.is_admin)
   { id:"configuracion", label:"Configuración",      short:"Config",   icon:SECTION_ICONS.configuracion, footer:true },
 ];

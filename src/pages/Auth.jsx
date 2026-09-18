@@ -30,6 +30,13 @@ function authViewFromHash() {
   return "landing";
 }
 
+// Afiliados: el código del link (recurrentesapp.com/?ref=CODIGO) se guarda ANTES del
+// registro y se reclama con la primera sesión (Dashboard → ref-claim).
+try {
+  const _ref = new URLSearchParams(window.location.search).get("ref");
+  if (_ref && /^[A-Za-z0-9]{6,12}$/.test(_ref)) localStorage.setItem("rec_ref", _ref.toUpperCase());
+} catch (_) {}
+
 // Rutea #/login · #/registro · #/recuperar; por defecto la Landing.
 export function PublicSite() {
   const { T, darkMode, toggleDark } = useTheme();

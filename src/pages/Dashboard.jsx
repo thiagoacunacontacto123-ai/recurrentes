@@ -13,6 +13,7 @@ import { useOnboarding, OnboardingContext } from "../lib/onboarding.js";
 import { merchantProfile } from "../../shared/platform/profile.js";
 import { BillingBanner } from "./Billing.jsx";
 import WhatsAppFlowsPage from "./WhatsAppFlows.jsx";
+import ReferralsPage from "./Referrals.jsx";
 import { PlanLimitBar, PlanLimitModal, PlanBlockedView, isBlocked, showsPlanLimit } from "./PlanLimit.jsx";
 import { HomeTab } from "./Home.jsx";
 import { PlansTab, WidgetTab } from "./Plans.jsx";
@@ -153,6 +154,15 @@ export default function Dashboard({ user, onLogout }) {
   }
 
   useEffect(() => { reloadMerchant(); }, []);
+  // Afiliados: si llegó desde recurrentesapp.com/?ref=CODIGO, la landing lo guardó;
+  // con sesión se reclama una vez (el backend valida: cuenta nueva, no el propio código).
+  useEffect(() => {
+    if (!merchant?.id) return;
+    let code = null; try { code = localStorage.getItem("rec_ref"); } catch (_) {}
+    if (!code) return;
+    apiPost("merchant", { code }, { action: "ref-claim" }).catch(() => null).finally(() => { try { localStorage.removeItem("rec_ref"); } catch (_) {} });
+    // eslint-disable-next-line
+  }, [merchant?.id]);
 
   // Datos del paso 1 del registro (nombre, WhatsApp, email de contacto): se mandan una vez
   // que hay sesión. Si faltan y no hay nada pendiente, se piden con OwnerInfoModal.
@@ -289,7 +299,8 @@ export default function Dashboard({ user, onLogout }) {
     // Widget acompaña al permiso de Planes (los permisos guardados antes no lo conocen).
     // Flujos de WhatsApp acompaña al permiso de Flujos (los permisos guardados antes no lo conocen).
     const base = secs ? NAV.filter(n => n.id === "analiticas" || secs[n.id] === true || (n.id === "widget" && secs.planes === true) || (n.id === "whatsapp" && secs.flujos === true) || n.adminOnly) : NAV;
-    return base.filter(n => !n.adminOnly || isAdmin);
+    // Afiliados es de la CUENTA: solo el dueño del login.
+    return base.filter(n => (!n.adminOnly || isAdmin) && (n.id !== "afiliados" || merchant?.role !== "member"));
   }, [merchant?.role, merchant?.member_secciones, isAdmin]);
   useEffect(() => { if (loading) return; if (!navList.some(n => n.id === tab)) goTab("analiticas"); }, [navList, tab, goTab, loading]);
 
@@ -352,6 +363,8 @@ export default function Dashboard({ user, onLogout }) {
                 <FlowsPage merchant={merchant}/>
               ) : tab === "whatsapp" ? (
                 <WhatsAppFlowsPage merchant={merchant} goConfig={goConfig}/>
+              ) : tab === "afiliados" ? (
+                <ReferralsPage merchant={merchant}/>
               ) : tab === "portal" ? (
                 <CustomerPortalPage merchant={merchant} reloadMerchant={reloadMerchant} goTab={goTab}/>
               ) : tab === "analiticas" ? (

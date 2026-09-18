@@ -94,6 +94,12 @@ export default async function handler(req, res) {
     if (gAction === "refresh-shop") return refreshShop(ctx, res);
     if (gAction === "flows") return flowsApi(ctx, "flows", req, res);
     if (gAction === "whatsapp-templates" || gAction === "whatsapp-usage" || gAction === "whatsapp-flows") return whatsappApi(ctx, gAction, req, res);
+    // Afiliados: del LOGIN (no de la tienda activa). Solo el dueño.
+    if (gAction === "ref-me") {
+      if (ctx.role && ctx.role !== "owner") return res.status(403).json({ error: "Solo el dueño de la cuenta maneja sus afiliados." });
+      try { const { referralsOverview } = await import("./_lib/referrals.js"); return res.json(await referralsOverview(uid, { baseUrl: appBaseUrl() })); }
+      catch (e) { return res.status(500).json({ error: e.message }); }
+    }
     if (gAction && gAction !== "me") return res.status(400).json({ error: "action no reconocida" });
     try {
       // El doc del perfil se crea acá (primer login). Tiendas ajenas/extra ya existen
@@ -281,6 +287,11 @@ export default async function handler(req, res) {
     if (action === "saas-checkout")        return saasCheckout(ctx, merchantId, req, res);
     if (action === "saas-portal")          return saasPortal(ctx, merchantId, req, res);
     if (action === "save-owner")           return saveOwner(ctx, req, res);
+    if (action === "ref-claim") {
+      if (ctx.role && ctx.role !== "owner") return res.status(403).json({ error: "Solo el dueño de la cuenta." });
+      try { const { claimReferral } = await import("./_lib/referrals.js"); const r = await claimReferral(uid, req.body?.code); return res.status(r.ok ? 200 : 400).json(r); }
+      catch (e) { return res.status(500).json({ error: e.message }); }
+    }
     if (action.startsWith("flow-"))        return flowsApi(ctx, action, req, res);
     if (action.startsWith("whatsapp-"))    return whatsappApi(ctx, action, req, res);
     if (action.startsWith("alerts-"))      return merchantAlertsApi(ctx, action, req, res); // avisos para el dueño (solo dueño)
@@ -1668,6 +1679,8 @@ async function saveOwner(ctx, req, res) {
   await getOrCreateMerchant(ctx.uid, ctx.email || null);
   const prev = (await db().collection("merchants").doc(ctx.uid).get()).data() || {};
   await db().collection("merchants").doc(ctx.uid).set({ owner_name: name, owner_whatsapp: wa, contact_email: email, owner_info_at: new Date().toISOString() }, { merge: true });
+  // Afiliados: el código del ?ref= con el que llegó (lo guarda la landing) se reclama acá.
+  if (b.ref_code) { try { const { claimReferral } = await import("./_lib/referrals.js"); await claimReferral(ctx.uid, b.ref_code); } catch (e) { console.warn("[save-owner] ref:", e.message); } }
   // Ramal admin: alguien dejó su número por primera vez → aviso a Thiago para ir
   // a hablarle. Solo la primera vez (dedup "first") y nunca por el propio admin.
   if (!prev.owner_whatsapp) {
