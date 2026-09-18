@@ -321,3 +321,9 @@ Lo único que te queda:
 
 ## Afiliados — HECHO el 2026-09-18
 Menú → **Afiliados** (solo dueños): tu link `recurrentesapp.com/?ref=CODIGO`, copiar y compartir por WhatsApp. 15% de cada pago del plan de tus referidos (primer pago y renovaciones), para siempre, como saldo en Stripe que descuenta tus propias facturas. Nada que configurar. Para probarlo: abrí tu link en una ventana de incógnito, registrá una cuenta nueva y fijate que aparezca en "Tus referidos".
+
+## Dos índices de Firestore (2 clics) — 2026-09-18
+El cron lee TODOS los suscriptores en cada corrida porque le faltan dos índices de grupo (lo dice el log: FAILED_PRECONDITION). La cuenta de servicio no tiene permiso para crearlos; vos sí, con tu Google. Entrá a cada link y tocá **Crear índice** (tarda unos minutos en construirse):
+1. status + updated_at: https://console.firebase.google.com/v1/r/project/recurrentes-16fbd/firestore/indexes?create_composite=ClVwcm9qZWN0cy9yZWN1cnJlbnRlcy0xNmZiZC9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvc3Vic2NyaWJlcnMvaW5kZXhlcy9fEAEaCgoGc3RhdHVzEAEaDgoKdXBkYXRlZF9hdBABGgwKCF9fbmFtZV9fEAE
+2. status + next_charge_at: https://console.firebase.google.com/v1/r/project/recurrentes-16fbd/firestore/indexes?create_composite=ClVwcm9qZWN0cy9yZWN1cnJlbnRlcy0xNmZiZC9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvc3Vic2NyaWJlcnMvaW5kZXhlcy9fEAEaCgoGc3RhdHVzEAEaEgoObmV4dF9jaGFyZ2VfYXQQARoMCghfX25hbWVfXxAB
+(Ya quedaron declarados en `firestore.indexes.json` para el futuro.)
