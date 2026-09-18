@@ -69,8 +69,10 @@ export function HomeTab({ merchant, onGo, onGoConfig, onOpenGuide }) {
   // Alertas: cosas que requieren acción hoy.
   const profile = merchantProfile(merchant);
   const alerts = [];
-  if (profile.channel === "shopify" && !merchant?.shopify_token) alerts.push({ tone:"warning", title:"Shopify no está conectado", desc:"Sin Shopify no se crean las órdenes de cada cobro.", cta:"Conectar", go: () => onGoConfig?.("integraciones") });
-  if (!merchant?.mp_access_token) alerts.push({ tone:"warning", title:"Mercado Pago no está conectado", desc:"Es la cuenta que cobra las suscripciones.", cta:"Conectar", go: () => onGoConfig?.("integraciones") });
+  // "Tu tienda" / "tu pasarela" (Thiago, 18-sept): vale para Shopify o Tiendanube, la que elija.
+  const storeMissing = (profile.channel === "shopify" || profile.channel === "tiendanube") && !merchant?.shopify_token && !merchant?.tiendanube_token;
+  if (storeMissing) alerts.push({ tone:"warning", title:"Tu tienda no está conectada", desc:"Sin tu tienda online no se crean las órdenes de cada cobro. Conectá Shopify o Tiendanube.", cta:"Conectar", go: () => onGoConfig?.("integraciones") });
+  if (!merchant?.mp_access_token) alerts.push({ tone:"warning", title:"Tu pasarela no está conectada", desc:"Es la cuenta de Mercado Pago que cobra las suscripciones.", cta:"Conectar", go: () => onGoConfig?.("integraciones") });
   if (merchant?.mp_access_token && merchant?.mp_reconnect_required) alerts.push({ tone:"danger", title:"Reconectá Mercado Pago", desc:"Mercado Pago cortó el acceso de Recurrentes a tu cuenta. Sin eso no podemos procesar los cobros.", cta:"Reconectar", go: () => onGoConfig?.("integraciones") });
   if ((totals.payment_failed || 0) > 0) alerts.push({ tone:"danger", title:`${totals.payment_failed} suscripci${totals.payment_failed === 1 ? "ón" : "ones"} con pago fallido`, desc:"MP reintenta solo; podés mandarles el link del portal para actualizar la tarjeta.", cta:"Ver", go: () => onGo?.("suscripciones", "status=payment_failed") });
   if (errorsCount > 0) alerts.push({ tone:"danger",
