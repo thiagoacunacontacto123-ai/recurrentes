@@ -318,3 +318,6 @@ Lo único que te queda:
 1. En WhatsApp Manager → Plantillas, **borrá `aviso_plan_limite` y `aviso_plan_ultimo`** (Meta las reclasificó como Marketing; ya no las usa el código, las reemplazan `aviso_plan_gracia` y `aviso_plan_borde`). Es limpieza, no urge.
 2. Mirar en Admin → "Plantillas de WhatsApp en Meta" que las 6 en revisión pasen a Aprobada (minutos a 24 h). Si alguna queda Rechazada, pasale el motivo a Claude.
 3. Opcional: Zadarma → My profile → Notifications → "Incoming SMS by email", por si Meta vuelve a pedir un código.
+
+## Afiliados — HECHO el 2026-09-18
+Menú → **Afiliados** (solo dueños): tu link `recurrentesapp.com/?ref=CODIGO`, copiar y compartir por WhatsApp. 15% de cada pago del plan de tus referidos (primer pago y renovaciones), para siempre, como saldo en Stripe que descuenta tus propias facturas. Nada que configurar. Para probarlo: abrí tu link en una ventana de incógnito, registrá una cuenta nueva y fijate que aparezca en "Tus referidos".
