@@ -63,7 +63,7 @@ test("(d) happy path: encuentra el preapproval por el plan ad-hoc, crea la orden
   assert.equal(noteMap(o).recurrentes_charge_number, "1");
   assert.equal(W.charge("1310000100").shopify_order_id, W.shopify.orders[0].id);
 
-  assert.equal(W.resend.sent.length, 1);
+  assert.equal(W.resend.toCustomer().length, 1);
   assert.equal(W.resend.sent[0].subject, `¡Suscripción activa — ${PRODUCT_TITLE}!`);
   assert.deepEqual(W.resend.sent[0].to, ["carla@cliente.test"]);
 
@@ -73,7 +73,7 @@ test("(d) happy path: encuentra el preapproval por el plan ad-hoc, crea la orden
   assert.equal(r2.orders_created, 0);
   assert.equal(r2.charges_processed, 0);
   assert.equal(W.shopify.orderPosts.length, 1);
-  assert.equal(W.resend.sent.length, 1);
+  assert.equal(W.resend.toCustomer().length, 1);
   assert.equal(W.sub("sub_carla").shopify_orders.length, 1);
 });
 
@@ -88,7 +88,7 @@ test("(d) webhook con ?mid&sid (notification_url de la sub) → atajo directo a 
   // Reentrega por el mismo camino: nada nuevo.
   await invoke(webhook, mpWebhookReq(1310000101, { query: { mid: MID, sid: "sub_carla" } }));
   assert.equal(W.shopify.orderPosts.length, 1);
-  assert.equal(W.resend.sent.length, 1);
+  assert.equal(W.resend.toCustomer().length, 1);
 });
 
 test("(d) preapproval autorizado sin ningún pago → fuerza el primer cobro UNA sola vez", async () => {
@@ -142,7 +142,7 @@ test("(d) renovación rechazada detectada por sync → payment_failed + un solo 
   assert.equal(s.last_payment_failed_id, "1310000111");
   assert.equal(W.shopify.orderPosts.length, 0);
   assert.equal(W.resend.byType("payment_failed").length, 1);
-  assert.equal(W.resend.sent.length, 1);
+  assert.equal(W.resend.toCustomer().length, 1);
 });
 
 // ── REGRESIÓN: cuenta de MP que NO acepta `preapproval_id` como filtro de pagos ──

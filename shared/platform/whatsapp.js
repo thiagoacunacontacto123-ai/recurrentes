@@ -423,9 +423,12 @@ export const WA_MERCHANT_TEMPLATE_BY_EVENT = Object.fromEntries([...WA_MERCHANT_
 const ALERT_FALLBACK = { marca: "tu tienda", nombre: "un cliente", producto: "tu plan", monto: "el monto del plan", link_panel: ALERTS_PANEL_URL, subs: "varios", free: "10", gracia: "5", evento: "novedad", tienda: "una tienda", detalle: "-", nombre: "hola" };
 
 // Qué eventos avisa la tienda (los que faltan cuentan como prendidos).
+// Por defecto: alta, pausa, baja y rechazo prendidos; "se cobra una renovación" apagado
+// (con 500 suscriptores serían 500 mails al mes: lo prende quien lo quiera).
+export const ALERT_EVENTS_OFF_BY_DEFAULT = ["renewed"];
 export function alertEventsOf(m) {
   const e = m?.alerts_events && typeof m.alerts_events === "object" ? m.alerts_events : {};
-  return Object.fromEntries(ALERT_EVENT_IDS.map(id => [id, e[id] !== false]));
+  return Object.fromEntries(ALERT_EVENT_IDS.map(id => [id, ALERT_EVENTS_OFF_BY_DEFAULT.includes(id) ? e[id] === true : e[id] !== false]));
 }
 // "ana maría pérez" → "Ana". Solo el nombre de pila (privacidad y texto corto).
 export function alertFirstName(full) {

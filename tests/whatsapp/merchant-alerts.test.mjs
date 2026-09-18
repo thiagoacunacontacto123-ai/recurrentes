@@ -52,8 +52,8 @@ const tpl = (name) => wa.filter(c => c.body?.template?.name === name);
 const alertMails = () => W.resend.byType("merchant_alert");
 
 // ── Apagado: cero lecturas ─────────────────────────────────────────
-test("apagado (Lumina sin avisos): los 4 eventos no leen ni escriben nada y no llaman a nadie", async () => {
-  const m = W.merchant();
+test("todo apagado (mail y WhatsApp): los eventos no leen ni escriben nada y no llaman a nadie", async () => {
+  const m = { ...W.merchant(), alerts_email: false };
   resetStats();
   for (const ev of SW.ALERT_EVENT_IDS) await alerts.notifyMerchantWhatsApp(ev, MID, m, "sub_ana", subscriber(), { key: "k" });
   await alerts.notifyMerchantStatusChange(MID, m, "sub_ana", "active", "cancelled", subscriber());
@@ -71,13 +71,26 @@ test("prendido pero sin WhatsApp ni Resend, o con el evento apagado: tampoco lee
   process.env.RESEND_API_KEY = RESEND;
   waEnv(true);
   await alerts.notifyMerchantWhatsApp("paused", MID, withAlerts({ alerts_events: { paused: false } }), "sub_ana", subscriber());
-  await alerts.notifyMerchantWhatsApp("subscribed", MID, withAlerts({ alerts_whatsapp_enabled: "true" }), "sub_ana", subscriber());
+  await alerts.notifyMerchantWhatsApp("subscribed", MID, withAlerts({ alerts_whatsapp_enabled: "true", alerts_email: false }), "sub_ana", subscriber());
   assert.equal(stats.readOps, 0);
   assert.equal(stats.writeOps, 0);
   assert.equal(wa.length, 0);
 });
 
-test("webhook completo de Lumina sin avisos: nunca toca alert_log ni Meta", async () => {
+test("webhook completo de Lumina con los defaults: alta y rechazo avisan al dueño POR MAIL, nunca por Meta", async () => {
+  W.seedSub("sub_bruno", subscriber({ customer_email: "bruno@cliente.test", status: "pending", mp_preapproval_id: "pre_bruno", last_charge_at: null, shopify_orders: [] }));
+  W.mp.addPayment(mpPayment({ id: 1410000200, amount: 12300, preapprovalId: "pre_bruno", dateCreated: "2026-08-15T10:00:00.000-03:00" }), MP_TOKEN);
+  W.mp.addPayment(mpPayment({ id: 1410000201, status: "rejected", amount: 12300, preapprovalId: "pre_bruno", dateCreated: "2026-09-14T10:00:00.000-03:00" }), MP_TOKEN);
+  for (const id of [1410000200, 1410000201]) await invoke(webhook, mpWebhookReq(id));
+  assert.equal(W.shopify.orderPosts.length, 1);
+  assert.equal(W.sub("sub_bruno").status, "payment_failed");
+  assert.equal(wa.length, 0, "WhatsApp apagado por defecto");
+  assert.equal(alertMails().length, 2, "alta + rechazo → 2 mails al dueño");
+  assert.equal(rawList(`merchants/${MID}/alert_log`).length, 2);
+});
+
+test("webhook completo de Lumina con el mail apagado: nunca toca alert_log ni Meta", async () => {
+  seedDoc(`merchants/${MID}`, luminaMerchant({ alerts_email: false }));
   W.seedSub("sub_bruno", subscriber({ customer_email: "bruno@cliente.test", status: "pending", mp_preapproval_id: "pre_bruno", last_charge_at: null, shopify_orders: [] }));
   W.mp.addPayment(mpPayment({ id: 1410000200, amount: 12300, preapprovalId: "pre_bruno", dateCreated: "2026-08-15T10:00:00.000-03:00" }), MP_TOKEN);
   W.mp.addPayment(mpPayment({ id: 1410000201, status: "rejected", amount: 12300, preapprovalId: "pre_bruno", dateCreated: "2026-09-14T10:00:00.000-03:00" }), MP_TOKEN);

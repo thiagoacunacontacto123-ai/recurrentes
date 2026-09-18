@@ -6,9 +6,7 @@ import { NewStoreModal, ManageStoreModal, StoreAvatar } from "../ui/Shell.jsx";
 import { IntegrationsTab } from "./Integrations.jsx";
 import CheckoutSettings, { StoreDataSection } from "./StoreSettings.jsx";
 import { PlanPage } from "./Billing.jsx";
-import { AdvancedSettingsCard } from "./OperationalSettings.jsx";
 import GuidePage from "./Guide.jsx";
-import BusinessProfileSection from "./BusinessProfile.jsx";
 import MerchantAlertsSection from "./MerchantAlerts.jsx";
 import { TransferStoreModal, PendingTransferNote } from "./Transfer.jsx";
 import { merchantProfile } from "../../shared/platform/profile.js";
@@ -36,9 +34,10 @@ const { apiGet, apiPost } = api;
 // ─────────────────────────────────────────────────────────────────
 
 const F = "'Inter',system-ui,sans-serif";
-export const CFG_SECS = ["cuenta", "negocio", "tiendas", "equipo", "avisos", "integraciones", "checkout", "facturacion", "avanzado", "ayuda"];
+export const CFG_SECS = ["cuenta", "tiendas", "equipo", "avisos", "integraciones", "checkout", "facturacion", "ayuda"];
 // Secciones viejas → nuevas (links guardados / plan de acción viejo).
-const CFG_ALIASES = { operacion: "avanzado", widget: "__planes_widget__", tienda: "checkout" };
+// negocio / avanzado se sacaron (18-sept): el negocio se define solo con lo que conectás en Integraciones.
+const CFG_ALIASES = { operacion: "integraciones", negocio: "integraciones", avanzado: "integraciones", widget: "__planes_widget__", tienda: "checkout" };
 
 export const TEAM_SECTIONS = [
   { id: "suscripciones", label: "Suscripciones" },
@@ -89,7 +88,7 @@ function normSecs(s) {
 
 // Subtítulo de "Avisos para vos" en la nav.
 function m_alertsHint(m) {
-  if (m?.alerts_whatsapp_enabled !== true) return "Enterate de altas, pausas y bajas";
+  if (m?.alerts_whatsapp_enabled !== true) return "Por mail · WhatsApp opcional";
   return m?.alerts_whatsapp_available ? "Prendidos · por WhatsApp" : "Prendidos · por mail";
 }
 
@@ -152,28 +151,24 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
     ...(isOwner ? [{ group: "Cuenta", id: "avisos", l: "Avisos para vos", d: m_alertsHint(merchant), icon: "M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" }] : []),
     { group: "Cuenta", id: "facturacion", l: "Facturación", d: "Tu plan de Recurrentes", icon: "M1 6a2 2 0 012-2h18a2 2 0 012 2v12a2 2 0 01-2 2H3a2 2 0 01-2-2zM1 10h22M5 15h4",
       badge: billing?.needs_activation ? { t: "Activar", c: T.yellow } : billing?.plan_requested ? { t: "Pedido", c: T.blue } : null },
-    { group: "Negocio", id: "negocio", l: "Negocio", d: profile.explicit ? `${profile.type.emoji} ${profile.type.short} · ${profile.channelInfo.label}` : "Qué vendés, dónde y cómo cobrás", icon: "M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6M9 10h.01M15 10h.01" },
     { group: "Negocio", id: "tiendas", l: "Tiendas", d: "Tus tiendas y cuál está activa", icon: "M3 9l1-5h16l1 5M3 9h18v11H3zM9 20v-6h6v6",
       badge: stores.length > 1 ? { t: String(stores.length), c: T.textSm } : null },
     { group: "Negocio", id: "checkout", l: "Descuentos", d: "Códigos para el primer cobro", icon: "M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0" },
     { group: "Conexiones", id: "integraciones", l: "Integraciones", d: withStore ? `${profile.channelInfo.label}, ${profile.providerInfo.label}, Meta, WhatsApp` : `${profile.providerInfo.label}, Meta, WhatsApp`, icon: "M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71",
       badge: missing.length ? { t: `${missing.length} pendiente${missing.length === 1 ? "" : "s"}`, c: T.red } : null },
-    { group: "Conexiones", id: "avanzado", l: "Avanzado", d: "Modo de prueba", icon: "M12 20a8 8 0 100-16 8 8 0 000 16zM12 14a2 2 0 100-4 2 2 0 000 4zM12 2v2M12 20v2M2 12h2M20 12h2" },
     { group: "Ayuda", id: "ayuda", l: "Ayuda", d: "Guía paso a paso y soporte", icon: "M12 22a10 10 0 100-20 10 10 0 000 20zM9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" },
   ];
   const HEAD = {
     cuenta:        ["Cuenta", "Tu acceso a Recurrentes: email de inicio de sesión, contraseña y eliminación de la cuenta."],
-    negocio:       ["Negocio", "Qué vendés, dónde lo vendés y con qué cobrás. El panel, el onboarding y el checkout se adaptan a esto."],
     tiendas:       ["Tiendas", "Un mismo login puede manejar varias tiendas. Cada tienda tiene su propia conexión a Shopify y Mercado Pago, sus planes y sus suscriptores. Abajo, los datos de la tienda activa."],
     equipo:        ["Equipo", "Invitá a gente de tu equipo con su propio login. Ven solo las secciones que les habilites."],
-    avisos:        ["Avisos para vos", "Te avisamos por WhatsApp (o por mail) cuando un cliente se suscribe, pausa, cancela o le rechazan el pago de una renovación."],
+    avisos:        ["Avisos para vos", "Te avisamos por mail (y por WhatsApp si lo prendés) cuando un cliente se suscribe, pausa, cancela o le rechazan el pago de una renovación."],
     integraciones: ["Integraciones", withStore
       ? `Conectá tu ${profile.channelInfo.label} y tu ${profile.providerInfo.label} (necesarios) y, si querés, Meta Ads y WhatsApp.`
       : `Conectá tu ${profile.providerInfo.label} (necesario) y, si querés, Meta Ads y WhatsApp. Sin tienda online no hay nada más que conectar.`],
     checkout:      ["Checkout", profile.caps.shipping ? "Lo que ve el cliente al suscribirse: las opciones de envío y los códigos de descuento." : "Los códigos de descuento que tus clientes pueden usar al suscribirse."],
     facturacion:   ["Facturación", "Tu plan de Recurrentes: qué incluye, cuántos suscriptores activos llevás y cómo cambiarlo."],
-    avanzado:      ["Avanzado", "Herramientas para probar el flujo completo sin cobrar."],
-    ayuda:         ["Ayuda", "La guía completa de Recurrentes: conectar Shopify y Mercado Pago, crear planes con packs, pegar el snippet y probar. Y el WhatsApp de soporte."],
+    ayuda:         ["Ayuda", "La guía completa de Recurrentes: conectar tu tienda y tu pasarela, crear planes, activar el widget. Y el WhatsApp de soporte."],
   };
   const H = HEAD[sec] || ["", ""];
   const cur = NAVS.some(n => n.id === sec) ? sec : "cuenta";
@@ -190,7 +185,7 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
         <KpiCard T={T} label="Conexiones" value={`${reqTotal - missing.length} de ${reqTotal}`} valueColor={missing.length ? T.red : T.text} color={missing.length ? T.red : T.green}
           hint={missing.length ? `Falta conectar ${missing.join(" y ")}` : withStore ? `${profile.channelInfo.label} y ${profile.providerInfo.label} al día` : `${profile.providerInfo.label} al día`} onClick={() => go("integraciones")} />
         <KpiCard T={T} label="Negocio" value={`${profile.type.emoji} ${profile.type.short}`} color={T.blue}
-          hint={`${withStore ? profile.channelInfo.label : "Sin tienda online"} · ${profile.providerInfo.label}`} onClick={() => go("negocio")} />
+          hint={`${withStore ? profile.channelInfo.label : "Sin tienda online"} · ${profile.providerInfo.label}`} onClick={() => go("integraciones")} />
         <KpiCard T={T} label="Tiendas" value={String(stores.length || 1)} color={T.textSm}
           hint={activeStore ? `Activa: ${activeStore.name}` : "una sola tienda"} onClick={() => go("tiendas")} />
       </div>
@@ -254,14 +249,12 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
           </div>
 
           {cur === "cuenta"        && <CuentaSection T={T} DS={DS} user={user} merchant={merchant} toast={toast} />}
-          {cur === "negocio"       && <BusinessProfileSection merchant={merchant} onChange={reloadMerchant} />}
           {cur === "tiendas"       && <><TiendasSection T={T} DS={DS} user={user} merchant={merchant} workspace={workspace} reloadMerchant={reloadMerchant} toast={toast} /><StoreDataSection merchant={merchant} onChange={reloadMerchant} /></>}
           {cur === "equipo"        && isOwner && <MiembrosCuentaCard T={T} DS={DS} user={user} merchant={merchant} toast={toast} />}
           {cur === "avisos"        && isOwner && <MerchantAlertsSection key={merchant?.id || "m"} T={T} merchant={merchant} onChange={reloadMerchant} />}
           {cur === "integraciones" && <IntegrationsTab merchant={merchant} onChange={reloadMerchant} embedded />}
           {cur === "checkout"      && <CheckoutSettings merchant={merchant} onChange={reloadMerchant} />}
           {cur === "facturacion"   && <PlanPage T={T} DS={DS} merchant={merchant} reloadMerchant={reloadMerchant} />}
-          {cur === "avanzado"      && <AdvancedSettingsCard merchant={merchant} onChange={reloadMerchant} />}
           {cur === "ayuda"         && <GuidePage merchant={merchant} goTab={goTab} embedded />}
         </div>
       </div>

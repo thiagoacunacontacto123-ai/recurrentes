@@ -17,14 +17,14 @@ const MONO = "ui-monospace, SFMono-Regular, Menlo, 'Cascadia Code', monospace";
 const F = "'Inter',system-ui,sans-serif";
 
 export const GUIDE_SECTIONS = [
+  // 18-sept: fuera "Pegar el snippet" (vive en Tienda online; Tiendanube no lo tiene),
+  // "Probar" y "Tienda y envíos". Las secciones viejas siguen abajo por si algún link
+  // las abre, pero no se muestran como pestaña.
   { id:"inicio",  label:"Empezar" },
-  { id:"shopify", label:"Shopify" },
-  { id:"mp",      label:"Mercado Pago" },
-  { id:"planes",  label:"Planes y packs" },
+  { id:"shopify", label:"Tienda online" },
+  { id:"mp",      label:"Pasarela" },
+  { id:"planes",  label:"Planes" },
   { id:"diseno",  label:"Widget" },
-  { id:"snippet", label:"Pegar el snippet" },
-  { id:"probar",  label:"Probar" },
-  { id:"tienda",  label:"Tienda y envíos" },
   { id:"faq",     label:"Preguntas" },
 ];
 
@@ -51,8 +51,13 @@ export default function GuidePage({ merchant, goTab, embedded = false, initial }
   const canal = merchant?.channel || "shopify";
   const ctx = { T, go, goTab, onb, origin, mid, merchant, canal };
 
+  // "Tienda online": en Shopify, conectar la app + la línea del widget; en Tiendanube, la
+  // app se instala sola (SnippetTiendanube lo explica).
+  const SecTiendaOnline = (p) => p.canal === "tiendanube"
+    ? <SnippetTiendanube T={p.T} onb={p.onb} snippet=""/>
+    : <><SecShopify {...p}/><SecSnippet {...p}/></>;
   const Body = ({
-    inicio: SecInicio, shopify: SecShopify, mp: SecMp, planes: SecPlanes, diseno: SecDiseno,
+    inicio: SecInicio, shopify: SecTiendaOnline, mp: SecMp, planes: SecPlanes, diseno: SecDiseno,
     snippet: SecSnippet, probar: SecProbar, tienda: SecTienda, faq: SecFaq,
   })[sec] || SecInicio;
 
@@ -175,7 +180,7 @@ function SecInicio({ T, go, goTab }) {
   return (
     <>
       <Sec T={T} title="Cómo funciona Recurrentes" sub="Leé esto primero: son 2 minutos y después cada paso tiene sentido.">
-        <P T={T}>Recurrentes agrega <B T={T}>suscripciones con cobro automático</B> a tu tienda Shopify usando <B T={T}>tu cuenta de Mercado Pago</B>. Vos creás un <B T={T}>plan</B> por producto (frecuencia, descuento y packs), pegás <B T={T}>un snippet</B> en tu theme y el cliente ve el selector de suscripción en la página de producto.</P>
+        <P T={T}>Recurrentes agrega <B T={T}>suscripciones con cobro automático</B> a tu tienda online (Shopify o Tiendanube) usando <B T={T}>tu cuenta de Mercado Pago</B>. Vos creás un <B T={T}>plan</B> por producto (frecuencia, descuento y packs), activás <B T={T}>el widget</B> y el cliente ve el selector de suscripción en la página de producto.</P>
         <P T={T}>Cuando el cliente se suscribe, paga en Mercado Pago. Cada vez que MP cobra (la primera vez y cada renovación), Recurrentes <B T={T}>crea una orden en tu Shopify</B> con el producto, la cantidad del pack, la dirección y el envío. Vos la despachás como cualquier otra.</P>
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))", gap:8, margin:"12px 0 4px" }}>
           {[["1","Cliente elige pack","en tu página de producto"],["2","Paga en MP","se crea la suscripción"],["3","MP cobra cada período","automático, con reintentos"],["4","Orden en Shopify","vos despachás"]].map(([n, t, d]) => (
@@ -415,11 +420,15 @@ function SecFaq({ T }) {
   ];
   return (
     <Sec T={T} title="Preguntas frecuentes">
-      <div style={{ display:"flex", flexDirection:"column" }}>
+      <style>{`.rc-faq summary::-webkit-details-marker{display:none}.rc-faq[open] .rc-faq-chev{transform:rotate(90deg)}.rc-faq[open]{border-color:${T.accentSolid}55}`}</style>
+      <div style={{ display:"grid", gap:8 }}>
         {QA.map(([q, a], i) => (
-          <details key={i} style={{ borderTop: i === 0 ? "none" : `1px solid ${T.borderL}`, padding:"10px 0" }}>
-            <summary style={{ cursor:"pointer", fontSize:DS.font.base, fontWeight:DS.w.semibold, color:T.text, listStyle:"none", display:"flex", gap:8, alignItems:"center" }}><span style={{ color:T.accent }}>?</span>{q}</summary>
-            <div style={{ fontSize:DS.font.base, color:T.textMd, lineHeight:1.65, marginTop:6, paddingLeft:18 }}>{a}</div>
+          <details key={i} className="rc-faq" style={{ background:T.surface, border:`1px solid ${T.border}`, borderRadius:DS.r.lg, padding:"2px 14px" }}>
+            <summary style={{ cursor:"pointer", fontSize:DS.font.base, fontWeight:DS.w.semibold, color:T.text, listStyle:"none", display:"flex", gap:10, alignItems:"center", padding:"10px 0" }}>
+              <span className="rc-faq-chev" aria-hidden="true" style={{ color:T.accent, fontSize:12, transition:"transform .15s", display:"inline-block", width:12 }}>▶</span>
+              <span style={{ flex:1 }}>{q}</span>
+            </summary>
+            <div style={{ fontSize:DS.font.base, color:T.textMd, lineHeight:1.7, padding:"10px 0 12px 22px", borderTop:`1px solid ${T.borderL}` }}>{a}</div>
           </details>
         ))}
       </div>

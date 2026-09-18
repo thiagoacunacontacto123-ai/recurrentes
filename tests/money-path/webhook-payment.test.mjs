@@ -97,7 +97,8 @@ test("(a) renovación aprobada → UNA orden Shopify con el payload correcto + c
   assert.equal(s.last_shopify_order_status_url, created.order_status_url);
 
   // Renovación: sin mail transaccional, sin tocar el preapproval.
-  assert.equal(W.resend.sent.length, 0);
+  assert.equal(W.resend.toCustomer().length, 0);
+  assert.equal(W.resend.byType("merchant_alert").length, 0, "'se cobra una renovación' viene apagado: sin mail al dueño en cada renovación");
   assert.equal(W.mp.preapprovalUpdates.length, 0);
   // Todas las llamadas a Shopify con el token de Lumina.
   assert.ok(W.shopifyCalls().every(c2 => c2.headers["x-shopify-access-token"] === "shpat_test_lumina"));
@@ -160,7 +161,9 @@ test("(b) primer cobro → activa, crea la orden #1 y manda el mail de activaci�
   assert.equal(noteMap(o).recurrentes_charge_number, "1");
 
   // Mail de activación (Resend) con la marca de la tienda y el link al portal.
-  assert.equal(W.resend.sent.length, 1);
+  assert.equal(W.resend.toCustomer().length, 1);
+  assert.equal(W.resend.byType("merchant_alert").length, 1, "el dueño recibe el aviso de alta por mail (prendido por defecto, gratis)");
+  assert.equal(W.resend.byType("merchant_alert")[0].to?.[0] || W.resend.byType("merchant_alert")[0].to, "hola@lumina.test");
   const mail = W.resend.sent[0];
   assert.deepEqual(mail.to, ["bruno@cliente.test"]);
   assert.equal(mail.subject, `¡Suscripción activa — ${PRODUCT_TITLE}!`);
@@ -178,7 +181,7 @@ test("(b) primer cobro → activa, crea la orden #1 y manda el mail de activaci�
   // Reentrega del mismo pago: ni otra orden ni otro mail.
   await deliver(pay.id);
   assert.equal(W.shopify.orderPosts.length, 1);
-  assert.equal(W.resend.sent.length, 1);
+  assert.equal(W.resend.toCustomer().length, 1);
 });
 
 test("(b) después de activar, la renovación suma la orden y mueve last_charge_at (sin mail)", async () => {
@@ -204,7 +207,7 @@ test("(b) después de activar, la renovación suma la orden y mueve last_charge_
   assert.equal(after2.last_charge_at, second.date_approved);
   assert.equal(after2.status, "active");
   assert.equal(W.resend.byType("activation").length, 1, "la renovación no tiene que mandar otro mail de activación");
-  assert.equal(W.resend.sent.length, 1);
+  assert.equal(W.resend.toCustomer().length, 1);
 });
 
 test("(c) pago rechazado de una renovación → payment_failed + UN mail (dedup por payment id)", async () => {
@@ -221,8 +224,8 @@ test("(c) pago rechazado de una renovación → payment_failed + UN mail (dedup 
   assert.equal(s.last_payment_failed_at, rej.date_created);
   assert.equal(s.last_charge_at, "2026-08-16T13:00:00.000Z", "un rechazo no mueve last_charge_at");
 
-  assert.equal(W.resend.sent.length, 1);
-  const mail = W.resend.sent[0];
+  assert.equal(W.resend.toCustomer().length, 1);
+  const mail = W.resend.toCustomer()[0];
   assert.deepEqual(mail.to, ["ana@cliente.test"]);
   assert.equal(mail.subject, `Hubo un problema con tu pago — ${PRODUCT_TITLE}`);
   assert.deepEqual(mail.tags, [{ name: "type", value: "payment_failed" }]);
@@ -242,7 +245,7 @@ test("(c) pago rechazado de una renovación → payment_failed + UN mail (dedup 
   assert.equal(s2.status, "active");
   assert.equal(s2.shopify_orders.length, 2);
   assert.equal(W.shopify.orderPosts.length, 1);
-  assert.equal(W.resend.sent.length, 1);
+  assert.equal(W.resend.toCustomer().length, 1);
 });
 
 test("(c) primer pago rechazado de un checkout nuevo → queda pending, sin mail (no spam a leads)", async () => {

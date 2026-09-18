@@ -162,6 +162,8 @@ export function createFakeResend(router) {
   const r = {
     sent: [],
     byType(type) { return r.sent.filter(e => (e.tags || []).some(t => t.name === "type" && t.value === type)); },
+    // Mails al CLIENTE final (sin los avisos al dueño de la tienda, que por defecto salen por mail).
+    toCustomer() { return r.sent.filter(e => !(e.tags || []).some(t => t.name === "type" && t.value === "merchant_alert")); },
   };
   router.on("POST", "api.resend.com", /^\/emails$/, (call) => {
     if (bearer(call) !== process.env.RESEND_API_KEY) return { status: 401, json: { name: "validation_error", message: "API key is invalid" } };

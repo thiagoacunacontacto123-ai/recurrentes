@@ -321,7 +321,6 @@ export function PlanDeAccionCard({ onOpenGuide }) {
         </div>
         <div style={{ display:"flex", gap:6, alignItems:"center", flexWrap:"wrap" }}>
           <Btn T={T} variant="secondary" size="sm" onClick={onOpenGuide}>Ver guía</Btn>
-          <Btn T={T} variant="secondary" size="sm" onClick={() => onb.goGuide("probar")}>Cómo probar</Btn>
           {allDone && <Btn T={T} variant="ghost" size="sm" onClick={() => { writeFlag(planHiddenKey(onb.mid), true); setHidden(true); }} style={{ color:T.textSm }}>Ocultar</Btn>}
         </div>
       </div>
@@ -402,7 +401,6 @@ export function OnbEmpty({ section, icon, title, desc, tip, extraAction }) {
       <DSEmpty T={T} icon={icon} title={title} subtitle={subtitle}
         action={onb ? (
           <div style={{ display:"flex", gap:8, justifyContent:"center", flexWrap:"wrap" }}>
-            <Btn T={T} variant="secondary" size="sm" onClick={() => onb.goGuide("probar")}>Cómo hacer una prueba →</Btn>
             {extraAction}
           </div>
         ) : extraAction}/>

@@ -31,7 +31,7 @@ test("(f) pausar: MP preapproval → paused y la sub queda paused", async () => 
   const s = W.sub("sub_ana");
   assert.equal(s.status, "paused");
   assert.equal(s.mp_preapproval_status, "paused");
-  assert.equal(W.resend.sent.length, 0);
+  assert.equal(W.resend.toCustomer().length, 0);
 });
 
 test("(f) reactivar: MP preapproval → authorized, sub active y se borra la reactivación automática", async () => {
@@ -65,9 +65,10 @@ test("(f) cancelar con motivo: MP → cancelled, sub cancelled, registro de baja
   assert.equal(c.saved, false);
   assert.equal(c.amount_ars, 12300);
 
-  assert.equal(W.resend.sent.length, 1);
-  assert.equal(W.resend.sent[0].subject, `Tu suscripción a ${PRODUCT_TITLE} fue cancelada`);
-  assert.deepEqual(W.resend.sent[0].to, ["ana@cliente.test"]);
+  assert.equal(W.resend.toCustomer().length, 1);
+  assert.equal(W.resend.toCustomer()[0].subject, `Tu suscripción a ${PRODUCT_TITLE} fue cancelada`);
+  assert.deepEqual(W.resend.toCustomer()[0].to, ["ana@cliente.test"]);
+  assert.equal(W.resend.byType("merchant_alert").length, 1, "la baja le avisa al dueño por mail (default)");
   const log = W.emailLog();
   assert.equal(log.length, 1);
   assert.equal(log[0].type, "cancellation");

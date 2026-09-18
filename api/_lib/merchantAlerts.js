@@ -7,9 +7,9 @@
 //
 //   notifyMerchantWhatsApp(event, mid, merchant, sid, sub, { key, amount })
 //     event: "subscribed" | "paused" | "cancelled" | "payment_failed".
-//     · merchant.alerts_whatsapp_enabled !== true, evento apagado, o nada con qué mandar
-//       (sin WhatsApp de Recurrentes ni RESEND_API_KEY) → vuelve SIN leer ni escribir nada
-//       (camino del cobro de Lumina intacto).
+//     · Mail (Resend) prendido por defecto (`alerts_email !== false`); WhatsApp solo con
+//       `alerts_whatsapp_enabled: true`. Con los dos apagados o el evento apagado → vuelve
+//       SIN leer ni escribir nada.
 //     · Dedup: merchants/{mid}/alert_log/{event}:{sid}:{key} con create(). El mismo aviso que
 //       llega por webhook + sync + cron sale una sola vez. key por defecto: "first" (alta) o
 //       el día en hora de Argentina (pausa / baja).
@@ -48,8 +48,12 @@ const validEmail = (e) => { const s = String(e || "").trim().toLowerCase(); retu
 const fmtArs = (n) => { const v = Number(n); return Number.isFinite(v) && v > 0 ? `$${Math.round(v).toLocaleString("es-AR")}` : ""; };
 
 // ¿Esta tienda quiere este aviso? Sin lecturas: solo mira el doc que ya tiene el caller.
+// Por MAIL salen siempre (gratis; Thiago 18-sept: "al comerciante le tiene que llegar un
+// mail por cada suscripción") salvo que apague `alerts_email`. Por WHATSAPP solo con
+// `alerts_whatsapp_enabled` (cuesta plata). Un evento apagado no sale por ningún lado.
 export function alertsWanted(merchant, event) {
-  return merchant?.alerts_whatsapp_enabled === true && ALERT_EVENT_IDS.includes(event) && alertEventsOf(merchant)[event] === true;
+  const anyChannel = merchant?.alerts_whatsapp_enabled === true || merchant?.alerts_email !== false;
+  return anyChannel && ALERT_EVENT_IDS.includes(event) && alertEventsOf(merchant)[event] === true;
 }
 
 // Id del registro de dedup (ids de Firestore sin "/").
@@ -98,7 +102,8 @@ async function deliver({ merchantId, merchant, event, subscriberId, values, test
   const tpl = WA_MERCHANT_TEMPLATE_BY_EVENT[event];
   const out = { ok: false, whatsapp: null, email: null };
 
-  if (wa && rcpt.phone && tpl) {
+  // WhatsApp solo si el comerciante lo prendió (se cobra por aviso); el mail no depende de esto.
+  if (wa && rcpt.phone && tpl && merchant?.alerts_whatsapp_enabled === true) {
     const sender = { mode: "platform", phone_number_id: wa.phone_number_id, token: wa.token };
     const r = await sendTemplate({ sender, to: rcpt.phone, template: tpl.name, lang: tpl.lang, components: bodyComponents(alertParams(event, values)) });
     out.whatsapp = r.ok
@@ -118,7 +123,7 @@ async function deliver({ merchantId, merchant, event, subscriberId, values, test
       await recordPlatformError(r);
     }
   } else {
-    out.whatsapp = { ok: false, skipped: true, reason: !wa ? "not_available" : "no_phone" };
+    out.whatsapp = { ok: false, skipped: true, reason: merchant?.alerts_whatsapp_enabled !== true ? "off" : !wa ? "not_available" : "no_phone" };
   }
 
   const waOk = out.whatsapp.ok === true;
