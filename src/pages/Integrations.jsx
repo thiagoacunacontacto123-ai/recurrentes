@@ -62,7 +62,7 @@ function Row({ T, id, label, sub, connected, soon, required, error, warn, option
   const brand = BRAND[id] || T.accentSolid;
   return (
     <div style={{ borderBottom:`1px solid ${T.borderL}` }}>
-      <div style={{ display:"flex", alignItems:"center", gap:14, padding:"13px 4px", opacity: soon ? 0.75 : 1, flexWrap:"wrap" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:14, padding:"13px 4px", flexWrap:"wrap" }}>
         <div style={{ width:42, height:42, borderRadius:11, background:"#fff", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, border:`1px solid ${T.borderL}`, boxShadow: connected || ready ? `0 0 0 2px ${brand}33` : "none" }}>
           <BrandIcon name={id} size={26}/>
         </div>
@@ -84,7 +84,11 @@ function Row({ T, id, label, sub, connected, soon, required, error, warn, option
           {connected && onToggle && <button type="button" style={b.ghost} aria-expanded={!!open} onClick={onToggle}>Ajustes {open ? "▴" : "▾"}</button>}
           {connected
             ? (onDisconnect && <button type="button" style={b.red} onClick={onDisconnect}>Desvincular</button>)
-            : soon ? <a href={`https://wa.me/5491164117974?text=${encodeURIComponent(`Hola! Quiero usar Recurrentes con ${label}. ¿Me lo pueden conectar?`)}`} target="_blank" rel="noopener noreferrer" style={{ ...b.soft, textDecoration:"none", display:"inline-block", opacity:1 }}>Pedirlo por WhatsApp</a>
+            : soon ? <a href={`https://wa.me/5491164117974?text=${encodeURIComponent(`Hola! Quiero usar Recurrentes con ${label}. ¿Me lo pueden conectar?`)}`} target="_blank" rel="noopener noreferrer"
+                style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"8px 14px", borderRadius:10, border:`1px solid ${T.border}`, background:T.card, color:T.text, fontSize:12.5, fontWeight:700, textDecoration:"none", whiteSpace:"nowrap" }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="#25D366" aria-hidden="true"><path d="M17.5 14.4c-.3-.1-1.8-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-.3-.1-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.6c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.9-2.2c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.1.2 2.1 3.2 5.1 4.5.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.4.2-.7.2-1.3.2-1.4-.1-.2-.3-.3-.6-.4zM12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2z"/></svg>
+                Pedirlo por WhatsApp
+              </a>
             : onConnect ? <button type="button" style={b.solid} onClick={onConnect}>{connectLabel}</button> : null}
         </div>
       </div>
