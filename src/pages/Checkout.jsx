@@ -352,7 +352,6 @@ export default function Checkout() {
                       <b style={{ fontSize: 13, color: (Number(rt.price) || 0) === 0 ? "#0a8a3f" : "#1a1a1a" }}>{(Number(rt.price) || 0) === 0 ? "Gratis" : money(rt.price)}</b>
                     </label>
                   ))}
-                  {(cfg ? cfg.shipping_from_store === true : true) && <div style={{ fontSize: 11, color: "#999", marginTop: 2 }}>Los métodos salen de la tienda. Elegí tu provincia para verlos exactos.</div>}
                 </div>
               )}
             </div>
