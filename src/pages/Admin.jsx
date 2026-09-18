@@ -480,7 +480,7 @@ function MerchantPanel({ id, onClose, onChanged }) {
             <>
               <Section T={T} title="Números">
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(2,minmax(0,1fr))", gap:8 }}>
-                  <Mini T={T} label="Suscripciones" value={fmtN(m.subs)} sub="activas + pago fallido"/>
+                  <Mini T={T} label="Suscripciones" value={fmtN(m.subs)} sub="activas"/>
                   <Mini T={T} label="MRR" value={fmtARS(m.mrr)} sub={m.active != null ? `${fmtN(m.active)} activas` : ""}/>
                   <Mini T={T} label="Cobros 30 días" value={m.ch30_count != null ? fmtN(m.ch30_count) : "—"} sub={m.ch30_amount != null ? fmtARS(m.ch30_amount) : ""}/>
                   <Mini T={T} label="Último cobro" value={m.last_charge_at ? fmtDateOnly(m.last_charge_at) : "—"} sub={m.last_charge_at ? ago(m.last_charge_at) : "sin cobros"}/>
