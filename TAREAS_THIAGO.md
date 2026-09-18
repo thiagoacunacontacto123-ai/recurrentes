@@ -306,8 +306,11 @@ Cómo cobra: suscripción mensual en Stripe. Cada día a las 9:00 UTC el cron `s
 3. **Customer portal**: https://dashboard.stripe.com/settings/billing/portal → activarlo (guardar con lo que viene por defecto alcanza). Lo usa el botón "Tarjeta y facturas" del panel; sin activarlo, ese botón da error.
 4. Podés borrar la clave secreta vieja (`sk_live_…vmcW`) desde los tres puntos en Claves de API: no se usó en ningún lado.
 
-### WhatsApp: 3 plantillas nuevas para aprobar en Meta
-Los avisos del límite del plan gratis al dueño de la tienda. Mientras Meta no las apruebe, el aviso sale por mail igual (no se pierde). Textos exactos en `shared/platform/whatsapp.js` → `WA_PLAN_TEMPLATES`. Categoría UTILITY, idioma es_AR:
-- `aviso_plan_limite` (pasó los 10: "te damos 5 de regalo")
-- `aviso_plan_ultimo` (llegó a 14 o 15: "con uno más se apaga")
-- `aviso_plan_bloqueado` (16+: "tu widget está apagado")
+### WhatsApp de Recurrentes — HECHO el 2026-09-18 (falta solo la aprobación de Meta)
+
+✅ App de Meta "Recurrentes" publicada (En vivo) · ✅ número +1 305 686 9014 (Zadarma, recibe SMS) verificado · ✅ token permanente (usuario del sistema `recurrentes-api`) · ✅ webhook verificado y suscrito a `messages` · ✅ método de pago (Visa ····4063) en la WABA Recurrentes · ✅ env `WHATSAPP_*` en Vercel · ✅ **las 13 plantillas creadas por API desde Admin, todas "En revisión"**.
+
+Qué falta:
+1. **Esperar que Meta apruebe las plantillas** (minutos a 24 h). Se ve en Admin → "Plantillas de WhatsApp en Meta" → Ver estado. Si alguna queda "Rechazada", avisale a Claude con el motivo que muestra el hover.
+2. Cuando `aviso_admin` esté "Aprobada": Admin → **Enviarme una prueba**. Te tiene que llegar un WhatsApp del +1 305 al …7974. Ese es el check final del ramal admin.
+3. Opcional: Zadarma → My profile → Notifications → "Incoming SMS by email", por si Meta vuelve a pedir un código alguna vez.
