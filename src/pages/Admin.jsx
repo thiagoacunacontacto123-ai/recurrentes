@@ -218,7 +218,7 @@ export function AdminPage() {
               style={{ ...InputStyle(T), flex:"1 1 240px", maxWidth:360, padding:"8px 12px" }}/>
             <div className="no-scrollbar" style={{ overflowX:"auto", maxWidth:"100%" }}>
               <Segmented T={T} ariaLabel="Filtrar comercios" value={filter} onChange={(v) => { setFilter(v); setPage(1); }}
-                options={FILTERS.map(f => ({ ...f, count: f.id === "mias" ? data?.internal?.count : list?.counts?.[f.id] }))}/>
+                options={FILTERS.map(f => ({ ...f, count: f.id === "mias" ? ov?.internal?.count : list?.counts?.[f.id] }))}/>
             </div>
           </div>
           <DSTable T={T} columns={columns} rows={list?.rows || []} rowKey={r => r.id} onRowClick={r => setOpenId(r.id)} minWidth={1000}
