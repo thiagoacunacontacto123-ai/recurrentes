@@ -58,7 +58,7 @@ await M("m4").collection("subscribers").doc("b").set({ customer_email: "dani@x.c
 tokenStatus.tok_m1 = "alive"; tokenStatus.tok_m3 = "alive"; tokenStatus.tok_m4 = "dead";
 
 // ── 0) Scopes compartidos ──
-ok(shared.SHOPIFY_SCOPES_STRING === "read_products,read_orders,write_orders,read_customers,write_customers,read_shipping", "lista de scopes compartida (con read_shipping, sin write_draft_orders)");
+ok(shared.SHOPIFY_SCOPES_STRING === "read_products,read_orders,write_orders,read_customers,write_customers,read_shipping,read_discounts", "lista de scopes compartida (con read_shipping, sin write_draft_orders)");
 ok(shared.oauthScopes("read_products, write_draft_orders") === shared.SHOPIFY_SCOPES_STRING + ",write_draft_orders", "la env solo SUMA scopes");
 ok(shared.oauthScopes("") === shared.SHOPIFY_SCOPES_STRING, "sin env: lista compartida");
 ok(JSON.stringify(shared.missingShopifyScopes("write_orders,write_customers,read_products")) === JSON.stringify(["read_shipping"]), "falta read_shipping (write_X cubre read_X)");

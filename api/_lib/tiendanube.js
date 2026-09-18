@@ -206,6 +206,28 @@ export async function tnListProducts(storeId, token, { maxPages = 5 } = {}) {
   return out.map(tnNormalizeProduct);
 }
 
+// Cupones de la tienda (Configuración → Descuentos → "Traer los de Tiendanube").
+// GET /coupons (scope read_coupons): [{ id, code, type: "percentage"|"absolute"|"shipping",
+// value, valid, start_date, end_date, max_uses, used, … }]. Devuelve los cupones crudos;
+// el mapeo a nuestro formato vive en _lib/discountImport.js. 401/403 = la app no tiene el
+// permiso → el llamador lo traduce.
+export async function tnListCoupons(storeId, token, { maxPages = 3 } = {}) {
+  const out = [];
+  for (let page = 1; page <= maxPages; page++) {
+    let data;
+    try {
+      ({ data } = await call(storeId, token, "GET", `/coupons?per_page=200&page=${page}`));
+    } catch (e) {
+      if (e.status === 404 && page > 1) break;
+      throw e;
+    }
+    const arr = Array.isArray(data) ? data : Array.isArray(data?.result) ? data.result : [];
+    out.push(...arr);
+    if (arr.length < 200) break;
+  }
+  return out;
+}
+
 // ─── Scripts (widget sin pegar código) ──────────────────────────────────────
 
 const scriptList = (data) => (Array.isArray(data) ? data : Array.isArray(data?.result) ? data.result : []);

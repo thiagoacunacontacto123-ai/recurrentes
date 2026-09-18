@@ -1,9 +1,9 @@
 import React from "react";
 import { widgetSnippet } from "./WidgetDesigner.jsx";
 import { CopyRow } from "./ShopifyConnect.jsx";
-import { apiPatch } from "../lib/api.js";
+import { apiPatch, apiPost } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
-import { Btn, Field, InputStyle, Spinner, Hint, CheckLine, DSBadge, toast } from "../ui/components.jsx";
+import { Btn, Field, InputStyle, Spinner, Hint, CheckLine, DSBadge, Callout, toast } from "../ui/components.jsx";
 import { Panel } from "../ui/charts.jsx";
 import { MONO, SurfaceBox } from "./_shared.jsx";
 import { merchantProfile } from "../../shared/platform/profile.js";
@@ -41,6 +41,31 @@ export function DiscountCodesCard({ merchant, onChange }) {
   const [busy, setBusy] = React.useState(false);
   const [dirty, setDirty] = React.useState(false);
   React.useEffect(() => { setCodes(Array.isArray(m.discount_codes) ? m.discount_codes : []); setDirty(false); }, [m.discount_codes]);
+  // "Traer los de Shopify / Tiendanube": el backend une sin pisar lo que ya había
+  // (merchant?action=import-discounts). Deshabilitado con cambios sin guardar para no
+  // perderlos cuando llega la lista nueva.
+  const store = m.shopify_token && m.shopify_shop ? "Shopify" : m.tiendanube_token && m.tiendanube_store_id ? "Tiendanube" : null;
+  const [importing, setImporting] = React.useState(false);
+  const [importNote, setImportNote] = React.useState(null); // { tone, title, body }
+  async function importFromStore() {
+    if (!store || importing) return;
+    setImporting(true); setImportNote(null);
+    const d = await apiPost("merchant", {}, { action: "import-discounts" });
+    setImporting(false);
+    if (d?.error) {
+      if (d.code === "scope_missing") { setImportNote({ tone:"warning", title:`Falta un permiso en ${store}`, body:d.error }); return; }
+      return toast("Error: " + d.error, "error", 7000);
+    }
+    const parts = [];
+    if (d.imported) parts.push(`${d.imported} ${d.imported === 1 ? "código nuevo" : "códigos nuevos"}`);
+    if (d.already) parts.push(`${d.already} ya ${d.already === 1 ? "estaba" : "estaban"}`);
+    if (d.dropped) parts.push(`${d.dropped} sin lugar (máximo 100)`);
+    const skipped = Array.isArray(d.skipped) ? d.skipped : [];
+    if (!d.found && !skipped.length) toast(`${store} no tiene códigos de descuento activos.`, "info", 6000);
+    else toast(`${store}: ${parts.join(" · ") || "nada nuevo para traer"}.`, d.imported ? "success" : "info", 6000);
+    if (skipped.length) setImportNote({ tone:"info", title:`${skipped.length} ${skipped.length === 1 ? "código omitido" : "códigos omitidos"}: el checkout de suscripción solo aplica % o $ fijo`, body: skipped.slice(0, 8).map(x => `${x.code} (${x.reason})`).join(" · ") + (skipped.length > 8 ? " …" : "") });
+    if (d.imported) onChange?.();
+  }
 
   async function save() {
     setBusy(true);
@@ -61,8 +86,10 @@ export function DiscountCodesCard({ merchant, onChange }) {
       sub={<>El cliente los escribe en el checkout de suscripción. <strong style={{ color:T.textMd }}>Solo 1er cobro</strong>: las renovaciones se cobran a precio pleno.{codes.length ? ` · ${active} activo${active === 1 ? "" : "s"}` : ""}</>}
       right={<>
         {dirty && <Dirty T={T}/>}
+        {store && <Btn T={T} variant="secondary" size="sm" type="button" onClick={importFromStore} disabled={importing || dirty} title={dirty ? "Guardá o descartá los cambios antes de traer los de la tienda" : `Copia los códigos de descuento activos de ${store} (los que ya están no se tocan)`}>{importing ? <><Spinner size={12} color={T.accent}/> Trayendo…</> : `⤓ Traer los de ${store}`}</Btn>}
         <Btn T={T} variant="secondary" size="sm" type="button" onClick={() => { setCodes(cs => [...cs, { code:"", type:"percent", value:10, active:true, recovery_only:false, first_charge_only:false }]); setDirty(true); }}>+ Agregar</Btn>
       </>}>
+      {importNote && <Callout T={T} tone={importNote.tone} title={importNote.title} style={{ marginBottom:12 }} right={<button type="button" onClick={() => setImportNote(null)} aria-label="Cerrar" style={{ background:"transparent", border:"none", color:T.textSm, cursor:"pointer", fontSize:14 }}>✕</button>}>{importNote.body}</Callout>}
       {codes.length === 0 && <SurfaceBox T={T} style={{ marginBottom:12 }}><div style={{ fontSize:DS.font.sm, color:T.textSm }}>Todavía no hay códigos. Agregá uno (ej. BIENVENIDA10) para usarlo en el checkout de suscripción.</div></SurfaceBox>}
       {codes.map((c, i) => (
         <div key={i} style={{ display:"flex", gap:8, alignItems:"center", marginBottom:6, flexWrap:"wrap", background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:10, padding:"6px 8px" }}>

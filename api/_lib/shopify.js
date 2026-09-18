@@ -205,6 +205,39 @@ export async function shopifyGraphql(shop, token, query, variables = {}) {
   return data.data || {};
 }
 
+// Códigos de descuento ACTIVOS de la tienda (Configuración → Descuentos → "Traer los de
+// Shopify"). GraphQL codeDiscountNodes (el REST price_rules está deprecado). Requiere el
+// permiso opcional read_discounts: sin él Shopify responde "Access denied" y el llamador
+// lo traduce a "reconectá con el permiso". Devuelve los nodos crudos; el mapeo a nuestro
+// formato vive en _lib/discountImport.js (testeable sin red).
+const DISCOUNTS_QUERY = `query($after: String) {
+  codeDiscountNodes(first: 50, after: $after, query: "status:active") {
+    pageInfo { hasNextPage endCursor }
+    nodes { codeDiscount { __typename
+      ... on DiscountCodeBasic { title status
+        codes(first: 50) { nodes { code } }
+        customerGets { value { __typename
+          ... on DiscountPercentage { percentage }
+          ... on DiscountAmount { amount { amount currencyCode } } } } }
+      ... on DiscountCodeBxgy { title codes(first: 50) { nodes { code } } }
+      ... on DiscountCodeFreeShipping { title codes(first: 50) { nodes { code } } }
+      ... on DiscountCodeApp { title codes(first: 50) { nodes { code } } }
+    } }
+  }
+}`;
+export async function shListDiscountNodes(shop, token, { maxPages = 4 } = {}) {
+  const out = [];
+  let after = null;
+  for (let i = 0; i < maxPages; i++) {
+    const data = await shopifyGraphql(shop, token, DISCOUNTS_QUERY, { after });
+    const conn = data.codeDiscountNodes || {};
+    out.push(...(conn.nodes || []));
+    if (!conn.pageInfo?.hasNextPage || !conn.pageInfo?.endCursor) break;
+    after = conn.pageInfo.endCursor;
+  }
+  return out;
+}
+
 const QUOTE_MUTATION = `mutation($input: DraftOrderInput!) {
   draftOrderCalculate(input: $input) {
     calculatedDraftOrder { availableShippingRates { handle title price { amount currencyCode } } }

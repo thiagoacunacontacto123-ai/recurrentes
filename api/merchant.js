@@ -19,6 +19,7 @@
 //   POST   ?action=import-shipping-rates { rates? } → importa los envíos de Shopify a
 //          checkout_shipping_rates (máx 6, dedup por nombre) → { rates, note? }
 //   PATCH  ?action=save-discount-codes  → códigos de descuento
+//   POST   ?action=import-discounts     → trae los códigos de Shopify / Tiendanube sin pisar los que ya había (_lib/discountImport.js)
 //   POST   ?action=test-email           → mail de prueba (activación; solo al dueño, 10/día)
 //   POST   ?action=mp-oauth-start       → { url } para conectar MP por OAuth
 //   POST   ?action=disconnect-mp | disconnect-shopify
@@ -55,6 +56,7 @@ import { db, requireMerchant, resolveMerchantAccess, clearMerchantCache, getOrCr
 import { mpMe } from "./_lib/mp.js";
 import { emailSubscriptionActivated, emailTeamInvite, emailPlanRequest, effectiveBrand, effectiveFrom } from "./_lib/email.js";
 import { shGetShopInfo, buildShopInfoPatch, shopifyRatesForPanel } from "./_lib/shopify.js";
+import { importDiscountsAction, cleanDiscountCodes } from "./_lib/discountImport.js";
 import { REASON_CODE_RE, retentionFor } from "./_lib/retention.js";
 import { PLAN_BY_ID, buildBilling } from "./_lib/plans_saas.js";
 import { saasStripeAvailable, createSaasCheckout, createSaasPortal } from "./_lib/saasBilling.js";
@@ -288,6 +290,7 @@ export default async function handler(req, res) {
     if (action === "import-shipping-rates") return importShippingRates(merchantId, req, res);
     if (action === "save-meta")            return saveMeta(merchantId, req, res);
     if (action === "save-discount-codes")  return saveDiscountCodes(merchantId, req, res);
+    if (action === "import-discounts")     return importDiscountsAction(merchantId, req, res);
     if (action === "test-email")           return testEmail(merchantId, req, res);
     if (action === "backfill-email-log")   return backfillEmailLog(merchantId, req, res);
     if (action === "mp-oauth-start")       return mpOauthStart(ctx, req, res);
@@ -1078,15 +1081,7 @@ async function saveDiscountCodes(merchantId, req, res) {
   //   recovery_only     → solo aplica con token de recupero (mail de abandono).
   //   first_charge_only → descuenta solo el primer cobro; las renovaciones van a precio pleno.
   const { discount_codes } = req.body || {};
-  const arr = Array.isArray(discount_codes) ? discount_codes : [];
-  const clean = arr.map(c => ({
-    code: String(c.code || "").trim().toUpperCase().slice(0, 40),
-    type: c.type === "fixed" ? "fixed" : "percent",
-    value: Math.max(0, parseFloat(c.value) || 0),
-    active: c.active !== false,
-    recovery_only: c.recovery_only === true,
-    first_charge_only: c.first_charge_only === true,
-  })).filter(c => c.code && c.value > 0).slice(0, 100);
+  const clean = cleanDiscountCodes(discount_codes); // misma limpieza que import-discounts
   try {
     await db().collection("merchants").doc(merchantId).set({
       discount_codes: clean,

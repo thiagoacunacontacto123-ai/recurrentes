@@ -327,3 +327,9 @@ El cron lee TODOS los suscriptores en cada corrida porque le faltan dos índices
 1. status + updated_at: https://console.firebase.google.com/v1/r/project/recurrentes-16fbd/firestore/indexes?create_composite=ClVwcm9qZWN0cy9yZWN1cnJlbnRlcy0xNmZiZC9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvc3Vic2NyaWJlcnMvaW5kZXhlcy9fEAEaCgoGc3RhdHVzEAEaDgoKdXBkYXRlZF9hdBABGgwKCF9fbmFtZV9fEAE
 2. status + next_charge_at: https://console.firebase.google.com/v1/r/project/recurrentes-16fbd/firestore/indexes?create_composite=ClVwcm9qZWN0cy9yZWN1cnJlbnRlcy0xNmZiZC9kYXRhYmFzZXMvKGRlZmF1bHQpL2NvbGxlY3Rpb25Hcm91cHMvc3Vic2NyaWJlcnMvaW5kZXhlcy9fEAEaCgoGc3RhdHVzEAEaEgoObmV4dF9jaGFyZ2VfYXQQARoMCghfX25hbWVfXxAB
 (Ya quedaron declarados en `firestore.indexes.json` para el futuro.)
+
+
+## Importar descuentos de la tienda (2026-09-18)
+El botón "Traer los de Shopify / Tiendanube" en Configuración → Descuentos necesita un permiso más:
+- [ ] **Tiendanube (Partners → tu app → Permisos)**: tildá **Cupones: leer** (`read_coupons`). Sin eso el botón dice "falta un permiso". Las tiendas ya conectadas tienen que desvincular y volver a conectar para que el token nuevo traiga el permiso.
+- [ ] **Shopify (Lumina y DEMO SHOPIFY)**: en la app de cada tienda creá una versión nueva con la lista completa de permisos (ahora incluye `read_discounts`) → **Release** → en Recurrentes, Integraciones → Reconectar. Las tiendas nuevas ya lo piden solas porque copian la lista del panel. No aparece ningún aviso rojo por esto: es opcional.
