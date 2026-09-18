@@ -62,10 +62,10 @@ test("(p) plan_paid → UNA plantilla aviso_admin al WhatsApp del admin con los 
   assert.equal(sent.length, 1);
   const b = sent[0].body;
   assert.equal(b.to, "5491164117974");
-  assert.equal(b.template.name, WA_ADMIN_TEMPLATE.name);
+  assert.equal(b.template.name, "aviso_admin_pago", "usa la plantilla específica del evento");
   assert.equal(b.template.language.code, "es_AR");
   const params = b.template.components[0].parameters.map(p => p.text);
-  assert.deepEqual(params, ["Pagó el plan", "LuminaLabs", "Starter · USD 49 · primer pago", "https://www.recurrentesapp.com/#/dashboard/admin"]);
+  assert.deepEqual(params, ["LuminaLabs", "Starter · USD 49 · primer pago", "https://www.recurrentesapp.com/#/dashboard/admin"]);
   assert.match(sent[0].url, /\/1319380847922196\/messages$/, "sale por el número de Recurrentes");
   // Sin uso cargado a ningún comercio: el costo es de Recurrentes.
   assert.equal(rawList(`merchants/${MID}/usage`).length, 0);
@@ -83,8 +83,8 @@ test("(p) el mismo evento con la misma clave no se manda dos veces", async () =>
 test("(p) rebote del pago del plan (past_due) → aviso con su propio texto, misma plantilla", async () => {
   const r = await notifyAdmin("plan_past_due", { merchantId: MID, store: "LuminaLabs", detail: "Stripe rechazó el cobro del plan · USD 49 · reintenta solo", key: "in_9" });
   assert.equal(r.ok, true);
-  assert.equal(sent[0].body.template.name, "aviso_admin", "sin plantilla nueva");
-  assert.equal(sent[0].body.template.components[0].parameters[0].text, "Le rebotó el pago del plan");
+  assert.equal(sent[0].body.template.name, "aviso_admin_rebote");
+  assert.equal(sent[0].body.template.components[0].parameters[1].text, "Stripe rechazó el cobro del plan · USD 49 · reintenta solo");
 });
 
 test("(p) evento desconocido o sin merchant → no hace nada", async () => {
@@ -102,13 +102,36 @@ test("(p) sin ADMIN_EMAILS ni ADMIN_WHATSAPP → cero lecturas y cero envíos", 
   } finally { process.env.ADMIN_EMAILS = prev; }
 });
 
-test("(p) si Meta rechaza (plantilla sin aprobar) NUNCA lanza y queda el error en el log", async () => {
+test("(p) plantilla específica sin aprobar (132001) → cae a la genérica aviso_admin y llega igual", async () => {
   failNext = { error: { message: "Template name does not exist in the translation", code: 132001 } };
   const r = await notifyAdmin("plan_cancelled", { merchantId: MID, store: "LuminaLabs", detail: "Baja", key: "sub_1" });
+  assert.equal(r.ok, true);
+  assert.equal(sent.length, 1, "el primer intento (específica) falló, el segundo (genérica) salió");
+  assert.equal(sent[0].body.template.name, "aviso_admin");
+  assert.equal(r.whatsapp[0].template, "aviso_admin");
+  assert.equal(sent[0].body.template.components[0].parameters[0].text, "Canceló el plan");
+});
+
+test("(p) si Meta rechaza por otra cosa NUNCA lanza y queda el error en el log", async () => {
+  failNext = { error: { message: "(#131047) Re-engagement message", code: 131047 } };
+  const r = await notifyAdmin("plan_cancelled", { merchantId: MID, store: "LuminaLabs", detail: "Baja", key: "sub_2" });
   assert.equal(r.ok, false, "sin mail configurado no hay respaldo");
-  assert.equal(r.whatsapp[0].ok, false);
-  assert.equal(r.whatsapp[0].code, 132001);
-  assert.equal(rawGet(`system/admin_alerts/log/plan_cancelled:${MID}:sub_1`).status, "error");
+  assert.equal(r.whatsapp[0].code, 131047);
+  assert.equal(sent.length, 0);
+  assert.equal(rawGet(`system/admin_alerts/log/plan_cancelled:${MID}:sub_2`).status, "error");
+});
+
+test("(p) bienvenida al comercio nuevo: una sola vez, sin uso cargado", async () => {
+  const { sendWelcomeWhatsApp } = adminAlerts;
+  const r = await sendWelcomeWhatsApp("m_nueva", { name: "Ana Pérez", phone: "11 5555 0000" });
+  assert.equal(r.ok, true);
+  assert.equal(sent[0].body.to, "5491155550000");
+  assert.equal(sent[0].body.template.name, "bienvenida_recurrentes");
+  assert.deepEqual(sent[0].body.template.components[0].parameters.map(p => p.text), ["Ana", "https://www.recurrentesapp.com/#/dashboard"]);
+  const dup = await sendWelcomeWhatsApp("m_nueva", { name: "Ana", phone: "11 5555 0000" });
+  assert.deepEqual(dup, { ok: false, skipped: true, reason: "duplicate" });
+  assert.equal(sent.length, 1);
+  assert.equal(rawList("merchants/m_nueva/usage").length, 0);
 });
 
 test("(p) la plantilla aviso_admin cumple las reglas de Meta y va en la lista para crear por API", () => {
@@ -135,5 +158,5 @@ test("(p) todas las plantillas de Recurrentes tienen ejemplos, variables secuenc
     assert.equal(vars.length, uniq.length, `${t.name}: sin variables repetidas (Meta las rechaza)`);
     assert.equal((t.samples || []).length, uniq.length, `${t.name}: un ejemplo por variable`);
   }
-  assert.equal(WA_ALL_TEMPLATES.length, 14, "5 a clientes + 5 a comercios + 3 del plan + 1 admin");
+  assert.equal(WA_ALL_TEMPLATES.length, 21, "5 a clientes + 5 a comercios + 3 del plan + 1 admin genérica + 6 admin por evento + 1 bienvenida");
 });

@@ -335,12 +335,83 @@ export const WA_ADMIN_TEMPLATE = {
 };
 export const ADMIN_PANEL_URL = "https://www.recurrentesapp.com/#/dashboard/admin";
 
+// Una plantilla por evento del ramal admin (Thiago las quiso específicas). Si alguna
+// todavía no está aprobada, adminAlerts.js cae a la genérica `aviso_admin`.
+// Variables iguales en todas: {{1}} tienda · {{2}} detalle · {{3}} link al Admin.
+const AV = { "1": "tienda", "2": "detalle", "3": "link_panel" };
+export const WA_ADMIN_TEMPLATES = [
+  {
+    name: "aviso_admin_registro", event: "signup", category: "UTILITY", lang: "es_AR",
+    title: "Nuevo registro (aviso interno)",
+    body: "Recurrentes · nueva cuenta: {{1}} acaba de registrarse y dejó su WhatsApp.\n\nDatos: {{2}}\n\nAbrir el Admin para contactarla: {{3}}\n\nAviso automático para el equipo de Recurrentes.",
+    footer: WA_ADMIN_FOOTER,
+    vars: AV,
+    samples: ["Ana Pérez (Tienda Sol)", "WhatsApp +54 9 11 5555-0000 · ana@tiendasol.com", ADMIN_PANEL_URL],
+  },
+  {
+    name: "aviso_admin_pago", event: "plan_paid", category: "UTILITY", lang: "es_AR",
+    title: "Pago del plan (aviso interno)",
+    body: "Recurrentes · cobro del plan: {{1}} pagó su plan.\n\nDetalle: {{2}}\n\nAbrir el Admin: {{3}}\n\nAviso automático para el equipo de Recurrentes.",
+    footer: WA_ADMIN_FOOTER,
+    vars: AV,
+    samples: ["LuminaLabs", "Starter · USD 49 · primer pago", ADMIN_PANEL_URL],
+  },
+  {
+    name: "aviso_admin_rebote", event: "plan_past_due", category: "UTILITY", lang: "es_AR",
+    title: "Rebote del pago del plan (aviso interno)",
+    body: "Recurrentes · pago del plan rechazado: a {{1}} le rebotó el cobro del plan en Stripe.\n\nDetalle: {{2}}\n\nAbrir el Admin: {{3}}\n\nAviso automático para el equipo de Recurrentes.",
+    footer: WA_ADMIN_FOOTER,
+    vars: AV,
+    samples: ["LuminaLabs", "USD 49 · Stripe reintenta solo", ADMIN_PANEL_URL],
+  },
+  {
+    name: "aviso_admin_baja", event: "plan_cancelled", category: "UTILITY", lang: "es_AR",
+    title: "Baja del plan (aviso interno)",
+    body: "Recurrentes · baja del plan: {{1}} canceló su plan.\n\nDetalle: {{2}}\n\nAbrir el Admin: {{3}}\n\nAviso automático para el equipo de Recurrentes.",
+    footer: WA_ADMIN_FOOTER,
+    vars: AV,
+    samples: ["LuminaLabs", "Baja de la suscripción al plan en Stripe", ADMIN_PANEL_URL],
+  },
+  {
+    name: "aviso_admin_gracia", event: "plan_grace", category: "UTILITY", lang: "es_AR",
+    title: "Tienda en gracia (aviso interno)",
+    body: "Recurrentes · estado de cuenta: {{1}} pasó los 10 suscriptores sin plan pago y está en el período de tolerancia.\n\nDetalle: {{2}}\n\nAbrir el Admin: {{3}}\n\nAviso automático para el equipo de Recurrentes.",
+    footer: WA_ADMIN_FOOTER,
+    vars: AV,
+    samples: ["LuminaLabs", "12 suscriptores activos sin plan pago", ADMIN_PANEL_URL],
+  },
+  {
+    name: "aviso_admin_bloqueo", event: "plan_blocked", category: "UTILITY", lang: "es_AR",
+    title: "Tienda bloqueada (aviso interno)",
+    body: "Recurrentes · estado de cuenta: el widget de {{1}} quedó desactivado por superar el límite sin plan pago.\n\nDetalle: {{2}}\n\nAbrir el Admin: {{3}}\n\nAviso automático para el equipo de Recurrentes.",
+    footer: WA_ADMIN_FOOTER,
+    vars: AV,
+    samples: ["LuminaLabs", "16 suscriptores activos sin plan pago", ADMIN_PANEL_URL],
+  },
+];
+// "Al borde" usa la misma plantilla que "en gracia" (cambia el detalle).
+export const WA_ADMIN_TEMPLATE_BY_EVENT = Object.fromEntries(WA_ADMIN_TEMPLATES.map(t => [t.event, t]));
+WA_ADMIN_TEMPLATE_BY_EVENT.plan_last_call = WA_ADMIN_TEMPLATE_BY_EVENT.plan_grace;
+
+// Bienvenida al COMERCIO recién registrado (confirmación de cuenta, Utilidad). Sale
+// una vez, desde el número de Recurrentes, sin costo para él.
+export const WA_WELCOME_FOOTER = "Mensaje automático de Recurrentes.";
+export const WA_WELCOME_TEMPLATE = {
+  name: "bienvenida_recurrentes", event: "welcome", category: "UTILITY", lang: "es_AR",
+  title: "Bienvenida al comercio (cuenta creada)",
+  body: "Hola {{1}}, ya quedó creada tu cuenta en Recurrentes.\n\nDesde tu panel conectás tu tienda y Mercado Pago, y en unos minutos empezás a vender por suscripción: {{2}}\n\nSi necesitás una mano con la puesta en marcha, respondé este mensaje y te ayudamos.",
+  footer: WA_WELCOME_FOOTER,
+  vars: { "1": "nombre", "2": "link_panel" },
+  samples: ["Ana", "https://www.recurrentesapp.com/#/dashboard"],
+};
+export const DASHBOARD_URL = "https://www.recurrentesapp.com/#/dashboard";
+
 // Todas las plantillas que Recurrentes necesita aprobadas en su WABA (clientes +
 // comercios + límite del plan + admin). Las crea por API admin-wa-templates-sync.
-export const WA_ALL_TEMPLATES = [...WA_TEMPLATES, ...WA_MERCHANT_TEMPLATES, ...WA_PLAN_TEMPLATES, WA_ADMIN_TEMPLATE];
+export const WA_ALL_TEMPLATES = [...WA_TEMPLATES, ...WA_MERCHANT_TEMPLATES, ...WA_PLAN_TEMPLATES, WA_ADMIN_TEMPLATE, ...WA_ADMIN_TEMPLATES, WA_WELCOME_TEMPLATE];
 
-export const WA_MERCHANT_TEMPLATE_BY_EVENT = Object.fromEntries([...WA_MERCHANT_TEMPLATES, ...WA_PLAN_TEMPLATES, WA_ADMIN_TEMPLATE].map(t => [t.event, t]));
-const ALERT_FALLBACK = { marca: "tu tienda", nombre: "un cliente", producto: "tu plan", monto: "el monto del plan", link_panel: ALERTS_PANEL_URL, subs: "varios", free: "10", gracia: "5", evento: "novedad", tienda: "una tienda", detalle: "-" };
+export const WA_MERCHANT_TEMPLATE_BY_EVENT = Object.fromEntries([...WA_MERCHANT_TEMPLATES, ...WA_PLAN_TEMPLATES, WA_ADMIN_TEMPLATE, WA_WELCOME_TEMPLATE].map(t => [t.event, t]));
+const ALERT_FALLBACK = { marca: "tu tienda", nombre: "un cliente", producto: "tu plan", monto: "el monto del plan", link_panel: ALERTS_PANEL_URL, subs: "varios", free: "10", gracia: "5", evento: "novedad", tienda: "una tienda", detalle: "-", nombre: "hola" };
 
 // Qué eventos avisa la tienda (los que faltan cuentan como prendidos).
 export function alertEventsOf(m) {

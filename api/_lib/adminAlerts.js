@@ -18,7 +18,8 @@ import { adminEmails } from "./adminAuth.js";
 import { appBaseUrl } from "./config.js";
 import { platformWaConfig, sendTemplate, bodyComponents, recordPlatformError, scrub } from "./whatsapp.js";
 import { emailAdminAlert } from "./email.js";
-import { normalizePhoneAR, maskPhone, alertParams, renderMerchantAlert, WA_ADMIN_TEMPLATE } from "../../shared/platform/whatsapp.js";
+import { normalizePhoneAR, maskPhone, alertParams, renderMerchantAlert, WA_ADMIN_TEMPLATE, WA_ADMIN_TEMPLATE_BY_EVENT, WA_WELCOME_TEMPLATE, DASHBOARD_URL } from "../../shared/platform/whatsapp.js";
+import { templateParams } from "../../shared/platform/whatsapp.js";
 
 const nowIso = () => new Date().toISOString();
 const arDay = (d = new Date()) => new Date(d.getTime() - 3 * 3600e3).toISOString().slice(0, 10);
@@ -83,9 +84,22 @@ export async function notifyAdmin(event, { merchantId, store, detail, key } = {}
     const phones = wa ? await adminPhones() : [];
     if (wa && phones.length) {
       const sender = { mode: "platform", phone_number_id: wa.phone_number_id, token: wa.token };
+      // Plantilla específica del evento; si Meta todavía no la aprobó (132001/132000/132012)
+      // cae a la genérica aviso_admin, así el aviso llega igual.
+      const specific = WA_ADMIN_TEMPLATE_BY_EVENT[event] || null;
+      const FALLBACK_CODES = new Set([132001, 132000, 132012, 132015, 132016]);
       for (const to of phones) {
-        const r = await sendTemplate({ sender, to, template: WA_ADMIN_TEMPLATE.name, lang: WA_ADMIN_TEMPLATE.lang, components: bodyComponents(alertParams("admin", values)) });
-        out.whatsapp.push(r.ok ? { ok: true, to: maskPhone(to), id: r.id || null } : { ok: false, to: maskPhone(to), error: scrub(r.error || "error"), code: r.code ?? null });
+        let r = null, used = null;
+        if (specific) {
+          used = specific.name;
+          r = await sendTemplate({ sender, to, template: specific.name, lang: specific.lang, components: bodyComponents(templateParams(specific.vars, values)) });
+          if (!r.ok && FALLBACK_CODES.has(Number(r.code))) r = null;
+        }
+        if (!r) {
+          used = WA_ADMIN_TEMPLATE.name;
+          r = await sendTemplate({ sender, to, template: WA_ADMIN_TEMPLATE.name, lang: WA_ADMIN_TEMPLATE.lang, components: bodyComponents(alertParams("admin", values)) });
+        }
+        out.whatsapp.push(r.ok ? { ok: true, to: maskPhone(to), id: r.id || null, template: used } : { ok: false, to: maskPhone(to), error: scrub(r.error || "error"), code: r.code ?? null, template: used });
         if (!r.ok) await recordPlatformError(r);
       }
     }
@@ -100,6 +114,29 @@ export async function notifyAdmin(event, { merchantId, store, detail, key } = {}
     return out;
   } catch (e) {
     console.warn(`[admin-alerts] ${event} ${merchantId}:`, scrub(e?.message));
+    return { ok: false, error: scrub(e?.message) };
+  }
+}
+
+// ─── Bienvenida al comercio recién registrado ────────────────────────────────
+// Confirmación de cuenta por WhatsApp (plantilla bienvenida_recurrentes), una sola vez
+// por cuenta, desde el número de Recurrentes y sin costo para el comercio. NUNCA lanza.
+export async function sendWelcomeWhatsApp(merchantId, { name, phone } = {}) {
+  const wa = platformWaConfig();
+  const to = normalizePhoneAR(phone);
+  if (!wa || !merchantId || !to) return null;
+  try {
+    const ref = db().collection("system").doc("admin_alerts").collection("log").doc(adminLogId("welcome", merchantId, "first"));
+    try { await ref.create({ event: "welcome", merchant_id: String(merchantId), key: "first", status: "sending", created_at: nowIso() }); }
+    catch (e) { if (e?.code === 6 || /already exists/i.test(e?.message || "")) return { ok: false, skipped: true, reason: "duplicate" }; throw e; }
+    const values = { nombre: String(name || "").trim().split(/\s+/)[0] || "hola", link_panel: DASHBOARD_URL };
+    const sender = { mode: "platform", phone_number_id: wa.phone_number_id, token: wa.token };
+    const r = await sendTemplate({ sender, to, template: WA_WELCOME_TEMPLATE.name, lang: WA_WELCOME_TEMPLATE.lang, components: bodyComponents(templateParams(WA_WELCOME_TEMPLATE.vars, values)) });
+    if (!r.ok) await recordPlatformError(r);
+    await ref.set({ status: r.ok ? "sent" : "error", whatsapp: r.ok ? { ok: true, to: maskPhone(to), id: r.id || null } : { ok: false, to: maskPhone(to), error: scrub(r.error || "error"), code: r.code ?? null }, updated_at: nowIso() }, { merge: true }).catch(() => {});
+    return r.ok ? { ok: true } : { ok: false, code: r.code ?? null, error: scrub(r.error) };
+  } catch (e) {
+    console.warn(`[welcome-wa] ${merchantId}:`, scrub(e?.message));
     return { ok: false, error: scrub(e?.message) };
   }
 }

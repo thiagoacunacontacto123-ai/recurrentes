@@ -1677,6 +1677,9 @@ async function saveOwner(ctx, req, res) {
         const { notifyAdmin } = await import("./_lib/adminAlerts.js");
         await notifyAdmin("signup", { merchantId: ctx.uid, store: `${name} (${prev.store_name || prev.shopify_shop || email})`, detail: `WhatsApp ${wa} · ${email}`, key: "first" });
       }
+      // Y al comercio nuevo, un WhatsApp de bienvenida con el link a su panel (una sola vez).
+      const { sendWelcomeWhatsApp } = await import("./_lib/adminAlerts.js");
+      await sendWelcomeWhatsApp(ctx.uid, { name, phone: wa });
     } catch (e) { console.warn("[save-owner] admin alert:", e.message); }
   }
   return res.json({ ok: true, owner_name: name, owner_whatsapp: wa, contact_email: email });

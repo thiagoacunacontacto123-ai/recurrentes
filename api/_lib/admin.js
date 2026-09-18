@@ -599,6 +599,42 @@ export async function adminHandler(req, res) {
         const e = mapWaError(r.status, r.data);
         return res.status(502).json({ ok: false, error: e.error || "Meta rechazó el registro", code: r.data?.error?.code ?? null, detail: String(r.data?.error?.error_user_msg || r.data?.error?.message || "").slice(0, 300) });
       }
+      // Perfil del número de Recurrentes en WhatsApp: foto (logo) + descripción + web.
+      // La foto va por "resumable upload" de Meta: POST /{app_id}/uploads → POST /upload:{id}
+      // con el binario → handle → POST /{phone_id}/whatsapp_business_profile.
+      if (action === "admin-wa-profile") {
+        const { platformWaConfig, graphRequest, mapWaError, graphVersion } = await import("./whatsapp.js");
+        const { appBaseUrl } = await import("./config.js");
+        const cfg = platformWaConfig();
+        const appId = String(req.body?.app_id || process.env.WHATSAPP_APP_ID || "").trim();
+        if (!cfg) return res.status(400).json({ error: "Faltan WHATSAPP_PHONE_NUMBER_ID / WHATSAPP_ACCESS_TOKEN." });
+        if (!/^\d{5,25}$/.test(appId)) return res.status(400).json({ error: "Falta app_id (el ID de la app de Meta)." });
+        const G = `https://graph.facebook.com/${graphVersion()}`;
+        // 1) el logo, desde nuestro propio sitio
+        const img = await fetch(`${appBaseUrl().replace(/\/$/, "")}/brand/recurrentes-512.png`);
+        if (!img.ok) return res.status(502).json({ error: `No pude bajar el logo (${img.status})` });
+        const buf = Buffer.from(await img.arrayBuffer());
+        // 2) sesión de subida
+        const up = await fetch(`${G}/${encodeURIComponent(appId)}/uploads?file_length=${buf.length}&file_type=image/png`, { method: "POST", headers: { Authorization: `Bearer ${cfg.token}` } });
+        const upd = await up.json().catch(() => ({}));
+        if (!up.ok || !upd.id) return res.status(502).json({ error: "Meta no abrió la subida", detail: String(upd?.error?.message || "").slice(0, 300) });
+        // 3) el binario
+        const fin = await fetch(`${G}/${upd.id}`, { method: "POST", headers: { Authorization: `OAuth ${cfg.token}`, file_offset: "0", "Content-Type": "image/png" }, body: buf });
+        const find = await fin.json().catch(() => ({}));
+        if (!fin.ok || !find.h) return res.status(502).json({ error: "Meta no aceptó la imagen", detail: String(find?.error?.message || "").slice(0, 300) });
+        // 4) el perfil
+        const body = {
+          messaging_product: "whatsapp", profile_picture_handle: find.h,
+          about: "Avisos automáticos de suscripciones",
+          description: "Recurrentes: suscripciones con cobro recurrente en Mercado Pago para tiendas online de Argentina. Este número manda avisos automáticos a nombre de cada tienda.",
+          websites: ["https://www.recurrentesapp.com"], vertical: "OTHER",
+          ...(req.body?.email ? { email: String(req.body.email).slice(0, 128) } : {}),
+        };
+        const r = await graphRequest(`${encodeURIComponent(cfg.phone_number_id)}/whatsapp_business_profile`, { token: cfg.token, method: "POST", body, timeoutMs: 30000 });
+        if (!r.ok) return res.status(502).json({ error: mapWaError(r.status, r.data).error || "Meta rechazó el perfil", detail: String(r.data?.error?.message || "").slice(0, 300) });
+        await db().collection("system").doc("whatsapp_platform").set({ profile_set_at: new Date().toISOString() }, { merge: true });
+        return res.json({ ok: true });
+      }
       // Prueba del ramal admin: manda aviso_admin al WhatsApp del admin (sin dedup: clave única).
       if (action === "admin-wa-test") {
         const { notifyAdmin, adminPhones } = await import("./adminAlerts.js");

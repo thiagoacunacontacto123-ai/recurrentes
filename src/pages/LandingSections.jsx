@@ -354,6 +354,65 @@ export function DeepDivesSection({ T }) {
   );
 }
 
+// ─── WhatsApp automático (Thiago, 18-sept): más abajo en la home ─────────────
+// Muestra los avisos reales que salen por el número de Recurrentes a nombre de la
+// tienda, con el interruptor de cada uno. Textos = plantillas aprobadas por Meta.
+const WA_SHOW = [
+  { t:"Carrito sin pagar", when:"1 h después de dejar el checkout", on:true, msg:"Hola Ana, dejaste a medio camino tu suscripción a Bálsamo Natural de Tienda Sol. Si querés retomarla, este es tu link…" },
+  { t:"Próximo cobro", when:"3 días antes de cada renovación", on:true, msg:"Hola Ana, te escribimos de parte de Tienda Sol: el 15 de octubre se renueva tu suscripción a Bálsamo Natural por $76.500…" },
+  { t:"Pago rechazado", when:"cuando una tarjeta rebota", on:true, msg:"Hola Ana, no pudimos cobrar la renovación de tu suscripción. Para no perderla, actualizá tu tarjeta desde tu portal…" },
+  { t:"Suscripción activa", when:"al primer pago", on:false, msg:"¡Hola Ana! Tu suscripción a Bálsamo Natural ya está activa. Tu próximo cobro es el 15 de octubre…" },
+  { t:"Renovación cobrada", when:"en cada cobro", on:false, msg:"Hola Ana, ya se cobró la renovación de tu suscripción por $76.500. Tu próximo cobro es el 15 de noviembre…" },
+];
+const WA_G = "#25D366";
+function WhatsAppMock({ T }) {
+  return (
+    <MockFrame T={T} label="Flujos de WhatsApp">
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {WA_SHOW.map(w => (
+          <div key={w.t} style={{border:`1px solid ${w.on ? WA_G + "77" : T.border}`,borderRadius:12,padding:"10px 12px",background:T.bg}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <span style={{width:26,height:26,borderRadius:8,background:WA_G+"22",color:WA_G,display:"grid",placeItems:"center",flexShrink:0}}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.4 8.4 0 01-8.5 8.4 8.4 8.4 0 01-4-1L3 21l2.1-5.4A8.4 8.4 0 1121 11.5z"/></svg>
+              </span>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:800,color:T.text}}>{w.t}</div>
+                <div style={{fontSize:11,color:T.textSm}}>{w.when}</div>
+              </div>
+              <span aria-hidden="true" style={{width:34,height:20,borderRadius:99,background:w.on ? WA_G : T.border,position:"relative",flexShrink:0}}>
+                <span style={{position:"absolute",top:3,left:w.on ? 17 : 3,width:14,height:14,borderRadius:"50%",background:"#fff"}}/>
+              </span>
+            </div>
+            {w.on && <div style={{marginTop:8,fontSize:11.5,lineHeight:1.45,color:T.textMd,background:T.card,border:`1px solid ${T.borderL}`,borderRadius:"10px 10px 10px 3px",padding:"7px 10px"}}>{w.msg}</div>}
+          </div>
+        ))}
+      </div>
+    </MockFrame>
+  );
+}
+export function WhatsAppSection({ T }) {
+  return (
+    <section className="ls-sec" id="rec-whatsapp" style={{background:T.surface,borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`}}>
+      <div className="ls-wrap">
+        <div className="ls-dd">
+          <div>
+            <div style={{fontSize:11,fontWeight:800,color:WA_G,letterSpacing:0.8,textTransform:"uppercase",marginBottom:10}}>WhatsApp automático</div>
+            <h3 style={{fontSize:26,fontWeight:800,letterSpacing:-0.6,lineHeight:1.18,margin:"0 0 10px",color:T.text,textWrap:"balance"}}>Tus clientes reciben los avisos por WhatsApp, a nombre de tu tienda</h3>
+            <p style={{fontSize:15,color:T.textSm,lineHeight:1.65,margin:0,maxWidth:520}}>Un interruptor y listo: sin número nuevo, sin Meta Business, sin plantillas que armar. Recurrentes ya tiene todo aprobado y manda desde su número con el nombre de tu marca.</p>
+            <Bullets T={T} items={[
+              "Carrito sin pagar, próximo cobro, pago rechazado, suscripción activa y renovación cobrada: prendés los que querés.",
+              "Textos aprobados por Meta, con el nombre de tu tienda, tu producto y el link al portal de cada cliente.",
+              "Pagás solo por mensaje enviado; se suma a tu plan a fin de mes. Quien responde BAJA deja de recibirlos.",
+              "Y los flujos de mail vienen escritos: los ajustás a tu marca y los activás.",
+            ]}/>
+          </div>
+          <div><WhatsAppMock T={T}/></div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ─── 4. Y además (funciones que ya existen) ──────────────────────────────
 export function ExtrasSection({ T }) {
   const items = [
