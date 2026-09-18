@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { apiGet, apiPost, setActiveMerchantId } from "../lib/api.js";
 import { StoreTransferredScreen } from "./Transfer.jsx";
 import { auth } from "../lib/firebase.js";
@@ -23,6 +23,7 @@ import { AnalyticsPage } from "./Analytics.jsx";
 import { RetentionPage } from "./Retention.jsx";
 import { CustomerPortalPage } from "./CustomerPortal.jsx";
 import { FlowsPage } from "./Flows.jsx";
+import { emitTabShown } from "../lib/tabs.js";
 import { OwnerInfoModal } from "./OwnerInfo.jsx";
 import { readPendingSignup, clearPendingSignup } from "../lib/signup.js";
 import { mpOauthReturnToast } from "../lib/mpOauth.js";
@@ -53,13 +54,29 @@ function tabFromHash() {
 
 // Dashboard del comerciante — shell (sidebar + switcher de tiendas + topbar)
 // con las 7 secciones + Configuración. Cada pantalla vive en su archivo.
-// Tiendas de muestra: la app entera precargada (ver `prewarm`). RECURRENTES (ex DEMO SHOPIFY), Thiago 18-sept.
+// Pestañas que se precargan solas después de la primera pantalla (300 ms entre cada una).
+const PREFETCH_TABS = ["suscripciones", "cobros", "planes"];
+// Tiendas de muestra: la app entera precargada de entrada (ver `prewarm`). RECURRENTES (ex DEMO SHOPIFY), Thiago 18-sept.
 const PREWARM_MERCHANTS = new Set(["m_mu4jn3fj2x06fm"]);
 const PREWARM_TABS = ["analiticas", "suscripciones", "cobros", "planes", "widget", "retencion", "flujos", "whatsapp", "portal", "afiliados", "configuracion"];
 
 export default function Dashboard({ user, onLogout }) {
   const { T, darkMode, setDarkMode } = useTheme();
   const [tab, setTab] = useState(tabFromHash);
+  // Pestañas visitadas: quedan montadas (volver es instantáneo) y al volver a mostrarse
+  // refrescan su data en silencio (src/lib/tabs.js). Las 3 más usadas se precargan solas.
+  const [mountedTabs, setMountedTabs] = useState(() => new Set([tabFromHash()]));
+  const lastMerchantReload = useRef(Date.now()); // el montaje ya trae el merchant: no repetir el GET
+  useEffect(() => {
+    setMountedTabs(prev => prev.has(tab) ? prev : new Set([...prev, tab]));
+    const t = setTimeout(() => {
+      emitTabShown(tab);
+      // Los números del menú/plan también se refrescan, como mucho una vez por minuto.
+      if (Date.now() - lastMerchantReload.current > 60000) { lastMerchantReload.current = Date.now(); reloadMerchant(); }
+    }, 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line
+  }, [tab]);
   const [merchant, setMerchant] = useState(null);
   const [workspace, setWorkspace] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -318,6 +335,14 @@ export default function Dashboard({ user, onLogout }) {
   // Tienda de muestra (video 3D): TODAS las pestañas quedan montadas y cargadas; al
   // cambiar de pestaña solo se muestra/oculta, sin spinners. Solo para esos ids.
   const prewarm = !loading && !loadError && !!merchant && PREWARM_MERCHANTS.has(merchant.id);
+  // Precarga escalonada (todas las tiendas): apenas hay pantalla, montamos ocultas las 3 pestañas más usadas.
+  useEffect(() => {
+    if (loading || loadError || !merchant) return;
+    const timers = PREFETCH_TABS.map((id, i) => setTimeout(() => setMountedTabs(prev => prev.has(id) ? prev : new Set([...prev, id])), 300 * (i + 1)));
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line
+  }, [loading, loadError, merchant?.id]);
+  const tabsToRender = prewarm ? [...PREWARM_TABS, ...(PREWARM_TABS.includes(tab) ? [] : [tab])] : [...new Set([...mountedTabs, tab])];
   const renderTab = (t) => (
     blockedTab(t) ? (
                 <PlanBlockedView T={T} billing={merchant.billing} title={(NAV.find(n => n.id === t) || navItem).label} onGo={()=>goConfig("facturacion")} onGoCobros={()=>goTab("cobros")}/>
@@ -374,7 +399,7 @@ export default function Dashboard({ user, onLogout }) {
         {!loading && merchant?.billing && <PlanLimitBar T={T} billing={merchant.billing} onGo={()=>goConfig("facturacion")}/>}
         {!loading && merchant?.billing && !showsPlanLimit(merchant.billing) && <BillingBanner T={T} billing={merchant.billing} onGo={()=>goConfig("facturacion")}/>}
 
-        <PageView pageKey={prewarm ? "prewarm" : tab} T={T}>
+        <PageView pageKey="app" T={T}>
           <ErrorBoundary T={T}>
             <main style={{padding:"28px 32px 48px",maxWidth:1200,width:"100%"}} className="pad-mobile">
               {loading ? (
@@ -388,10 +413,8 @@ export default function Dashboard({ user, onLogout }) {
                     <button onClick={()=>{setActiveMerchantId(user?.uid,null);window.location.reload();}} style={{background:"transparent",color:T.textMd,border:`1px solid ${T.border}`,borderRadius:10,padding:"10px 16px",fontWeight:600,cursor:"pointer"}}>Volver a mi tienda principal</button>
                   </div>
                 </div>
-              ) : prewarm ? (
-                [...PREWARM_TABS, ...(PREWARM_TABS.includes(tab) ? [] : [tab])].map(id => <div key={id} hidden={tab !== id}>{renderTab(id)}</div>)
               ) : (
-                renderTab(tab)
+                tabsToRender.map(id => <div key={id} hidden={tab !== id}>{renderTab(id)}</div>)
                             )}
             </main>
           </ErrorBoundary>

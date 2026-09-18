@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
+import { useTabRefresh } from "../lib/tabs.js";
 import { apiGet, apiPost, apiPatch } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
 import { Btn, DSBadge, DSToggle, Spinner, PageHeader, Callout, Field, InputStyle, Hint, Loading, appConfirm, toast } from "../ui/components.jsx";
@@ -63,14 +64,15 @@ export function FlowsPage({ merchant, onMerchantChange }) {
   useEffect(() => { setSupport(merchant?.email_reply_to || ""); }, [merchant?.id, merchant?.email_reply_to]);
   const needSupport = !String(support || "").trim();
 
-  async function load() {
-    setLoading(true);
+  async function load({ silent = false } = {}) {
+    if (!silent) setLoading(true);
     const d = await apiGet("merchant", { action: "flows" }).catch(e => ({ error: e.message }));
     // Los flujos de sistema de WhatsApp (uno por plantilla) se manejan en "Flujos de WhatsApp".
     if (d?.error) setErr(d.error); else { setFlows((d.flows || []).filter(f => !f.wa_template)); setErr(""); }
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
+  useTabRefresh("flujos", () => load({ silent: true }));
 
   async function toggle(f) {
     if (!f.active && needSupport) return toast("Antes de activar, cargá el mail de atención al cliente (el recuadro de arriba).", "warning", 6000);

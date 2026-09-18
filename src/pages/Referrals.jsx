@@ -3,6 +3,7 @@
 // referidos, para siempre, como crédito que descuenta sus propias facturas de
 // Recurrentes (saldo en Stripe). Solo el dueño de la cuenta.
 import React, { useEffect, useState } from "react";
+import { useTabRefresh } from "../lib/tabs.js";
 import { apiGet } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
 import { PageHeader, Callout, Btn, Loading, DSBadge, toast } from "../ui/components.jsx";
@@ -17,10 +18,9 @@ export default function ReferralsPage({ merchant }) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
   const isOwner = !merchant?.role || merchant.role === "owner";
-  useEffect(() => {
-    if (!isOwner) return;
-    apiGet("merchant", { action: "ref-me" }).then(d => { if (d?.error) setErr(d.error); else setData(d); }).catch(e => setErr(e.message));
-  }, [isOwner]);
+  const load = () => { if (isOwner) apiGet("merchant", { action: "ref-me" }).then(d => { if (d?.error) setErr(d.error); else setData(d); }).catch(e => setErr(e.message)); };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [isOwner]);
+  useTabRefresh("afiliados", load);
 
   const header = <PageHeader T={T} title="Afiliados" subtitle="Compartí tu link y ganá el 15% de cada pago del plan de las tiendas que traigas, para siempre. Se descuenta de tus propias facturas de Recurrentes."/>;
   if (!isOwner) return <div>{header}<Callout T={T} tone="info">Afiliados es del dueño de la cuenta.</Callout></div>;

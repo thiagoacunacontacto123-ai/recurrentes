@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useTabRefresh } from "../lib/tabs.js";
 import { apiGet, apiPost } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
 import { KPI, Btn, InputStyle, DSBadge, Spinner, DSTable, CellStack, PageHeader, SubTabs, Loading, appConfirm, toast } from "../ui/components.jsx";
@@ -103,9 +104,8 @@ export function ChargesPage({ shop = null }) {
     if (st && !st.error) { setThisMonth(st.revenue?.this_month || null); setPeriod(st.period || null); }
     return st;
   }
-  async function loadAll() {
-    setLoading(true);
-    setUpYear([]);
+  async function loadAll({ silent = false } = {}) {
+    if (!silent) { setLoading(true); setUpYear([]); }
     try {
       const [list, up, st] = await Promise.all([loadProcessed(false), fetchUpcoming().catch(() => []), loadStats()]);
       setUpcoming(up);
@@ -118,6 +118,7 @@ export function ChargesPage({ shop = null }) {
     } finally { setLoading(false); }
   }
   useEffect(() => { loadAll(); }, []);
+  useTabRefresh("cobros", () => loadAll({ silent: true }));
   // El año solo se pide cuando hace falta (vista Próximos + calendario).
   useEffect(() => {
     if (view !== "upcoming" || upMode !== "cal" || upYear.length || upYearLoading) return;

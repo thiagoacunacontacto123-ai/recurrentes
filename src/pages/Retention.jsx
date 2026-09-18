@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useTabRefresh } from "../lib/tabs.js";
 import { apiGet, apiPatch } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
 import { Btn, DSBadge, DSToggle, Spinner, DSTable, CellStack, PageHeader, Callout, Field, InputStyle, Hint, Loading, toast } from "../ui/components.jsx";
@@ -37,8 +38,8 @@ export function RetentionPage({ merchant, reloadMerchant, goTab }) {
   const [unpaidCount, setUnpaidCount] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  async function load() {
-    setLoading(true);
+  async function load({ silent = false } = {}) {
+    if (!silent) setLoading(true);
     const [an, pf, un] = await Promise.all([
       fetchAnalytics(6).catch(() => null),
       apiGet("subscribers", { status: "payment_failed" }).catch(() => null),
@@ -51,6 +52,7 @@ export function RetentionPage({ merchant, reloadMerchant, goTab }) {
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
+  useTabRefresh("retencion", () => load({ silent: true }));
   const goSec = (id) => {
     setSec(id);
     try { window.history.replaceState(null, "", `${window.location.pathname}#/dashboard/retencion${id === "cancelacion" ? "" : "?sec=" + id}`); } catch (_) {}

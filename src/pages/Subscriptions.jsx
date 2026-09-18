@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { useTabRefresh } from "../lib/tabs.js";
 import { apiGet, apiPost, apiPatch, apiDelete, apiSend } from "../lib/api.js";
 import { auth } from "../lib/firebase.js";
 import { DS, useT } from "../ui/theme.js";
@@ -255,8 +256,8 @@ export function SubscriptionsPage({ devMode = false, shop = null }) {
     const d = await apiGet("stats");
     if (d && !d.error) { setCounts(c => ({ ...c, ...(d.totals || {}) })); setPeriod(d.period || null); }
   }
-  async function load(st = status) {
-    setLoading(true);
+  async function load(st = status, { silent = false } = {}) {
+    if (!silent) setLoading(true);
     const params = { status: st };
     if (search.trim()) params.q = search.trim();
     const d = await apiGet("subscribers", params);
@@ -267,6 +268,7 @@ export function SubscriptionsPage({ devMode = false, shop = null }) {
   }
   useEffect(() => { loadCounts(); }, []);
   useEffect(() => { load(status); /* eslint-disable-next-line */ }, [status]);
+  useTabRefresh("suscripciones", () => { loadCounts(); load(status, { silent: true }); });
   useEffect(() => { setPage(0); }, [status, search, plan]);
 
   const planTitle = (s) => subAmounts(s).plan.product_title || s.product_title || "";

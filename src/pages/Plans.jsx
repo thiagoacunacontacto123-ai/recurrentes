@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useTabRefresh } from "../lib/tabs.js";
 import { apiGet, apiPost, apiDelete } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
 import { Card, Btn, InputStyle, DSEmpty, DSBadge, Modal, PageHeader, Callout, Loading, SubTabs, appConfirm, appAlert, appPrompt, toast } from "../ui/components.jsx";
@@ -97,8 +98,8 @@ export function PlansPage({ merchant, onMerchantChange, forceSub = null }) {
     if (!forceSub && widgetOn && readSub(widgetOn) === "widget") goSub("widget");
   }, [forceSub, widgetOn, goSub]);
 
-  async function loadAll() {
-    setLoading(true);
+  async function loadAll({ silent = false } = {}) {
+    if (!silent) setLoading(true);
     // El catálogo solo existe con tienda conectada (Shopify); sin tienda los planes son manuales.
     // Las suscripciones activas / con pago fallido dan las métricas por plan (sin tocar el backend).
     const [p, pr, act, fail] = await Promise.all([
@@ -114,6 +115,7 @@ export function PlansPage({ merchant, onMerchantChange, forceSub = null }) {
     setLoading(false);
   }
   useEffect(() => { loadAll(); /* eslint-disable-next-line */ }, [profile.caps.catalog]);
+  useTabRefresh(forceSub === "widget" ? "widget" : "planes", () => loadAll({ silent: true }));
 
   // Repreciar TODAS las subs activas del plan al mismo monto (PUT preapproval en MP).
   async function repricePlan(p) {

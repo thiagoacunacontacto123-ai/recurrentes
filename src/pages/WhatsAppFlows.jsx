@@ -4,6 +4,7 @@
 // una. Abajo ve cuánto lleva gastado en mensajes este mes y los anteriores.
 // Sin WhatsApp prendido: cartel que lo manda a Integraciones, con el costo claro.
 import React, { useEffect, useState } from "react";
+import { useTabRefresh } from "../lib/tabs.js";
 import { apiGet, apiPost } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
 import { PageHeader, Callout, Btn, DSToggle, DSBadge, Loading, Spinner, toast } from "../ui/components.jsx";
@@ -34,6 +35,7 @@ export default function WhatsAppFlowsPage({ merchant, goConfig }) {
     if (d?.error) setErr(d.error); else { setData(d); setErr(""); }
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [merchant?.id]);
+  useTabRefresh("whatsapp", load);
 
   // Tarjeta sin plan: Stripe Checkout en modo setup (merchant?action=wa-card-setup). Al volver, ?tarjeta=ok.
   async function addCard() {

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useTabRefresh } from "../lib/tabs.js";
 import { apiGet } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
 import { Card, KPI, Btn, DSBadge, Spinner, DSTable, PageHeader, SubTabs, CardHeader, Loading, Tip, Callout } from "../ui/components.jsx";
@@ -56,8 +57,8 @@ export function AnalyticsPage({ merchant }) {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
-  async function load(r = range) {
-    setLoading(true);
+  async function load(r = range, { silent = false } = {}) {
+    if (!silent) setLoading(true);
     try {
       const d = await fetchAnalytics(r);
       if (!d) setErr("No pudimos cargar las métricas"); else { setData(d); setErr(""); }
@@ -65,6 +66,7 @@ export function AnalyticsPage({ merchant }) {
     finally { setLoading(false); }
   }
   useEffect(() => { load(range); /* eslint-disable-next-line */ }, [range.since, range.until]);
+  useTabRefresh("analiticas", () => load(range, { silent: true }));
   const pickRange = (since, until, preset) => { const r = { since, until, preset: preset || null }; setRange(r); try { localStorage.setItem(RANGE_KEY, JSON.stringify(r)); } catch (_) {} };
 
   const a = data || {};
