@@ -6,9 +6,14 @@
 //     próxima factura del plan en Stripe (POST /v1/invoiceitems). Cron diario `bill-wa-usage`.
 //     Al activar el plan se facturan los meses pendientes; al darse de baja se factura TODO
 //     (mes en curso incluido) y se emite la factura en el momento.
-//   · Sin plan pago: el uso se acumula en merchant.wa_unbilled_usd; al llegar a WA_FREE_CAP_USD
-//     se pone wa_paused_for_billing y el número deja de mandar por esa tienda (waSender → null,
-//     avisos al comercio → solo mail) hasta que active un plan. Aviso por mail una sola vez.
+//   · Solo tarjeta (customer sin suscripción; Thiago 18-sept: "con 8 activos no tengo que pagar
+//     Starter para destrabar US$ 5"): mismos ítems + una factura propia que se cobra a la tarjeta
+//     (auto_advance). Stripe no cobra menos de US$ 0,50: por debajo se deja pendiente y se
+//     acumula al mes siguiente.
+//   · Sin tarjeta ni plan: el uso se acumula en merchant.wa_unbilled_usd; al llegar a
+//     WA_FREE_CAP_USD se pone wa_paused_for_billing y el número deja de mandar por esa tienda
+//     (waSender → null, avisos al comercio → solo mail) hasta que cargue una tarjeta o active un
+//     plan. Aviso por mail una sola vez.
 // El recargo NUNCA se muestra al comercio (solo el precio final).
 import { FieldValue } from "firebase-admin/firestore";
 import { db } from "./firebase.js";
@@ -16,6 +21,7 @@ import { emailMerchantAlert } from "./email.js";
 import { waUsageMonth, BILLING_PANEL_URL } from "../../shared/platform/whatsapp.js";
 
 export const WA_FREE_CAP_USD = 5;
+export const STRIPE_MIN_USD = 0.5;
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const cents = (usd) => Math.round((Number(usd) || 0) * 100);
 export function waMonthLabel(ym) {
@@ -45,6 +51,16 @@ export async function billWaUsage(mid, merchant, stripeCall, { includeCurrent = 
   if (!customer) return { billed: 0, total_usd: 0, skipped: "no_customer" };
   const ref = db().collection("merchants").doc(mid);
   const months = await unbilledWaMonths(mid, { includeCurrent, now });
+  // Sin suscripción al plan no hay factura mensual donde colgar los ítems: se emite una propia.
+  const standalone = !merchant?.saas_stripe_subscription_id;
+  const unpause = { wa_paused_for_billing: FieldValue.delete(), wa_paused_at: FieldValue.delete() };
+  if (standalone && months.length) {
+    const sum = months.reduce((t, u) => t + (Number(u.wa_cost_usd) || 0), 0);
+    if (sum < STRIPE_MIN_USD) {
+      await ref.set({ wa_unbilled_usd: await unbilledWaTotal(mid, now), ...unpause }, { merge: true });
+      return { billed: 0, total_usd: 0, skipped: "below_minimum" };
+    }
+  }
   let billed = 0, total = 0;
   for (const u of months) {
     const uref = ref.collection("usage").doc(u.id);
@@ -63,9 +79,9 @@ export async function billWaUsage(mid, merchant, stripeCall, { includeCurrent = 
     billed++; total += amount / 100;
   }
   const remaining = await unbilledWaTotal(mid, now);
-  await ref.set({ wa_unbilled_usd: remaining, ...(billed ? { wa_last_billed_at: now.toISOString() } : {}), wa_paused_for_billing: FieldValue.delete(), wa_paused_at: FieldValue.delete() }, { merge: true });
-  if (finalizeNow && billed) {
-    // Baja del plan: no va a haber próxima factura → se emite una ahora con lo pendiente.
+  await ref.set({ wa_unbilled_usd: remaining, ...(billed ? { wa_last_billed_at: now.toISOString() } : {}), ...unpause }, { merge: true });
+  if ((finalizeNow || standalone) && billed) {
+    // Baja del plan o solo tarjeta: no hay próxima factura del plan → se emite una ahora.
     try { await stripeCall("POST", "/v1/invoices", { customer, auto_advance: "true", collection_method: "charge_automatically", "metadata[kind]": "whatsapp_usage_final" }); }
     catch (e) { console.warn(`[waBilling] factura final ${mid}:`, e.message); }
   }
@@ -83,7 +99,7 @@ export async function checkWaFreeCap(mid, merchant, unbilledUsd) {
     if (to) {
       await emailMerchantAlert({
         to, event: "wa_paused", storeName: merchant.store_name || merchant.email_brand_effective || "",
-        text: `Tus mensajes de WhatsApp llegaron al tope de US$ ${WA_FREE_CAP_USD} del plan gratis, así que los pausamos.\n\nPara que vuelvan a salir, activá un plan de Recurrentes: el uso de WhatsApp se cobra junto con el plan, a fin de mes, y solo pagás los mensajes que se mandan.\n\nMientras tanto, los avisos a tus clientes y a vos siguen saliendo por mail.`,
+        text: `Tus mensajes de WhatsApp llegaron al tope de US$ ${WA_FREE_CAP_USD} del plan gratis, así que los pausamos.\n\nPara que vuelvan a salir, cargá una tarjeta en Flujos de WhatsApp: se cobra a fin de mes solo lo que uses, sin plan. Si más adelante te toca un plan, la misma tarjeta paga las dos cosas.\n\nMientras tanto, los avisos a tus clientes y a vos siguen saliendo por mail.`,
         panelUrl: BILLING_PANEL_URL,
       }).catch(() => {});
     }

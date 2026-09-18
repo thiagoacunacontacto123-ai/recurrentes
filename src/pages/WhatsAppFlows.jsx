@@ -35,6 +35,22 @@ export default function WhatsAppFlowsPage({ merchant, goConfig }) {
   }
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [merchant?.id]);
 
+  // Tarjeta sin plan: Stripe Checkout en modo setup (merchant?action=wa-card-setup). Al volver, ?tarjeta=ok.
+  async function addCard() {
+    setBusy("card");
+    const r = await apiPost("merchant", { return_origin: window.location.origin }, { action: "wa-card-setup" }).catch(e => ({ error: e.message }));
+    if (r?.url) { window.location.href = r.url; return; }
+    setBusy(null);
+    toast(r?.error || "No pudimos abrir el pago con tarjeta.", "error", 7000);
+  }
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams((window.location.hash.split("?")[1]) || "");
+      if (q.get("tarjeta") === "ok") { toast("Tarjeta cargada. WhatsApp sigue andando: se cobra a fin de mes solo lo que uses.", "success", 8000); window.history.replaceState(null, "", `${window.location.pathname}#/dashboard/whatsapp`); }
+      else if (q.get("tarjeta") === "cancel") window.history.replaceState(null, "", `${window.location.pathname}#/dashboard/whatsapp`);
+    } catch (_) {}
+  }, []);
+
   async function toggle(t) {
     if (!isOwner) return toast("Solo el dueño de la tienda puede prender o apagar los avisos", "warning");
     setBusy(t.name);
@@ -75,9 +91,15 @@ export default function WhatsAppFlowsPage({ merchant, goConfig }) {
     <div>
       {header}
       {data.billing?.paused && data.sender !== "own" && (
-        <Callout T={T} tone="danger" title={`WhatsApp en pausa: llegaste al tope de US$ ${data.billing.cap_usd || 5} del plan gratis`} style={{ marginBottom: 14 }}
-          right={<Btn T={T} variant="solid" size="sm" onClick={() => { try { window.location.hash = "#/config/facturacion"; } catch (_) {} }}>Activar un plan</Btn>}>
-          Tus mensajes de WhatsApp no salen hasta que actives un plan. Con el plan, el uso se cobra a fin de mes junto con la factura: solo los mensajes que se mandan. Los avisos por mail siguen saliendo.
+        <Callout T={T} tone="danger" title={`WhatsApp en pausa: llegaste al tope de US$ ${data.billing.cap_usd || 5} sin tarjeta`} style={{ marginBottom: 14 }}
+          right={<Btn T={T} variant="solid" size="sm" disabled={busy === "card"} onClick={addCard}>{busy === "card" ? "Abriendo…" : "Cargar una tarjeta"}</Btn>}>
+          Cargá una tarjeta y los mensajes vuelven a salir: se cobra <strong style={{ color: T.text }}>a fin de mes, solo lo que uses</strong>, sin necesidad de plan. Si más adelante te toca un plan, la misma tarjeta paga las dos cosas. Mientras tanto, los avisos por mail siguen saliendo.
+        </Callout>
+      )}
+      {!data.billing?.paused && !data.billing?.card_on_file && data.sender === "platform" && (
+        <Callout T={T} tone="info" style={{ marginBottom: 14 }}
+          right={<Btn T={T} variant="secondary" size="sm" disabled={busy === "card"} onClick={addCard}>{busy === "card" ? "Abriendo…" : "Cargar una tarjeta"}</Btn>}>
+          Sin tarjeta, el gasto se acumula hasta <strong style={{ color: T.text }}>US$ {data.billing?.cap_usd || 5}</strong> y ahí WhatsApp se pausa. Cargá una tarjeta ahora y no se corta: se cobra a fin de mes solo lo que uses, sin plan.
         </Callout>
       )}
       <UsageCards T={T} data={data}/>
@@ -97,8 +119,10 @@ function UsageCards({ T, data }) {
   const own = data.sender === "own";
   const b = data.billing || {};
   const capText = b.has_plan
-    ? "Se suma a tu factura de Recurrentes a fin de mes."
-    : `Sin plan pago se acumula hasta US$ ${b.cap_usd || 5} y ahí WhatsApp se pausa hasta que actives un plan${b.unbilled_usd ? ` · llevás ${fmtUsd(b.unbilled_usd)}` : ""}.`;
+    ? "Se suma a la factura de tu plan a fin de mes."
+    : b.card_on_file
+      ? "Se cobra a fin de mes a tu tarjeta, solo lo que uses."
+      : `Sin tarjeta se acumula hasta US$ ${b.cap_usd || 5} y ahí se pausa${b.unbilled_usd ? ` · llevás ${fmtUsd(b.unbilled_usd)}` : ""}.`;
   const card = { background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, padding: "14px 16px", minWidth: 0 };
   const lbl = { fontSize: 10, fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase", color: T.textSm };
   return (

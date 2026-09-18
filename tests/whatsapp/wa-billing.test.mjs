@@ -25,7 +25,7 @@ const stripe = async (method, path, params) => { stripeCalls.push({ method, path
 const NOW = new Date("2026-09-18T12:00:00Z");
 
 // ── Con plan pago: meses cerrados → ítems; el mes en curso espera ──
-await M("pago").set({ store_name: "Paga", whatsapp_platform_enabled: true, saas_stripe_customer_id: "cus_1", wa_unbilled_usd: 1.2 });
+await M("pago").set({ store_name: "Paga", whatsapp_platform_enabled: true, saas_stripe_customer_id: "cus_1", saas_stripe_subscription_id: "sub_1", wa_unbilled_usd: 1.2 });
 await M("pago").collection("usage").doc("2026-07").set({ month: "2026-07", wa_sent: 40, wa_cost_usd: 0.72 });
 await M("pago").collection("usage").doc("2026-08").set({ month: "2026-08", wa_sent: 10, wa_cost_usd: 0.18 });
 await M("pago").collection("usage").doc("2026-09").set({ month: "2026-09", wa_sent: 17, wa_cost_usd: 0.306 });
@@ -78,9 +78,37 @@ await M("pago").collection("usage").doc("2026-09").set({ month: "2026-09", wa_se
   await M("gratis").set({ saas_stripe_customer_id: "cus_2" }, { merge: true });
   const r = await wb.billWaUsage("gratis", await mdoc("gratis"), stripe, { now: NOW });
   m = await mdoc("gratis");
-  ok(r.billed === 1 && stripeCalls[before].params.customer === "cus_2", "al activar el plan se factura agosto");
-  ok(m.wa_paused_for_billing === undefined && wa.waSender(m)?.mode === "platform", "y WhatsApp se destraba");
-  ok(m.wa_unbilled_usd > 4.9 && m.wa_unbilled_usd <= 5.1, "septiembre queda pendiente para la factura de fin de mes");
+  ok(r.billed === 0 && r.skipped === "below_minimum" && stripeCalls.length === before, "solo tarjeta y agosto son 9 centavos: por debajo del mínimo de Stripe no se factura todavía");
+  ok(m.wa_paused_for_billing === undefined && wa.waSender(m)?.mode === "platform", "pero WhatsApp se destraba igual (hay tarjeta)");
+  ok(m.wa_unbilled_usd > 4.9 && m.wa_unbilled_usd <= 5.1, "septiembre queda pendiente para fin de mes");
+  // Fin de mes (octubre): solo tarjeta → ítems + factura propia cobrada a la tarjeta.
+  const OCT = new Date("2026-10-02T12:00:00Z");
+  const b2 = stripeCalls.length;
+  const r2 = await wb.billWaUsage("gratis", await mdoc("gratis"), stripe, { now: OCT });
+  const news = stripeCalls.slice(b2);
+  ok(r2.billed === 2 && r2.total_usd > 4.9, "en octubre factura agosto + septiembre juntos");
+  ok(news.filter(c => c.path === "/v1/invoiceitems").length === 2 && news.some(c => c.path === "/v1/invoices" && c.params.customer === "cus_2" && c.params.auto_advance === "true"), "sin plan: emite la factura y se cobra a la tarjeta");
+  ok((await mdoc("gratis")).wa_unbilled_usd === 0, "nada pendiente");
+}
+// ── Con plan (suscripción): los ítems van a la factura del plan, sin factura propia ──
+{
+  await M("plan2").set({ store_name: "Plan", saas_stripe_customer_id: "cus_9", saas_stripe_subscription_id: "sub_9", wa_unbilled_usd: 0.2 });
+  await M("plan2").collection("usage").doc("2026-08").set({ month: "2026-08", wa_sent: 2, wa_cost_usd: 0.2 });
+  const b = stripeCalls.length;
+  const r = await wb.billWaUsage("plan2", await mdoc("plan2"), stripe, { now: NOW });
+  ok(r.billed === 1 && !stripeCalls.slice(b).some(c => c.path === "/v1/invoices"), "con suscripción no hay mínimo ni factura aparte: el ítem espera la factura del plan");
+}
+// ── Checkout de tarjeta (modo setup) ──
+{
+  const sb = await import(`${R}/api/_lib/saasBilling.js`);
+  process.env.STRIPE_SAAS_SECRET_KEY = "sk_test_x";
+  const seen = [];
+  globalThis.fetch = async (url, opts = {}) => { seen.push({ url: String(url), body: String(opts.body || "") }); return new Response(JSON.stringify({ id: "cs_1", url: "https://checkout.stripe.com/c/pay/cs_1" }), { status: 200, headers: { "Content-Type": "application/json" } }); };
+  const url = await sb.createWaCardSetup({ merchantId: "gratis", merchant: { email: "dueno@gratis.test" }, email: "dueno@gratis.test", returnOrigin: "https://www.recurrentesapp.com" });
+  const body = decodeURIComponent(seen[0].body);
+  ok(url.startsWith("https://checkout.stripe.com/") && seen[0].url.endsWith("/v1/checkout/sessions"), "abre un Checkout de Stripe");
+  ok(/mode=setup/.test(body) && /client_reference_id=gratis/.test(body) && /tarjeta=ok/.test(body) && /customer_email=dueno@gratis.test/.test(body) && !/line_items/.test(body), "modo setup: guarda la tarjeta, sin cobrar ni plan");
+  delete process.env.STRIPE_SAAS_SECRET_KEY;
 }
 // ── Con plan: nunca se pausa ──
 {
@@ -90,7 +118,7 @@ await M("pago").collection("usage").doc("2026-09").set({ month: "2026-09", wa_se
 }
 // ── Cron ──
 {
-  await M("otra").set({ store_name: "Otra", saas_stripe_customer_id: "cus_3", wa_unbilled_usd: 0.5 });
+  await M("otra").set({ store_name: "Otra", saas_stripe_customer_id: "cus_3", saas_stripe_subscription_id: "sub_3", wa_unbilled_usd: 0.5 });
   await M("otra").collection("usage").doc("2026-08").set({ month: "2026-08", wa_sent: 3, wa_cost_usd: 0.5 });
   const before = stripeCalls.length;
   const r = await wb.billAllWaUsage(stripe, { now: NOW });

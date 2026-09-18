@@ -81,6 +81,24 @@ export async function createSaasCheckout({ merchantId, merchant, tierId, email, 
   return session.url;
 }
 
+// Tarjeta sin plan (Thiago, 18-sept): Checkout de Stripe en modo "setup". Al completarse, el
+// webhook guarda el customer + la tarjeta como default y factura el uso de WhatsApp pendiente.
+export async function createWaCardSetup({ merchantId, merchant, email, returnOrigin }) {
+  const b = base(returnOrigin);
+  const params = {
+    mode: "setup",
+    "payment_method_types[0]": "card",
+    client_reference_id: merchantId,
+    success_url: `${b}/#/dashboard/whatsapp?tarjeta=ok`,
+    cancel_url: `${b}/#/dashboard/whatsapp?tarjeta=cancel`,
+    "metadata[merchant_id]": merchantId, "metadata[kind]": "wa_card",
+  };
+  if (merchant.saas_stripe_customer_id) params.customer = merchant.saas_stripe_customer_id;
+  else if (email) params.customer_email = email;
+  const session = await stripe("POST", "/v1/checkout/sessions", params);
+  return session.url;
+}
+
 export async function createSaasPortal({ merchant, returnOrigin }) {
   const s = await stripe("POST", "/v1/billing_portal/sessions", { customer: merchant.saas_stripe_customer_id, return_url: `${base(returnOrigin)}/#/config/facturacion` });
   return s.url;
@@ -143,6 +161,20 @@ export async function handleSaasWebhook(req, res) {
         // WhatsApp: meses cerrados sin facturar → ítems de la próxima factura; y si estaba
         // pausado por el tope del plan gratis, se destraba.
         await billWaUsage(String(mid), { ...cur, saas_stripe_customer_id: idOf(obj.customer) }, stripe).catch(e => console.warn("[saas-webhook] wa usage:", e.message));
+      }
+    } else if (event.type === "checkout.session.completed" && obj.mode === "setup") {
+      // Tarjeta cargada sin plan (createWaCardSetup): default del customer + facturar WhatsApp pendiente.
+      const mid = obj.client_reference_id || obj.metadata?.merchant_id;
+      const customer = idOf(obj.customer);
+      if (mid && customer) {
+        const siId = idOf(obj.setup_intent);
+        const si = siId ? await stripe("GET", `/v1/setup_intents/${siId}`).catch(() => null) : null;
+        const pm = idOf(si?.payment_method);
+        if (pm) await stripe("POST", `/v1/customers/${customer}`, { "invoice_settings[default_payment_method]": pm }).catch(e => console.warn("[saas-webhook] default pm:", e.message));
+        const ref = db().collection("merchants").doc(String(mid));
+        const cur = (await ref.get()).data() || {};
+        await ref.set({ saas_stripe_customer_id: customer, wa_card_on_file: true, wa_card_added_at: now }, { merge: true });
+        await billWaUsage(String(mid), { ...cur, saas_stripe_customer_id: customer }, stripe).catch(e => console.warn("[saas-webhook] wa usage (tarjeta):", e.message));
       }
     } else if (event.type === "invoice.paid" || event.type === "invoice.payment_succeeded") {
       const subId = idOf(obj.subscription) || idOf(obj.parent?.subscription_details?.subscription);

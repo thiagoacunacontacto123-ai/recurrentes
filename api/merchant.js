@@ -61,7 +61,7 @@ import { importDiscountsAction, cleanDiscountCodes } from "./_lib/discountImport
 import { widgetVerifyUrlAction, widgetVerifyStatusAction } from "./_lib/widgetVerify.js";
 import { REASON_CODE_RE, retentionFor } from "./_lib/retention.js";
 import { PLAN_BY_ID, buildBilling } from "./_lib/plans_saas.js";
-import { saasStripeAvailable, createSaasCheckout, createSaasPortal } from "./_lib/saasBilling.js";
+import { saasStripeAvailable, createSaasCheckout, createSaasPortal, createWaCardSetup } from "./_lib/saasBilling.js";
 import { BILLABLE_STATUSES } from "../shared/platform/pricing.js";
 import { logEmail } from "./_lib/emaillog.js";
 import { signToken } from "./_lib/token.js";
@@ -281,7 +281,7 @@ export default async function handler(req, res) {
     const action = String(req.query.action || "");
     // Integraciones: solo el dueño (propio o viaOwner). Un miembro del equipo no
     // conecta/desconecta MP ni Shopify de una tienda ajena.
-    const ownerOnly = ["save-mp-token", "mp-reuse", "saas-checkout", "saas-portal", "mp-oauth-start", "disconnect-mp", "disconnect-shopify", "save-meta", "save-klaviyo", "disconnect-klaviyo", "klaviyo-test", "import-shipping-rates"];
+    const ownerOnly = ["save-mp-token", "mp-reuse", "saas-checkout", "saas-portal", "wa-card-setup", "mp-oauth-start", "disconnect-mp", "disconnect-shopify", "save-meta", "save-klaviyo", "disconnect-klaviyo", "klaviyo-test", "import-shipping-rates"];
     if (ownerOnly.includes(action) && ctx.role !== "owner") return res.status(403).json({ error: "Solo el dueño de la tienda puede administrar las integraciones." });
     // El perfil del negocio (tipo / canal / pasarela) cambia cómo se cumple cada cobro: solo el dueño.
     if (action === "save-settings" && ctx.role !== "owner" && ["business_type", "channel", "payment_provider"].some(k => k in (req.body || {}))) {
@@ -310,6 +310,7 @@ export default async function handler(req, res) {
     if (action === "plan-request")         return planRequest(ctx, merchantId, req, res);
     if (action === "saas-checkout")        return saasCheckout(ctx, merchantId, req, res);
     if (action === "saas-portal")          return saasPortal(ctx, merchantId, req, res);
+    if (action === "wa-card-setup")        return waCardSetup(ctx, merchantId, req, res);
     if (action === "save-owner")           return saveOwner(ctx, req, res);
     if (action === "ref-claim") {
       if (ctx.role && ctx.role !== "owner") return res.status(403).json({ error: "Solo el dueño de la cuenta." });
@@ -371,6 +372,16 @@ async function saasCheckout(ctx, merchantId, req, res) {
   try {
     const merchant = await getOrCreateMerchant(merchantId, null);
     const url = await createSaasCheckout({ merchantId, merchant, tierId: plan, email: merchant.email || ctx.email || "", returnOrigin: req.body?.return_origin });
+    return res.json({ ok: true, url });
+  } catch (e) { return res.status(500).json({ error: e.message }); }
+}
+// POST ?action=wa-card-setup → Stripe Checkout (modo setup) para cargar una tarjeta SIN plan:
+// el uso de WhatsApp se cobra a fin de mes a esa tarjeta (_lib/waBilling.js).
+async function waCardSetup(ctx, merchantId, req, res) {
+  if (!saasStripeAvailable()) return res.status(400).json({ error: "El pago con tarjeta todavía no está habilitado." });
+  try {
+    const merchant = await getOrCreateMerchant(merchantId, null);
+    const url = await createWaCardSetup({ merchantId, merchant, email: merchant.email || ctx.email || "", returnOrigin: req.body?.return_origin });
     return res.json({ ok: true, url });
   } catch (e) { return res.status(500).json({ error: e.message }); }
 }

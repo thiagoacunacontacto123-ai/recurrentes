@@ -107,7 +107,7 @@ async function whatsappFlowsView(mid, merchant) {
     charge_usd: sender?.mode === "own" ? 0 : waChargeUsd(price),
     usage: months[0], months, templates,
     // Cobro (waBilling.js): con plan pago va a la factura; sin plan se acumula hasta el tope.
-    billing: { has_plan: Boolean(merchant.saas_stripe_customer_id), unbilled_usd: Math.round((Number(merchant.wa_unbilled_usd) || 0) * 100) / 100, cap_usd: 5, paused: merchant.wa_paused_for_billing === true },
+    billing: { has_plan: Boolean(merchant.saas_stripe_subscription_id), card_on_file: Boolean(merchant.saas_stripe_customer_id), unbilled_usd: Math.round((Number(merchant.wa_unbilled_usd) || 0) * 100) / 100, cap_usd: 5, paused: merchant.wa_paused_for_billing === true },
   };
 }
 
