@@ -137,7 +137,7 @@ export function computeSteps({ merchant, user, plansCount }) {
 
   if (p.caps.catalog) {
     steps.push({ id:"plan", done:planOk, locked:!p.ready, lockedMsg, title: p.caps.packs ? "Crear tu primer plan con packs" : "Crear tu primer plan",
-      short:"Elegí un producto, la frecuencia, el descuento y los packs (x1, x2, x3…).",
+      short:"Elegí un producto, su duración, el descuento y los packs (x1, x2, x3…).",
       why:"Un plan convierte un producto de tu tienda en suscripción. Los packs son las cantidades que ofrecés en el mismo selector (1, 2 o 3 unidades) con su precio cada uno.",
       needs:[`${p.channelInfo.label} y ${p.providerInfo.label} conectados`,"Saber cada cuántos días querés cobrar y qué descuento dar"],
       tab:"planes", guideSec:"planes", cta:"Crear mi primer plan" });
