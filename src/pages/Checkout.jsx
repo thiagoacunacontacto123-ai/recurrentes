@@ -316,7 +316,7 @@ export default function Checkout() {
             {cfg?.whatsapp_optin && (
               <label style={{ display: "flex", alignItems: "flex-start", gap: 9, fontSize: 13.5, color: "#333", margin: "0 0 14px", cursor: "pointer", lineHeight: 1.4 }}>
                 <input type="checkbox" checked={waOptin} onChange={e => setWaOptin(e.target.checked)} style={{ width: 18, height: 18, margin: "1px 0 0", flexShrink: 0, accentColor: accent }} />
-                <span>Quiero que me avisen por WhatsApp antes de cada cobro</span>
+                <span>Quiero que me manden notificaciones de mi pedido por email y WhatsApp</span>
               </label>
             )}
             <div style={st.field}><label style={st.label}>DNI o CUIT {!requireTaxId && <span style={st.opt}>(opcional, para la factura)</span>}</label><input style={st.input} inputMode="numeric" value={taxid} onChange={e => setTaxid(e.target.value)} placeholder="20123456789" /></div>

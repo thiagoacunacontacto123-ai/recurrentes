@@ -1485,7 +1485,7 @@ export default async function handler(req, res) {
 // ── WhatsApp: casilla de opt-in (solo si la tienda tiene WhatsApp prendido) ──
 // Fragmentos que se INSERTAN en el JS servido; con waOptin=false no se inserta nada.
 // Sin comillas simples ni barras: van dentro de strings '…' del JS del widget.
-export const WA_OPTIN_LABEL = "Quiero que me avisen por WhatsApp antes de cada cobro";
+export const WA_OPTIN_LABEL = "Quiero que me manden notificaciones de mi pedido por email y WhatsApp";
 export function waOptinHtml(color, prefix) {
   const c = /^#[0-9a-fA-F]{6}$/.test(String(color || "")) ? color : "#10b981";
   return `<label id="${prefix}-wa-optin-row" style="display:flex;align-items:flex-start;gap:8px;font-size:13px;color:#374151;margin:10px 0 12px;cursor:pointer;line-height:1.4;"><input id="${prefix}-wa-optin" type="checkbox" checked style="width:18px;height:18px;margin:1px 0 0;flex-shrink:0;accent-color:${c};"/><span>${WA_OPTIN_LABEL}</span></label>`;
