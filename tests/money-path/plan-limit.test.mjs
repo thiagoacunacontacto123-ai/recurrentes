@@ -74,6 +74,15 @@ test("(o) contrato para el panel: locked, can_sell y el copy del cartel", () => 
   assert.match(bloq.enforcement_copy.keeps, /siguen cobr/i);
 });
 
+test("(o) internal:false explícito gana sobre el mail admin: la tienda de prueba se comporta como cliente", async () => {
+  const { isInternal } = await loadApi("api/_lib/plans_saas.js");
+  assert.equal(isInternal({ email: "admin@x.test" }, ["admin@x.test"]), true);
+  assert.equal(isInternal({ email: "admin@x.test", internal: false }, ["admin@x.test"]), false);
+  const b = buildBilling({ created_at: "2026-09-20T00:00:00Z", email: "admin@x.test", internal: false }, 14, {});
+  assert.equal(b.enforcement, "grace");
+  assert.equal(b.grace_left, 1);
+});
+
 test("(o) las tiendas internas y beta nunca se bloquean", () => {
   assert.equal(buildBilling({ internal: true }, 9999, {}).can_sell, true, "tienda propia");
   assert.equal(buildBilling({ created_at: "2026-01-01T00:00:00Z" }, 9999, {}).can_sell, true, "beta (Lumina)");

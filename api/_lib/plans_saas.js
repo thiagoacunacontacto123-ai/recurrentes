@@ -40,6 +40,10 @@ export function activatedTierId(m = {}) {
 // doc, o automáticamente si el mail del dueño está en ADMIN_EMAILS.
 export function isInternal(m = {}, adminEmails = []) {
   if (m.internal === true) return true;
+  // `internal: false` explícito gana sobre el mail: sirve para que una tienda de
+  // prueba del admin (PRUEBA PLANES) se comporte como un cliente real (paga, ve
+  // el cartel de gracia, se bloquea) y cuente en el Admin como cliente.
+  if (m.internal === false) return false;
   const mails = (Array.isArray(adminEmails) ? adminEmails : []).map(e => String(e || "").trim().toLowerCase()).filter(Boolean);
   if (!mails.length) return false;
   for (const v of [m.email, m.ownerEmail, m.contact_email]) {
