@@ -115,21 +115,21 @@ export function computeSteps({ merchant, user, plansCount }) {
   // Tienda: Shopify o Tiendanube, un solo paso "Conectar tu tienda" (Thiago, 18-sept).
   const tnOk = Boolean(m.tiendanube_token || m.tiendanube_connected_at || m.tiendanube_store_id);
   if (p.channel === "shopify" || p.channel === "tiendanube") {
-    steps.push({ id:"tienda", done: shopifyOk || tnOk, title:"Conectar tu tienda", effort:"1 clic",
+    steps.push({ id:"tienda", done: shopifyOk || tnOk, title:"Conectar tu tienda",
       short:"Shopify o Tiendanube. Leemos tu catálogo y creamos una orden en tu tienda con cada cobro.",
       why:"Recurrentes lee tus productos para armar los planes y crea una orden en tu tienda cada vez que Mercado Pago cobra una suscripción. Sin esto no hay envíos.",
       needs:["Entrar con la cuenta dueña de la tienda","Tiendanube: instalás la app y listo · Shopify: te guiamos con tu app (5 min) y una línea en el tema"],
       tab:"configuracion", configSec:"integraciones", guideSec: p.channel === "shopify" ? "shopify" : undefined, cta:"Conectar tienda" });
   }
 
-  steps.push({ id:"mp", done:mpOk, title:"Conectar tu pasarela", effort:"1 clic",
+  steps.push({ id:"mp", done:mpOk, title:"Conectar tu pasarela",
     short:"Mercado Pago: es la cuenta que cobra, la plata va directo a vos.",
     why:"Las suscripciones se crean y se cobran en TU cuenta de Mercado Pago. Recurrentes solo las da de alta y escucha los pagos.",
     needs:["Tu cuenta de Mercado Pago de comercio (la que cobra): autorizás con un clic"],
     tab:"configuracion", configSec:"integraciones", guideSec:"mp", cta:"Conectar pasarela" });
 
   // Opcional: solo suma si hace publicidad en Facebook/Instagram.
-  steps.push({ id:"meta", done:Boolean(m.meta_connected || m.meta_pixel_id), optional:true, title:"Conectar Meta Ads (opcional)", effort:"1 paso",
+  steps.push({ id:"meta", done:Boolean(m.meta_connected || m.meta_pixel_id), optional:true, title:"Conectar Meta Ads (opcional)",
     short:"Si hacés publicidad en Facebook o Instagram: que tus campañas cuenten las suscripciones como ventas.",
     why:"Las suscripciones se pagan en el checkout de Recurrentes, así que tu pixel no las ve. Con el Pixel ID y el token de la API de Conversiones le mandamos a Meta el embudo completo: carrito (tocó Suscribirse), pago iniciado (dejó su mail) y compra (primer cobro confirmado). Las renovaciones no se mandan.",
     needs:["Pixel ID (Configuración del negocio → Conjuntos de datos y píxeles) y token de la API de Conversiones (Administrador de eventos); te decimos dónde"],
