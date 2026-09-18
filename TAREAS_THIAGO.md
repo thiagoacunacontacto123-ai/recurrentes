@@ -308,7 +308,11 @@ Cómo cobra: suscripción mensual en Stripe. Cada día a las 9:00 UTC el cron `s
 
 ### WhatsApp de Recurrentes — HECHO el 2026-09-18
 
-✅ App publicada · ✅ número +1 305 686 9014 verificado **y registrado en la Cloud API** (PIN en `system/whatsapp_platform`) · ✅ token permanente · ✅ webhook · ✅ método de pago · ✅ env en Vercel · ✅ **la prueba del ramal admin te llegó por WhatsApp** · ✅ 14 plantillas en tu WABA (11 aprobadas al 18-sept; en revisión: `carrito_sin_pagar`, `aviso_plan_gracia`, `aviso_plan_borde`, `renovacion_cobrada`, `suscripcion_activa`, `aviso_plan_bloqueado`).
+✅ App publicada · ✅ número +1 305 686 9014 verificado **y registrado en la Cloud API** (PIN en `system/whatsapp_platform`) · ✅ token permanente · ✅ webhook · ✅ método de pago · ✅ env en Vercel · ✅ **la prueba del ramal admin te llegó por WhatsApp** · ✅ 21 plantillas en tu WABA (11 aprobadas al 18-sept; en revisión: `carrito_sin_pagar`, `aviso_plan_gracia`, `aviso_plan_borde`, `renovacion_cobrada`, `suscripcion_activa`, `aviso_plan_bloqueado`, las 6 `aviso_admin_*` y `bienvenida_recurrentes`) · ✅ foto de perfil (logo) y descripción del número.
+
+**Prueba de mañana con la cuenta de tu novia**: que se registre en recurrentesapp.com y complete nombre + WhatsApp en el cartel de bienvenida. Deberían pasar dos cosas: a vos te llega "Nuevo registro" (por `aviso_admin_registro` si Meta ya la aprobó, si no por `aviso_admin`), y a ella le llega la bienvenida (`bienvenida_recurrentes`, solo si Meta ya la aprobó; si no, no le llega nada por WhatsApp, revisá el estado en Admin).
+
+**PRUEBA PLANES** (tu tienda de prueba): tiene 14 suscriptores artificiales (`seed: prueba_planes`, sin MP) e `internal: false`, así se comporta como cliente: al abrirla ves la barra roja y el cartel "Te queda 1 suscriptor…" y "Activar Starter" abre Stripe Checkout (probado). Ojo: cuenta como cliente en los números del Admin mientras exista; borrala cuando termines de probar.
 
 Lo único que te queda:
 1. En WhatsApp Manager → Plantillas, **borrá `aviso_plan_limite` y `aviso_plan_ultimo`** (Meta las reclasificó como Marketing; ya no las usa el código, las reemplazan `aviso_plan_gracia` y `aviso_plan_borde`). Es limpieza, no urge.

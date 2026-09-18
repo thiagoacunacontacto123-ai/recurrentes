@@ -186,7 +186,9 @@ Sin aprobar (o sin número de Recurrentes cargado): el mismo aviso sale por mail
 
 ## Ramal ADMIN (avisos internos a Thiago) — 2026-09-17
 
-El número de Recurrentes también le avisa al equipo (`api/_lib/adminAlerts.js`, `notifyAdmin`). Una sola plantilla genérica **`aviso_admin`** (Utilidad · es_AR): `{{1}}` qué pasó · `{{2}}` tienda · `{{3}}` detalle · `{{4}}` link al Admin. Pie: `Aviso interno de Recurrentes.`
+El número de Recurrentes también le avisa al equipo (`api/_lib/adminAlerts.js`, `notifyAdmin`). Una plantilla **por evento** (`WA_ADMIN_TEMPLATES`: `aviso_admin_registro`, `_pago`, `_rebote`, `_baja`, `_gracia` (también para 'al borde'), `_bloqueo`; variables `{{1}}` tienda · `{{2}}` detalle · `{{3}}` link) y la genérica **`aviso_admin`** como respaldo si la específica aún no está aprobada (códigos 132001/132000/132012/132015/132016 → reintenta con la genérica). Pie: `Aviso interno de Recurrentes.`
+
+**Bienvenida al comercio** (`bienvenida_recurrentes`, `sendWelcomeWhatsApp` en `save-owner`): al dejar su WhatsApp por primera vez, el comercio recibe un mensaje con el link a su panel. Una vez por cuenta, sin costo para él. Perfil del número (foto = logo, descripción, web): `POST /api/stats?action=admin-wa-profile {app_id}` (resumable upload de Meta).
 
 | Evento | Cuándo | Dedup |
 |---|---|---|
