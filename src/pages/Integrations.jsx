@@ -222,20 +222,6 @@ function MobbexRow({ T, m, profile, onChange, open, onToggle }) {
   );
 }
 
-// Resumen del perfil del negocio (se cambia en Configuración → Negocio).
-function ProfileStrip({ T, profile }) {
-  const sep = <span aria-hidden="true" style={{ color:T.border }}>·</span>;
-  return (
-    <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", padding:"10px 14px", marginBottom:12, background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:10, fontSize:DS.font.md, color:T.textMd }}>
-      <span style={{ fontWeight:DS.w.bold, color:T.text }}>Tu negocio:</span>
-      <span>{profile.type.emoji} {profile.type.label}</span>{sep}
-      <span>{profile.channelInfo.emoji} {profile.channelInfo.label}</span>{sep}
-      <span>{profile.providerInfo.emoji} {profile.providerInfo.label}</span>
-      <a href="#/config/negocio" style={{ marginLeft:"auto", color:T.accent, fontWeight:DS.w.bold, fontSize:DS.font.sm, textDecoration:"none" }}>Cambiar →</a>
-    </div>
-  );
-}
-
 // Sin MP en esta tienda pero con MP en otra tienda del mismo dueño (tiendas extra,
 // demos): un botón y listo. La copia la hace el servidor (mp-reuse).
 function ReuseMpBox({ T, m, b, onChange }) {
@@ -436,6 +422,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
   const storeConnected = shopifyOk || tnOk;
   const soonChannels = storeConnected ? [] : Object.values(CHANNELS).filter(c => !channelAvailable(c.id, m) && c.id !== profile.channel && c.types.includes(profile.businessType));
   // Tiendanube habilitada pero no es el canal elegido: fila opcional para conectarla.
+  // Sin tienda conectada las dos filas dicen "Necesaria": el comerciante conecta UNA de las dos (Thiago, 18-sept).
   const tnOptional = tnEnabled && !shopifyOk && profile.channel !== "tiendanube" && CHANNELS.tiendanube.types.includes(profile.businessType);
   const soonProviders = Object.values(PAYMENT_PROVIDERS).filter(p => p.status !== "available" && !(p.id === "stripe" && m.stripe_enabled) && !(p.id === "whop" && m.whop_enabled));
   const storeRequired = profile.channel === "shopify" || profile.channel === "tiendanube";
@@ -471,15 +458,13 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
   return (
     <div>
       {!embedded && <PageHeader T={T} title="Integraciones" subtitle={profile.channel === "shopify"
-        ? "Conectá tu tienda Shopify y tu cuenta de Mercado Pago. Necesitás ambas para crear planes y cobrar suscripciones."
+        ? "Conectá tu tienda y tu pasarela (necesarias) y, si te sirven, Meta Ads y WhatsApp."
         : `Conectá ${profile.providerInfo.label} para cobrar. Sin tienda online: vendés con links de suscripción.`}/>}
-
-      <ProfileStrip T={T} profile={profile}/>
 
       <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:"16px 20px 8px" }}>
         <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", fontSize:11.5, color:T.textSm, lineHeight:1.5 }}>
           <Pill T={T} c={reqOk === reqTotal ? T.green : T.red} dot={reqOk === reqTotal}>{reqOk} de {reqTotal} necesaria{reqTotal === 1 ? "" : "s"}</Pill>
-          <span style={{ flex:"1 1 260px" }}>{profile.channel === "shopify" ? `${profile.channelInfo.label} y ${profile.providerInfo.label} son necesarias para cobrar; el resto es opcional.` : `Solo ${profile.providerInfo.label} es necesaria para cobrar; el resto es opcional.`}</span>
+          <span style={{ flex:"1 1 260px" }}>{storeRequired ? `${storeConnected ? profile.channelInfo.label : "Tu tienda (Shopify o Tiendanube)"} y ${profile.providerInfo.label} son necesarias para cobrar; el resto es opcional.` : `Solo ${profile.providerInfo.label} es necesaria para cobrar; el resto es opcional.`}</span>
           {profile.ready && <a href="#/dashboard/planes" style={{ color:T.accent, fontWeight:700, textDecoration:"none", whiteSpace:"nowrap" }}>Todo listo · Ir a Planes →</a>}
         </div>
 
@@ -502,7 +487,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
             sub="Vendés con links de suscripción a un checkout de Recurrentes. No hace falta conectar ninguna tienda."
             action={<a href="#/dashboard/planes" style={{ ...b.ghost, textDecoration:"none", display:"inline-block" }}>Ver mis links</a>}/>
         )}
-        {tnOptional && tnRow(false)}
+        {tnOptional && tnRow(!storeConnected)}
         {soonChannels.map(c => <Row key={c.id} T={T} id={c.id} label={c.label} soon sub={`${c.desc} Próximamente: mientras tanto te lo conectamos a mano, pedilo por WhatsApp.`}/>)}
         {/* Otras plataformas: todavía no hay conector, se hacen a mano (Thiago, 18-sept). */}
         {!storeConnected && OTHER_PLATFORMS.map(o => <Row key={o.id} T={T} id={o.id} label={o.label} soon sub={o.desc}/>)}

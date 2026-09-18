@@ -3,6 +3,7 @@ import { apiGet } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
 import { Modal, Btn, Callout, toast } from "../ui/components.jsx";
 import { widgetSnippet } from "./WidgetDesigner.jsx";
+import { TutorialVideo } from "./ShopifyConnect.jsx";
 import { writeFlag, widgetKey } from "../lib/onboarding.js";
 
 // ─── Paso 2 de 2 después de conectar Shopify ──────────────────────
@@ -92,6 +93,8 @@ export default function StoreStep2Modal({ merchant, channel = "shopify", onDone 
             Si algún tema no carga scripts, en <B T={T}>Planes → Poner en la tienda</B> escribimos la misma caja como HTML al final de la descripción del producto. Tu descripción no se toca y se saca con un clic.
           </Callout>
         </>) : (<>
+          {/* El mismo video del paso 1: sigue desde el minuto en que quedó (ResumableVideo). */}
+          <TutorialVideo T={T} caption="▶ El mismo video del paso 1: sigue desde donde lo dejaste"/>
           <div style={step}>{num(1)}<div>Copiá tu snippet:<div style={{ marginTop: 8 }}><CopyLine T={T} text={snippet}/></div></div></div>
           <div style={step}>{num(2)}<div>En Shopify: <B T={T}>Tienda online → Temas</B>. En tu tema activo tocá los <B T={T}>tres puntos (⋯) → Editar código</B>.</div></div>
           <div style={step}>{num(3)}<div>En la carpeta <B T={T}>Layout</B> abrí <B T={T}>theme.liquid</B>. Buscá <code style={{ fontFamily: "ui-monospace, Menlo, monospace", background: T.bg, border: `1px solid ${T.border}`, borderRadius: 5, padding: "1px 5px", color: T.text }}>&lt;/body&gt;</code> (Cmd/Ctrl + F), pegá la línea <B T={T}>justo arriba</B> y tocá <B T={T}>Guardar</B>. Una sola vez: vale para todos los productos, ahora y los que agregues después.</div></div>

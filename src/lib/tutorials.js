@@ -6,7 +6,9 @@
 //   · Loom:     "https://www.loom.com/share/XXXXXXXX"
 //   · Vimeo:    "https://vimeo.com/123456789"
 //   · Archivo:  "/shopify-tutorial.mp4"  (subido a la carpeta public/ del repo)
-export const SHOPIFY_TUTORIAL_URL = "";
+// Video de Thiago (18-sept): crear la app en Shopify + pegar el snippet, en una sola toma.
+// Alojado en Google Cloud Storage del proyecto Firebase (bucket recurrentes-16fbd-tutorials, público de lectura).
+export const SHOPIFY_TUTORIAL_URL = "https://storage.googleapis.com/recurrentes-16fbd-tutorials/shopify-instalacion.mp4";
 
 // Convierte la URL en algo que se pueda mostrar: { kind:"iframe"|"video", src } o null.
 export function tutorialEmbed(url) {

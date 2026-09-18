@@ -39,6 +39,25 @@ export function CopyRow({ T, text, label = "Copiar" }) {
 }
 
 // ─── Video tutorial (o recuadro "próximamente" si todavía no hay URL) ──
+// El video de Shopify cubre el paso 1 (crear la app) y el paso 2 (pegar el snippet) en
+// una sola toma, y entre los dos pasos hay una vuelta por Shopify (recarga de página).
+// Guardamos el minuto en localStorage cada 2 s y al pausar, y al volver a montarlo (paso 2,
+// o Ayuda) arranca desde ahí. Clave por URL del video.
+function ResumableVideo({ src, title }) {
+  const ref = React.useRef(null);
+  const key = "rec_tut_" + String(src).replace(/[^a-z0-9]/gi, "").slice(-40);
+  const saved = (() => { try { return parseFloat(localStorage.getItem(key) || "0") || 0; } catch (_) { return 0; } })();
+  const last = React.useRef(0);
+  const save = () => { const v = ref.current; if (!v) return; try { localStorage.setItem(key, String(v.ended ? 0 : v.currentTime)); } catch (_) {} };
+  return (
+    <video ref={ref} src={src} controls preload="metadata" playsInline title={title}
+      onLoadedMetadata={(e) => { const v = e.currentTarget; if (saved > 3 && saved < v.duration - 5) v.currentTime = saved; }}
+      onTimeUpdate={() => { const n = Date.now(); if (n - last.current > 2000) { last.current = n; save(); } }}
+      onPause={save} onEnded={save}
+      style={{ width:"100%", display:"block", maxHeight:340, background:"#000" }}>Tu navegador no puede reproducir el video.</video>
+  );
+}
+
 export function TutorialVideo({ T, url = SHOPIFY_TUTORIAL_URL, title = "Video paso a paso", caption }) {
   const e = tutorialEmbed(url);
   if (!e) return null;
@@ -49,7 +68,7 @@ export function TutorialVideo({ T, url = SHOPIFY_TUTORIAL_URL, title = "Video pa
           ? <div style={{ position:"relative", paddingTop:"56.25%" }}>
               <iframe src={e.src} title={title} loading="lazy" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowFullScreen style={{ position:"absolute", inset:0, width:"100%", height:"100%", border:0 }}/>
             </div>
-          : <video src={e.src} controls preload="none" playsInline style={{ width:"100%", display:"block", maxHeight:340, background:"#000" }}>Tu navegador no puede reproducir el video.</video>}
+          : <ResumableVideo src={e.src} title={title}/>}
       </div>
       <div style={{ fontSize:11, color:T.textSm, marginTop:6, textAlign:"center" }}>{caption || "▶ Tutorial paso a paso · abajo el detalle escrito"}</div>
     </div>

@@ -164,8 +164,8 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
     equipo:        ["Equipo", "Invitá a gente de tu equipo con su propio login. Ven solo las secciones que les habilites."],
     avisos:        ["Avisos para vos", "Te avisamos por mail (y por WhatsApp si lo prendés) cuando un cliente se suscribe, pausa, cancela o le rechazan el pago de una renovación."],
     integraciones: ["Integraciones", withStore
-      ? `Conectá tu ${profile.channelInfo.label} y tu ${profile.providerInfo.label} (necesarios) y, si querés, Meta Ads y WhatsApp.`
-      : `Conectá tu ${profile.providerInfo.label} (necesario) y, si querés, Meta Ads y WhatsApp. Sin tienda online no hay nada más que conectar.`],
+      ? "Conectá tu tienda y tu pasarela (necesarias) y, si te sirven, Meta Ads y WhatsApp."
+      : "Conectá tu pasarela (necesaria) y, si te sirven, Meta Ads y WhatsApp."],
     checkout:      ["Checkout", profile.caps.shipping ? "Lo que ve el cliente al suscribirse: las opciones de envío y los códigos de descuento." : "Los códigos de descuento que tus clientes pueden usar al suscribirse."],
     facturacion:   ["Facturación", "Tu plan de Recurrentes: qué incluye, cuántos suscriptores activos llevás y cómo cambiarlo."],
     ayuda:         ["Ayuda", "La guía completa de Recurrentes: conectar tu tienda y tu pasarela, crear planes, activar el widget. Y el WhatsApp de soporte."],
