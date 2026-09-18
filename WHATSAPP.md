@@ -193,6 +193,7 @@ El número de Recurrentes también le avisa al equipo (`api/_lib/adminAlerts.js`
 | `signup` | alguien deja su WhatsApp al registrarse (`save-owner`, la primera vez; nunca el propio admin) | `first` |
 | `plan_paid` | primer pago del plan (checkout de Stripe) y cada renovación (`invoice.paid`) | id de sesión / factura |
 | `plan_cancelled` | baja de la suscripción al plan en Stripe | id de suscripción |
+| `plan_past_due` | Stripe rechazó el cobro del plan (`invoice.payment_failed`) | id de factura |
 | `plan_grace` / `plan_last_call` / `plan_blocked` | la tienda pasó los 10 sin pagar / quedan ≤1 / se bloqueó | por número de suscriptores; bloqueo 1 por día |
 
 Destinatario: env `ADMIN_WHATSAPP` (uno o varios) o, si falta, el `owner_whatsapp` de las cuentas con mail en `ADMIN_EMAILS` (Configuración → Avisos para vos). Sin WhatsApp o si falla → mail a `ADMIN_EMAILS`. No suma uso a ningún comercio. Log: `system/admin_alerts/log`.

@@ -29,6 +29,7 @@ export const ADMIN_EVENT_LABEL = {
   signup: "Nuevo registro con WhatsApp",
   plan_paid: "Pagó el plan",
   plan_cancelled: "Canceló el plan",
+  plan_past_due: "Le rebotó el pago del plan",
   plan_grace: "Entró en gracia (pasó los 10 sin pagar)",
   plan_last_call: "Al borde del bloqueo (14–15 sin pagar)",
   plan_blocked: "Bloqueada (16+ sin pagar)",

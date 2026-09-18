@@ -148,7 +148,11 @@ export async function handleSaasWebhook(req, res) {
     } else if (event.type === "invoice.payment_failed") {
       const subId = idOf(obj.subscription) || idOf(obj.parent?.subscription_details?.subscription);
       const doc = await merchantBySubscription(subId);
-      if (doc) await doc.ref.set({ saas_status: "past_due", saas_payment_failed_at: now }, { merge: true });
+      if (doc) {
+        await doc.ref.set({ saas_status: "past_due", saas_payment_failed_at: now }, { merge: true });
+        // Ramal admin: le rebotó la tarjeta del plan (Stripe reintenta solo; con 16+ vuelve a la regla por cantidad).
+        await notifyAdmin("plan_past_due", { merchantId: doc.id, store: storeLabel(doc.data(), doc.id), detail: `Stripe rechazó el cobro del plan · USD ${Math.round((Number(obj.amount_due) || 0) / 100)} · reintenta solo`, key: `in_${obj.id || event.id}` });
+      }
     } else if (event.type === "customer.subscription.updated") {
       const doc = await merchantBySubscription(obj.id);
       if (doc) await doc.ref.set({ saas_current_period_end: tsIso(obj.current_period_end), saas_cancel_at_period_end: !!obj.cancel_at_period_end, saas_stripe_price_tier: (await tierOfSubscription(obj)) || doc.data().saas_stripe_price_tier || null }, { merge: true });

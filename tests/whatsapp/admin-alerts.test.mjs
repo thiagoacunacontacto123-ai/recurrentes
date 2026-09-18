@@ -80,6 +80,13 @@ test("(p) el mismo evento con la misma clave no se manda dos veces", async () =>
   assert.equal(log.status, "sent");
 });
 
+test("(p) rebote del pago del plan (past_due) → aviso con su propio texto, misma plantilla", async () => {
+  const r = await notifyAdmin("plan_past_due", { merchantId: MID, store: "LuminaLabs", detail: "Stripe rechazó el cobro del plan · USD 49 · reintenta solo", key: "in_9" });
+  assert.equal(r.ok, true);
+  assert.equal(sent[0].body.template.name, "aviso_admin", "sin plantilla nueva");
+  assert.equal(sent[0].body.template.components[0].parameters[0].text, "Le rebotó el pago del plan");
+});
+
 test("(p) evento desconocido o sin merchant → no hace nada", async () => {
   assert.equal(await notifyAdmin("otra_cosa", { merchantId: MID }), null);
   assert.equal(await notifyAdmin("plan_paid", {}), null);
