@@ -49,7 +49,7 @@ export default function MerchantAlertsSection({ T, merchant, onChange }) {
   }
 
   const status = waOn
-    ? <>Te llegan por <b style={{ color: T.text }}>WhatsApp</b> desde el número de Recurrentes. Cada aviso cuesta <b style={{ color: T.text }}>{fmtUsdSmall(m.alerts_charge_usd)}</b> (lo que cobra Meta más 10%) y se suma a tu plan a fin de mes.</>
+    ? <>Te llegan por <b style={{ color: T.text }}>WhatsApp</b> desde el número de Recurrentes. Cada aviso cuesta <b style={{ color: T.text }}>{fmtUsdSmall(m.alerts_charge_usd)}</b> (lo que cobra Meta más 50%) y se suma a tu plan a fin de mes.</>
     : mailOn
       ? <>El WhatsApp de Recurrentes todavía se está habilitando: mientras tanto te llegan <b style={{ color: T.text }}>por mail</b>{mailTo ? <> a <b style={{ color: T.text }}>{mailTo}</b></> : null}.</>
       : <>Muy pronto: estamos terminando de habilitar el WhatsApp y el mail de Recurrentes.</>;

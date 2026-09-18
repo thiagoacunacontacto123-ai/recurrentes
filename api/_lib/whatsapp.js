@@ -399,11 +399,14 @@ export async function recordWaUsage(mid, mode, { now = new Date(), type = null }
   if (!mid || (mode !== "own" && mode !== "platform")) return null;
   const month = waUsageMonth(now);
   const platform = mode === "platform";
+  const alert = type === "merchant_alert";
   const price = platform ? waPriceUsd() : 0;
+  // Al comercio se le cobra precio × recargo por TODO lo que sale por el número de
+  // Recurrentes: mensajes a sus clientes y avisos a él mismo (Thiago, 18-sept-2026).
+  // Los avisos al admin no pasan por acá (adminAlerts.js no registra uso).
   const cost = platform ? waChargeUsd(price) : 0;
   const at = now.toISOString();
   const inc = FieldValue.increment;
-  const alert = type === "merchant_alert";
   try {
     await db().collection("merchants").doc(mid).collection("usage").doc(month).set({
       month, wa_sent: inc(1), wa_cost_usd: inc(cost),

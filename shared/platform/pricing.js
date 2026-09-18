@@ -60,10 +60,12 @@ export function tierRangeLabel(t) {
 }
 
 // ── WhatsApp desde el número de Recurrentes (costo variable) ──────────
-// Meta cobra cada plantilla de UTILIDAD entregada; se la pasamos al comerciante
-// con este recargo y se suma a su plan a fin de mes. Con su propio número paga
-// él directo a Meta (costo 0 para Recurrentes).
-export const WHATSAPP_MARKUP = 1.10;
+// Meta cobra cada plantilla de UTILIDAD entregada. Se le pasa al comerciante
+// con este recargo (+50%, Thiago 18-sept-2026) y se suma a su plan a fin de mes:
+// tanto los mensajes a SUS clientes como los avisos a él mismo (altas, bajas,
+// límite del plan). Solo los avisos al admin los paga Recurrentes.
+// Con su propio número paga él directo a Meta (costo 0 para Recurrentes).
+export const WHATSAPP_MARKUP = 1.50;
 // USD por plantilla de utilidad entregada a un número de Argentina. Fuente
 // (consultada 2026-09-15): la tabla oficial de Meta
 // (developers.facebook.com/docs/whatsapp/pricing → "USD rates" CSV, vigente

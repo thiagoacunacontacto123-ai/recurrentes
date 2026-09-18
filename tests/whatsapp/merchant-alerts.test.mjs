@@ -117,9 +117,9 @@ test("alta: un solo WhatsApp (webhook + sync + otra llamada) con nombre de pila,
   assert.equal(u.wa_sent, 1);
   assert.equal(u.wa_alerts_sent, 1);
   assert.equal(u.wa_platform_sent, 1);
-  assert.ok(near(u.wa_cost_usd, 0.012 * 1.1), `precio × 1,10 (${u.wa_cost_usd})`);
+  assert.ok(near(u.wa_cost_usd, 0.012 * 1.5), `precio × 1,50 (${u.wa_cost_usd})`);
   const au = rawGet(`admin_usage/${month}`);
-  assert.ok(near(au.merchants[MID].wa_cost_usd, 0.0132) && au.merchants[MID].wa_alerts_sent === 1);
+  assert.ok(near(au.merchants[MID].wa_cost_usd, 0.018) && au.merchants[MID].wa_alerts_sent === 1);
   const log = rawList(`merchants/${MID}/message_log`).map(d => d.data).find(l => l.type === "merchant_alert");
   assert.equal(log?.status, "sent");
   assert.equal(log.to.includes("••••"), true, "el teléfono queda enmascarado");
