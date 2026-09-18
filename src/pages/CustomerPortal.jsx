@@ -12,7 +12,9 @@ const fmtN = (n) => Math.round(Number(n) || 0).toLocaleString("es-AR");
 
 // Secciones (píldoras): #/dashboard/portal?sec=apariencia|mensajes|registro
 // (el alias viejo "actividad" ya apunta a ?sec=registro).
-const SECS = ["acciones", "apariencia", "mensajes", "registro"];
+// Mensajes y Registro se sacaron (Thiago, 18-sept): los mails al comercio viven en Configuración → Avisos
+// y los mails a clientes en Flujos de email. Acá solo qué puede hacer el cliente y cómo se ve.
+const SECS = ["acciones", "apariencia"];
 const readSec = () => { const s = hashQuery().get("sec"); return SECS.includes(s) ? s : "acciones"; };
 
 // Acciones que el cliente puede hacer solo. La dirección solo aplica si el negocio envía algo.
@@ -84,21 +86,15 @@ export function CustomerPortalPage({ merchant, reloadMerchant, goTab }) {
   const tabs = [
     { id:"acciones",   label:"Acciones" },
     { id:"apariencia", label:"Apariencia" },
-    { id:"mensajes",   label:"Mensajes" },
-    { id:"registro",   label:"Registro", count: first ? null : mails.length },
   ];
 
   return (
     <div>
-      <PageHeader T={T} title="Portal del cliente" subtitle="Lo que tus clientes pueden hacer solos desde el link que reciben por mail, cómo se ve, y los mensajes que les mandamos."/>
+      <PageHeader T={T} title="Portal del cliente" subtitle="Lo que tus clientes pueden hacer solos desde el link que reciben por mail, y cómo se ve."/>
 
       <div className="kpi-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 200px), 1fr))", gap:10, marginBottom:16 }}>
         <KpiCard T={T} label="Acciones habilitadas" value={`${enabled.length} de ${actions.length}`} color={T.accentSolid}
           hint={enabled.length ? enabled.map(a => a.title.split(" ")[0].toLowerCase()).join(" · ") : "el cliente no puede hacer nada solo"} onClick={() => goSec("acciones")}/>
-        <KpiCard T={T} loading={first} label="Mails enviados · 30 días" value={fmtN(sent30)} spark={spark} color={T.accentSolid}
-          hint={`${fmtN(mails.length)} en el registro`} onClick={() => goSec("registro")}/>
-        <KpiCard T={T} loading={first} label="Envíos con error" value={fmtN(mailErrors)} valueColor={mailErrors ? T.red : T.text} color={T.red}
-          hint="mails que no salieron" onClick={() => goSec("registro")}/>
       </div>
 
       <div style={{ marginBottom:14, maxWidth:"100%", overflowX:"auto" }}>
@@ -108,8 +104,6 @@ export function CustomerPortalPage({ merchant, reloadMerchant, goTab }) {
       {/* Todas quedan montadas (solo se ocultan) para no perder cambios sin guardar al cambiar de píldora. */}
       <div hidden={sec !== "acciones"}><ActionsSection T={T} merchant={merchant} profile={profile} reloadMerchant={reloadMerchant}/></div>
       <div hidden={sec !== "apariencia"}><AppearanceSection T={T} merchant={merchant} profile={profile} reloadMerchant={reloadMerchant} goTab={goTab}/></div>
-      <div hidden={sec !== "mensajes"}><MessagesSection T={T} merchant={merchant} reloadMerchant={reloadMerchant} goTab={goTab}/></div>
-      <div hidden={sec !== "registro"}><RegistroSection T={T} merchant={merchant} activity={activity} mails={mails} loading={loading} reload={loadActivity} goTab={goTab}/></div>
     </div>
   );
 }
