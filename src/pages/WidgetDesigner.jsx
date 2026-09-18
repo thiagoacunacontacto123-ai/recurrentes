@@ -135,7 +135,14 @@ export function BundleFrame({ html, css, interactive = false, onAction, minHeigh
   const measure = useCallback(() => {
     const doc = ref.current?.contentDocument;
     if (!doc || !doc.body) return;
-    const h = Math.max(minHeight, Math.ceil(doc.documentElement.scrollHeight || doc.body.scrollHeight || 0));
+    // OJO: documentElement.scrollHeight en un iframe nunca baja del alto del
+    // propio iframe, así que con eso el marco solo podía crecer (en celular
+    // quedaba ~1000 px de blanco después de un layout angosto). Medimos el
+    // contenido real: #rc-root + el padding del body.
+    const root = doc.getElementById("rc-root");
+    const pad = 12; // body{padding:6px} arriba y abajo (FRAME_DOC)
+    const content = root ? Math.ceil(root.getBoundingClientRect().height + pad) : 0;
+    const h = Math.max(minHeight, content || Math.ceil(doc.body.scrollHeight || 0));
     setHeight(h);
   }, [minHeight]);
 
@@ -174,6 +181,9 @@ export function BundleFrame({ html, css, interactive = false, onAction, minHeigh
     if (!doc?.body) return;
     const ro = new ResizeObserver(() => measure());
     ro.observe(doc.body);
+    // También el iframe en sí: al cambiar su ancho (rotar el celular, columna
+    // que se estira) el contenido reflowa y hay que remedir al instante.
+    if (ref.current) ro.observe(ref.current);
     return () => ro.disconnect();
   }, [ready, measure]);
 
