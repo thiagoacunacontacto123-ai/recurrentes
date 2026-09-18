@@ -53,6 +53,10 @@ function tabFromHash() {
 
 // Dashboard del comerciante — shell (sidebar + switcher de tiendas + topbar)
 // con las 7 secciones + Configuración. Cada pantalla vive en su archivo.
+// Tiendas de muestra: la app entera precargada (ver `prewarm`). RECURRENTES (ex DEMO SHOPIFY), Thiago 18-sept.
+const PREWARM_MERCHANTS = new Set(["m_mu4jn3fj2x06fm"]);
+const PREWARM_TABS = ["analiticas", "suscripciones", "cobros", "planes", "widget", "retencion", "flujos", "whatsapp", "portal", "afiliados", "configuracion"];
+
 export default function Dashboard({ user, onLogout }) {
   const { T, darkMode, setDarkMode } = useTheme();
   const [tab, setTab] = useState(tabFromHash);
@@ -311,6 +315,43 @@ export default function Dashboard({ user, onLogout }) {
   const shellProps = { T, nav: navList, activeTab: tab, onTab: goTab, user, merchant, workspace: effectiveWorkspace, onSwitchStore: switchStore, onCreateStore: () => setNewStoreOpen(true), onManageStore: (id) => setManageStoreId(id), darkMode, setDarkMode, onLogout, alerts: { onboarding: onb.ready ? onb.pending : 0 }, pendientes: pendientesSidebar, onVerPlan: () => goTab("analiticas") };
   const needs = (title) => <NeedsIntegrations title={title} missing={profile.missing} onGo={() => goConfig("integraciones")}/>;
 
+  // Tienda de muestra (video 3D): TODAS las pestañas quedan montadas y cargadas; al
+  // cambiar de pestaña solo se muestra/oculta, sin spinners. Solo para esos ids.
+  const prewarm = !loading && !loadError && !!merchant && PREWARM_MERCHANTS.has(merchant.id);
+  const renderTab = (t) => (
+    blockedTab(t) ? (
+                <PlanBlockedView T={T} billing={merchant.billing} title={(NAV.find(n => n.id === t) || navItem).label} onGo={()=>goConfig("facturacion")} onGoCobros={()=>goTab("cobros")}/>
+              ) : t === "suscripciones" ? (
+                integrationsReady ? <SubscriptionsPage devMode={devMode} shop={shop}/> : needs("Suscripciones")
+              ) : t === "cobros" ? (
+                integrationsReady ? <ChargesPage shop={shop}/> : needs("Cobros")
+              ) : t === "planes" ? (
+                integrationsReady ? <PlansTab merchant={merchant} onMerchantChange={reloadMerchant}/> : needs("Planes")
+              ) : t === "widget" ? (
+                integrationsReady ? <WidgetTab merchant={merchant} onMerchantChange={reloadMerchant}/> : needs("Widget")
+              ) : t === "retencion" ? (
+                integrationsReady ? <RetentionPage merchant={merchant} reloadMerchant={reloadMerchant} goTab={goTab}/> : needs("Retención")
+              ) : t === "flujos" ? (
+                <FlowsPage merchant={merchant} onMerchantChange={reloadMerchant}/>
+              ) : t === "whatsapp" ? (
+                <WhatsAppFlowsPage merchant={merchant} goConfig={goConfig}/>
+              ) : t === "afiliados" ? (
+                <ReferralsPage merchant={merchant}/>
+              ) : t === "portal" ? (
+                <CustomerPortalPage merchant={merchant} reloadMerchant={reloadMerchant} goTab={goTab}/>
+              ) : t === "analiticas" ? (
+                // Pantalla de entrada. Con la tienda conectada, los datos; si todavía
+                // falta conectar algo, la puesta en marcha (el viejo Inicio).
+                integrationsReady ? <AnalyticsPage merchant={merchant}/> : <HomeTab merchant={merchant} onGo={goTab} onGoConfig={goConfig} onOpenGuide={()=>setWizardOpen(true)}/>
+              ) : t === "admin" ? (
+                isAdmin ? <AdminPage/> : null
+              ) : t === "configuracion" ? (
+                <SettingsPage T={T} DS={DS} user={user} merchant={merchant} workspace={effectiveWorkspace} reloadMerchant={reloadMerchant} toast={toast} goTab={goTab}/>
+              ) : (
+                <RedirectTo onGo={() => goTab(t)}/>
+              )
+  );
+
   return (
     <OnboardingContext.Provider value={onbCtx}>
     <div style={{minHeight:"100vh",display:"flex",background:T.bg,color:T.text,fontFamily:"'Inter',system-ui,sans-serif"}}>
@@ -333,7 +374,7 @@ export default function Dashboard({ user, onLogout }) {
         {!loading && merchant?.billing && <PlanLimitBar T={T} billing={merchant.billing} onGo={()=>goConfig("facturacion")}/>}
         {!loading && merchant?.billing && !showsPlanLimit(merchant.billing) && <BillingBanner T={T} billing={merchant.billing} onGo={()=>goConfig("facturacion")}/>}
 
-        <PageView pageKey={tab} T={T}>
+        <PageView pageKey={prewarm ? "prewarm" : tab} T={T}>
           <ErrorBoundary T={T}>
             <main style={{padding:"28px 32px 48px",maxWidth:1200,width:"100%"}} className="pad-mobile">
               {loading ? (
@@ -347,37 +388,11 @@ export default function Dashboard({ user, onLogout }) {
                     <button onClick={()=>{setActiveMerchantId(user?.uid,null);window.location.reload();}} style={{background:"transparent",color:T.textMd,border:`1px solid ${T.border}`,borderRadius:10,padding:"10px 16px",fontWeight:600,cursor:"pointer"}}>Volver a mi tienda principal</button>
                   </div>
                 </div>
-              ) : blockedTab(tab) ? (
-                <PlanBlockedView T={T} billing={merchant.billing} title={navItem.label} onGo={()=>goConfig("facturacion")} onGoCobros={()=>goTab("cobros")}/>
-              ) : tab === "suscripciones" ? (
-                integrationsReady ? <SubscriptionsPage devMode={devMode} shop={shop}/> : needs("Suscripciones")
-              ) : tab === "cobros" ? (
-                integrationsReady ? <ChargesPage shop={shop}/> : needs("Cobros")
-              ) : tab === "planes" ? (
-                integrationsReady ? <PlansTab merchant={merchant} onMerchantChange={reloadMerchant}/> : needs("Planes")
-              ) : tab === "widget" ? (
-                integrationsReady ? <WidgetTab merchant={merchant} onMerchantChange={reloadMerchant}/> : needs("Widget")
-              ) : tab === "retencion" ? (
-                integrationsReady ? <RetentionPage merchant={merchant} reloadMerchant={reloadMerchant} goTab={goTab}/> : needs("Retención")
-              ) : tab === "flujos" ? (
-                <FlowsPage merchant={merchant} onMerchantChange={reloadMerchant}/>
-              ) : tab === "whatsapp" ? (
-                <WhatsAppFlowsPage merchant={merchant} goConfig={goConfig}/>
-              ) : tab === "afiliados" ? (
-                <ReferralsPage merchant={merchant}/>
-              ) : tab === "portal" ? (
-                <CustomerPortalPage merchant={merchant} reloadMerchant={reloadMerchant} goTab={goTab}/>
-              ) : tab === "analiticas" ? (
-                // Pantalla de entrada. Con la tienda conectada, los datos; si todavía
-                // falta conectar algo, la puesta en marcha (el viejo Inicio).
-                integrationsReady ? <AnalyticsPage merchant={merchant}/> : <HomeTab merchant={merchant} onGo={goTab} onGoConfig={goConfig} onOpenGuide={()=>setWizardOpen(true)}/>
-              ) : tab === "admin" ? (
-                isAdmin ? <AdminPage/> : null
-              ) : tab === "configuracion" ? (
-                <SettingsPage T={T} DS={DS} user={user} merchant={merchant} workspace={effectiveWorkspace} reloadMerchant={reloadMerchant} toast={toast} goTab={goTab}/>
+              ) : prewarm ? (
+                [...PREWARM_TABS, ...(PREWARM_TABS.includes(tab) ? [] : [tab])].map(id => <div key={id} hidden={tab !== id}>{renderTab(id)}</div>)
               ) : (
-                <RedirectTo onGo={() => goTab(tab)}/>
-              )}
+                renderTab(tab)
+                            )}
             </main>
           </ErrorBoundary>
         </PageView>
