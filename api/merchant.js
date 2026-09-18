@@ -61,7 +61,7 @@ import { importDiscountsAction, cleanDiscountCodes } from "./_lib/discountImport
 import { widgetVerifyUrlAction, widgetVerifyStatusAction } from "./_lib/widgetVerify.js";
 import { REASON_CODE_RE, retentionFor } from "./_lib/retention.js";
 import { PLAN_BY_ID, buildBilling } from "./_lib/plans_saas.js";
-import { saasStripeAvailable, createSaasCheckout, createSaasPortal, createWaCardSetup } from "./_lib/saasBilling.js";
+import { saasStripeAvailable, createSaasCheckout, createSaasPortal, createWaCardSetup, createSaasSubscriptionWithCard } from "./_lib/saasBilling.js";
 import { BILLABLE_STATUSES } from "../shared/platform/pricing.js";
 import { logEmail } from "./_lib/emaillog.js";
 import { signToken } from "./_lib/token.js";
@@ -371,6 +371,12 @@ async function saasCheckout(ctx, merchantId, req, res) {
   if (!PLAN_BY_ID[plan]) return res.status(400).json({ error: "Plan inválido." });
   try {
     const merchant = await getOrCreateMerchant(merchantId, null);
+    // Tarjeta ya guardada (WhatsApp o un plan anterior): se activa en un clic, sin Checkout.
+    // Si rebota, se cae a Checkout para que cargue otra.
+    try {
+      const direct = await createSaasSubscriptionWithCard({ merchantId, merchant, tierId: plan });
+      if (direct) { clearMerchantCache?.(merchantId); return res.json({ ok: true, ...direct }); }
+    } catch (e) { console.warn(`[saas-checkout] tarjeta guardada de ${merchantId}:`, e.message); }
     const url = await createSaasCheckout({ merchantId, merchant, tierId: plan, email: merchant.email || ctx.email || "", returnOrigin: req.body?.return_origin });
     return res.json({ ok: true, url });
   } catch (e) { return res.status(500).json({ error: e.message }); }

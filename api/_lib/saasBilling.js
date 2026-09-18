@@ -104,6 +104,51 @@ export async function createSaasPortal({ merchant, returnOrigin }) {
   return s.url;
 }
 
+// Deja la tienda con el plan activo después del primer pago (Checkout o suscripción directa):
+// campos del merchant, aviso admin, comisión de afiliados y facturación del WhatsApp pendiente.
+async function activatePlan({ mid, sub, subId, customer, tier, key, now = new Date().toISOString() }) {
+  const ref = db().collection("merchants").doc(mid);
+  const cur = (await ref.get()).data() || {};
+  await ref.set({
+    saas_stripe_customer_id: customer, saas_stripe_subscription_id: subId, saas_stripe_price_tier: tier,
+    saas_status: "active", saas_last_paid_at: now, saas_current_period_end: tsIso(sub?.current_period_end),
+    plan_activated: tier || cur.plan_activated || null, plan_activated_at: cur.plan_activated_at || now,
+    plan_requested: null, plan_requested_at: null,
+  }, { merge: true });
+  // Ramal admin: alguien pagó el plan por primera vez.
+  await notifyAdmin("plan_paid", { merchantId: mid, store: storeLabel(cur, mid), detail: `${TIER_BY_ID[tier]?.label || tier || "plan"} · USD ${TIER_BY_ID[tier]?.usd ?? "?"} · primer pago`, key });
+  // Afiliados: comisión al referente del dueño, y si el que paga tenía crédito
+  // pendiente propio, ya tiene customer en Stripe → se empuja como saldo.
+  await creditCommission({ mid, merchant: cur, tierId: tier, key, kind: "primer_pago", stripeCall: stripe });
+  const payerUid = ownerUidOf(mid, cur);
+  if (payerUid !== mid) await db().collection("merchants").doc(payerUid).set({ saas_stripe_customer_id: customer }, { merge: true }).catch(() => {});
+  await pushPendingCredit(payerUid, stripe);
+  // WhatsApp: meses cerrados sin facturar → ítems de la próxima factura; y si estaba
+  // pausado por el tope del plan gratis, se destraba.
+  await billWaUsage(mid, { ...cur, saas_stripe_customer_id: customer, saas_stripe_subscription_id: subId }, stripe).catch(e => console.warn("[saas] wa usage:", e.message));
+}
+
+// Con tarjeta ya guardada (la cargó para WhatsApp, o pagó antes): activar el plan en UN clic,
+// sin pasar por Checkout (Thiago, 18-sept: "como una persona normal que pasó los 10").
+// → { activated:true, tier } | null (sin tarjeta guardada → el llamador abre Checkout).
+// Si la tarjeta rebota, Stripe responde error y esto LANZA: el llamador cae a Checkout.
+export async function createSaasSubscriptionWithCard({ merchantId, merchant, tierId }) {
+  const customer = merchant?.saas_stripe_customer_id;
+  if (!customer || merchant?.saas_stripe_subscription_id) return null;
+  const c = await stripe("GET", `/v1/customers/${customer}`).catch(() => null);
+  const pm = idOf(c?.invoice_settings?.default_payment_method) || idOf(c?.default_source);
+  if (!pm) return null;
+  const price = await ensurePrice(tierId);
+  const sub = await stripe("POST", "/v1/subscriptions", {
+    customer, "items[0][price]": price, default_payment_method: pm,
+    payment_behavior: "error_if_incomplete",
+    "metadata[merchant_id]": merchantId, "metadata[tier]": tierId,
+    description: `Plan ${TIER_BY_ID[tierId].label} de Recurrentes · ${merchant.store_name || merchant.shopify_shop || merchantId}`,
+  });
+  await activatePlan({ mid: merchantId, sub, subId: sub.id, customer, tier: tierId, key: `sub_${sub.id}` });
+  return { activated: true, tier: tierId, subscription_id: sub.id };
+}
+
 // ─── Webhook /api/public?action=stripe-saas-webhook ─────────────────────────
 const tsIso = (sec) => (Number.isFinite(Number(sec)) && Number(sec) > 0 ? new Date(Number(sec) * 1000).toISOString() : null);
 const idOf = (v) => (v && typeof v === "object" ? v.id : v) || null;
@@ -142,25 +187,7 @@ export async function handleSaasWebhook(req, res) {
         const subId = idOf(obj.subscription);
         const sub = subId ? await stripe("GET", `/v1/subscriptions/${subId}`) : null;
         const tier = (await tierOfSubscription(sub)) || obj.metadata?.tier || null;
-        const ref = db().collection("merchants").doc(String(mid));
-        const cur = (await ref.get()).data() || {};
-        await ref.set({
-          saas_stripe_customer_id: idOf(obj.customer), saas_stripe_subscription_id: subId, saas_stripe_price_tier: tier,
-          saas_status: "active", saas_last_paid_at: now, saas_current_period_end: tsIso(sub?.current_period_end),
-          plan_activated: tier || cur.plan_activated || null, plan_activated_at: cur.plan_activated_at || now,
-          plan_requested: null, plan_requested_at: null,
-        }, { merge: true });
-        // Ramal admin: alguien pagó el plan por primera vez.
-        await notifyAdmin("plan_paid", { merchantId: String(mid), store: storeLabel(cur, mid), detail: `${TIER_BY_ID[tier]?.label || tier || "plan"} · USD ${TIER_BY_ID[tier]?.usd ?? "?"} · primer pago`, key: `cs_${obj.id || event.id}` });
-        // Afiliados: comisión al referente del dueño, y si el que paga tenía crédito
-        // pendiente propio, ya tiene customer en Stripe → se empuja como saldo.
-        await creditCommission({ mid: String(mid), merchant: cur, tierId: tier, key: `cs_${obj.id || event.id}`, kind: "primer_pago", stripeCall: stripe });
-        const payerUid = ownerUidOf(String(mid), cur);
-        if (payerUid !== String(mid)) await db().collection("merchants").doc(payerUid).set({ saas_stripe_customer_id: idOf(obj.customer) }, { merge: true }).catch(() => {});
-        await pushPendingCredit(payerUid, stripe);
-        // WhatsApp: meses cerrados sin facturar → ítems de la próxima factura; y si estaba
-        // pausado por el tope del plan gratis, se destraba.
-        await billWaUsage(String(mid), { ...cur, saas_stripe_customer_id: idOf(obj.customer) }, stripe).catch(e => console.warn("[saas-webhook] wa usage:", e.message));
+        await activatePlan({ mid: String(mid), sub, subId, customer: idOf(obj.customer), tier, key: `cs_${obj.id || event.id}`, now });
       }
     } else if (event.type === "checkout.session.completed" && obj.mode === "setup") {
       // Tarjeta cargada sin plan (createWaCardSetup): default del customer + facturar WhatsApp pendiente.

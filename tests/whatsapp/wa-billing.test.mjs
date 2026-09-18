@@ -125,5 +125,35 @@ await M("pago").collection("usage").doc("2026-09").set({ month: "2026-09", wa_se
   ok(r.merchants >= 1 && r.billed >= 1 && stripeCalls.slice(before).some(c => c.params.customer === "cus_3" && c.params.amount === 50), "el cron factura a las tiendas con plan y uso pendiente");
   ok(!stripeCalls.slice(before).some(c => c.params.customer === undefined), "y saltea a las que no tienen customer");
 }
+
+// ── Plan en un clic con la tarjeta guardada (createSaasSubscriptionWithCard) ──
+{
+  const sb = await import(`${R}/api/_lib/saasBilling.js`);
+  process.env.STRIPE_SAAS_SECRET_KEY = "sk_test_x";
+  const seen = [];
+  globalThis.fetch = async (url, opts = {}) => {
+    const u = String(url); seen.push({ url: u, body: String(opts.body || "") });
+    const json = (o) => new Response(JSON.stringify(o), { status: 200, headers: { "Content-Type": "application/json" } });
+    if (u.endsWith("/v1/customers/cus_card")) return json({ id: "cus_card", invoice_settings: { default_payment_method: "pm_1" } });
+    if (u.endsWith("/v1/customers/cus_nocard")) return json({ id: "cus_nocard", invoice_settings: { default_payment_method: null } });
+    if (u.includes("/v1/prices")) return json({ data: [{ id: "price_starter" }] });
+    if (u.endsWith("/v1/subscriptions") && opts.method === "POST") return json({ id: "sub_direct", current_period_end: 1790000000, items: { data: [{ price: { id: "price_starter", metadata: { tier: "starter" } } }] } });
+    return json({ id: "x", data: [] });
+  };
+  await db().collection("system").doc("stripe_saas_prices").set({ starter: "price_starter" });
+  await M("card1").set({ store_name: "Con tarjeta", email: "c@x.test", saas_stripe_customer_id: "cus_card", wa_unbilled_usd: 0 });
+  const r = await sb.createSaasSubscriptionWithCard({ merchantId: "card1", merchant: await mdoc("card1"), tierId: "starter" });
+  const m = await mdoc("card1");
+  const post = seen.find(s => s.url.endsWith("/v1/subscriptions"));
+  ok(r?.activated === true && r.subscription_id === "sub_direct", "con tarjeta guardada: la suscripción se crea directo, sin Checkout");
+  ok(post && /customer=cus_card/.test(post.body) && /default_payment_method=pm_1/.test(post.body) && /payment_behavior=error_if_incomplete/.test(post.body), "cobra a la tarjeta guardada y falla si rebota");
+  ok(m.saas_status === "active" && m.plan_activated === "starter" && m.saas_stripe_subscription_id === "sub_direct" && m.plan_activated_at, "la tienda queda con Starter activo");
+  await M("card2").set({ store_name: "Sin tarjeta", saas_stripe_customer_id: "cus_nocard" });
+  const r2 = await sb.createSaasSubscriptionWithCard({ merchantId: "card2", merchant: await mdoc("card2"), tierId: "starter" });
+  ok(r2 === null && (await mdoc("card2")).saas_status === undefined, "sin tarjeta guardada → null (el panel abre Checkout)");
+  const r3 = await sb.createSaasSubscriptionWithCard({ merchantId: "card1", merchant: await mdoc("card1"), tierId: "starter" });
+  ok(r3 === null, "ya con suscripción → null (no duplica)");
+  delete process.env.STRIPE_SAAS_SECRET_KEY;
+}
 console.log(fails ? `\n${fails} fallas` : "\nTodo OK");
 if (fails) process.exit(1);

@@ -45,6 +45,7 @@ export function usePlanCheckout(billing, tierId) {
     try {
       if (billing?.stripe_available) {
         const r = await apiPost("merchant", { plan: tier, return_origin: window.location.origin }, { action: "saas-checkout" });
+        if (r?.activated) { toast("¡Plan activado con tu tarjeta guardada!", "success", 6000); window.location.hash = "#/config/facturacion?saas=ok"; setTimeout(() => window.location.reload(), 400); return; }
         if (r?.url) { window.location.href = r.url; return; }
         toast(r?.error || "No se pudo abrir el pago", "error", 6000);
       } else {

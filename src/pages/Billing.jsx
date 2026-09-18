@@ -49,6 +49,7 @@ function useSaasStripe(reloadMerchant) {
     if (busy) return; setBusy("pay");
     try {
       const r = await apiPost("merchant", { plan: id, return_origin: window.location.origin }, { action: "saas-checkout" });
+      if (r?.activated) { toast("¡Plan activado con tu tarjeta guardada!", "success", 6000); setBusy(null); reloadMerchant?.(); return; }
       if (!r?.url) throw new Error(r?.error || "No se pudo abrir el pago");
       window.location.href = r.url;
     } catch (e) { toast(e.message || "No se pudo abrir el pago", "error", 6000); setBusy(null); }
