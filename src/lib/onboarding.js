@@ -92,7 +92,6 @@ export function computeSteps({ merchant, user, plansCount }) {
   // Si el merchant cargó, el backend ya validó el mail (403 email_unverified si no).
   const emailOk = user?.emailVerified === true || Boolean(m.id);
   // Negocio: lo eligió, o es un merchant histórico que ya conectó Shopify (físico).
-  const negocioOk = p.explicit || shopifyOk;
   const color = String(m.widget_color || "#10b981").toLowerCase();
   const designOk = readFlag(designKey(mid))
     || (m.widget_variant && m.widget_variant !== "v01")
@@ -112,11 +111,6 @@ export function computeSteps({ merchant, user, plansCount }) {
     needs:["Acceso a la casilla con la que te registraste"],
     tab:"configuracion", configSec:"cuenta", cta:"Ver mi cuenta" });
 
-  steps.push({ id:"negocio", done:negocioOk, title:"Contanos qué vendés",
-    short:"Productos físicos, digitales o servicios: el panel se adapta a tu negocio.",
-    why:"Con esto sabemos si tu checkout pide dirección, si cada cobro crea una orden en tu tienda o si vendés con un link, y cómo llamamos a tus clientes y a tus planes.",
-    needs:["Saber si vendés productos que se envían, contenido digital o un servicio con cuota (gimnasio, clases, club…)"],
-    tab:"configuracion", configSec:"negocio", cta:"Elegir mi tipo de negocio" });
 
   // Tienda: Shopify o Tiendanube, un solo paso "Conectar tu tienda" (Thiago, 18-sept).
   const tnOk = Boolean(m.tiendanube_token || m.tiendanube_connected_at || m.tiendanube_store_id);
@@ -161,6 +155,13 @@ export function computeSteps({ merchant, user, plansCount }) {
       why:"El widget es lo que ve tu cliente en la página de producto. Elegí uno de los 10 diseños con vista previa real, ajustá el color, las esquinas y los textos.",
       needs:["El color principal de tu marca (hex)","Un plan creado para ver la vista previa con tus packs (opcional)"],
       tab:"planes", planesSub:"widget", guideSec:"diseno", cta:"Abrir el diseñador" });
+    // Verificación en vivo: abrimos un producto con plan y el widget avisa que quedó
+    // visible 3 s (merchant.widget_verified_at). Es lo que confirma que la tienda vende.
+    steps.push({ id:"activar", done: !!m.widget_verified_at, locked:!planOk, lockedMsg:"Primero creá un plan.", title:"Activar el widget en tu tienda",
+      short:"Abrimos un producto tuyo y confirmamos que la caja de suscripción se ve de verdad.",
+      why:"Conectar y crear el plan no alcanza: hay temas y apps de bundles que tapan el widget. Acá lo comprobamos en tu tienda real: si se ve 3 segundos, está activo. Si no, te decimos por qué.",
+      needs:["Un plan activo con un producto de tu tienda"],
+      tab:"planes", planesSub:"widget", cta:"Activar en mi tienda" });
   } else {
     steps.push({ id:"link", done:linkOk, manual:true, manualLabel:"Ya lo compartí", manualKey:linkKey(mid), locked:!planOk, lockedMsg:"Primero creá un plan.", title:"Compartir tu link de suscripción",
       short:"Pegalo en tu bio de Instagram, en WhatsApp, en tu web o imprimilo como QR.",

@@ -1,3 +1,4 @@
+import { WidgetStatusCard } from "./WidgetVerify.jsx";
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { apiPatch } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
@@ -415,6 +416,7 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
           Cambio pendiente a <b>{SOURCE_LABEL[source]}</b>: tus productos siguen con {SOURCE_LABEL[savedSource]} hasta que guardes el diseño.
         </Callout>
       )}
+      {(m.shopify_token || m.tiendanube_token) && <WidgetStatusCard merchant={m} plans={activePlans} onVerified={onSaved}/>}
       {customDev ? (
         /* ── Desarrollo a medida: SOLO lo desarrollado para esta tienda ── */
         <CustomDevView T={T} merchant={m} plans={activePlans} hasCustomDev={hasCustomDev}/>

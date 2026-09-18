@@ -665,20 +665,49 @@ async function handlePauseOffer(req, res) {
 // GET ?action=widget-seen&merchant=&host= (lo dispara widget.js como <img>, sin
 // CORS). Escribe widget_last_seen_at/host como máximo cada 10 min (1 lectura por
 // aviso; el widget ya lo manda 1 vez por sesión). Siempre 204: nunca rompe la tienda.
+// Beacon del widget (imagen 1×1, sin auth). Tres avisos:
+//   · cargó                → widget_last_seen_at/host (máx. 1 escritura por minuto)
+//   · rendered=1           → widget_verified_*: quedó visible 3 s en la página de producto
+//                            (máx. cada 20 s; con v=1 —lo abrió el panel para verificar— siempre)
+//   · rendered=0&reason=…  → widget_last_issue {at, reason, host, product, path} (máx. 1/min; v=1 siempre)
+// El panel ("Activar en mi tienda", _lib/widgetVerify.js) lee estos campos.
+export const WIDGET_ISSUE_REASONS = new Set(["no_product", "no_form", "no_plan", "hidden", "removed"]);
 async function handleWidgetSeen(req, res) {
   res.setHeader("Cache-Control", "no-store");
   const merchantId = String(req.query.merchant || "").trim();
   const host = String(req.query.host || "").trim().toLowerCase().slice(0, 120);
   if (!/^[A-Za-z0-9_-]{6,80}$/.test(merchantId)) return res.status(204).end();
+  const rendered = String(req.query.rendered || "");
+  const force = String(req.query.v || "") === "1";
+  const clip = (v, n) => { const t = String(v || "").trim().slice(0, n); return t || null; };
   try {
     const ref = db().collection("merchants").doc(merchantId);
     const snap = await ref.get();
     if (snap.exists) {
       const d = snap.data() || {};
+      const now = new Date().toISOString();
+      const patch = {};
       const last = Date.parse(d.widget_last_seen_at || "") || 0;
       if (Date.now() - last > 60 * 1000 || (host && d.widget_last_seen_host !== host)) {
-        await ref.update({ widget_last_seen_at: new Date().toISOString(), widget_last_seen_host: host || null });
+        patch.widget_last_seen_at = now; patch.widget_last_seen_host = host || null;
       }
+      if (rendered === "1") {
+        const lastV = Date.parse(d.widget_verified_at || "") || 0;
+        if (force || Date.now() - lastV > 20 * 1000) {
+          Object.assign(patch, {
+            widget_verified_at: now, widget_verified_host: host || null,
+            widget_verified_product: clip(req.query.product, 40), widget_verified_plan: clip(req.query.plan, 60),
+            widget_verified_path: clip(req.query.path, 200), widget_verified_mode: clip(req.query.mode, 10),
+          });
+        }
+      } else if (rendered === "0") {
+        const reason = String(req.query.reason || "");
+        const lastI = Date.parse(d.widget_last_issue?.at || "") || 0;
+        if (WIDGET_ISSUE_REASONS.has(reason) && (force || Date.now() - lastI > 60 * 1000)) {
+          patch.widget_last_issue = { at: now, reason, host: host || null, product: clip(req.query.product, 40), path: clip(req.query.path, 200) };
+        }
+      }
+      if (Object.keys(patch).length) await ref.update(patch);
     }
   } catch (e) { console.warn("[public/widget-seen]", e.message); }
   return res.status(204).end();

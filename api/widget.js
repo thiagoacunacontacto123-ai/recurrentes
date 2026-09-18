@@ -287,6 +287,44 @@ export default async function handler(req, res) {
       new Image().src = API_BASE + "/api/public?action=widget-seen&merchant=" + encodeURIComponent(MERCHANT_ID) + "&host=" + encodeURIComponent(location.hostname) + "&_=" + Date.now();
     }
   } catch (e) {}
+  // Verificación en vivo (panel → "Activar en mi tienda"): además de "cargó", avisamos si
+  // el widget quedó VISIBLE 3 s seguidos en la página de producto, o por qué no se montó
+  // (sin formulario de compra, sin producto, oculto por otra app, sacado por el tema).
+  // Con ?rec_verify=1 en la URL (la abre el panel) el aviso sale siempre; si no, 1 vez
+  // cada 2 min por producto y estado, para no llenar de escrituras.
+  var VERIFY = false;
+  try { VERIFY = location.search.indexOf("rec_verify=1") !== -1; } catch (e) {}
+  function report(state, extra) {
+    try {
+      var key = "rec_rep_" + MERCHANT_ID + "_" + state + "_" + ((extra && extra.product) || "");
+      var last = parseInt(sessionStorage.getItem(key) || "0", 10) || 0;
+      if (!VERIFY && Date.now() - last < 2 * 60 * 1000) return;
+      sessionStorage.setItem(key, String(Date.now()));
+      var q = "&rendered=" + (state === "ok" ? "1" : "0") + (state === "ok" ? "" : "&reason=" + encodeURIComponent(state)) + (VERIFY ? "&v=1" : "");
+      var keys = ["product", "plan", "ms", "mode"];
+      for (var i = 0; i < keys.length; i++) if (extra && extra[keys[i]] != null) q += "&" + keys[i] + "=" + encodeURIComponent(String(extra[keys[i]]));
+      q += "&path=" + encodeURIComponent(location.pathname.slice(0, 200));
+      new Image().src = API_BASE + "/api/public?action=widget-seen&merchant=" + encodeURIComponent(MERCHANT_ID) + "&host=" + encodeURIComponent(location.hostname) + q + "&_=" + Date.now();
+    } catch (e) {}
+  }
+  // Mira el widget ya montado: 3 s seguidos con tamaño en la página → "ok"; si en 10 s
+  // nunca aparece → "hidden" (otra app o el CSS del tema lo dejó sin tamaño); si el tema
+  // lo saca del DOM → "removed".
+  function watchVisible(el, extra) {
+    var visibleMs = 0, elapsed = 0, step = 500;
+    var t = setInterval(function () {
+      elapsed += step;
+      var vis = false;
+      try {
+        if (!document.body.contains(el)) { clearInterval(t); report("removed", extra); return; }
+        var r = el.getBoundingClientRect();
+        vis = r.width > 20 && r.height > 20 && el.offsetParent !== null;
+      } catch (e) {}
+      visibleMs = vis ? visibleMs + step : 0;
+      if (visibleMs >= 3000) { clearInterval(t); extra.ms = visibleMs; report("ok", extra); return; }
+      if (elapsed >= 10000) { clearInterval(t); report("hidden", extra); }
+    }, step);
+  }
   var HIDE_SELECTOR = ${JSON.stringify(hideSelector)};
   var MODE_ORDER = ${JSON.stringify(widgetModeOrder)};
   var MODE_DEFAULT = ${JSON.stringify(widgetModeDefault)};
@@ -1015,7 +1053,7 @@ export default async function handler(req, res) {
       });
       return;
     }
-    if (!productId) { log("No se detectó productId — widget no carga"); return; }
+    if (!productId) { log("No se detectó productId — widget no carga"); report("no_product"); return; }
     if (!variantId && IS_TN && window.__RECURRENTES_TN_VARIANT) variantId = String(window.__RECURRENTES_TN_VARIANT);
 
     // Mount point custom: si el theme tiene <div id="recurrentes-mount"></div>
@@ -1044,6 +1082,7 @@ export default async function handler(req, res) {
     }
     if (!mountPoint && !form && !hideAnchor) {
       log("No hay mount point ni form/cart/add ni hide anchor. Widget no se monta.");
+      report("no_form", { product: productId });
       return;
     }
     // Tiendanube: si el script llegó a inyectarse, el bloque HTML que pusimos en
@@ -1069,6 +1108,7 @@ export default async function handler(req, res) {
       if (mountPoint) mountPoint.appendChild(host);
       else if (hideAnchor && hideAnchor.parentNode) hideAnchor.parentNode.insertBefore(host, hideAnchor);
       else form.parentNode.insertBefore(host, form);
+      watchVisible(host, { product: productId, plan: plan.id, mode: "bundle" });
 
       var state = { mode: bundle.modeDefault === "once" ? "once" : "sub", idx: parseInt(bundle.defaultIdx, 10) || 0 };
       if (bundle.states[state.mode + ":" + state.idx] === undefined) state.idx = 0;
@@ -1340,7 +1380,7 @@ export default async function handler(req, res) {
     }
 
     fetchPlan(productId, variantId).then(function(d){
-      if (d.error || !d.plan) { log("Sin plan para producto", productId, d); return; }
+      if (d.error || !d.plan) { log("Sin plan para producto", productId, d); if (VERIFY) report("no_plan", { product: productId }); return; }
       var plan = d.plan;
 
       // Plan por PACKS → selector de packs precalculado en el server. Si por
@@ -1371,6 +1411,7 @@ export default async function handler(req, res) {
         form.parentNode.insertBefore(widget, form);
         form.parentNode.insertBefore(subPanel, form);
       }
+      watchVisible(widget, { product: productId, plan: plan.id, mode: "legacy" });
 
       // Autofill con datos del cliente Shopify si está logueado.
       var customer = detectShopifyCustomer();

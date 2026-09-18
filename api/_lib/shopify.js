@@ -205,6 +205,18 @@ export async function shopifyGraphql(shop, token, query, variables = {}) {
   return data.data || {};
 }
 
+// Handle (slug de la URL) de un producto → para abrir su página desde el panel
+// ("Activar en mi tienda"). null si el producto ya no existe.
+export async function shGetProductHandle(shop, token, productId) {
+  try {
+    const data = await call(shop, token, "GET", `/products/${encodeURIComponent(String(productId))}.json?fields=handle,status`);
+    return data.product?.handle || null;
+  } catch (e) {
+    if (/\b404\b|Not Found/i.test(e.message || "")) return null;
+    throw e;
+  }
+}
+
 // Códigos de descuento ACTIVOS de la tienda (Configuración → Descuentos → "Traer los de
 // Shopify"). GraphQL codeDiscountNodes (el REST price_rules está deprecado). Requiere el
 // permiso opcional read_discounts: sin él Shopify responde "Access denied" y el llamador

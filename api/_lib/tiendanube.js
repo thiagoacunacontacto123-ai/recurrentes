@@ -206,6 +206,18 @@ export async function tnListProducts(storeId, token, { maxPages = 5 } = {}) {
   return out.map(tnNormalizeProduct);
 }
 
+// Handle y URL pública de un producto → para abrirlo desde el panel ("Activar en mi
+// tienda"). null si no existe.
+export async function tnGetProductHandle(storeId, token, productId) {
+  try {
+    const { data } = await call(storeId, token, "GET", `/products/${encodeURIComponent(String(productId))}?fields=id,handle,canonical_url`);
+    return { handle: tnText(data?.handle) || null, canonical_url: data?.canonical_url || null };
+  } catch (e) {
+    if (e.status === 404) return null;
+    throw e;
+  }
+}
+
 // Cupones de la tienda (Configuración → Descuentos → "Traer los de Tiendanube").
 // GET /coupons (scope read_coupons): [{ id, code, type: "percentage"|"absolute"|"shipping",
 // value, valid, start_date, end_date, max_uses, used, … }]. Devuelve los cupones crudos;

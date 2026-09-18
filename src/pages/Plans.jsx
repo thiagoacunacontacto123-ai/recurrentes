@@ -4,6 +4,7 @@ import { DS, useT } from "../ui/theme.js";
 import { Card, Btn, InputStyle, DSEmpty, DSBadge, Modal, PageHeader, Callout, Loading, SubTabs, appConfirm, appAlert, appPrompt, toast } from "../ui/components.jsx";
 import { pricingModeOf } from "./PacksEditor.jsx";
 import WidgetDesigner, { widgetSnippet } from "./WidgetDesigner.jsx";
+import { WidgetVerifyButton } from "./WidgetVerify.jsx";
 import PlanEditor, { FormSection, SubscriptionLinkBox } from "./PlanEditor.jsx";
 import { MONO, fmtARS, fmtFreq, RowMenu } from "./_shared.jsx";
 import { KpiCard, Segmented } from "../ui/charts.jsx";
@@ -229,6 +230,9 @@ export function PlansPage({ merchant, onMerchantChange, forceSub = null }) {
       <PageHeader T={T} title="Planes de suscripción" subtitle={subtitle}
         right={<>
           {tabs}
+          {profile.caps.widget && (merchant?.shopify_token || merchant?.tiendanube_token) && plans.length > 0 && (
+            <WidgetVerifyButton merchant={merchant} plans={plans} onVerified={onMerchantChange}>{merchant?.widget_verified_at ? "✓ Activo en mi tienda" : "Activar en mi tienda"}</WidgetVerifyButton>
+          )}
           <Btn T={T} variant="solid" onClick={()=>setEditor({ plan: null })}>+ Nuevo plan</Btn>
         </>}/>
 

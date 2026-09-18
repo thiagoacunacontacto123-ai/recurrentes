@@ -13,6 +13,7 @@ const ALLOWED = [
   (u) => u.hostname === "api.mercadopago.com",
   (u) => /\.myshopify\.com$/.test(u.hostname) && u.pathname.startsWith("/admin/api/"),
   (u) => u.hostname === "api.resend.com",
+  (u) => u.hostname === "api.tiendanube.com",
 ];
 
 function headersToObject(h) {

@@ -5,6 +5,7 @@
 //   GET    ?action=workspace   → tiendas del PERFIL (propias + equipo) y la activa
 //   GET    ?action=members     → miembros + invitaciones de la tienda activa (solo dueño)
 //   GET    ?action=refresh-shop → (dueño) relee shop.json de Shopify y actualiza
+//   GET    ?action=widget-verify-url&plan= · widget-verify-status&since= → "Activar en mi tienda" (_lib/widgetVerify.js)
 //          shopify_domains / store_domain (respeta manual) / store_name (si vacío) /
 //          shop_name / shop_email / shop_currency / shop_country / shop_timezone.
 //          Devuelve { ok, shop:{…}, patch:{…} }.
@@ -57,6 +58,7 @@ import { mpMe } from "./_lib/mp.js";
 import { emailSubscriptionActivated, emailTeamInvite, emailPlanRequest, effectiveBrand, effectiveFrom } from "./_lib/email.js";
 import { shGetShopInfo, buildShopInfoPatch, shopifyRatesForPanel } from "./_lib/shopify.js";
 import { importDiscountsAction, cleanDiscountCodes } from "./_lib/discountImport.js";
+import { widgetVerifyUrlAction, widgetVerifyStatusAction } from "./_lib/widgetVerify.js";
 import { REASON_CODE_RE, retentionFor } from "./_lib/retention.js";
 import { PLAN_BY_ID, buildBilling } from "./_lib/plans_saas.js";
 import { saasStripeAvailable, createSaasCheckout, createSaasPortal } from "./_lib/saasBilling.js";
@@ -104,6 +106,9 @@ export default async function handler(req, res) {
     if (gAction === "workspace") return workspace(ctx, req, res);
     if (gAction === "members")   return membersList(ctx, req, res);
     if (gAction === "refresh-shop") return refreshShop(ctx, res);
+    // "Activar en mi tienda": link del producto a abrir + qué avisó el widget (_lib/widgetVerify.js).
+    if (gAction === "widget-verify-url") return widgetVerifyUrlAction(merchantId, req, res);
+    if (gAction === "widget-verify-status") return widgetVerifyStatusAction(merchantId, req, res);
     if (gAction === "flows") return flowsApi(ctx, "flows", req, res);
     if (gAction === "whatsapp-templates" || gAction === "whatsapp-usage" || gAction === "whatsapp-flows") return whatsappApi(ctx, gAction, req, res);
     // Afiliados: del LOGIN (no de la tienda activa). Solo el dueño.
@@ -149,6 +154,12 @@ export default async function handler(req, res) {
         widget_installed_ack: merchant.widget_installed_ack === true,   // widget ya puesto (ej. desarrollo a medida): no mostrar el aviso del snippet
         widget_last_seen_at: merchant.widget_last_seen_at || null,
         widget_last_seen_host: merchant.widget_last_seen_host || null,
+        // Verificación en vivo (widget visible 3 s en un producto) y último problema reportado por el widget.
+        widget_verified_at: merchant.widget_verified_at || null,
+        widget_verified_host: merchant.widget_verified_host || null,
+        widget_verified_path: merchant.widget_verified_path || null,
+        widget_verified_product: merchant.widget_verified_product || null,
+        widget_last_issue: merchant.widget_last_issue || null,
         shopify_has_own_app: !!(merchant.shopify_client_id && merchant.shopify_client_secret),
         shopify_env_app: !!(process.env.SHOPIFY_API_KEY && process.env.SHOPIFY_API_SECRET),
         shopify_scope: merchant.shopify_scope || null,   // permisos que dio Shopify (no es secreto): el panel sugiere reconectar si falta alguno
