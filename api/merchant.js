@@ -81,6 +81,16 @@ export default async function handler(req, res) {
   // Transferir tienda a otra cuenta (_lib/transfer.js): cada acción hace su propia auth.
   const qAction = String(req.query?.action || "");
   if (qAction.startsWith("transfer-")) return transferApi(req, res, { secciones: SECCIONES, storeName: storeDisplayName });
+  // Cuenta recién creada, mail SIN verificar: solo puede mandarse el mail de verificación
+  // (el nuestro, en castellano) y guardar sus datos de contacto. Así no se los pedimos
+  // dos veces y el aviso al admin + la bienvenida por WhatsApp salen en el momento.
+  if (req.method === "POST" && (qAction === "send-verification" || qAction === "save-owner")) {
+    const { verifyBearerAny } = await import("./_lib/firebase.js");
+    const dec = await verifyBearerAny(req, res);
+    if (!dec) return;
+    if (qAction === "send-verification") return sendVerification(dec, req, res);
+    return saveOwner({ uid: dec.uid, email: dec.email || null, role: "owner" }, req, res);
+  }
   // Acciones de PERFIL: andan aunque la tienda principal del login haya sido transferida (ctx sin tienda).
   const ctx = await requireMerchant(req, res, undefined, { allowNoStore: NO_STORE_ACTIONS.includes(qAction) });
   if (!ctx) return;
@@ -1652,6 +1662,24 @@ async function memberRemove(ctx, req, res) {
   } catch (e) {
     return res.status(e.status || 500).json({ error: e.message });
   }
+}
+
+// ─── POST ?action=send-verification ─────────────────────────────────
+// Mail de verificación PROPIO (Resend, en castellano, con la marca), en vez del de
+// Firebase en inglés. El link lo genera Firebase Admin y vuelve a nuestro dominio.
+async function sendVerification(dec, req, res) {
+  if (!dec.email) return res.status(400).json({ error: "La cuenta no tiene email" });
+  if (dec.email_verified === true) return res.json({ ok: true, already: true });
+  const rl = await rateLimit(`verify-mail:${dec.uid}`, { limit: 5, windowSec: 3600 });
+  if (rl && rl.ok === false) return res.status(429).json({ error: "Ya te mandamos varios mails. Revisá spam y esperá unos minutos." });
+  try {
+    const { getAuth } = await import("firebase-admin/auth");
+    const link = await getAuth().generateEmailVerificationLink(dec.email, { url: `${appBaseUrl().replace(/\/$/, "")}/#/login?verificado=1` });
+    const { emailVerifyAccount } = await import("./_lib/email.js");
+    const r = await emailVerifyAccount({ to: dec.email, name: dec.name || req.body?.name || "", link });
+    if (r?.ok === false) return res.status(502).json({ error: r.error || "No se pudo mandar el mail" });
+    return res.json({ ok: true });
+  } catch (e) { return res.status(500).json({ error: e.message }); }
 }
 
 // ─── POST ?action=save-owner ─────────────────────────────────────────

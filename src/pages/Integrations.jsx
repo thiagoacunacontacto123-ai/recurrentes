@@ -49,6 +49,14 @@ function btnStyles(T) {
   };
 }
 
+// Plataformas sin conector propio todavía: se muestran como "Próximamente" con el
+// botón de pedirlo por WhatsApp, y lo conectamos a mano.
+const OTHER_PLATFORMS = [
+  { id:"woocommerce", label:"WooCommerce", desc:"Tu WordPress con WooCommerce. Próximamente: te lo conectamos a mano, pedilo por WhatsApp." },
+  { id:"empretienda", label:"Empretienda", desc:"Próximamente: te lo conectamos a mano, pedilo por WhatsApp." },
+  { id:"vtex", label:"VTEX", desc:"Próximamente: te lo conectamos a mano, pedilo por WhatsApp." },
+  { id:"custom", label:"Desarrollo propio", desc:"Tu web a medida. Próximamente: te lo conectamos a mano, pedilo por WhatsApp." },
+];
 function Row({ T, id, label, sub, connected, soon, required, error, warn, optional, ready, onConnect, onDisconnect, connectLabel = "Conectar", open, onToggle, action, children }) {
   const b = btnStyles(T);
   const brand = BRAND[id] || T.accentSolid;
@@ -76,7 +84,7 @@ function Row({ T, id, label, sub, connected, soon, required, error, warn, option
           {connected && onToggle && <button type="button" style={b.ghost} aria-expanded={!!open} onClick={onToggle}>Ajustes {open ? "▴" : "▾"}</button>}
           {connected
             ? (onDisconnect && <button type="button" style={b.red} onClick={onDisconnect}>Desvincular</button>)
-            : soon ? <button type="button" disabled style={b.soft}>Conectar</button>
+            : soon ? <a href={`https://wa.me/5491164117974?text=${encodeURIComponent(`Hola! Quiero usar Recurrentes con ${label}. ¿Me lo pueden conectar?`)}`} target="_blank" rel="noopener noreferrer" style={{ ...b.soft, textDecoration:"none", display:"inline-block", opacity:1 }}>Pedirlo por WhatsApp</a>
             : onConnect ? <button type="button" style={b.solid} onClick={onConnect}>{connectLabel}</button> : null}
         </div>
       </div>
@@ -491,7 +499,9 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
             action={<a href="#/dashboard/planes" style={{ ...b.ghost, textDecoration:"none", display:"inline-block" }}>Ver mis links</a>}/>
         )}
         {tnOptional && tnRow(false)}
-        {soonChannels.map(c => <Row key={c.id} T={T} id={c.id} label={c.label} soon sub={c.desc}/>)}
+        {soonChannels.map(c => <Row key={c.id} T={T} id={c.id} label={c.label} soon sub={`${c.desc} Próximamente: mientras tanto te lo conectamos a mano, pedilo por WhatsApp.`}/>)}
+        {/* Otras plataformas: todavía no hay conector, se hacen a mano (Thiago, 18-sept). */}
+        {!storeConnected && OTHER_PLATFORMS.map(o => <Row key={o.id} T={T} id={o.id} label={o.label} soon sub={o.desc}/>)}
 
         {/* ── Pasarelas ── */}
         <GroupTitle T={T}>Pasarelas de pago</GroupTitle>

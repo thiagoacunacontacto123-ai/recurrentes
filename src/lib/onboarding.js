@@ -118,27 +118,21 @@ export function computeSteps({ merchant, user, plansCount }) {
     needs:["Saber si vendés productos que se envían, contenido digital o un servicio con cuota (gimnasio, clases, club…)"],
     tab:"configuracion", configSec:"negocio", cta:"Elegir mi tipo de negocio" });
 
-  if (p.channel === "shopify") {
-    steps.push({ id:"shopify", done:shopifyOk, title:"Conectar Shopify", effort:"2 pasos",
-      short:"Paso 1: tu app en Shopify (5 min, te guiamos). Paso 2: una línea en el tema.",
-      why:"Recurrentes lee tu catálogo para armar los planes y crea una orden en Shopify cada vez que Mercado Pago cobra una suscripción. Sin esto no hay envíos.",
-      needs:["Entrar con la cuenta dueña de la tienda","Paso 1 · Crear tu app en dev.shopify.com (5 min, una sola vez: copiás todo con un botón)","Paso 2 · Pegar una línea en theme.liquid (te la damos lista)"],
-      tab:"configuracion", configSec:"integraciones", guideSec:"shopify", cta:"Conectar Shopify" });
-  }
-  if (p.channel === "tiendanube") {
-    const tnOk = Boolean(m.tiendanube_token || m.tiendanube_connected_at || m.tiendanube_store_id);
-    steps.push({ id:"tiendanube", done:tnOk, title:"Conectar Tiendanube", effort:"1 clic",
-      short:"Instalás la app y listo: el widget se pone solo en tus productos.",
-      why:"Con la app instalada leemos tu catálogo, creamos la orden en tu Tiendanube con cada cobro y el widget de suscripción aparece solo en los productos con plan.",
-      needs:["Entrar con la cuenta dueña de la tienda"],
-      tab:"configuracion", configSec:"integraciones", cta:"Conectar Tiendanube" });
+  // Tienda: Shopify o Tiendanube, un solo paso "Conectar tu tienda" (Thiago, 18-sept).
+  const tnOk = Boolean(m.tiendanube_token || m.tiendanube_connected_at || m.tiendanube_store_id);
+  if (p.channel === "shopify" || p.channel === "tiendanube") {
+    steps.push({ id:"tienda", done: shopifyOk || tnOk, title:"Conectar tu tienda", effort:"1 clic",
+      short:"Shopify o Tiendanube. Leemos tu catálogo y creamos una orden en tu tienda con cada cobro.",
+      why:"Recurrentes lee tus productos para armar los planes y crea una orden en tu tienda cada vez que Mercado Pago cobra una suscripción. Sin esto no hay envíos.",
+      needs:["Entrar con la cuenta dueña de la tienda","Tiendanube: instalás la app y listo · Shopify: te guiamos con tu app (5 min) y una línea en el tema"],
+      tab:"configuracion", configSec:"integraciones", guideSec: p.channel === "shopify" ? "shopify" : undefined, cta:"Conectar tienda" });
   }
 
-  steps.push({ id:"mp", done:mpOk, title:"Conectar Mercado Pago", effort:"1 clic",
-    short:"Es la cuenta que cobra: la plata va directo a vos.",
+  steps.push({ id:"mp", done:mpOk, title:"Conectar tu pasarela", effort:"1 clic",
+    short:"Mercado Pago: es la cuenta que cobra, la plata va directo a vos.",
     why:"Las suscripciones se crean y se cobran en TU cuenta de Mercado Pago. Recurrentes solo las da de alta y escucha los pagos.",
     needs:["Tu cuenta de Mercado Pago de comercio (la que cobra): autorizás con un clic"],
-    tab:"configuracion", configSec:"integraciones", guideSec:"mp", cta:"Conectar Mercado Pago" });
+    tab:"configuracion", configSec:"integraciones", guideSec:"mp", cta:"Conectar pasarela" });
 
   // Opcional: solo suma si hace publicidad en Facebook/Instagram.
   steps.push({ id:"meta", done:Boolean(m.meta_connected || m.meta_pixel_id), optional:true, title:"Conectar Meta Ads (opcional)", effort:"1 paso",
@@ -167,19 +161,6 @@ export function computeSteps({ merchant, user, plansCount }) {
       why:"El widget es lo que ve tu cliente en la página de producto. Elegí uno de los 10 diseños con vista previa real, ajustá el color, las esquinas y los textos.",
       needs:["El color principal de tu marca (hex)","Un plan creado para ver la vista previa con tus packs (opcional)"],
       tab:"planes", planesSub:"widget", guideSec:"diseno", cta:"Abrir el diseñador" });
-    if (p.channel === "tiendanube") {
-      steps.push({ id:"snippet", done:snippetOk, manual:true, manualLabel:"Ya lo vi en mi tienda", manualKey:widgetKey(mid), title:"Ver el widget en tu tienda",
-        short:"No se pega nada: Tiendanube carga el widget solo en los productos con plan activo.",
-        why:"Tiendanube inyecta el widget de Recurrentes en tu tienda. Creá un plan, abrí ese producto y vas a ver la caja Suscripción / Compra única.",
-        needs:["Un plan activo","Abrir el producto en tu tienda (recargá sin caché si no aparece)"],
-        tab:"planes", guideSec:"snippet", cta:"Cómo funciona" });
-    } else {
-      steps.push({ id:"snippet", done:snippetOk, manual:true, manualLabel:"Ya lo pegué en mi tienda", manualKey:widgetKey(mid), title:"Pegar el snippet en tu tienda",
-        short:"Una línea de código en tu theme y el widget aparece solo en los productos con plan.",
-        why:"El snippet carga el widget en tu página de producto. Detecta el producto que se está viendo y, si tiene plan, muestra el selector de suscripción.",
-        needs:["Acceso a Tienda online → Temas → Personalizar (bloque Liquid personalizado)","El snippet lo copiás desde Configuración → Integraciones → Shopify → Ajustes"],
-        tab:"planes", guideSec:"snippet", cta:"Cómo pegarlo" });
-    }
   } else {
     steps.push({ id:"link", done:linkOk, manual:true, manualLabel:"Ya lo compartí", manualKey:linkKey(mid), locked:!planOk, lockedMsg:"Primero creá un plan.", title:"Compartir tu link de suscripción",
       short:"Pegalo en tu bio de Instagram, en WhatsApp, en tu web o imprimilo como QR.",
@@ -188,14 +169,8 @@ export function computeSteps({ merchant, user, plansCount }) {
       tab:"planes", cta:"Ver mis links" });
   }
 
-  if (p.caps.shipping) {
-    steps.push({ id:"settings", done:settingsOk, title: "Configurar los envíos del checkout",
-      short: "Las opciones de envío que el cliente elige al suscribirse.",
-      why:"Las tarifas de envío son las que el cliente elige en el checkout de suscripción y se repiten en cada cobro." + (p.channel === "shopify" ? " El dominio arma los links de los mails y del portal del cliente." : ""),
-      needs: p.channel === "shopify" ? ["El dominio público (ej: www.mitienda.com)","Nombre y precio de cada opción de envío (hasta 6)"] : ["Nombre y precio de cada opción de envío (hasta 6)"],
-      tab:"configuracion", configSec:"checkout", guideSec:"tienda", cta: "Configurar envíos" });
-  }
-
+  // Sin paso de snippet (Shopify lo hace el paso 2 al conectar; Tiendanube lo pone solo) ni de
+  // envíos/descuentos: son opcionales y viven en Configuración (Thiago, 18-sept).
   return steps.map((s, i) => ({ ...s, n: i + 1 }));
 }
 
@@ -258,15 +233,15 @@ export function useOnb() { return React.useContext(OnboardingContext); }
 // Qué pasos hacen falta para que aparezca algo en cada sección. Los ids que no
 // existen en el perfil del merchant (ej. "shopify" en un gimnasio) se ignoran solos.
 export const SECTION_NEEDS = {
-  suscripciones:["shopify", "mp", "plan", "snippet", "link"],
-  analiticas:   ["shopify", "mp", "plan", "snippet", "link"],
-  retencion:    ["shopify", "mp", "plan", "snippet", "link"],
-  portal:       ["shopify", "mp", "plan", "snippet", "link", "settings"],
-  suscriptores: ["shopify", "mp", "plan", "snippet", "link"],
-  carritos:     ["shopify", "mp", "plan", "snippet", "link"],
-  abandonados:  ["shopify", "mp", "plan", "snippet", "link"],
-  cobros:       ["shopify", "mp", "plan", "snippet", "link"],
-  actividad:    ["shopify", "mp", "plan", "snippet", "link", "settings"],
+  suscripciones:["tienda", "mp", "plan", "link"],
+  analiticas:   ["tienda", "mp", "plan", "link"],
+  retencion:    ["tienda", "mp", "plan", "snippet", "link"],
+  portal:       ["tienda", "mp", "plan", "snippet", "link", "settings"],
+  suscriptores: ["tienda", "mp", "plan", "snippet", "link"],
+  carritos:     ["tienda", "mp", "plan", "snippet", "link"],
+  abandonados:  ["tienda", "mp", "plan", "snippet", "link"],
+  cobros:       ["tienda", "mp", "plan", "snippet", "link"],
+  actividad:    ["tienda", "mp", "plan", "snippet", "link", "settings"],
 };
 
 // ─── Textos de tips contextuales (?) ───────────────────────────────────

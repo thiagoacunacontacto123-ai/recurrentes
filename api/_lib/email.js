@@ -484,6 +484,23 @@ export async function emailMerchantAlert({ to, event, text, storeName, customerN
   return sendEmail({ from: platformFrom(), to, subject: title, html, tags: { type: "merchant_alert", event: event || "na" } });
 }
 
+// ─── Verificación de mail de una cuenta nueva (reemplaza el mail en inglés de Firebase) ──
+export async function emailVerifyAccount({ to, name, link }) {
+  const who = plain(name, 40).split(" ")[0];
+  const title = "Confirmá tu email para entrar a Recurrentes";
+  const body = `
+    <p>${who ? `Hola ${escapeHtml(who)}, ` : "Hola, "}ya casi está. Tocá el botón para confirmar que este mail es tuyo y entrar a tu panel.</p>
+    <p style="margin-top:14px;color:#6b7280;font-size:13px;">El link vence en unas horas. Si no creaste una cuenta en Recurrentes, ignorá este mail y no pasa nada.</p>`;
+  const html = baseTemplate({
+    title, body,
+    ctaLabel: "Confirmar mi email",
+    ctaUrl: link,
+    brand: "Recurrentes", accent: "#10b981",
+    footerNote: "Recurrentes · suscripciones con cobro automático para tiendas online de Argentina.",
+  });
+  return sendEmail({ from: platformFrom(), to, subject: title, html, tags: { type: "verify_email" } });
+}
+
 // ─── Aviso INTERNO al equipo de Recurrentes (ramal admin) ────────────────────
 // Respaldo del WhatsApp al admin (sin número de Recurrentes cargado, plantilla
 // sin aprobar o error de Meta). `to` = mails de ADMIN_EMAILS (o ADMIN_EMAIL).

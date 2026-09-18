@@ -35,6 +35,7 @@ const { apiGet, apiPost } = api;
 //   ayuda         → Guía escrita (Guide.jsx) embebida
 // ─────────────────────────────────────────────────────────────────
 
+const F = "'Inter',system-ui,sans-serif";
 export const CFG_SECS = ["cuenta", "negocio", "tiendas", "equipo", "avisos", "integraciones", "checkout", "facturacion", "avanzado", "ayuda"];
 // Secciones viejas → nuevas (links guardados / plan de acción viejo).
 const CFG_ALIASES = { operacion: "avanzado", widget: "__planes_widget__", tienda: "checkout" };
@@ -192,6 +193,18 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
           hint={`${withStore ? profile.channelInfo.label : "Sin tienda online"} · ${profile.providerInfo.label}`} onClick={() => go("negocio")} />
         <KpiCard T={T} label="Tiendas" value={String(stores.length || 1)} color={T.textSm}
           hint={activeStore ? `Activa: ${activeStore.name}` : "una sola tienda"} onClick={() => go("tiendas")} />
+      </div>
+
+      {/* Celular: las secciones como píldoras que se deslizan (como en Growith). */}
+      <div className="mobile-only no-scrollbar" style={{ display: "none", overflowX: "auto", WebkitOverflowScrolling: "touch", margin: "0 -14px 14px", padding: "0 14px" }}>
+        <div style={{ display: "flex", gap: 6, minWidth: "max-content" }}>
+          {NAVS.map(n => (
+            <button key={n.id} type="button" onClick={() => go(n.id)}
+              style={{ padding: "7px 14px", fontSize: 12, fontWeight: 600, border: `1px solid ${sec === n.id ? T.accentSolid + "88" : T.border}`, borderRadius: 20, background: sec === n.id ? T.accentSolid + "18" : T.card, color: sec === n.id ? T.accent : T.textMd, cursor: "pointer", fontFamily: F, whiteSpace: "nowrap" }}>
+              {n.l}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="stack-mobile" style={{ display: "grid", gridTemplateColumns: "220px minmax(0,1fr)", gap: 28, alignItems: "start" }}>

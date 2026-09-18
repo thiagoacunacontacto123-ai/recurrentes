@@ -60,6 +60,17 @@ export async function verifyBearer(req, res) {
   return decoded;
 }
 
+// Igual que verifyBearer pero SIN exigir el mail verificado. Solo para acciones que
+// una cuenta recién creada necesita antes de verificar: mandarse el mail de
+// verificación y guardar sus propios datos de contacto (save-owner).
+export async function verifyBearerAny(req, res) {
+  initAdmin();
+  const auth = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+  if (!auth) { res.status(401).json({ error: "Falta token de auth" }); return null; }
+  try { return await getAuth().verifyIdToken(auth); }
+  catch (_) { res.status(401).json({ error: "Token inválido" }); return null; }
+}
+
 // Verifica el Bearer token del header Authorization y devuelve el uid.
 // Tira 401 si falta o es inválido — handlers deben llamar requireAuth(req,res)
 // y usar el uid para scopear todas las queries de Firestore.

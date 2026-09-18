@@ -23,5 +23,6 @@ const config = {
 // HMR seguro: evitar reinicialización en dev.
 export const app = getApps().length ? getApps()[0] : initializeApp(config);
 export const auth = getAuth(app);
+auth.languageCode = "es"; // mails de Firebase (respaldo) en castellano
 export const db = getFirestore(app);
 export { onAuthStateChanged };

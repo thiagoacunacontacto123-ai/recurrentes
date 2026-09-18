@@ -14,7 +14,8 @@ import { useTheme } from "../ui/theme.js";
 import { InputStyle, BtnSolid, BtnSecondary, Spinner } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
 import Landing from "./Landing.jsx";
-import { savePendingSignup, normalizeWhatsapp, EMAIL_RE } from "../lib/signup.js";
+import { apiPost } from "../lib/api.js";
+import { savePendingSignup, readPendingSignup, normalizeWhatsapp, EMAIL_RE } from "../lib/signup.js";
 
 const F = "'Inter',system-ui,sans-serif";
 const googleProvider = new GoogleAuthProvider();
@@ -143,8 +144,19 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
       if (isRegister) {
         const cred = await createUserWithEmailAndPassword(auth, em, password);
         try { await updateProfile(cred.user, { displayName: nombre.trim() }); } catch (_) {}
-        // El backend exige email verificado a cuentas nuevas (VerifyEmailScreen lee rec_verify_sent).
-        try { await sendEmailVerification(cred.user); sessionStorage.setItem("rec_verify_sent", "1"); } catch (_) {}
+        // Datos del paso 1 al servidor YA (aunque el mail no esté verificado): así no se
+        // piden de nuevo desde otro dispositivo, y salen el aviso al admin y la bienvenida.
+        try {
+          const pend = readPendingSignup();
+          let ref = null; try { ref = localStorage.getItem("rec_ref"); } catch (_) {}
+          if (pend) await apiPost("merchant", { owner_name: pend.owner_name, owner_whatsapp: pend.owner_whatsapp, contact_email: pend.contact_email, ...(ref ? { ref_code: ref } : {}) }, { action: "save-owner" });
+        } catch (_) {}
+        // Mail de verificación PROPIO (castellano, con la marca). Si falla, el de Firebase de respaldo.
+        try {
+          const r = await apiPost("merchant", { name: nombre.trim() }, { action: "send-verification" });
+          if (!r?.ok) await sendEmailVerification(cred.user);
+          sessionStorage.setItem("rec_verify_sent", "1");
+        } catch (_) { try { await sendEmailVerification(cred.user); } catch (_) {} }
       } else {
         await signInWithEmailAndPassword(auth, em, password);
       }

@@ -172,8 +172,8 @@ export default function Dashboard({ user, onLogout }) {
     const pending = readPendingSignup();
     if (pending && merchant.owner_info_missing) {
       apiPost("merchant", { owner_name: pending.owner_name, owner_whatsapp: pending.owner_whatsapp, contact_email: pending.contact_email }, { action: "save-owner" })
-        .then(d => { if (d?.ok) { clearPendingSignup(); setMerchant(m => m ? { ...m, owner_info_missing: false, owner_name: d.owner_name, owner_whatsapp: d.owner_whatsapp, contact_email: d.contact_email } : m); } else setOwnerAsk(true); })
-        .catch(() => setOwnerAsk(true));
+        .then(d => { if (d?.ok) { clearPendingSignup(); setMerchant(m => m ? { ...m, owner_info_missing: false, owner_name: d.owner_name, owner_whatsapp: d.owner_whatsapp, contact_email: d.contact_email } : m); } })
+        .catch(() => {});   // con datos pendientes nunca se vuelven a pedir: se reintenta en la próxima carga
     } else {
       if (pending) clearPendingSignup();
       setOwnerAsk(!!merchant.owner_info_missing);
@@ -428,7 +428,11 @@ function VerifyEmailScreen({ user, onLogout, onRetry }) {
   const [busy, setBusy] = React.useState(false);
   async function resend() {
     setBusy(true);
-    try { await sendEmailVerification(auth.currentUser); setSent(true); try { sessionStorage.setItem("rec_verify_sent", "1"); } catch (_) {} toast("Mail de verificación reenviado", "success"); }
+    try {
+      const r = await apiPost("merchant", {}, { action: "send-verification" }).catch(() => null);
+      if (!r?.ok) await sendEmailVerification(auth.currentUser);
+      setSent(true); try { sessionStorage.setItem("rec_verify_sent", "1"); } catch (_) {} toast("Mail de verificación reenviado", "success");
+    }
     catch (e) { toast("No se pudo reenviar: " + (e.message || e.code), "error", 6000); }
     finally { setBusy(false); }
   }
