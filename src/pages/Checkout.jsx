@@ -357,19 +357,24 @@ export default function Checkout() {
             </div>
           )}
 
-          {/* Pago */}
+          {/* Código de descuento (opcional): caja propia, separada del pago (Thiago, 18-sept). */}
           <div style={st.card}>
-            <h3 style={st.h}>Pago</h3>
-            <div style={{ fontSize: 13, color: "#555", marginBottom: 12, lineHeight: 1.5 }}>Pagás con <b>{providerLabel}</b>. {isService ? "La cuota se cobra sola cada período." : "Se renueva sola cada período."}</div>
-            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-              <input value={codeInput} onChange={e => setCodeInput(e.target.value.toUpperCase())} placeholder="Código de descuento" aria-label="Código de descuento"
+            <h3 style={st.h}>Código de descuento <span style={{ fontSize: 12, fontWeight: 500, color: "#888" }}>· opcional</span></h3>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={codeInput} onChange={e => setCodeInput(e.target.value.toUpperCase())} placeholder="Si tenés un código, ponelo acá" aria-label="Código de descuento"
                 style={{ ...st.input, flex: 1, textTransform: "uppercase" }} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); aplicarCodigo(codeInput); } }}/>
               <button type="button" onClick={() => aplicarCodigo(codeInput)} disabled={codeBusy || !codeInput.trim()}
                 style={{ padding: "0 16px", fontSize: 14, fontWeight: 700, color: accent, background: "#fff", border: `1.5px solid ${accent}`, borderRadius: 9, cursor: "pointer", opacity: codeBusy || !codeInput.trim() ? 0.6 : 1 }}>
                 {codeBusy ? "…" : "Aplicar"}
               </button>
             </div>
-            {codeMsg ? <div style={{ fontSize: 12, color: discount ? "#0a8a3f" : "#b42318", marginTop: -6, marginBottom: 10 }}>{codeMsg}</div> : null}
+            {codeMsg ? <div style={{ fontSize: 12, color: discount ? "#0a8a3f" : "#b42318", marginTop: 8 }}>{codeMsg}</div> : null}
+          </div>
+
+          {/* Pago */}
+          <div style={st.card}>
+            <h3 style={st.h}>Pago</h3>
+            <div style={{ fontSize: 13, color: "#555", marginBottom: 12, lineHeight: 1.5 }}>Pagás con <b>{providerLabel}</b>. {isService ? "La cuota se cobra sola cada período." : "Se renueva sola cada período."}</div>
             {formErr ? <div role="alert" style={{ background: "#fde8e8", border: "1px solid #f5b5b5", color: "#b42318", fontSize: 13, padding: "10px 12px", borderRadius: 9, marginBottom: 12 }}>{formErr}</div> : null}
             <button onClick={pagar} disabled={submitting} style={{ width: "100%", padding: "14px", fontSize: 15, fontWeight: 700, color: "#fff", background: accent, border: "none", borderRadius: 11, cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.7 : 1 }}>
               {submitting ? `Redirigiendo a ${providerLabel}…` : `Suscribirme y pagar ${money(total)}`}
