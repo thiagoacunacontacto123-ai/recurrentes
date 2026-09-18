@@ -608,6 +608,16 @@ function WaTemplatesCard({ T }) {
       await load();
     } catch (e) { setErr(e.message); } finally { setBusy(false); }
   }
+  // Manda aviso_admin a tu WhatsApp. Sirve para ver que llega apenas Meta apruebe la plantilla.
+  async function testMe() {
+    setBusy(true); setErr(null);
+    try {
+      const r = await apiPost("stats", {}, { action: "admin-wa-test" });
+      if (r?.error) setErr(r.error);
+      else if (r.ok) toast("Enviado. Mirá tu WhatsApp.", "success", 6000);
+      else { const w = r.result?.whatsapp?.[0]; setErr(w?.error ? `Meta no lo mandó: ${w.error}` : (r.result?.email?.ok ? "WhatsApp no salió; te llegó por mail." : "No se pudo enviar.")); }
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  }
   useEffect(() => { if (open && !data) load(); /* eslint-disable-next-line */ }, [open]);
   const missing = (data?.templates || []).filter(t => t.status === "MISSING").length;
   return (
@@ -615,6 +625,7 @@ function WaTemplatesCard({ T }) {
       right={<div style={{ display:"flex", gap:8 }}>
         <Btn T={T} variant="secondary" size="sm" onClick={() => setOpen(o => !o)}>{open ? "Ocultar" : "Ver estado"}</Btn>
         {open && data?.available && <Btn T={T} variant="solid" size="sm" onClick={sync} disabled={busy || missing === 0}>{busy ? "Enviando a Meta…" : missing ? `Crear ${missing} en Meta` : "Todas creadas"}</Btn>}
+        {open && data?.available && <Btn T={T} variant="secondary" size="sm" onClick={testMe} disabled={busy}>Enviarme una prueba</Btn>}
       </div>}>
       Los avisos a clientes, a comercios, del límite del plan y a vos salen con plantillas que Meta tiene que aprobar. Acá las creás por API y ves cómo van.
       {open && (

@@ -582,6 +582,14 @@ export async function adminHandler(req, res) {
       if (action === "admin-set-plan") return await setPlan(admin, req, res);
       // Crea en Meta las plantillas que faltan (quedan en revisión).
       if (action === "admin-wa-templates-sync") return res.json(await (await import("./waTemplates.js")).syncPlatformTemplates());
+      // Prueba del ramal admin: manda aviso_admin al WhatsApp del admin (sin dedup: clave única).
+      if (action === "admin-wa-test") {
+        const { notifyAdmin, adminPhones } = await import("./adminAlerts.js");
+        const phones = await adminPhones();
+        if (!phones.length) return res.status(400).json({ error: "No hay WhatsApp del admin: cargalo en Configuración → Avisos para vos (o env ADMIN_WHATSAPP)." });
+        const r = await notifyAdmin("plan_paid", { merchantId: "prueba", store: "Prueba del ramal admin", detail: "Si leés esto, el número de Recurrentes ya te avisa a vos.", key: `test_${Date.now()}` });
+        return res.json({ ok: r?.ok === true, result: r });
+      }
       if (action === "admin-note") return await addNote(admin, req, res);
       if (action === "admin-view-as") return await viewAsStart(admin, req, res);
     } else {
