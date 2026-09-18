@@ -181,10 +181,10 @@ function StatusCard({ T, billing, loadingId, onActivate, stripe }) {
             ? <button onClick={() => stripe.pay(b.tier)} disabled={!!stripe.busy} style={{ ...BtnSolid(T), padding: "8px 14px", fontSize: 12.5, opacity: stripe.busy ? 0.6 : 1 }}>{stripe.busy === "pay" ? "Abriendo el pago…" : `Activar ${tier.label} · USD ${tier.usd}/mes`}</button>
             : onActivate && <button onClick={() => onActivate(b.tier)} disabled={!!loadingId || b.plan_requested === b.tier} style={{ ...BtnSolid(T), padding: "8px 14px", fontSize: 12.5, opacity: loadingId || b.plan_requested === b.tier ? 0.6 : 1 }}>{loadingId ? "Enviando…" : b.plan_requested === b.tier ? "Pedido enviado ✓" : `Activar ${tier.label}`}</button>}>
           Tenés {fmtN(n)} suscriptores activos ({tierRangeLabel(tier).toLowerCase()}). Nada se corta.{" "}
-          {b.stripe_available ? <>Pagás con tarjeta, en dólares, y desde ahí se cobra cada 30 días el tramo que te corresponda ese día. {onActivate && <button onClick={() => onActivate(b.tier)} disabled={!!loadingId} style={{ background: "none", border: "none", color: T.textMd, textDecoration: "underline", cursor: "pointer", fontFamily: F, fontSize: 12, padding: 0 }}>{b.plan_requested === b.tier ? "Pedido enviado ✓" : "Prefiero coordinarlo por otro medio"}</button>}</> : "Activalo y te contactamos para coordinar el pago."}
+          {b.stripe_available ? <>Pagás con tarjeta, en dólares, y desde ahí se cobra cada 30 días el tramo que te corresponda ese día.</> : "Activalo y te contactamos para coordinar el pago."}
         </Callout>
       )}
-      {b.plan_requested && (
+      {!b.stripe_available && b.plan_requested && (
         <div style={{ marginTop: 12, fontSize: 12, color: T.textMd, background: T.accentSolid + "10", border: `1px solid ${T.accentSolid}33`, borderRadius: 10, padding: "8px 12px" }}>
           Pediste el plan <b style={{ color: T.text }}>{planLabel(b.plan_requested)}</b> el {fmtDia(b.plan_requested_at)}. Te contactamos para activarlo.
         </div>
@@ -241,7 +241,7 @@ export function BillingBanner({ T, billing, onGo }) {
       <span style={{ width: 7, height: 7, borderRadius: 99, background: T.yellow, flexShrink: 0 }}/>
       <span><strong>{fmtN(b.active_subscribers)} suscriptores activos</strong> · te corresponde {tier.label} (USD {tier.usd}/mes)</span>
       <span style={{ color: T.textSm }}>·</span>
-      <button onClick={onGo} style={{ background: "none", border: "none", color: T.yellow, fontWeight: 700, cursor: "pointer", fontFamily: F, fontSize: 12.5, padding: 0, textDecoration: "underline", textUnderlineOffset: 2 }}>{b.plan_requested === b.tier ? "Ver pedido" : "Activar plan"}</button>
+      <button onClick={onGo} style={{ background: "none", border: "none", color: T.yellow, fontWeight: 700, cursor: "pointer", fontFamily: F, fontSize: 12.5, padding: 0, textDecoration: "underline", textUnderlineOffset: 2 }}>"Activar plan"</button>
     </div>
   );
 }
