@@ -582,6 +582,22 @@ export async function adminHandler(req, res) {
       if (action === "admin-set-plan") return await setPlan(admin, req, res);
       // Crea en Meta las plantillas que faltan (quedan en revisión).
       if (action === "admin-wa-templates-sync") return res.json(await (await import("./waTemplates.js")).syncPlatformTemplates());
+      // Registra el número de Recurrentes en la Cloud API (paso que WhatsApp Manager no hace:
+      // error 133010 al enviar). PIN de 6 dígitos guardado en system/whatsapp_platform.pin,
+      // hace falta el mismo si algún día hay que re-registrar. Idempotente.
+      if (action === "admin-wa-register") {
+        const { platformWaConfig, graphRequest, mapWaError } = await import("./whatsapp.js");
+        const cfg = platformWaConfig();
+        if (!cfg) return res.status(400).json({ error: "Faltan WHATSAPP_PHONE_NUMBER_ID / WHATSAPP_ACCESS_TOKEN en Vercel." });
+        const ref = db().collection("system").doc("whatsapp_platform");
+        const cur = (await ref.get()).data() || {};
+        let pin = String(cur.pin || "");
+        if (!/^[0-9]{6}$/.test(pin)) { pin = String(Math.floor(100000 + Math.random() * 900000)); await ref.set({ pin, pin_created_at: new Date().toISOString() }, { merge: true }); }
+        const r = await graphRequest(`${encodeURIComponent(cfg.phone_number_id)}/register`, { token: cfg.token, method: "POST", body: { messaging_product: "whatsapp", pin } });
+        if (r.ok) { await ref.set({ registered_at: new Date().toISOString(), phone_number_id: cfg.phone_number_id, last_error: null }, { merge: true }); return res.json({ ok: true, registered: true }); }
+        const e = mapWaError(r.status, r.data);
+        return res.status(502).json({ ok: false, error: e.error || "Meta rechazó el registro", code: r.data?.error?.code ?? null, detail: String(r.data?.error?.error_user_msg || r.data?.error?.message || "").slice(0, 300) });
+      }
       // Prueba del ramal admin: manda aviso_admin al WhatsApp del admin (sin dedup: clave única).
       if (action === "admin-wa-test") {
         const { notifyAdmin, adminPhones } = await import("./adminAlerts.js");

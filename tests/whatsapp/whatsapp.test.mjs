@@ -130,8 +130,8 @@ const runsPast = async () => { for (const d of (await M.collection("flow_runs").
   ok(/al menos un mail o un WhatsApp/.test(SF.sanitizeFlow({ trigger: "activated", steps: [{ type: "wait", amount: 1, unit: "days" }] }).error || ""), "sin mails ni WhatsApp → error");
   const d = SF.defaultWhatsappFlow();
   ok(d.trigger === "upcoming_charge" && d.days_before === 3 && SF.sanitizeFlow(d).flow && SF.flowSummary(d) === "1 WhatsApp · al instante", "sugerencia 'Aviso de próximo cobro por WhatsApp' válida");
-  ok(SW.WA_TEMPLATES.every(t => t.category === "UTILITY" && SW.templateVarCount(t.body) === Object.keys(t.vars).length && !/^\s*\{\{/.test(t.body) && !/\}\}\s*[.!]?\s*$/.test(t.body) && !/\}\}\s*\{\{/.test(t.body) && SF.sanitizeFlow({ trigger: t.trigger, steps: [{ type: "whatsapp", template: t.name, lang: t.lang, vars: t.vars }] }).flow),
-    "plantillas sugeridas: UTILITY, variables en orden, sin variable al inicio/fin ni pegadas");
+  ok(SW.WA_TEMPLATES.every(t => (t.category === "UTILITY" || (t.name === "carrito_sin_pagar" && t.category === "MARKETING")) && SW.templateVarCount(t.body) === Object.keys(t.vars).length && !/^\s*\{\{/.test(t.body) && !/\}\}\s*[.!]?\s*$/.test(t.body) && !/\}\}\s*\{\{/.test(t.body) && SF.sanitizeFlow({ trigger: t.trigger, steps: [{ type: "whatsapp", template: t.name, lang: t.lang, vars: t.vars }] }).flow),
+    "plantillas sugeridas: UTILITY (carrito: MARKETING), variables en orden, sin variable al inicio/fin ni pegadas");
   ok(keys.includes("link_portal") && keys.includes("proximo_cobro"), "las variables del flujo existen");
 }
 

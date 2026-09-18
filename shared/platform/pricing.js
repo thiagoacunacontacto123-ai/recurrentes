@@ -74,6 +74,9 @@ export const WHATSAPP_MARKUP = 1.50;
 // (actualizado 2026-09-12, cita a Meta). NO confirmado contra el CSV: el backend
 // lo pisa con la env WHATSAPP_PRICE_USD_UTILITY.
 export const WHATSAPP_PRICE_USD_UTILITY_DEFAULT = 0.012;
+// Plantillas de MARKETING (carrito sin pagar): Meta las cobra bastante más. Misma
+// fuente (ominiflow, Argentina); el backend la pisa con WHATSAPP_PRICE_USD_MARKETING.
+export const WHATSAPP_PRICE_USD_MARKETING_DEFAULT = 0.0618;
 // Lo que paga el comerciante por aviso (precio de Meta × recargo), a 6 decimales.
 export const waChargeUsd = (priceUsd) => Math.round((Number(priceUsd) || 0) * WHATSAPP_MARKUP * 1e6) / 1e6;
 

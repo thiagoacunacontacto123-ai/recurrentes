@@ -105,12 +105,11 @@ await M("mp1").set({ email: "dueno@uno.com", store_name: "Tienda Uno", email_rep
   ok(noEnv.status === 400 && /todavía no/.test(noEnv.error), "sin el número de Recurrentes configurado: 'todavía no está disponible'");
   const on = await api("whatsapp-platform", { enabled: true, optin_confirmed: true });
   const m = await mdoc("mp1");
-  ok(on.ok && on.flow_created && on.whatsapp_sender === "platform" && m.whatsapp_platform_enabled === true && m.whatsapp_platform_optin_at, "prendido: guarda el consentimiento y responde whatsapp_sender=platform");
+  ok(on.ok && !on.flow_created && on.whatsapp_sender === "platform" && m.whatsapp_platform_enabled === true && m.whatsapp_platform_optin_at, "prendido: guarda el consentimiento y responde whatsapp_sender=platform; no prende ningún aviso solo");
   const fl = (await M("mp1").collection("flows").get()).docs.map(d => d.data());
-  ok(fl.length === 1 && fl[0].active === true && fl[0].trigger === "upcoming_charge" && fl[0].steps[0].type === "whatsapp" && fl[0].steps[0].template === "aviso_proximo_cobro"
-    && m.flows_enabled === true && m.flows_active_triggers.includes("upcoming_charge"), "un solo interruptor: crea y activa 'Aviso de próximo cobro por WhatsApp'");
+  ok(fl.length === 0 && !m.flows_enabled, "nada prendido por defecto: los avisos se eligen en Flujos de WhatsApp");
   const again = await api("whatsapp-platform", { enabled: true, optin_confirmed: true });
-  ok(again.ok && !again.flow_created && (await M("mp1").collection("flows").get()).docs.length === 1, "prenderlo de nuevo no duplica el flujo");
+  ok(again.ok && !again.flow_created && (await M("mp1").collection("flows").get()).docs.length === 0, "prenderlo de nuevo tampoco crea flujos");
   const tpl = await api("whatsapp-templates");
   ok(tpl.platform === true && tpl.templates.length === SW.WA_TEMPLATES.length && tpl.templates.every(t => t.status === "APPROVED"), "el editor de flujos recibe las plantillas de Recurrentes");
 }
@@ -230,8 +229,8 @@ let firstWamid;
 }
 
 // ── 9) Plantillas: todas llevan el nombre de la tienda y el pie de baja ──
-ok(SW.WA_TEMPLATES.every(t => Object.values(t.vars).includes("marca") && t.footer === "Respondé BAJA para no recibir más avisos." && t.category === "UTILITY" && t.samples.length === Object.keys(t.vars).length),
-  "plantillas de Recurrentes: nombre de la tienda como variable, pie 'Respondé BAJA…', utilidad, ejemplos para Meta");
+ok(SW.WA_TEMPLATES.every(t => Object.values(t.vars).includes("marca") && t.footer === "Respondé BAJA para no recibir más avisos." && (t.category === "UTILITY" || (t.name === "carrito_sin_pagar" && t.category === "MARKETING")) && t.samples.length === Object.keys(t.vars).length),
+  "plantillas de Recurrentes: nombre de la tienda como variable, pie 'Respondé BAJA…', utilidad (el carrito es marketing), ejemplos para Meta");
 
 console.log(fails ? `\n${fails} FALLA(S)` : "\nTODO OK");
 process.exit(fails ? 1 : 0);

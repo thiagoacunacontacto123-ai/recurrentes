@@ -63,13 +63,14 @@ function PlatformRow({ T, merchant: m, onChange, ui }) {
     if (!isOwner) return toast("Solo el dueño de la tienda puede prender o apagar los avisos", "warning");
     if (!available) return;
     const next = !enabled;
-    if (next && !optin) { setOpen(true); return toast("Tildá la casilla de consentimiento para prender los avisos", "warning"); }
+
     if (!next && !await appConfirm("Tus clientes dejan de recibir los avisos por WhatsApp. Tus flujos quedan como están y los podés volver a prender cuando quieras.", { title: "¿Apagar los avisos por WhatsApp?", okLabel: "Apagar" })) return;
     setBusy(true);
-    const d = await apiPost("merchant", { enabled: next, optin_confirmed: optin }, { action: "whatsapp-platform" });
+    // Prenderlo es el consentimiento (se guarda la fecha): sin casilla ni botón aparte.
+    const d = await apiPost("merchant", { enabled: next, optin_confirmed: true }, { action: "whatsapp-platform" });
     setBusy(false);
     if (d?.error) return toast("Error: " + d.error, "error", 7000);
-    toast(next ? (d.flow_created ? "Avisos por WhatsApp prendidos. Creamos el flujo “Aviso de próximo cobro”." : "Avisos por WhatsApp prendidos") : "Avisos por WhatsApp apagados", next ? "success" : "warning", 6000);
+    toast(next ? "Avisos por WhatsApp prendidos. Elegí cuáles mandar en Flujos de WhatsApp." : "Avisos por WhatsApp apagados", next ? "success" : "info", 6000);
     onChange?.();
   }
 
@@ -97,29 +98,14 @@ function PlatformRow({ T, merchant: m, onChange, ui }) {
       <Row T={T} id="whatsapp" label="WhatsApp" optional ready={enabled} sub={sub} action={action} open={open}>
         <div style={{ fontSize: DS.font.md, fontWeight: 700, color: T.text, marginBottom: 6 }}>Avisos por WhatsApp desde el número de Recurrentes</div>
         <div style={{ ...small, marginBottom: 10 }}>
-          Cuando lo prendés, cada cliente recibe un WhatsApp <S T={T}>3 días antes de cada cobro</S>, con la fecha, el monto y el link a su portal para pausar o cambiar algo.
-          Desde <a href="#/dashboard/whatsapp" style={{ color: T.accent, fontWeight: 700, textDecoration: "none" }}>Flujos de WhatsApp</a> podés sumar el aviso de <S T={T}>pago rechazado</S>, el de <S T={T}>suscripción activa</S> y el de <S T={T}>renovación cobrada</S>.
+          Cuando lo prendés, elegís en <a href="#/dashboard/whatsapp" style={{ color: T.accent, fontWeight: 700, textDecoration: "none" }}>Flujos de WhatsApp</a> qué avisos mandar: <S T={T}>carrito sin pagar</S>, <S T={T}>próximo cobro</S>, <S T={T}>pago rechazado</S>, <S T={T}>suscripción activa</S> y <S T={T}>renovación cobrada</S>. Ninguno viene prendido.
           Salen desde el número de Recurrentes, siempre con el nombre de tu tienda. Si un cliente responde, le contestamos solos que escriba a tu mail de atención al cliente.
         </div>
         <div style={{ ...small, marginBottom: 12 }}>
-          Precio: <S T={T}>{price} por aviso</S> (lo que cobra Meta más 50%). <S T={T}>Se suma a tu plan a fin de mes.</S> Solo le llega a quien dejó su teléfono y no pidió la baja: quien responde BAJA deja de recibirlos.
+          Precio: <S T={T}>desde {price} por aviso</S>. <S T={T}>Se suma a tu plan a fin de mes.</S> Solo le llega a quien dejó su teléfono y no pidió la baja: quien responde BAJA deja de recibirlos.
         </div>
         {enabled && <WhatsAppUsageLine T={T} merchant={m} style={{ marginBottom: 12 }}/>}
-        {available && (
-          <CheckLine T={T} checked={optin} onChange={(v) => setOptin(typeof v === "boolean" ? v : Boolean(v?.target?.checked))} style={{ color: T.text, margin: "0 0 12px" }}>
-            Mis clientes aceptaron recibir avisos por WhatsApp al suscribirse.
-          </CheckLine>
-        )}
-        {available && !enabled && isOwner && (
-          <Btn T={T} variant="solid" size="sm" onClick={toggle} disabled={busy || !optin}>{busy ? <><Spinner size={12}/> Prendiendo…</> : "Prender avisos por WhatsApp"}</Btn>
-        )}
         {!available && <Hint T={T} style={{ marginTop: 0 }}>Estamos terminando de habilitar el número de Recurrentes con Meta. Mientras tanto podés usar tu propio número.</Hint>}
-        <div style={{ marginTop: 12 }}>
-          <button type="button" onClick={() => setOwnModal(true)} style={{ background: "none", border: "none", padding: 0, color: T.textSm, cursor: "pointer", fontFamily: F, fontSize: DS.font.sm, textDecoration: "underline", textUnderlineOffset: 2 }}>
-            ¿Preferís usar tu propio número?
-          </button>
-          <span style={{ ...small, marginLeft: 6 }}>Avanzado: necesitás una cuenta de WhatsApp Business en Meta. Ver <A T={T} href="https://business.facebook.com/wa/manage/home/">WhatsApp Manager</A>.</span>
-        </div>
       </Row>
       {ownModal && <OwnNumberModal T={T} merchant={m} onChange={onChange} ui={ui} onClose={() => setOwnModal(false)}/>}
     </>

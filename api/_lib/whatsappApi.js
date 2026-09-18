@@ -7,7 +7,7 @@
 //   POST ?action=whatsapp-template-toggle { name, active } → prende/apaga esa plantilla (crea el flujo de
 //        sistema si no existe). Solo el dueño; requiere WhatsApp prendido (Recurrentes o propio).
 //   POST ?action=whatsapp-platform    { enabled, optin_confirmed } → prende / apaga los avisos desde
-//        el número de Recurrentes. Al prenderlo crea (una vez) el flujo "Aviso de próximo cobro".
+//        el número de Recurrentes. No prende ningún aviso: eso se elige en Flujos de WhatsApp.
 //   POST ?action=whatsapp-save        { phone_number_id, waba_id, access_token, app_secret?, optin_confirmed }
 //        → número PROPIO (avanzado): valida con llamadas de solo lectura a Meta y guarda
 //   POST ?action=whatsapp-disconnect
@@ -26,7 +26,7 @@ import {
 import { syncFlowsIndex } from "./flows.js";
 import { normalizePhoneAR, templateParams, sanitizeWhatsappStep, WA_TEMPLATES, templateVarCount } from "../../shared/platform/whatsapp.js";
 import { FLOW_VARIABLES, FLOW_MAX_FLOWS, defaultWhatsappFlow, sanitizeFlow } from "../../shared/platform/flows.js";
-import { waChargeUsd, WHATSAPP_MARKUP } from "../../shared/platform/pricing.js";
+import { waChargeUsd } from "../../shared/platform/pricing.js";
 import { waUsageMonth, renderTemplateBody } from "../../shared/platform/whatsapp.js";
 
 const OWNER_ONLY = ["whatsapp-save", "whatsapp-disconnect", "whatsapp-test", "whatsapp-platform", "whatsapp-template-toggle"];
@@ -95,6 +95,8 @@ async function whatsappFlowsView(mid, merchant) {
       preview: renderTemplateBody(t.body, t.vars, sample), footer: t.footer,
       days_before: f?.days_before ?? (t.trigger === "upcoming_charge" ? 3 : null),
       active: f?.active === true, flow_id: f?.id || null, sent: Number(f?.stats?.sent) || 0,
+      // Precio por mensaje de ESTA plantilla (las de marketing, como el carrito, cuestan más).
+      charge_usd: sender?.mode === "own" ? 0 : waChargeUsd(waPriceUsd(t.category)),
     };
   });
   const months = [];
@@ -102,7 +104,7 @@ async function whatsappFlowsView(mid, merchant) {
   return {
     available: platformWaAvailable(), sender: sender?.mode || null, enabled: Boolean(sender),
     platform_enabled: merchant.whatsapp_platform_enabled === true, own_connected: whatsappEnabled(merchant),
-    price_usd: price, charge_usd: sender?.mode === "own" ? 0 : waChargeUsd(price), markup: WHATSAPP_MARKUP,
+    charge_usd: sender?.mode === "own" ? 0 : waChargeUsd(price),
     usage: months[0], months, templates,
   };
 }
@@ -178,9 +180,8 @@ export async function whatsappApi(ctx, action, req, res) {
         : { whatsapp_platform_enabled: false, whatsapp_platform_disabled_at: now, updated_at: now };
       await mRef(mid).set(patch, { merge: true });
       clearCache(mid);
-      let flowId = null;
-      if (enabled) { try { flowId = await ensurePlatformFlow(mid, ctx.uid); } catch (e) { console.warn(`[whatsapp-api] flujo ${mid}:`, e.message); } }
-      return res.json({ ok: true, flow_created: Boolean(flowId), flow_id: flowId, ...whatsappSafe({ ...cur, ...patch }) });
+      // Ningún aviso viene prendido por defecto (Thiago, 18-sept): los elige en Flujos de WhatsApp.
+      return res.json({ ok: true, flow_created: false, flow_id: null, ...whatsappSafe({ ...cur, ...patch }) });
     }
 
     if (action === "whatsapp-save") {

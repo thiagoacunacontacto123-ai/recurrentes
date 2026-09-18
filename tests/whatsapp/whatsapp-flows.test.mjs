@@ -23,17 +23,22 @@ test("(q) whatsapp-flows: las 4 plantillas a clientes, apagadas, con precio × 1
   assert.equal(r.statusCode, 200);
   assert.equal(r.body.enabled, true);
   assert.equal(r.body.sender, "platform");
-  assert.deepEqual(r.body.templates.map(t => t.name), ["aviso_proximo_cobro", "pago_rechazado", "suscripcion_activa", "renovacion_cobrada"]);
+  assert.deepEqual(r.body.templates.map(t => t.name), ["carrito_sin_pagar", "aviso_proximo_cobro", "pago_rechazado", "suscripcion_activa", "renovacion_cobrada"], "el carrito primero: es el que más se usa");
   assert.ok(r.body.templates.every(t => t.active === false && t.flow_id === null));
-  assert.equal(r.body.markup, 1.5);
+  assert.equal("markup" in r.body, false, "el recargo no se expone al panel");
+  assert.equal("price_usd" in r.body, false, "ni el precio de Meta");
   assert.ok(Math.abs(r.body.charge_usd - 0.018) < 1e-6, "0,012 × 1,50");
   assert.equal(r.body.months.length, 3);
   assert.equal(r.body.usage.wa_sent, 0);
   // El texto de ejemplo lleva la marca de la tienda y no deja {{n}} sin reemplazar.
-  const up = r.body.templates[0];
+  const up = r.body.templates.find(t => t.name === "aviso_proximo_cobro");
   assert.match(up.preview, /LuminaLabs/);
   assert.ok(!/\{\{\d\}\}/.test(up.preview));
   assert.equal(up.days_before, 3);
+  // El carrito es Marketing para Meta: cuesta más, y el panel lo dice por plantilla.
+  const cart = r.body.templates[0];
+  assert.ok(Math.abs(cart.charge_usd - 0.0618 * 1.5) < 1e-6, `carrito a precio marketing (${cart.charge_usd})`);
+  assert.ok(Math.abs(up.charge_usd - 0.018) < 1e-6);
 });
 
 test("(q) prender una plantilla crea SU flujo de sistema (wa_template) activo y lo indexa", async () => {
@@ -53,6 +58,16 @@ test("(q) prender una plantilla crea SU flujo de sistema (wa_template) activo y 
   assert.equal(f.steps[0].template, "pago_rechazado");
   // El índice del merchant sabe que ese disparador tiene flujo (emitFlowEvent lo mira sin leer flows).
   assert.ok((rawGet(`merchants/${MID}`).flows_active_triggers || []).includes("payment_failed"));
+});
+
+test("(q) el carrito espera 1 hora antes del WhatsApp (si paga en ese rato, el motor lo saca)", async () => {
+  await call("whatsapp-template-toggle", { method: "POST", body: { name: "carrito_sin_pagar", active: true } });
+  const f = rawList(`merchants/${MID}/flows`)[0].data;
+  assert.equal(f.trigger, "checkout_started");
+  assert.equal(f.steps.length, 2);
+  assert.equal(f.steps[0].type, "wait");
+  assert.equal(f.steps[1].type, "whatsapp");
+  assert.equal(f.steps[1].template, "carrito_sin_pagar");
 });
 
 test("(q) apagar deja el flujo (con su historial) pero inactivo; prender de nuevo no duplica", async () => {
@@ -82,7 +97,7 @@ test("(q) sin WhatsApp prendido: la vista lo dice y el toggle devuelve not_enabl
   seedDoc(`merchants/${MID}`, luminaMerchant());   // sin whatsapp_platform_enabled
   const v = await call("whatsapp-flows");
   assert.equal(v.body.enabled, false);
-  assert.equal(v.body.templates.length, 4, "igual muestra qué se puede prender");
+  assert.equal(v.body.templates.length, 5, "igual muestra qué se puede prender");
   const r = await call("whatsapp-template-toggle", { method: "POST", body: { name: "pago_rechazado", active: true } });
   assert.equal(r.statusCode, 400);
   assert.equal(r.body.code, "not_enabled");

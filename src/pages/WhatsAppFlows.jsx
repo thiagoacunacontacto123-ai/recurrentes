@@ -15,6 +15,7 @@ const fmtN = (n) => Number(n || 0).toLocaleString("es-AR");
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 const mesLabel = (ym) => { const [y, m] = String(ym).split("-"); return `${MESES[(+m || 1) - 1]} ${y}`; };
 const WHEN = {
+  checkout_started: () => "1 hora después de que alguien empieza a suscribirse y no paga (si paga antes, no se manda)",
   upcoming_charge: (d) => `${d || 3} días antes de cada cobro`,
   payment_failed: () => "cuando Mercado Pago rechaza una renovación",
   activated: () => "cuando se activa la suscripción (primer pago)",
@@ -50,7 +51,6 @@ export default function WhatsAppFlowsPage({ merchant, goConfig }) {
   if (!data) return <div>{header}<Loading T={T}/></div>;
 
   const charge = data.charge_usd;
-  const pct = Math.round((Number(data.markup || 1) - 1) * 100);
 
   // ── Sin WhatsApp prendido: cartel a Integraciones, con el costo dicho de frente ──
   if (!data.enabled) {
@@ -62,7 +62,7 @@ export default function WhatsAppFlowsPage({ merchant, goConfig }) {
           {data.available ? (
             <>
               Se prende con un interruptor en <strong style={{ color: T.text }}>Integraciones → WhatsApp</strong>, sin configurar nada. Después volvés acá y elegís qué avisos mandar.<br/>
-              <strong style={{ color: T.text }}>Costo:</strong> cada mensaje cuesta <strong style={{ color: T.text }}>{fmtUsd(charge)}</strong> (lo que cobra Meta más {pct}%) y se suma a tu plan a fin de mes. Solo pagás los que salen: si no tenés cobros, no gastás nada.
+              <strong style={{ color: T.text }}>Costo:</strong> cada mensaje cuesta <strong style={{ color: T.text }}>{fmtUsd(charge)}</strong> y se suma a tu plan a fin de mes. Solo pagás los que salen: si no tenés cobros, no gastás nada.
             </>
           ) : "Estamos terminando de habilitar el número de Recurrentes con Meta. Mientras tanto podés conectar tu propio número desde Integraciones → WhatsApp."}
         </Callout>
@@ -74,7 +74,7 @@ export default function WhatsAppFlowsPage({ merchant, goConfig }) {
   return (
     <div>
       {header}
-      <UsageCards T={T} data={data} pct={pct}/>
+      <UsageCards T={T} data={data}/>
       <TemplateList T={T} data={data} onToggle={toggle} busy={busy} isOwner={isOwner}/>
       <div style={{ fontSize: DS.font.sm, color: T.textSm, marginTop: 14, lineHeight: 1.5 }}>
         Los mensajes salen del número de Recurrentes con el nombre de tu tienda, solo a clientes que dejaron su teléfono. Quien responde <strong style={{ color: T.textMd }}>BAJA</strong> deja de recibirlos. Si un cliente escribe, le contestamos solos que te escriba a tu mail de atención.
@@ -85,7 +85,7 @@ export default function WhatsAppFlowsPage({ merchant, goConfig }) {
 }
 
 // ── Gasto: este mes grande, los anteriores chicos ────────────────────────────
-function UsageCards({ T, data, pct }) {
+function UsageCards({ T, data }) {
   const u = data.usage || {};
   const prev = (data.months || []).slice(1);
   const own = data.sender === "own";
@@ -99,9 +99,9 @@ function UsageCards({ T, data, pct }) {
         <div style={{ fontSize: DS.font.sm, color: T.textSm, marginTop: 2 }}>{fmtN(u.wa_sent)} mensaje{u.wa_sent === 1 ? "" : "s"}{u.wa_alerts_sent ? ` · ${fmtN(u.wa_alerts_sent)} son avisos a vos` : ""}</div>
       </div>
       <div style={card}>
-        <div style={lbl}>Precio por mensaje</div>
+        <div style={lbl}>Precio por mensaje (desde)</div>
         <div style={{ fontSize: 26, fontWeight: 900, color: T.text, letterSpacing: -0.5, fontVariantNumeric: "tabular-nums", marginTop: 4 }}>{own ? "US$ 0" : fmtUsd(data.charge_usd)}</div>
-        <div style={{ fontSize: DS.font.sm, color: T.textSm, marginTop: 2 }}>{own ? "Tu número: Meta te cobra a vos" : `Meta ${fmtUsd(data.price_usd)} + ${pct}% · se suma a tu plan a fin de mes`}</div>
+        <div style={{ fontSize: DS.font.sm, color: T.textSm, marginTop: 2 }}>{own ? "Tu número: Meta te cobra a vos" : "Se suma a tu plan a fin de mes"}</div>
       </div>
       <div style={card}>
         <div style={lbl}>Meses anteriores</div>
@@ -132,7 +132,7 @@ function TemplateList({ T, data, onToggle, busy, disabled = false, isOwner = tru
               </span>
               <div style={{ flex: 1, minWidth: 180 }}>
                 <div style={{ fontSize: DS.font.base, fontWeight: 800, color: T.text }}>{t.title}</div>
-                <div style={{ fontSize: DS.font.sm, color: T.textSm }}>Se manda {(WHEN[t.trigger] || (() => "automáticamente"))(t.days_before)}.{t.sent ? ` · ${fmtN(t.sent)} enviado${t.sent === 1 ? "" : "s"}` : ""}</div>
+                <div style={{ fontSize: DS.font.sm, color: T.textSm }}>Se manda {(WHEN[t.trigger] || (() => "automáticamente"))(t.days_before)}.{t.charge_usd != null && !disabled ? ` · ${fmtUsd(t.charge_usd)} por mensaje` : ""}{t.sent ? ` · ${fmtN(t.sent)} enviado${t.sent === 1 ? "" : "s"}` : ""}</div>
               </div>
               <button type="button" onClick={() => setOpen(isOpen ? null : t.name)} style={{ fontSize: 12, padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: T.textMd, cursor: "pointer", fontFamily: F, fontWeight: 600 }}>
                 {isOpen ? "Ocultar texto" : "Ver texto"}

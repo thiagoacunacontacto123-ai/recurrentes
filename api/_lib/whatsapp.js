@@ -39,7 +39,7 @@ import {
   normalizePhoneAR, maskPhone, templateParams, WA_DEFAULT_LANG, WA_TEMPLATE_NAME_RE, WA_LANG_RE,
   WA_TEMPLATE_BY_NAME, waUsageMonth,
 } from "../../shared/platform/whatsapp.js";
-import { WHATSAPP_PRICE_USD_UTILITY_DEFAULT, WHATSAPP_MARKUP, waChargeUsd } from "../../shared/platform/pricing.js";
+import { WHATSAPP_PRICE_USD_UTILITY_DEFAULT, WHATSAPP_PRICE_USD_MARKETING_DEFAULT, WHATSAPP_MARKUP, waChargeUsd } from "../../shared/platform/pricing.js";
 
 const GRAPH = "https://graph.facebook.com";
 // v25.0 (vigente hasta 2028-07). WHATSAPP_GRAPH_VERSION permite subirla sin deploy de código.
@@ -72,10 +72,13 @@ export function waSender(m) {
 }
 
 // Precio de Meta por plantilla de utilidad (USD). Env WHATSAPP_PRICE_USD_UTILITY lo pisa.
-export function waPriceUsd() {
-  const n = Number(String(process.env.WHATSAPP_PRICE_USD_UTILITY || "").trim().replace(",", "."));
-  return Number.isFinite(n) && n > 0 && n < 1 ? n : WHATSAPP_PRICE_USD_UTILITY_DEFAULT;
+export function waPriceUsd(category = "UTILITY") {
+  const mk = String(category || "").toUpperCase() === "MARKETING";
+  const n = Number(String((mk ? process.env.WHATSAPP_PRICE_USD_MARKETING : process.env.WHATSAPP_PRICE_USD_UTILITY) || "").trim().replace(",", "."));
+  return Number.isFinite(n) && n > 0 && n < 1 ? n : (mk ? WHATSAPP_PRICE_USD_MARKETING_DEFAULT : WHATSAPP_PRICE_USD_UTILITY_DEFAULT);
 }
+// Categoría de una plantilla de Recurrentes por nombre (para cobrarla al precio que corresponde).
+export const waTemplateCategory = (name) => (WA_TEMPLATE_BY_NAME[name]?.category || "UTILITY");
 
 // Campos para GET /api/merchant (sin token ni app secret, ni datos del número de Recurrentes).
 export function whatsappSafe(m) {
@@ -395,12 +398,12 @@ export async function recordPlatformError(err) {
 // cuenta igual pero a costo 0 (lo paga la tienda a Meta). Increments atómicos.
 // { type:"merchant_alert" } → aviso al comercio (merchantAlerts.js): se cobra igual y además
 // se cuenta aparte en wa_alerts_sent / wa_alerts_cost_usd.
-export async function recordWaUsage(mid, mode, { now = new Date(), type = null } = {}) {
+export async function recordWaUsage(mid, mode, { now = new Date(), type = null, category = "UTILITY" } = {}) {
   if (!mid || (mode !== "own" && mode !== "platform")) return null;
   const month = waUsageMonth(now);
   const platform = mode === "platform";
   const alert = type === "merchant_alert";
-  const price = platform ? waPriceUsd() : 0;
+  const price = platform ? waPriceUsd(category) : 0;
   // Al comercio se le cobra precio × recargo por TODO lo que sale por el número de
   // Recurrentes: mensajes a sus clientes y avisos a él mismo (Thiago, 18-sept-2026).
   // Los avisos al admin no pasan por acá (adminAlerts.js no registra uso).
@@ -463,9 +466,9 @@ export function resolveStepTemplate(sender, step) {
 }
 
 // Después de un envío: uso del mes, índices del número de Recurrentes y errores.
-export async function afterWaSend(mid, merchant, sender, phone, r) {
+export async function afterWaSend(mid, merchant, sender, phone, r, { category = "UTILITY" } = {}) {
   if (r?.ok) {
-    await recordWaUsage(mid, sender.mode);
+    await recordWaUsage(mid, sender.mode, { category });
     if (sender.mode === "platform") await rememberPlatformContact(mid, phone, r.id);
   }
   if (sender.mode === "own") await recordWaError(mid, merchant, r?.ok ? null : r);
@@ -504,7 +507,7 @@ export async function runWhatsappFlowStep({ mid, merchant, sub, subscriberId, st
     await logWaMessage(mid, {
       ...base, to: phone, status: r.ok ? "sent" : "error", error: r.ok ? null : r.error, error_code: r.ok ? null : r.code, provider_id: r.ok ? r.id : null,
     });
-    await afterWaSend(mid, merchant, sender, phone, r);
+    await afterWaSend(mid, merchant, sender, phone, r, { category: waTemplateCategory(tpl.template) });
     return r;
   } catch (e) {
     console.warn(`[whatsapp] paso de flujo ${mid}/${subscriberId}:`, scrub(e.message));

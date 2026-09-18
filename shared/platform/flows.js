@@ -142,6 +142,8 @@ export function defaultWhatsappFlow(templateName = "aviso_proximo_cobro") {
     steps: [{ id: newStepId(), type: "whatsapp", template: t.name, lang: t.lang, vars: { ...t.vars } }],
   };
   if (TRIGGER_BY_ID[t.trigger]?.days) flow.days_before = 3;
+  // Carrito sin pagar: 1 hora de espera antes del WhatsApp (si paga en ese rato, el motor lo saca del flujo).
+  if (t.trigger === "checkout_started") flow.steps.unshift({ id: newStepId(), type: "wait", amount: 1, unit: "hours" });
   return flow;
 }
 
