@@ -321,6 +321,33 @@ function MetricsMock({ T }) {
     </MockFrame>
   );
 }
+// Embudo que le reportamos a Meta por la API de Conversiones (Thiago, 18-sept).
+const META_STEPS = [
+  { ev:"AddToCart", t:"Carrito", d:"Tocó Suscribirse y se abrió el checkout" },
+  { ev:"InitiateCheckout", t:"Pago iniciado", d:"Dejó su mail en el checkout" },
+  { ev:"Purchase", t:"Compra · $76.500", d:"Mercado Pago confirmó el primer cobro" },
+];
+function MetaMock({ T }) {
+  const blue = "#1877F2";
+  return (
+    <MockFrame T={T} label="Meta · API de Conversiones">
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {META_STEPS.map((m, i) => (
+          <div key={m.ev} style={{display:"flex",alignItems:"center",gap:10,border:`1px solid ${T.border}`,borderRadius:12,padding:"10px 12px",background:T.bg}}>
+            <span style={{width:26,height:26,borderRadius:8,background:blue+"22",color:blue,display:"grid",placeItems:"center",fontSize:12,fontWeight:800,flexShrink:0}}>{i + 1}</span>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:800,color:T.text}}>{m.t}</div>
+              <div style={{fontSize:11,color:T.textSm}}>{m.d}</div>
+            </div>
+            <code style={{fontSize:10.5,color:blue,background:blue+"14",border:`1px solid ${blue}33`,borderRadius:6,padding:"3px 7px",whiteSpace:"nowrap"}}>{m.ev} ✓</code>
+          </div>
+        ))}
+        <div style={{fontSize:11,color:T.textSm,textAlign:"center",marginTop:2}}>Con tu Pixel ID · las renovaciones no se reportan</div>
+      </div>
+    </MockFrame>
+  );
+}
+
 export function DeepDivesSection({ T }) {
   const rows = [
     { eyebrow:"Widget", title:"Compra única o suscripción, en la misma página de producto", text:"Tu cliente elige cómo comprar sin salir del producto. Vos definís el descuento, la frecuencia y los packs.",
@@ -331,6 +358,8 @@ export function DeepDivesSection({ T }) {
       points:["Pausar, reactivar o cancelar en dos toques.","Cambiar la dirección de envío antes del próximo cobro.","Un mensaje de bienvenida con la voz de tu marca."], mock:<PortalMock T={T}/> },
     { eyebrow:"Retención", title:"Recuperá pagos rechazados y bajas antes de que pasen", text:"Una parte de las bajas no es porque el cliente se quiera ir: es una tarjeta vencida o un mes complicado.",
       points:["Aviso automático cuando una tarjeta rebota, con el link para actualizarla.","Oferta de pausa antes de cancelar, y motivos de baja para aprender.","Flujos de mails propios: checkout sin pagar, aviso de cobro, pago rechazado y win-back, con tu marca."], mock:<RetentionMock T={T}/> },
+    { eyebrow:"Meta Ads", title:"Tus campañas ven el carrito, el pago iniciado y la compra", text:"Las suscripciones se pagan en el checkout de Recurrentes, fuera de tu tienda: tu pixel solo no las ve. Nosotros le mandamos cada paso a Meta por la API de Conversiones, con tu Pixel ID.",
+      points:["Carrito cuando tocan Suscribirse, pago iniciado cuando dejan el mail y compra cuando Mercado Pago confirma el primer cobro, con el monto.","Con los IDs de clic y navegador de Meta, para que la venta se atribuya al anuncio correcto.","Solo la primera venta: las renovaciones no inflan tus resultados."], mock:<MetaMock T={T}/> },
     { eyebrow:"Métricas", title:"Sabé cuánto vas a facturar el mes que viene", text:"El panel te muestra tu negocio recurrente de un vistazo, sin armar reportes.",
       points:["Ingresos recurrentes (MRR), altas, bajas y churn.","Próximos cobros de los siguientes 30 días.","Cobros con error señalados para que los resuelvas."], mock:<MetricsMock T={T}/> },
   ];
@@ -419,7 +448,7 @@ export function ExtrasSection({ T }) {
     ["M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82zM7 7h.01", "Cupones de descuento", "Porcentaje o monto fijo, y descuento solo en el primer cobro."],
     ["M4 4h16v16H4zM4 9h16M9 9v11", "10 diseños de widget", "Con tu color, tus esquinas y tus textos."],
     ["M22 12h-6l-2 3h-4l-2-3H2", "Flujos de mails automáticos", "Checkout sin pagar, aviso de próximo cobro, pago rechazado y win-back, salen solos y con tu marca."],
-    ["M18 20V10M12 20V4M6 20v-6", "Ventas a Meta", "La primera venta se reporta por la API de Conversiones."],
+    ["M18 20V10M12 20V4M6 20v-6", "Embudo a Meta", "Carrito, pago iniciado y primera compra por la API de Conversiones."],
     ["M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8z", "Equipo con permisos", "Cada persona ve solo las secciones que le habilitás."],
     ["M3 9l1-5h16l1 5M3 9h18v11H3z", "Varios negocios", "Todas tus tiendas en un solo login."],
     ["M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3", "Exportás tus suscriptores", "Tu base en CSV cuando la necesites."],

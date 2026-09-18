@@ -131,7 +131,7 @@ export function computeSteps({ merchant, user, plansCount }) {
   // Opcional: solo suma si hace publicidad en Facebook/Instagram.
   steps.push({ id:"meta", done:Boolean(m.meta_connected || m.meta_pixel_id), optional:true, title:"Conectar Meta Ads (opcional)", effort:"1 paso",
     short:"Si hacés publicidad en Facebook o Instagram: que tus campañas cuenten las suscripciones como ventas.",
-    why:"Las suscripciones se pagan en el checkout de Recurrentes, así que tu pixel no las ve. Con el Pixel ID y el token de la API de Conversiones le avisamos a Meta cada primera venta.",
+    why:"Las suscripciones se pagan en el checkout de Recurrentes, así que tu pixel no las ve. Con el Pixel ID y el token de la API de Conversiones le mandamos a Meta el embudo completo: carrito (tocó Suscribirse), pago iniciado (dejó su mail) y compra (primer cobro confirmado). Las renovaciones no se mandan.",
     needs:["Pixel ID (Configuración del negocio → Conjuntos de datos y píxeles) y token de la API de Conversiones (Administrador de eventos); te decimos dónde"],
     tab:"configuracion", configSec:"integraciones", cta:"Conectar Meta Ads" });
 

@@ -25,6 +25,11 @@ test("widget.js: avisa visible 3 s (rendered=1) y los motivos por los que no se 
   assert.ok(js.includes("visibleMs >= 3000"), "exige 3 s seguidos visible");
   for (const r of ['report("no_product")', 'report("no_form"', 'report("no_plan"', 'report("hidden"', 'report("removed"']) assert.ok(js.includes(r), `reporta ${r}`);
   assert.ok(js.includes('watchVisible(host, { product: productId, plan: plan.id, mode: "bundle" })') && js.includes('mode: "legacy"'), "mira el widget montado en packs y clásico");
+
+  // Red de seguridad: nunca dejar el tema sin botón de compra.
+  assert.ok(js.includes("function restoreTheme(reason)") && js.includes("function guarded(fn, where)"), "restoreTheme + guarded");
+  for (const h of ['guarded(init, "init")', 'guarded(mountBundle, "packs")', 'guarded(mountLegacy, "clasico")', 'restoreTheme("hidden")', 'restoreTheme("removed")', 'restoreTheme("variante sin plan")', 'setSubMode = guarded(setSubMode, "modo")']) assert.ok(js.includes(h), `protegido: ${h}`);
+  assert.ok(js.includes('querySelectorAll("[data-rec-prev-display]")') && js.includes('getElementById("rc-bundle-hide-style")'), "restaura display previo y saca el CSS que esconde el tema");
 });
 
 test("beacon rendered=1: guarda widget_verified_* (y sigue guardando widget_last_seen_*)", async () => {

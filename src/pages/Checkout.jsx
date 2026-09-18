@@ -29,6 +29,19 @@ function qParams() {
   return new URLSearchParams(qs);
 }
 
+// Datos de atribución de Meta. El widget los pasa por la URL (fbp/fbc de las cookies de
+// la tienda + src = página del producto); si no vienen, probamos las cookies de acá y el
+// fbclid. Van a checkout/init para AddToCart / InitiateCheckout / Purchase (CAPI).
+function fbAttribution(p) {
+  const cookie = (n) => { try { const m = document.cookie.match(new RegExp("(^|;\\s*)" + n + "=([^;]+)")); return m ? decodeURIComponent(m[2]) : ""; } catch (_) { return ""; } };
+  let fbc = p.get("fbc") || cookie("_fbc");
+  if (!fbc) { const id = p.get("fbclid"); if (id) fbc = "fb.1." + Date.now() + "." + id; }
+  let src = p.get("src") || "";
+  if (!src) { try { src = document.referrer || window.location.href; } catch (_) { src = ""; } }
+  return { fbp: p.get("fbp") || cookie("_fbp"), fbc, event_source_url: src, user_agent: (typeof navigator !== "undefined" && navigator.userAgent) || "" };
+}
+const viewId = () => { try { return crypto.randomUUID().replace(/-/g, ""); } catch (_) { return String(Date.now()) + Math.random().toString(36).slice(2, 8); } };
+
 function freqText(days) {
   const d = Number(days) || 0;
   if (d === 7) return "semanal";
@@ -77,6 +90,25 @@ export default function Checkout() {
   const [loadErr, setLoadErr] = useState(null);
 
   const [email, setEmail] = useState("");
+  // "Pago iniciado": apenas deja un mail válido registramos el lead (carrito sin pagar +
+  // Meta InitiateCheckout). Una vez por mail; el server reusa el lead y no duplica.
+  const leadSent = useRef("");
+  function captureLead() {
+    const em = email.trim().toLowerCase();
+    if (!plan || !EMAIL_RE.test(em) || leadSent.current === em) return;
+    leadSent.current = em;
+    try {
+      const body = {
+        merchant_id: merchant, plan_id: plan.id, capture: true, quantity: qty,
+        ...(pack ? { pack_index: pack.idx } : {}),
+        ...(!pack && freqParam ? { frequency_days: freqParam } : {}),
+        ...(!pack && baseParam > 0 ? { base_price: baseParam, sub_discount: subOffParam } : {}),
+        customer: { email: em, name: name.trim(), phone: phone.trim() },
+        fb: fbAttribution(qParams()),
+      };
+      fetch("/api/checkout/init", { method: "POST", headers: { "Content-Type": "application/json" }, keepalive: true, body: JSON.stringify(body) }).catch(() => {});
+    } catch (_) {}
+  }
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [taxid, setTaxid] = useState("");
@@ -109,7 +141,16 @@ export default function Checkout() {
         if (!ok) return;
         if (d.error || !d.plan) setLoadErr("Esta suscripción no está disponible. Puede que el plan se haya pausado.");
         else if (d.plan.pricing_mode === "packs" && (packIdx == null || !resolvePack(d.plan, packIdx))) setLoadErr("Este plan se contrata desde la página del producto en la tienda.");
-        else { setPlan(d.plan); setCfg(d.checkout || null); }
+        else {
+          setPlan(d.plan); setCfg(d.checkout || null);
+          // Meta "carrito" (AddToCart): se abrió el checkout. Best-effort, sin esperar.
+          try {
+            const pk = d.plan.pricing_mode === "packs" && packIdx != null ? resolvePack(d.plan, packIdx) : null;
+            const value = pk ? Number(pk.total_ars || pk.price_ars || 0) : Number(d.plan.subscription_price_ars || 0) * qtyParam;
+            fetch("/api/checkout/init", { method: "POST", headers: { "Content-Type": "application/json" }, keepalive: true,
+              body: JSON.stringify({ event: "view", merchant_id: merchant, plan_id: d.plan.id, view_id: viewId(), value, fb: fbAttribution(qParams()) }) }).catch(() => {});
+          } catch (_) {}
+        }
       } catch (e) { if (ok) setLoadErr("No pudimos cargar la suscripción. Revisá tu conexión."); }
       finally { if (ok) setLoading(false); }
     })();
@@ -230,6 +271,7 @@ export default function Checkout() {
         ...(discount?.viaRecovery && rcParam ? { recovery_token: rcParam } : {}),
         customer: { email: email.trim(), name: name.trim(), phone: phone.trim(), tax_id: taxid.trim() },
         ...(cfg?.whatsapp_optin ? { whatsapp_optin: waOptin } : {}),
+        fb: fbAttribution(qParams()),
       };
       if (askAddress) {
         body.shipping_address = {
@@ -308,7 +350,7 @@ export default function Checkout() {
           {/* Contacto */}
           <div style={st.card}>
             <h3 style={st.h}>{askAddress ? "Contacto" : "Tus datos"}</h3>
-            <div style={st.field}><label style={st.label}>Email</label><input style={st.input} type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" /></div>
+            <div style={st.field}><label style={st.label}>Email</label><input style={st.input} type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} onBlur={captureLead} placeholder="tu@email.com" /></div>
             <div className="rc-row2" style={st.row2}>
               <div style={st.field}><label style={st.label}>Nombre y apellido</label><input style={st.input} autoComplete="name" value={name} onChange={e => setName(e.target.value)} placeholder="Juan Pérez" /></div>
               <div style={st.field}><label style={st.label}>Teléfono {!requirePhone && <span style={st.opt}>(opcional)</span>}</label><input style={st.input} type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="11 2345 6789" /></div>

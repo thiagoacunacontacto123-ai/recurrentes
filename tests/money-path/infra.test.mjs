@@ -66,7 +66,7 @@ test("queries: != excluye docs sin el campo, rango solo mismo tipo, orderBy/limi
 
 test("router de fetch: bloquea hosts no permitidos y registra llamadas sin stub", async () => {
   const r = createFetchRouter().install();
-  await assert.rejects(fetch("https://graph.facebook.com/v19.0/x"), /host no permitido/);
+  await assert.rejects(fetch("https://ads.otro-host.test/v19.0/x"), /host no permitido/);
   const res = await fetch("https://api.mercadopago.com/v1/payments/1");
   assert.equal(res.status, 404);
   assert.equal(r.unexpected.length, 2);

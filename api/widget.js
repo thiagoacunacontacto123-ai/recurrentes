@@ -316,14 +316,50 @@ export default async function handler(req, res) {
       elapsed += step;
       var vis = false;
       try {
-        if (!document.body.contains(el)) { clearInterval(t); report("removed", extra); return; }
+        if (!document.body.contains(el)) { clearInterval(t); restoreTheme("removed"); report("removed", extra); return; }
         var r = el.getBoundingClientRect();
         vis = r.width > 20 && r.height > 20 && el.offsetParent !== null;
       } catch (e) {}
       visibleMs = vis ? visibleMs + step : 0;
       if (visibleMs >= 3000) { clearInterval(t); extra.ms = visibleMs; report("ok", extra); return; }
-      if (elapsed >= 10000) { clearInterval(t); report("hidden", extra); }
+      if (elapsed >= 10000) { clearInterval(t); restoreTheme("hidden"); report("hidden", extra); }
     }, step);
+  }
+  // ─── Red de seguridad (Thiago, 18-sept): NUNCA dejar la tienda en el limbo ───
+  // Si algo nuestro falla después de esconder el botón de compra del tema (error de
+  // JS, plan que no carga, widget sin tamaño o sacado por el tema), volvemos todo a
+  // como estaba y escondemos lo nuestro: el cliente siempre tiene el "Agregar al
+  // carrito" nativo. Nunca lanza.
+  function restoreTheme(reason) {
+    try {
+      document.querySelectorAll("[data-rec-prev-display]").forEach(function (el) { el.style.display = el.dataset.recPrevDisplay || ""; delete el.dataset.recPrevDisplay; });
+      var st = document.getElementById("rc-bundle-hide-style"); if (st && st.parentNode) st.parentNode.removeChild(st);
+      document.body.classList.remove("rec-bundle-active"); document.body.classList.remove("rec-sub-active");
+      document.querySelectorAll("[data-rec-root]").forEach(function (el) { el.style.display = "none"; });
+      document.querySelectorAll(".recurrentes-bloque").forEach(function (el) { el.style.display = ""; });
+      log("Tema restaurado: " + reason);
+    } catch (e) {}
+  }
+  function guarded(fn, where) {
+    return function () {
+      try { return fn.apply(this, arguments); }
+      catch (e) { log("Error en " + where + ":", e && e.message); restoreTheme(where); report("error", { reason_detail: where }); }
+    };
+  }
+  // Atribución de Meta: cookies _fbp/_fbc (o fbclid) y la URL del producto viajan al
+  // checkout de Recurrentes por la URL, así AddToCart / InitiateCheckout / Purchase
+  // (API de Conversiones) se atribuyen al anuncio correcto.
+  function fbCheckoutQs() {
+    try {
+      function ck(n){ var m = document.cookie.match(new RegExp("(^|;\\s*)" + n + "=([^;]+)")); return m ? decodeURIComponent(m[2]) : ""; }
+      var fbp = ck("_fbp"), fbc = ck("_fbc");
+      if (!fbc) { var f = new URLSearchParams(window.location.search).get("fbclid"); if (f) fbc = "fb.1." + Date.now() + "." + f; }
+      var q = "";
+      if (fbp) q += "&fbp=" + encodeURIComponent(fbp);
+      if (fbc) q += "&fbc=" + encodeURIComponent(fbc);
+      q += "&src=" + encodeURIComponent((location.origin + location.pathname).slice(0, 300));
+      return q;
+    } catch (e) { return ""; }
   }
   var HIDE_SELECTOR = ${JSON.stringify(hideSelector)};
   var MODE_ORDER = ${JSON.stringify(widgetModeOrder)};
@@ -440,7 +476,7 @@ export default async function handler(req, res) {
   }
   // Suscribirse en Tiendanube: checkout de Recurrentes (#/checkout) con plan + cantidad.
   function tnCheckoutUrl(plan, qty) {
-    return API_BASE + "/#/checkout?merchant=" + encodeURIComponent(MERCHANT_ID) + "&plan=" + encodeURIComponent(plan.id) + "&qty=" + (parseInt(qty, 10) || 1);
+    return API_BASE + "/#/checkout?merchant=" + encodeURIComponent(MERCHANT_ID) + "&plan=" + encodeURIComponent(plan.id) + "&qty=" + (parseInt(qty, 10) || 1) + fbCheckoutQs();
   }
 
   // ─── Detección del cliente logueado en Shopify ────────────────
@@ -812,6 +848,7 @@ export default async function handler(req, res) {
       }));
     } catch (_) {}
   }
+  setSubMode = guarded(setSubMode, "modo");
 
   // Oculta el buy box CUSTOM del merchant (bundles/quantity-breaks propios) en
   // modo suscripción. Selector(es) vienen de &hide= en el <script src>.
@@ -1099,6 +1136,7 @@ export default async function handler(req, res) {
       var host = document.createElement("div");
       host.id = "recurrentes-widget";
       host.className = "rc-bundle-host";
+      host.setAttribute("data-rec-root", "1");
       var styleEl = document.createElement("style");
       styleEl.setAttribute("data-rc-bundle-css", "");
       styleEl.textContent = bundle.css || "";
@@ -1268,7 +1306,7 @@ export default async function handler(req, res) {
         // resuelve precio, cantidad y frecuencia del pack por su índice.
         setBusy(true, "Abriendo el checkout…");
         window.location.href = API_BASE + "/#/checkout?merchant=" + encodeURIComponent(MERCHANT_ID) +
-          "&plan=" + encodeURIComponent(plan.id) + "&pack=" + encodeURIComponent(state.idx);
+          "&plan=" + encodeURIComponent(plan.id) + "&pack=" + encodeURIComponent(state.idx) + fbCheckoutQs();
       }
       function addToCart() {
         var vid = plan.shopify_variant_id || variantId;
@@ -1360,11 +1398,11 @@ export default async function handler(req, res) {
           if (!nv || nv === variantId) return;
           variantId = nv;
           fetchPlan(productId, nv).then(function(d2){
-            if (!d2 || !d2.plan) { host.style.display = "none"; return; }
+            if (!d2 || !d2.plan) { restoreTheme("variante sin plan"); return; }
             plan = d2.plan;
-            if (!planHasPacks(plan)) { host.style.display = "none"; log("variante sin packs — el widget clásico no se monta en caliente"); return; }
+            if (!planHasPacks(plan)) { restoreTheme("variante sin packs"); log("variante sin packs — el widget clásico no se monta en caliente"); return; }
             fetchBundle(plan.id).then(function(b2){
-              if (!b2 || !b2.bundle) { host.style.display = "none"; return; }
+              if (!b2 || !b2.bundle) { restoreTheme("variante sin bundle"); return; }
               bundle = b2.bundle;
               styleEl.textContent = bundle.css || "";
               state = { mode: state.mode, idx: parseInt(bundle.defaultIdx, 10) || 0 };
@@ -1379,7 +1417,7 @@ export default async function handler(req, res) {
       log("Bundle montado — plan", plan.id, "variante", bundle.variant, "packs", (bundle.packs || []).length);
     }
 
-    fetchPlan(productId, variantId).then(function(d){
+    fetchPlan(productId, variantId).then(guarded(function(d){
       if (d.error || !d.plan) { log("Sin plan para producto", productId, d); if (VERIFY) report("no_plan", { product: productId }); return; }
       var plan = d.plan;
 
@@ -1387,18 +1425,19 @@ export default async function handler(req, res) {
       // algún motivo no hay bundle renderizable, cae al widget clásico.
       if (planHasPacks(plan)) {
         fetchBundle(plan.id).then(function(b){
-          if (b && b.bundle && b.bundle.states) { mountBundle(plan, b.bundle); return; }
+          if (b && b.bundle && b.bundle.states) { guarded(mountBundle, "packs")(plan, b.bundle); return; }
           log("Plan con packs pero sin bundle renderizable — fallback al widget clásico", b);
-          mountLegacy(plan);
+          guarded(mountLegacy, "clasico")(plan);
         });
         return;
       }
-      mountLegacy(plan);
+      guarded(mountLegacy, "clasico")(plan);
 
       // ─── Widget clásico (plan "theme": dos cards + panel de suscripción) ───
       function mountLegacy(plan) {
       var widget = buildWidget(plan);
       var subPanel = buildSubscribePanel(plan);
+      widget.setAttribute("data-rec-root", "1"); subPanel.setAttribute("data-rec-root", "1");
       if (mountPoint) {
         mountPoint.appendChild(widget);
         mountPoint.appendChild(subPanel);
@@ -1454,7 +1493,7 @@ export default async function handler(req, res) {
             "&plan=" + encodeURIComponent(plan.id) +
             "&qty=" + q +
             "&freq_days=" + encodeURIComponent(plan.frequency_days || 30) +
-            "&variant=" + encodeURIComponent(plan.shopify_variant_id || variantId || "");
+            "&variant=" + encodeURIComponent(plan.shopify_variant_id || variantId || "") + fbCheckoutQs();
           return;
         }
         startSubscribe(plan, subPanel);
@@ -1501,13 +1540,13 @@ export default async function handler(req, res) {
 
       log("Widget montado — producto", productId, "variante", variantId, "plan", plan.id);
       } // mountLegacy
-    });
+    }, "plan")).catch(function (e) { log("fetchPlan:", e && e.message); restoreTheme("fetchPlan"); });
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", guarded(init, "init"));
   } else {
-    init();
+    guarded(init, "init")();
   }
 })();`;
 

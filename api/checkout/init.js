@@ -45,6 +45,7 @@ import { resolveCheckoutShippingRates, PLAN_SHIPPING_CODE } from "../widget.js";
 import { isPacksPlan, resolvePack, parsePackIndex, defaultPackIndex } from "../_lib/packs.js";
 import { klaviyoEnabled, klaviyoCheckoutStarted, klaviyoUpsertProfile, checkoutKeyFor, splitName } from "../_lib/klaviyo.js";
 import { emitFlowEvent } from "../_lib/flows.js";
+import { metaFunnel } from "../_lib/meta.js";
 import { computeRecoverUrl } from "../_lib/abandoned.js";
 import { merchantProfile, hostedCheckoutUrl } from "../../shared/platform/profile.js";
 
@@ -288,9 +289,34 @@ export default async function handler(req, res) {
 
   const { merchant_id, plan_id, customer, shipping_address, quantity, shipping_method, frequency_days, base_price, sub_discount, discount_code, recovery_token } = req.body || {};
   if (!merchant_id || !plan_id) return res.status(400).json({ error: "Faltan merchant_id o plan_id" });
-  if (!customer?.email) return res.status(400).json({ error: "Falta customer.email" });
   const merchantId = String(merchant_id);
   const ip = clientIp(req);
+  // Datos de atribución de Meta que capturó el navegador (fbp/fbc/URL del producto/UA).
+  const fbIn = (req.body.fb && typeof req.body.fb === "object") ? {
+    fbc: String(req.body.fb.fbc || "").slice(0, 255),
+    fbp: String(req.body.fb.fbp || "").slice(0, 255),
+    event_source_url: String(req.body.fb.event_source_url || "").slice(0, 500),
+    user_agent: String(req.body.fb.user_agent || "").slice(0, 500),
+  } : null;
+
+  // ── "CARRITO" (Meta AddToCart): el checkout se abrió. Sin mail todavía. ──────────
+  // Lo llama Checkout.jsx apenas carga el plan. Solo le avisa a Meta si la tienda tiene
+  // el pixel conectado; no guarda nada en Firestore. Best-effort, siempre 200.
+  if (req.body.event === "view") {
+    const rlV = await rateLimit(`view:${merchantId}:${ip}`, { limit: 120, windowSec: 3600 });
+    if (!rlV.ok) return res.json({ ok: false });
+    try {
+      const mSnap = await db().collection("merchants").doc(merchantId).get();
+      const mData = mSnap.exists ? mSnap.data() : null;
+      if (mData?.meta_pixel_id && mData?.meta_capi_token) {
+        const viewId = String(req.body.view_id || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64) || `${Date.now()}`;
+        await metaFunnel(mData, "AddToCart", { fb: fbIn, clientIp: ip, value: Math.max(0, Number(req.body.value) || 0), eventId: "rec_atc_" + viewId, tag: "checkout/view" });
+      }
+    } catch (e) { console.warn("[checkout/init] view:", e.message); }
+    return res.json({ ok: true });
+  }
+
+  if (!customer?.email) return res.status(400).json({ error: "Falta customer.email" });
   // Email normalizado (trim + lowercase) en TODOS los caminos.
   const email = normEmail(customer.email);
   if (!EMAIL_RE.test(email) || email.length > 254) return res.status(400).json({ error: "Email inválido" });
@@ -353,9 +379,11 @@ export default async function handler(req, res) {
     basePrice: pack.price,
     subOff: Math.max(0, Math.min(90, parseFloat(plan.discount_pct) || 0)),
   });
+  // merchant_id SIEMPRE: el checkout de Recurrentes lo exige y sin él el link de
+  // "carrito sin pagar" (mail/WhatsApp) caía en "Faltan datos" (bug 18-sept, modo clásico).
   const recoverExtra = (pr) => pack
     ? { pack_index: pack.idx, merchant_id: merchantId }
-    : { freq_days: freqDays, base: pr.basePrice, sub_off: pr.subOff };
+    : { merchant_id: merchantId, freq_days: freqDays, base: pr.basePrice, sub_off: pr.subOff };
   const packSnapshot = pack ? { pricing_mode: "packs", pack_index: pack.idx, pack_label: pack.label || null } : {};
 
   const finalQty = pack ? pack.qty : (qtyReq || parseInt(plan.units_per_shipment) || 1);
@@ -419,7 +447,7 @@ export default async function handler(req, res) {
         },
         status: "pending",
         capture: true,
-        fb_data: eventUrl ? { event_source_url: eventUrl } : null,
+        fb_data: (eventUrl || fbIn) ? { event_source_url: eventUrl || null, fbc: fbIn?.fbc || "", fbp: fbIn?.fbp || "", user_agent: fbIn?.user_agent || "", client_ip_address: ip || null } : null,
         recover_path: buildRecoverPath(merchant, plan, plan.id, finalQty, recoverExtra(pr)),
         updated_at: new Date().toISOString(),
       };
@@ -434,6 +462,8 @@ export default async function handler(req, res) {
       await trackCheckoutStarted(merchantId, merchant, ref, data, leadData, { stage: "lead", plan, blocking: hasBlocking });
       // Flujos de email propios ("Checkout sin pagar"). No-op sin flujos activos.
       await emitFlowEvent(merchantId, merchant, "checkout_started", ref.id, data, { key: ref.id });
+      // Meta "pago iniciado": dejó el mail. Mismo event_id que en Pagar → Meta deduplica.
+      await metaFunnel(merchant, "InitiateCheckout", { fb: fbIn, clientIp: ip, value: totalCapture, email, phone: data.customer_phone, firstName: splitName(data.customer_name).firstName, lastName: splitName(data.customer_name).lastName, eventId: "rec_ic_" + ref.id, tag: "checkout/lead" });
       return res.json(out);
     } catch (e) {
       console.error("[checkout/init] capture error:", e.message);
@@ -731,12 +761,7 @@ export default async function handler(req, res) {
     updated_at: nowIso,
     // Datos de atribución de Meta capturados en el navegador (fbc/fbp/UA/URL).
     // Se usan en el evento Purchase de CAPI para atribuir la venta al anuncio.
-    fb_data: (req.body.fb && typeof req.body.fb === "object") ? {
-      fbc: String(req.body.fb.fbc || "").slice(0, 255),
-      fbp: String(req.body.fb.fbp || "").slice(0, 255),
-      event_source_url: eventUrl,
-      user_agent: String(req.body.fb.user_agent || "").slice(0, 500),
-    } : null,
+    fb_data: fbIn ? { fbc: fbIn.fbc, fbp: fbIn.fbp, event_source_url: eventUrl, user_agent: fbIn.user_agent, client_ip_address: ip || null } : (existing?.fb_data || null),
   };
   if (isNew) {
     await subRef.set({ ...subData, created_at: nowIso, shopify_orders: [] });
@@ -860,9 +885,10 @@ export default async function handler(req, res) {
     ...(prevPlanId && prevPlanId !== preapprovalPlan.id ? { mp_preapproval_plan_id_prev: prevPlanId } : {}),
   });
 
-  // NOTA: el "InitiateCheckout" se dispara del lado del navegador APENAS CARGA el
-  // checkout (fbq en widget.js). El "Purchase" se sigue disparando server-side
+  // Meta "pago iniciado" (InitiateCheckout): si el lead ya lo mandó al dejar el mail,
+  // lleva el mismo event_id y Meta lo deduplica. El "Purchase" sale server-side
   // (sync/webhook) cuando MP confirma el cobro.
+  await metaFunnel(merchant, "InitiateCheckout", { fb: fbIn || existing?.fb_data || null, clientIp: ip, value: totalPerCharge, email, phone: subData.customer_phone, firstName: splitName(subData.customer_name).firstName, lastName: splitName(subData.customer_name).lastName, eventId: "rec_ic_" + subRef.id, tag: "checkout/pay" });
 
   // Klaviyo "Checkout Started" (si no salió ya con el lead: completa el perfil).
   await trackCheckoutStarted(merchantId, merchant, subRef, { ...subData, portal_token: portalToken, mp_init_point: checkoutUrl }, existing, { stage: "checkout", plan, blocking: hasBlocking });

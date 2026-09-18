@@ -1,5 +1,5 @@
-// api/_lib/meta.js — Envía el evento "Purchase" a la API de Conversiones de Meta
-// (CAPI, server-side) cuando se activa una suscripción. SOLO el primer cobro
+// api/_lib/meta.js — API de Conversiones de Meta (CAPI, server-side): AddToCart al abrir
+// el checkout, InitiateCheckout al dejar el mail y "Purchase" cuando se activa una suscripción. SOLO el primer cobro
 // (la venta que trajo el ad) se reporta — las renovaciones NO, para no inflar
 // la atribución. Best-effort: si falla, no rompe el webhook.
 //
@@ -92,7 +92,32 @@ export async function sendMetaEvent(eventName, o) {
   }
 }
 
-// Compra concretada (primer cobro de la suscripción).
+// ── Embudo que le mandamos a Meta (Thiago, 18-sept) ──────────────────────────
+//   AddToCart        → "carrito": el cliente tocó Suscribirse y se abrió el checkout.
+//   InitiateCheckout → "pago iniciado": dejó su mail en el checkout (o tocó Pagar).
+//   Purchase         → "compra": Mercado Pago confirmó el primer cobro.
+// Las renovaciones NO se mandan. Cada evento lleva event_id estable para que Meta
+// deduplique si el mismo paso se reporta dos veces (lead + Pagar, webhook + sync).
 export async function sendMetaPurchase(o) { return sendMetaEvent("Purchase", o); }
-// Pago iniciado (el cliente completó el checkout y se va a MP a pagar).
 export async function sendMetaInitiateCheckout(o) { return sendMetaEvent("InitiateCheckout", o); }
+export async function sendMetaAddToCart(o) { return sendMetaEvent("AddToCart", o); }
+
+// Manda un evento del embudo si la tienda tiene Meta conectado. Nunca lanza.
+// `fb` = lo que capturó el navegador: { fbp, fbc, event_source_url, user_agent }.
+export async function metaFunnel(merchant, eventName, { fb = null, clientIp = null, tag = "checkout", ...o } = {}) {
+  if (!merchant?.meta_pixel_id || !merchant?.meta_capi_token) return null;
+  try {
+    const r = await sendMetaEvent(eventName, {
+      pixelId: merchant.meta_pixel_id, token: merchant.meta_capi_token,
+      fbc: fb?.fbc || undefined, fbp: fb?.fbp || undefined,
+      clientUa: fb?.user_agent || undefined, clientIp: clientIp || fb?.client_ip_address || undefined,
+      eventSourceUrl: fb?.event_source_url || undefined,
+      ...o,
+    });
+    console.log(`[${tag}] Meta CAPI ${eventName} ${o.eventId || ""}: ${r.ok ? "ok" : "FALLO " + r.error}`);
+    return r;
+  } catch (e) {
+    console.warn(`[${tag}] Meta CAPI ${eventName}:`, e.message);
+    return { ok: false, error: e.message };
+  }
+}

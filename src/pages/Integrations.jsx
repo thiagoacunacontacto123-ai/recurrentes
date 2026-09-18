@@ -662,7 +662,13 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
           </>}>
           <div style={{ fontSize:DS.font.md, color:T.textMd, lineHeight:1.65, marginBottom:14, padding:"12px 14px", background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:10 }}>
             <div style={{ fontWeight:700, color:T.text, marginBottom:4 }}>Para qué sirve</div>
-            Las suscripciones se pagan en el checkout de Recurrentes, no en tu tienda, así que <S T={T}>tu pixel de Meta no las ve</S>. Con esto, cada vez que alguien se suscribe por primera vez le avisamos a Meta que hubo una compra, con su monto, y tus campañas la cuentan como venta. Las renovaciones no se mandan, para no inflar los resultados.
+            Las suscripciones se pagan en el checkout de Recurrentes, no en tu tienda, así que <S T={T}>tu pixel de Meta no las ve</S>. Con esto le mandamos a Meta, por la API de Conversiones y con tu Pixel ID, cada paso del embudo:
+            <ul style={{ margin:"8px 0 6px", paddingLeft:18, display:"grid", gap:3 }}>
+              <li><S T={T}>Carrito</S> (AddToCart): el cliente tocó Suscribirse y se abrió el checkout.</li>
+              <li><S T={T}>Pago iniciado</S> (InitiateCheckout): dejó su mail en el checkout, o tocó Pagar.</li>
+              <li><S T={T}>Compra</S> (Purchase): Mercado Pago confirmó el primer cobro, con el monto.</li>
+            </ul>
+            Así tus campañas ven la conversión completa y optimizan con datos reales. Las renovaciones no se mandan, para no inflar los resultados.
           </div>
           <Steps T={T} title="Dos datos de Meta">
             <li><S T={T}>1 · Pixel ID</S>. Entrá a <a href="https://business.facebook.com/latest/settings/events_dataset_and_pixel/" target="_blank" rel="noopener noreferrer" style={{ color:T.accent, fontWeight:700 }}>Configuración del negocio → Conjuntos de datos y píxeles</a>. En la lista de la izquierda tocá <S T={T}>tu pixel</S>; a la derecha, debajo del nombre, dice <S T={T}>Identificador:</S> seguido de un número de 15 o 16 dígitos. Ese es el Pixel ID. (Si Meta te pregunta con qué negocio entrar, elegí el de tu tienda.)</li>

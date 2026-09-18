@@ -85,7 +85,14 @@ export function recoverTarget(merchant, sub) {
   const app = (appBaseUrl() || "https://www.recurrentesapp.com").replace(/\/$/, "");
   // Checkout de Recurrentes (un solo checkout para todas las tiendas): la query va
   // dentro del hash; computeRecoverUrl sabe meter el ?rc= ahí.
-  if (rp.startsWith("/#/checkout")) return { url: `${app}${rp}`, allowsQuery: true };
+  if (rp.startsWith("/#/checkout")) {
+    // Subs guardadas antes del 18-sept (modo clásico) venían sin ?merchant= → el
+    // checkout decía "Faltan datos". Lo completamos acá para no depender del doc.
+    const [hp, hqs = ""] = rp.split("?");
+    const hq = new URLSearchParams(hqs);
+    if (!hq.get("merchant")) hq.set("merchant", String(sub?.merchant_id || merchant?.id || merchant?.uid || ""));
+    return { url: `${app}${hp}?${hq.toString()}`, allowsQuery: true };
+  }
   if (host && rp.startsWith("/") && !rp.startsWith("//")) return { url: `https://${host}${rp}`, allowsQuery: true };
   const built = rebuildPath(merchant, sub);
   if (built) return { url: `${app}${built}`, allowsQuery: true };

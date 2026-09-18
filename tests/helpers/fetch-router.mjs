@@ -14,6 +14,7 @@ const ALLOWED = [
   (u) => /\.myshopify\.com$/.test(u.hostname) && u.pathname.startsWith("/admin/api/"),
   (u) => u.hostname === "api.resend.com",
   (u) => u.hostname === "api.tiendanube.com",
+  (u) => u.hostname === "graph.facebook.com",
 ];
 
 function headersToObject(h) {

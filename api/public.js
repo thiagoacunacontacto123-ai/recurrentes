@@ -671,7 +671,7 @@ async function handlePauseOffer(req, res) {
 //                            (máx. cada 20 s; con v=1 —lo abrió el panel para verificar— siempre)
 //   · rendered=0&reason=…  → widget_last_issue {at, reason, host, product, path} (máx. 1/min; v=1 siempre)
 // El panel ("Activar en mi tienda", _lib/widgetVerify.js) lee estos campos.
-export const WIDGET_ISSUE_REASONS = new Set(["no_product", "no_form", "no_plan", "hidden", "removed"]);
+export const WIDGET_ISSUE_REASONS = new Set(["no_product", "no_form", "no_plan", "hidden", "removed", "error"]);
 async function handleWidgetSeen(req, res) {
   res.setHeader("Cache-Control", "no-store");
   const merchantId = String(req.query.merchant || "").trim();

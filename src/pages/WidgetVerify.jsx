@@ -19,6 +19,7 @@ export const ISSUE_COPY = {
   no_product: { title: "Cargó, pero no reconoció el producto", body: () => <>El tema no expone el producto como esperamos. Pasa con temas muy personalizados: escribinos por WhatsApp con el link del producto y lo ajustamos.</> },
   no_plan:    { title: "Cargó, pero ese producto no tiene un plan activo", body: () => <>El widget aparece solo en productos con plan. Fijate que el plan esté activo y sea de ese producto, o elegí otro plan arriba.</> },
   hidden:     { title: "Se montó, pero no se ve", body: () => <>Quedó sin tamaño en la página: otra app o el CSS del tema lo esconde. Suele pasar con apps de bundles que reemplazan el bloque de compra. Probá desactivarla en ese producto o escribinos por WhatsApp.</> },
+  error:      { title: "El widget tuvo un error en tu tema y se apagó solo", body: () => <>Tu tienda siguió vendiendo con el botón de siempre (nunca dejamos el producto sin botón de compra). Escribinos por WhatsApp con el link del producto y lo revisamos.</> },
   removed:    { title: "Apareció y el tema lo sacó", body: () => <>El tema volvió a dibujar el bloque de compra por JavaScript y borró el widget. Escribinos por WhatsApp: se resuelve con un ajuste chico.</> },
 };
 
