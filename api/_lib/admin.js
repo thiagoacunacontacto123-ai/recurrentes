@@ -593,7 +593,8 @@ export async function adminHandler(req, res) {
         const cur = (await ref.get()).data() || {};
         let pin = String(cur.pin || "");
         if (!/^[0-9]{6}$/.test(pin)) { pin = String(Math.floor(100000 + Math.random() * 900000)); await ref.set({ pin, pin_created_at: new Date().toISOString() }, { merge: true }); }
-        const r = await graphRequest(`${encodeURIComponent(cfg.phone_number_id)}/register`, { token: cfg.token, method: "POST", body: { messaging_product: "whatsapp", pin } });
+        // El registro en Meta tarda: dos intentos con 8 s cortaron por timeout. Hasta 45 s.
+        const r = await graphRequest(`${encodeURIComponent(cfg.phone_number_id)}/register`, { token: cfg.token, method: "POST", body: { messaging_product: "whatsapp", pin }, timeoutMs: 45000 });
         if (r.ok) { await ref.set({ registered_at: new Date().toISOString(), phone_number_id: cfg.phone_number_id, last_error: null }, { merge: true }); return res.json({ ok: true, registered: true }); }
         const e = mapWaError(r.status, r.data);
         return res.status(502).json({ ok: false, error: e.error || "Meta rechazó el registro", code: r.data?.error?.code ?? null, detail: String(r.data?.error?.error_user_msg || r.data?.error?.message || "").slice(0, 300) });

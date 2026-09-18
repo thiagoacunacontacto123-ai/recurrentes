@@ -45,6 +45,9 @@ function SupportEmailCallout({ T, merchant, onSaved }) {
   );
 }
 
+// Orden de los cuadrados: los recomendados primero, después el resto de disparadores.
+const ORDERED = [...RECOMMENDED, ...FLOW_TRIGGERS.map(t => t.id).filter(id => !RECOMMENDED.includes(id))];
+
 export function FlowsPage({ merchant }) {
   const T = useT();
   const [flows, setFlows] = useState([]);
@@ -96,10 +99,7 @@ export function FlowsPage({ merchant }) {
   return (
     <div>
       <PageHeader T={T} title="Flujos de email" subtitle="Mails que salen solos según lo que hace cada cliente: checkout sin pagar, bienvenida, aviso de cobro, pago rechazado, bajas y más."
-        right={<>
-          <Btn T={T} variant="secondary" size="sm" onClick={load} disabled={loading} style={{ height:34 }}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>
-          <Btn T={T} variant="solid" onClick={() => setPicking(true)}>+ Nuevo flujo</Btn>
-        </>}/>
+        right={<Btn T={T} variant="secondary" size="sm" onClick={load} disabled={loading} style={{ height:34 }}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>}/>
 
       {needSupport && <SupportEmailCallout T={T} merchant={merchant} onSaved={setSupport}/>}
 
@@ -114,19 +114,15 @@ export function FlowsPage({ merchant }) {
       <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, marginBottom:16 }}>
         Aparte de estos flujos, Recurrentes sigue mandando los mails automáticos de <strong style={{ color:T.textMd }}>activación</strong>, <strong style={{ color:T.textMd }}>pago rechazado</strong> y <strong style={{ color:T.textMd }}>cancelación</strong>. Cada mail de un flujo trae el link para darse de baja.
       </div>
-      {!waOn && (
-        <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, margin:"-8px 0 16px" }}>
-          ¿Querés avisar también por WhatsApp? <a href="#/config/integraciones" style={{ color:T.accent, fontWeight:700, textDecoration:"none" }}>Prendé los avisos en Integraciones → WhatsApp →</a>
-        </div>
-      )}
+      <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, margin:"-8px 0 16px" }}>
+        ¿Querés avisar también por WhatsApp? <a href="#/dashboard/whatsapp" style={{ color:T.accent, fontWeight:700, textDecoration:"none" }}>Flujos de WhatsApp →</a>
+      </div>
 
       {loading && !flows.length ? <Loading T={T}/> : flows.length === 0 ? (
         <Panel T={T} title="Empezá con uno de estos" sub="Vienen con los mails escritos: los revisás, los ajustás a tu marca y los activás.">
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 230px), 1fr))", gap:10 }}>
-            {RECOMMENDED.map(id => <TriggerCard key={id} T={T} trig={TRIGGER_BY_ID[id]} onPick={() => setEditing(defaultFlow(id))}/>)}
-            {waOn && <TriggerCard T={T} trig={WA_FLOW_SUGGESTION} onPick={() => setEditing(defaultWhatsappFlow())}/>}
+            {ORDERED.map(id => <TriggerCard key={id} T={T} trig={TRIGGER_BY_ID[id]} onPick={() => setEditing(defaultFlow(id))}/>)}
           </div>
-          <button type="button" onClick={() => setPicking(true)} style={{ marginTop:12, background:"none", border:"none", color:T.accent, fontWeight:700, cursor:"pointer", fontFamily:F, fontSize:DS.font.md, padding:0 }}>Ver todos los disparadores →</button>
         </Panel>
       ) : (
         <>
@@ -157,7 +153,6 @@ export function FlowsPage({ merchant }) {
                     {busy === f.id ? <Spinner size={14} color={T.textMd}/> : <DSToggle T={T} active={!!f.active} onToggle={() => toggle(f)}/>}
                     <Btn T={T} variant="secondary" size="sm" onClick={() => setEditing(f)}>Editar</Btn>
                     <RowMenu T={T} label={`Acciones de ${f.name}`} items={[
-                      { label:"Duplicar", icon:"⧉", onClick: () => setEditing({ ...f, id: undefined, name: `${f.name} (copia)`, active: false, stats: undefined, running: undefined }) },
                       { label:"Borrar", icon:"🗑", danger:true, onClick: () => remove(f) },
                     ]}/>
                   </div>
@@ -166,28 +161,15 @@ export function FlowsPage({ merchant }) {
             })}
           </Panel>
           {ideas.length > 0 && (
-            <div style={{ marginTop:16 }}>
-              <div style={{ fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:0.9, color:T.textSm, marginBottom:8 }}>Más ideas</div>
-              <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-                {ideas.map(t => (
-                  <button key={t.id} type="button" onClick={() => setEditing(defaultFlow(t.id))} title={t.desc}
-                    style={{ display:"inline-flex", alignItems:"center", gap:6, height:32, padding:"0 12px", borderRadius:99, border:`1px solid ${T.border}`, background:"transparent", color:T.textMd, cursor:"pointer", fontFamily:F, fontSize:12, fontWeight:600 }}>
-                    <span aria-hidden="true">{t.icon}</span>{t.label}
-                  </button>
-                ))}
+            <Panel T={T} title="Más flujos para activar" sub="Ya vienen escritos: los abrís, los ajustás y los guardás." style={{ marginTop:16 }}>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 230px), 1fr))", gap:10 }}>
+                {ORDERED.filter(id => !used.has(id)).map(id => <TriggerCard key={id} T={T} trig={TRIGGER_BY_ID[id]} onPick={() => setEditing(defaultFlow(id))}/>)}
               </div>
-            </div>
-          )}
-          {waOn && !hasWaFlow && (
-            <button type="button" onClick={() => setEditing(defaultWhatsappFlow())} title={WA_FLOW_SUGGESTION.desc}
-              style={{ marginTop:10, display:"inline-flex", alignItems:"center", gap:6, height:32, padding:"0 12px", borderRadius:99, border:`1px solid ${WA_GREEN}66`, background:WA_GREEN + "12", color:T.text, cursor:"pointer", fontFamily:F, fontSize:12, fontWeight:600 }}>
-              <span aria-hidden="true">{WA_FLOW_SUGGESTION.icon}</span>{WA_FLOW_SUGGESTION.label}
-            </button>
+            </Panel>
           )}
         </>
       )}
 
-      {picking && <TriggerPicker T={T} used={used} onClose={() => setPicking(false)} onPick={(id) => { setPicking(false); setEditing(defaultFlow(id)); }}/>}
     </div>
   );
 }
@@ -368,7 +350,7 @@ function FlowEditor({ T, merchant, initial, onBack }) {
           <DSToggle T={T} active={!!draft.active} onToggle={() => upd({ active: !draft.active })}/>{draft.active ? "Activo" : "Pausado"}
         </label>
         {dirty && <DSBadge T={T} color={T.yellow} size="sm">Cambios sin guardar</DSBadge>}
-        <Btn T={T} variant="solid" onClick={save} disabled={saving || (!dirty && !!draft.id)}>{saving ? <><Spinner size={12}/> Guardando…</> : draft.id ? "Guardar" : "Crear flujo"}</Btn>
+        <Btn T={T} variant="solid" onClick={save} disabled={saving || (!dirty && !!draft.id)}>{saving ? <><Spinner size={12}/> Guardando…</> : "Guardar"}</Btn>
       </div>
 
       <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"minmax(0,1.25fr) minmax(0,1fr)", gap:DS.sp.lg, alignItems:"start" }}>
