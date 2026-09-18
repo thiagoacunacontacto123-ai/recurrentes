@@ -74,6 +74,12 @@ export default function WhatsAppFlowsPage({ merchant, goConfig }) {
   return (
     <div>
       {header}
+      {data.billing?.paused && data.sender !== "own" && (
+        <Callout T={T} tone="danger" title={`WhatsApp en pausa: llegaste al tope de US$ ${data.billing.cap_usd || 5} del plan gratis`} style={{ marginBottom: 14 }}
+          right={<Btn T={T} variant="solid" size="sm" onClick={() => { try { window.location.hash = "#/config/facturacion"; } catch (_) {} }}>Activar un plan</Btn>}>
+          Tus mensajes de WhatsApp no salen hasta que actives un plan. Con el plan, el uso se cobra a fin de mes junto con la factura: solo los mensajes que se mandan. Los avisos por mail siguen saliendo.
+        </Callout>
+      )}
       <UsageCards T={T} data={data}/>
       <TemplateList T={T} data={data} onToggle={toggle} busy={busy} isOwner={isOwner}/>
       <div style={{ fontSize: DS.font.sm, color: T.textSm, marginTop: 14, lineHeight: 1.5 }}>
@@ -89,6 +95,10 @@ function UsageCards({ T, data }) {
   const u = data.usage || {};
   const prev = (data.months || []).slice(1);
   const own = data.sender === "own";
+  const b = data.billing || {};
+  const capText = b.has_plan
+    ? "Se suma a tu factura de Recurrentes a fin de mes."
+    : `Sin plan pago se acumula hasta US$ ${b.cap_usd || 5} y ahí WhatsApp se pausa hasta que actives un plan${b.unbilled_usd ? ` · llevás ${fmtUsd(b.unbilled_usd)}` : ""}.`;
   const card = { background: T.card, border: `1px solid ${T.border}`, borderRadius: 14, padding: "14px 16px", minWidth: 0 };
   const lbl = { fontSize: 10, fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase", color: T.textSm };
   return (
@@ -101,7 +111,7 @@ function UsageCards({ T, data }) {
       <div style={card}>
         <div style={lbl}>Precio por mensaje (desde)</div>
         <div style={{ fontSize: 26, fontWeight: 900, color: T.text, letterSpacing: -0.5, fontVariantNumeric: "tabular-nums", marginTop: 4 }}>{own ? "US$ 0" : fmtUsd(data.charge_usd)}</div>
-        <div style={{ fontSize: DS.font.sm, color: T.textSm, marginTop: 2 }}>{own ? "Tu número: Meta te cobra a vos" : "Se suma a tu plan a fin de mes"}</div>
+        <div style={{ fontSize: DS.font.sm, color: T.textSm, marginTop: 2 }}>{own ? "Tu número: Meta te cobra a vos" : capText}</div>
       </div>
       <div style={card}>
         <div style={lbl}>Meses anteriores</div>

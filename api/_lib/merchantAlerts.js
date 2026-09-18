@@ -103,7 +103,7 @@ async function deliver({ merchantId, merchant, event, subscriberId, values, test
   const out = { ok: false, whatsapp: null, email: null };
 
   // WhatsApp solo si el comerciante lo prendió (se cobra por aviso); el mail no depende de esto.
-  if (wa && rcpt.phone && tpl && merchant?.alerts_whatsapp_enabled === true) {
+  if (wa && rcpt.phone && tpl && merchant?.alerts_whatsapp_enabled === true && merchant?.wa_paused_for_billing !== true) {
     const sender = { mode: "platform", phone_number_id: wa.phone_number_id, token: wa.token };
     const r = await sendTemplate({ sender, to: rcpt.phone, template: tpl.name, lang: tpl.lang, components: bodyComponents(alertParams(event, values)) });
     out.whatsapp = r.ok
@@ -116,7 +116,7 @@ async function deliver({ merchantId, merchant, event, subscriberId, values, test
       error: r.ok ? null : r.error, error_code: r.ok ? null : (r.code ?? null), provider_id: r.ok ? (r.id || null) : null,
     });
     if (r.ok) {
-      await recordWaUsage(merchantId, "platform", { type: "merchant_alert" });
+      await recordWaUsage(merchantId, "platform", { type: "merchant_alert", merchant });
       // Índice wamid → tienda: el webhook actualiza la entrega en message_log.
       if (r.id) await db().collection("wa_platform_msgs").doc(messageLogId(r.id)).set({ mid: merchantId, kind: "merchant_alert", created_at: nowIso() }).catch(() => {});
     } else {

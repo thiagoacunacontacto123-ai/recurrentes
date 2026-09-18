@@ -22,6 +22,7 @@ import { formEncode, verifyStripeSignature } from "./providers/stripe.js";
 import { readRawBody } from "./providers/rawBody.js";
 import { notifyAdmin } from "./adminAlerts.js";
 import { creditCommission, pushPendingCredit, ownerUidOf } from "./referrals.js";
+import { billWaUsage } from "./waBilling.js";
 
 const storeLabel = (m, mid) => m?.store_name || m?.shopify_shop || m?.email || mid;
 
@@ -139,6 +140,9 @@ export async function handleSaasWebhook(req, res) {
         const payerUid = ownerUidOf(String(mid), cur);
         if (payerUid !== String(mid)) await db().collection("merchants").doc(payerUid).set({ saas_stripe_customer_id: idOf(obj.customer) }, { merge: true }).catch(() => {});
         await pushPendingCredit(payerUid, stripe);
+        // WhatsApp: meses cerrados sin facturar → ítems de la próxima factura; y si estaba
+        // pausado por el tope del plan gratis, se destraba.
+        await billWaUsage(String(mid), { ...cur, saas_stripe_customer_id: idOf(obj.customer) }, stripe).catch(e => console.warn("[saas-webhook] wa usage:", e.message));
       }
     } else if (event.type === "invoice.paid" || event.type === "invoice.payment_succeeded") {
       const subId = idOf(obj.subscription) || idOf(obj.parent?.subscription_details?.subscription);
@@ -174,6 +178,8 @@ export async function handleSaasWebhook(req, res) {
         const endMs = Number(obj.current_period_end) * 1000;
         const paidUntil = Number.isFinite(endMs) && endMs > Date.now() + 60000 ? new Date(endMs).toISOString() : null;
         await doc.ref.set({ saas_status: "cancelled", saas_cancelled_at: now, saas_stripe_subscription_id: null, saas_current_period_end: null, saas_paid_until: paidUntil, ...(paidUntil ? {} : { plan_activated: null }) }, { merge: true });
+        // WhatsApp: se factura todo lo pendiente (mes en curso incluido) ahora mismo.
+        await billWaUsage(doc.id, doc.data(), stripe, { includeCurrent: true, finalizeNow: true }).catch(e => console.warn("[saas-webhook] wa usage final:", e.message));
         // Ramal admin: se dio de baja del plan.
         await notifyAdmin("plan_cancelled", { merchantId: doc.id, store: storeLabel(doc.data(), doc.id), detail: "Baja de la suscripción al plan en Stripe", key: `sub_${obj.id}` });
       }

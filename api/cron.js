@@ -92,6 +92,13 @@ export default async function handler(req, res) {
     const r = await syncSaasTiers({ countActive: activeSubscribers });
     return res.json({ ok: true, ...r });
   }
+  if (action === "bill-wa-usage") {
+    // Diario: los meses cerrados de WhatsApp de cada tienda con plan pago → ítems en su próxima factura de Stripe.
+    const { stripeRequest, saasStripeAvailable } = await import("./_lib/saasBilling.js");
+    if (!saasStripeAvailable()) return res.json({ ok: true, skipped: "no_stripe" });
+    const { billAllWaUsage } = await import("./_lib/waBilling.js");
+    return res.json({ ok: true, ...(await billAllWaUsage(stripeRequest)) });
+  }
   if (action !== "sync-all-pending") {
     return res.status(400).json({ error: "action no reconocida" });
   }

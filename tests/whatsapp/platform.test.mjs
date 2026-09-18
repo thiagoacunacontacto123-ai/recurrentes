@@ -211,8 +211,9 @@ let firstWamid;
 
   const nB = posts().length;
   const baja = await hook(msg("5491164117974", "BAJA"));
-  ok(baja.optouts === 1 && baja.autoreplies === 0 && posts().length === nB && await wa.isWhatsappOptedOut("mp1", "+5491164117974", {}, { platform: true })
-    && (await M("mp1").collection("wa_optouts").doc(wa.phoneKey("+5491164117974")).get()).exists, "BAJA al número de Recurrentes: baja global + en la tienda, sin respuesta automática");
+  ok(baja.optouts === 1 && baja.autoreplies === 0 && posts().length === nB + 1 && /no te mandamos más avisos/.test(posts().at(-1).body.text.body)
+    && await wa.isWhatsappOptedOut("mp1", "+5491164117974", {}, { platform: true })
+    && (await M("mp1").collection("wa_optouts").doc(wa.phoneKey("+5491164117974")).get()).exists, "BAJA al número de Recurrentes: baja global + en la tienda, con confirmación (no la respuesta automática)");
   const skipped = await run("mp1", await mdoc("mp1"), sub());
   ok(skipped.reason === "optout", "después de BAJA no le sale ningún aviso");
   const alta = await hook(msg("5491164117974", "ALTA"));

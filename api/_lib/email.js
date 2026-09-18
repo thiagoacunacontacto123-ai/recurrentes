@@ -468,7 +468,7 @@ export async function emailStoreTransferResult({ to, kind, storeName, toEmail, k
 // ─── Aviso al COMERCIANTE por mail (Configuración → Avisos para vos, _lib/merchantAlerts.js):
 // alta / pausa / baja / renovación rechazada. Mismo texto que la plantilla de WhatsApp; es el
 // respaldo mientras no hay WhatsApp (o si falla) y la casilla "también por mail".
-const ALERT_SUBJECT = { subscribed: "Nueva suscripción", paused: "Suscripción pausada", cancelled: "Suscripción cancelada", payment_failed: "Pago rechazado de una renovación" };
+const ALERT_SUBJECT = { wa_paused: "WhatsApp en pausa: llegaste al tope del plan gratis", subscribed: "Nueva suscripción", paused: "Suscripción pausada", cancelled: "Suscripción cancelada", payment_failed: "Pago rechazado de una renovación" };
 export async function emailMerchantAlert({ to, event, text, storeName, customerName, panelUrl, test = false }) {
   const store = plain(storeName, 60) || "tu tienda";
   const who = plain(customerName, 40);

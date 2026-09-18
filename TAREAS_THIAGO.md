@@ -333,3 +333,12 @@ El cron lee TODOS los suscriptores en cada corrida porque le faltan dos índices
 El botón "Traer los de Shopify / Tiendanube" en Configuración → Descuentos necesita un permiso más:
 - [ ] **Tiendanube (Partners → tu app → Permisos)**: tildá **Cupones: leer** (`read_coupons`). Sin eso el botón dice "falta un permiso". Las tiendas ya conectadas tienen que desvincular y volver a conectar para que el token nuevo traiga el permiso.
 - [ ] **Shopify (Lumina y DEMO SHOPIFY)**: en la app de cada tienda creá una versión nueva con la lista completa de permisos (ahora incluye `read_discounts`) → **Release** → en Recurrentes, Integraciones → Reconectar. Las tiendas nuevas ya lo piden solas porque copian la lista del panel. No aparece ningún aviso rojo por esto: es opcional.
+
+
+## Estado al 2026-09-18 (tarde) — qué falta de tu lado
+- [ ] **Índices de Firestore** (2 clics; links más arriba).
+- [ ] **Tiendanube Partners → Permisos → Cupones: leer** (`read_coupons`).
+- [ ] **Meta**: plantillas en revisión aprobadas y app En vivo (vos decís que ya está: solo confirmar que a un número que NO sea de prueba le llegue un aviso).
+- [x] Stripe verificado (Mercury vinculada) — según Thiago.
+- [x] Cobro del uso de WhatsApp: implementado (ítem en la factura de Stripe; tope US$ 5 en gratis).
+- PRUEBA PLANES se queda (decisión de Thiago).

@@ -40,6 +40,7 @@ import {
   WA_TEMPLATE_BY_NAME, waUsageMonth,
 } from "../../shared/platform/whatsapp.js";
 import { WHATSAPP_PRICE_USD_UTILITY_DEFAULT, WHATSAPP_PRICE_USD_MARKETING_DEFAULT, WHATSAPP_MARKUP, waChargeUsd } from "../../shared/platform/pricing.js";
+import { checkWaFreeCap } from "./waBilling.js";
 
 const GRAPH = "https://graph.facebook.com";
 // v25.0 (vigente hasta 2028-07). WHATSAPP_GRAPH_VERSION permite subirla sin deploy de código.
@@ -65,6 +66,8 @@ export const isPlatformPhoneId = (pid) => { const c = platformWaConfig(); return
 export function waSender(m) {
   if (whatsappEnabled(m)) return { mode: "own", phone_number_id: String(m.whatsapp_phone_number_id), token: m.whatsapp_access_token };
   if (m && m.whatsapp_platform_enabled === true) {
+    // Plan gratis que llegó al tope de uso (waBilling.js): el número no manda por esta tienda.
+    if (m.wa_paused_for_billing === true) return null;
     const c = platformWaConfig();
     if (c) return { mode: "platform", phone_number_id: c.phone_number_id, token: c.token, waba_id: c.waba_id };
   }
@@ -398,7 +401,7 @@ export async function recordPlatformError(err) {
 // cuenta igual pero a costo 0 (lo paga la tienda a Meta). Increments atómicos.
 // { type:"merchant_alert" } → aviso al comercio (merchantAlerts.js): se cobra igual y además
 // se cuenta aparte en wa_alerts_sent / wa_alerts_cost_usd.
-export async function recordWaUsage(mid, mode, { now = new Date(), type = null, category = "UTILITY" } = {}) {
+export async function recordWaUsage(mid, mode, { now = new Date(), type = null, category = "UTILITY", merchant = null } = {}) {
   if (!mid || (mode !== "own" && mode !== "platform")) return null;
   const month = waUsageMonth(now);
   const platform = mode === "platform";
@@ -422,6 +425,9 @@ export async function recordWaUsage(mid, mode, { now = new Date(), type = null, 
         ...(alert ? { wa_alerts_sent: inc(1) } : {}),
         merchants: { [mid]: { wa_sent: inc(1), wa_cost_usd: inc(cost), wa_meta_cost_usd: inc(price), ...(alert ? { wa_alerts_sent: inc(1) } : {}) } },
       }, { merge: true });
+      // Lo que falta facturar (waBilling.js). En plan gratis, al tope se pausa WhatsApp.
+      await db().collection("merchants").doc(mid).set({ wa_unbilled_usd: inc(cost) }, { merge: true });
+      if (merchant) await checkWaFreeCap(mid, merchant, (Number(merchant.wa_unbilled_usd) || 0) + cost);
     }
     return { month, cost };
   } catch (e) {
@@ -468,7 +474,7 @@ export function resolveStepTemplate(sender, step) {
 // Después de un envío: uso del mes, índices del número de Recurrentes y errores.
 export async function afterWaSend(mid, merchant, sender, phone, r, { category = "UTILITY" } = {}) {
   if (r?.ok) {
-    await recordWaUsage(mid, sender.mode, { category });
+    await recordWaUsage(mid, sender.mode, { category, merchant });
     if (sender.mode === "platform") await rememberPlatformContact(mid, phone, r.id);
   }
   if (sender.mode === "own") await recordWaError(mid, merchant, r?.ok ? null : r);

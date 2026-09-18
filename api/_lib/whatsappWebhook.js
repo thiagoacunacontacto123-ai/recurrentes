@@ -115,6 +115,8 @@ async function handlePlatformValue(v, out) {
       await setPlatformOptOut(phone, { optout });
       for (const mid of mids) await setWhatsappOptOut(mid, phone, optout ? { optout: true, reason: "respondió baja al número de Recurrentes" } : { optout: false });
       if (optout) out.optouts++; else out.optins++;
+      // Confirmación (Thiago, 18-sept: respondía BAJA y no pasaba nada visible).
+      await sendPlatformText({ to: phone, body: optout ? "Listo: no te mandamos más avisos por WhatsApp desde este número. Si cambiás de idea, respondé ALTA." : "Listo: volvés a recibir los avisos por WhatsApp." }).catch(() => {});
       continue;
     }
     if (await platformAutoReply(phone)) out.autoreplies++;

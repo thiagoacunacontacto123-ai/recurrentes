@@ -112,6 +112,10 @@
     {
       "path": "/api/cron?action=sync-saas-tiers",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron?action=bill-wa-usage",
+      "schedule": "30 9 * * *"
     }
   ]
 }
