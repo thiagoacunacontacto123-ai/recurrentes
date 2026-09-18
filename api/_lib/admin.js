@@ -599,6 +599,19 @@ export async function adminHandler(req, res) {
         const e = mapWaError(r.status, r.data);
         return res.status(502).json({ ok: false, error: e.error || "Meta rechazó el registro", code: r.data?.error?.code ?? null, detail: String(r.data?.error?.error_user_msg || r.data?.error?.message || "").slice(0, 300) });
       }
+      // Diagnóstico: cómo tiene Meta configurado el webhook de la app (URL, campos, activo).
+      // Usa el app access token (APP_ID|APP_SECRET), que solo existe en el servidor.
+      if (action === "admin-wa-webhook-status") {
+        const { graphVersion } = await import("./whatsapp.js");
+        const appId = String(req.body?.app_id || process.env.WHATSAPP_APP_ID || "").trim();
+        const secret = String(process.env.WHATSAPP_APP_SECRET || "").trim();
+        if (!/^\d{5,25}$/.test(appId) || !secret) return res.status(400).json({ error: "Falta app_id o WHATSAPP_APP_SECRET." });
+        const r = await fetch(`https://graph.facebook.com/${graphVersion()}/${encodeURIComponent(appId)}/subscriptions?access_token=${encodeURIComponent(appId + "|" + secret)}`);
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) return res.status(502).json({ error: String(d?.error?.message || "Meta no respondió").slice(0, 300) });
+        const subs = (d.data || []).map(x => ({ object: x.object, callback_url: x.callback_url, active: x.active, fields: (x.fields || []).map(f => f.name) }));
+        return res.json({ ok: true, subscriptions: subs });
+      }
       // La WABA tiene que tener la app SUSCRIPTA para que Meta mande los webhooks (mensajes
       // entrantes, estados de entrega). Un número agregado desde WhatsApp Manager no lo
       // hace solo. Idempotente: si ya está, no hace nada.
