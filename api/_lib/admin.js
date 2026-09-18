@@ -599,6 +599,24 @@ export async function adminHandler(req, res) {
         const e = mapWaError(r.status, r.data);
         return res.status(502).json({ ok: false, error: e.error || "Meta rechazó el registro", code: r.data?.error?.code ?? null, detail: String(r.data?.error?.error_user_msg || r.data?.error?.message || "").slice(0, 300) });
       }
+      // La WABA tiene que tener la app SUSCRIPTA para que Meta mande los webhooks (mensajes
+      // entrantes, estados de entrega). Un número agregado desde WhatsApp Manager no lo
+      // hace solo. Idempotente: si ya está, no hace nada.
+      if (action === "admin-wa-subscribe") {
+        const { platformWaConfig, graphRequest, mapWaError } = await import("./whatsapp.js");
+        const cfg = platformWaConfig();
+        if (!cfg?.waba_id) return res.status(400).json({ error: "Falta WHATSAPP_WABA_ID." });
+        const g = await graphRequest(`${encodeURIComponent(cfg.waba_id)}/subscribed_apps`, { token: cfg.token });
+        if (!g.ok) return res.status(502).json({ error: mapWaError(g.status, g.data).error, detail: String(g.data?.error?.message || "").slice(0, 300) });
+        const before = (g.data?.data || []).map(a => a.whatsapp_business_api_data?.name || a.whatsapp_business_api_data?.id || "app");
+        let subscribed = false;
+        if (!before.length) {
+          const r = await graphRequest(`${encodeURIComponent(cfg.waba_id)}/subscribed_apps`, { token: cfg.token, method: "POST", body: {} });
+          if (!r.ok) return res.status(502).json({ error: mapWaError(r.status, r.data).error, detail: String(r.data?.error?.message || "").slice(0, 300) });
+          subscribed = r.data?.success === true;
+        }
+        return res.json({ ok: true, was_subscribed: before.length > 0, apps_before: before, subscribed_now: subscribed });
+      }
       // Perfil del número de Recurrentes en WhatsApp: foto (logo) + descripción + web.
       // La foto va por "resumable upload" de Meta: POST /{app_id}/uploads → POST /upload:{id}
       // con el binario → handle → POST /{phone_id}/whatsapp_business_profile.
