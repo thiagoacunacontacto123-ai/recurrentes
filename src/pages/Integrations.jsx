@@ -559,7 +559,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
             </>
           )}
           <Field T={T} label={envApp ? "Tu dominio Shopify" : "1 · Tu dominio Shopify"}>
-            <input value={shopRaw} onChange={e => setShopRaw(e.target.value)} placeholder="tu-tienda.myshopify.com" style={iS} autoFocus disabled={busy === "shopify"}/>
+            <input value={shopRaw} onChange={e => setShopRaw(e.target.value)} placeholder="tu-tienda.myshopify.com" style={iS} autoComplete="off" name="rec_shopify_domain" disabled={busy === "shopify"}/>
           </Field>
           {shopRaw.trim() && (
             <div style={{ fontSize:11, margin:"-4px 0 10px", padding:"6px 10px", borderRadius:6, background:(shopP.ok ? T.green : T.red) + "14", border:`1px solid ${(shopP.ok ? T.green : T.red)}44`, color:T.text }}>
@@ -576,10 +576,10 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
           {!envApp && (
             <>
               <Field T={T} label="2 · Client ID">
-                <input value={clientId} onChange={e => setClientId(e.target.value)} placeholder="8a3b6810ff78..." style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} disabled={busy === "shopify"}/>
+                <input autoComplete="off" name="rec_shopify_client_id" value={clientId} onChange={e => setClientId(e.target.value)} placeholder="8a3b6810ff78..." style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} disabled={busy === "shopify"}/>
               </Field>
               <Field T={T} label="3 · Client Secret">
-                <input type="password" value={clientSecret} onChange={e => setClientSecret(e.target.value)} placeholder="shpss_..." style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} disabled={busy === "shopify"}/>
+                <input autoComplete="new-password" name="rec_shopify_client_secret" type="password" value={clientSecret} onChange={e => setClientSecret(e.target.value)} placeholder="shpss_..." style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} disabled={busy === "shopify"}/>
               </Field>
               {reuseCreds && <Hint T={T} style={{ color:T.green }}>Ya tenemos guardadas las claves de tu app: dejá los campos vacíos para reconectar con las mismas, o pegá nuevas.</Hint>}
               {credsWarn && <Hint T={T} style={{ color:T.red }}>{credsWarn}</Hint>}
