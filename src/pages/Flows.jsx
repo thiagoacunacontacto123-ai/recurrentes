@@ -48,7 +48,7 @@ function SupportEmailCallout({ T, merchant, onSaved }) {
 // Orden de los cuadrados: los recomendados primero, después el resto de disparadores.
 const ORDERED = [...RECOMMENDED, ...FLOW_TRIGGERS.map(t => t.id).filter(id => !RECOMMENDED.includes(id))];
 
-export function FlowsPage({ merchant }) {
+export function FlowsPage({ merchant, onMerchantChange }) {
   const T = useT();
   const [flows, setFlows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -58,6 +58,9 @@ export function FlowsPage({ merchant }) {
   const [busy, setBusy] = useState(null);
   // Mail de atención al cliente (email_reply_to): va al pie de cada mail. Sin él no se activan flujos.
   const [support, setSupport] = useState(merchant?.email_reply_to || "");
+  // Si el merchant se recarga (otra tienda, o después de guardar), el estado sigue al dato real.
+  // Antes quedaba el valor del primer render: guardabas, cambiabas de pestaña y el recuadro volvía.
+  useEffect(() => { setSupport(merchant?.email_reply_to || ""); }, [merchant?.id, merchant?.email_reply_to]);
   const needSupport = !String(support || "").trim();
 
   async function load() {
@@ -101,7 +104,7 @@ export function FlowsPage({ merchant }) {
       <PageHeader T={T} title="Flujos de email" subtitle="Mails que salen solos según lo que hace cada cliente: checkout sin pagar, bienvenida, aviso de cobro, pago rechazado, bajas y más."
         right={<Btn T={T} variant="secondary" size="sm" onClick={load} disabled={loading} style={{ height:34 }}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>}/>
 
-      {needSupport && <SupportEmailCallout T={T} merchant={merchant} onSaved={setSupport}/>}
+      {needSupport && <SupportEmailCallout T={T} merchant={merchant} onSaved={(email) => { setSupport(email); onMerchantChange?.(); }}/>}
 
       {err && !loading && <Callout T={T} tone="danger" title="No pudimos cargar los flujos" style={{ marginBottom:16 }} right={<Btn T={T} variant="secondary" size="sm" onClick={load}>Reintentar</Btn>}>{err}</Callout>}
 

@@ -361,7 +361,10 @@ export function ManageStoreModal({T, store, totalStores, onClose, onSave, onDele
 export function Sidebar({T, nav=NAV, activeTab, onTab, user, merchant, workspace, onSwitchStore, onCreateStore, onManageStore, collapsed, setCollapsed, darkMode, setDarkMode, onLogout, alerts={}, pendientes=[], onVerPlan}) {
   const items = nav.filter(it=>!it.adminOnly||merchant?.is_admin).map(it=>it.alertKey?{...it,count:alerts[it.alertKey]}:it);
   const configActive = activeTab==="configuracion";
-  const initial = (user?.displayName||user?.email||"?").charAt(0).toUpperCase();
+  // Nombre y foto: lo que cargó en Cuenta (merchant.owner_name/owner_photo) manda sobre lo de Google.
+  const ownerName = merchant?.owner_name || user?.displayName || user?.email?.split("@")[0] || "";
+  const ownerPhoto = merchant?.owner_photo || user?.photoURL || null;
+  const initial = (ownerName||user?.email||"?").charAt(0).toUpperCase();
   const W = collapsed ? 64 : 224;
   const stores = workspace?.stores || [];
   const activeStoreId = workspace?.active_merchant_id || merchant?.id || null;
@@ -469,12 +472,12 @@ export function Sidebar({T, nav=NAV, activeTab, onTab, user, merchant, workspace
         {!collapsed&&(
           <div style={{display:"flex",alignItems:"center",gap:4,marginBottom:DS.sp.xs}}>
           <button onClick={()=>onTab("configuracion")} title="Mi cuenta" style={{display:"flex",alignItems:"center",gap:DS.sp.md,padding:DS.sp.sm,flex:1,minWidth:0,background:"transparent",border:"none",cursor:"pointer",borderRadius:DS.r.md,fontFamily:F}}>
-            {user?.photoURL
-              ?<img src={user.photoURL} alt="" referrerPolicy="no-referrer" style={{width:28,height:28,borderRadius:DS.r.full,border:`1px solid ${T.border}`,flexShrink:0}}/>
+            {ownerPhoto
+              ?<img src={ownerPhoto} alt="" referrerPolicy="no-referrer" style={{width:28,height:28,borderRadius:DS.r.full,border:`1px solid ${T.border}`,flexShrink:0,objectFit:"cover"}}/>
               :<div style={{width:28,height:28,borderRadius:DS.r.full,background:T.accentSolid+"33",color:T.accent,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:DS.w.bold,fontSize:DS.font.md,flexShrink:0}}>{initial}</div>
             }
             <div style={{flex:1,minWidth:0,textAlign:"left"}}>
-              <div style={{fontSize:DS.font.md,fontWeight:DS.w.semibold,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user?.displayName||user?.email?.split("@")[0]}</div>
+              <div style={{fontSize:DS.font.md,fontWeight:DS.w.semibold,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{ownerName}</div>
               <div style={{fontSize:DS.font.xs,color:T.textSm,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{role==="member"?"Miembro del equipo":(merchant?.billing?.plan_label||"Beta")}</div>
             </div>
           </button>

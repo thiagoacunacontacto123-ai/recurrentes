@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { sendPasswordResetEmail, signOut } from "firebase/auth";
+import { sendPasswordResetEmail, signOut, updateProfile } from "firebase/auth";
 import { auth } from "../lib/firebase.js";
 import * as api from "../lib/api.js";
 import { NewStoreModal, ManageStoreModal, StoreAvatar } from "../ui/Shell.jsx";
@@ -159,7 +159,7 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
     { group: "Ayuda", id: "ayuda", l: "Ayuda", d: "Guía paso a paso y soporte", icon: "M12 22a10 10 0 100-20 10 10 0 000 20zM9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" },
   ];
   const HEAD = {
-    cuenta:        ["Cuenta", "Tu acceso a Recurrentes: email de inicio de sesión, contraseña y eliminación de la cuenta."],
+    cuenta:        ["Cuenta", "Tu nombre, tu foto y tu acceso a Recurrentes: email de inicio de sesión, contraseña y eliminación de la cuenta."],
     tiendas:       ["Tiendas", "Un mismo login puede manejar varias tiendas. Cada tienda tiene su propia conexión a Shopify y Mercado Pago, sus planes y sus suscriptores. Abajo, los datos de la tienda activa."],
     equipo:        ["Equipo", "Invitá a gente de tu equipo con su propio login. Ven solo las secciones que les habilites."],
     avisos:        ["Avisos para vos", "Te avisamos por mail (y por WhatsApp si lo prendés) cuando un cliente se suscribe, pausa, cancela o le rechazan el pago de una renovación."],
@@ -184,8 +184,6 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
           hint={nSubs == null ? "Recurrentes" : `${nSubs.toLocaleString("es-AR")} suscriptor${nSubs === 1 ? "" : "es"} activo${nSubs === 1 ? "" : "s"}${billing?.needs_activation ? " · falta activarlo" : ""}`} onClick={() => go("facturacion")} />
         <KpiCard T={T} label="Conexiones" value={`${reqTotal - missing.length} de ${reqTotal}`} valueColor={missing.length ? T.red : T.text} color={missing.length ? T.red : T.green}
           hint={missing.length ? `Falta conectar ${missing.join(" y ")}` : withStore ? `${profile.channelInfo.label} y ${profile.providerInfo.label} al día` : `${profile.providerInfo.label} al día`} onClick={() => go("integraciones")} />
-        <KpiCard T={T} label="Negocio" value={`${profile.type.emoji} ${profile.type.short}`} color={T.blue}
-          hint={`${withStore ? profile.channelInfo.label : "Sin tienda online"} · ${profile.providerInfo.label}`} onClick={() => go("integraciones")} />
         <KpiCard T={T} label="Tiendas" value={String(stores.length || 1)} color={T.textSm}
           hint={activeStore ? `Activa: ${activeStore.name}` : "una sola tienda"} onClick={() => go("tiendas")} />
       </div>
@@ -248,7 +246,7 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
             <div style={{ fontSize: 12.5, color: T.textSm, marginTop: 4, lineHeight: 1.5 }}>{H[1]}</div>
           </div>
 
-          {cur === "cuenta"        && <CuentaSection T={T} DS={DS} user={user} merchant={merchant} toast={toast} />}
+          {cur === "cuenta"        && <CuentaSection T={T} DS={DS} user={user} merchant={merchant} toast={toast} reloadMerchant={reloadMerchant} />}
           {cur === "tiendas"       && <><TiendasSection T={T} DS={DS} user={user} merchant={merchant} workspace={workspace} reloadMerchant={reloadMerchant} toast={toast} /><StoreDataSection merchant={merchant} onChange={reloadMerchant} /></>}
           {cur === "equipo"        && isOwner && <MiembrosCuentaCard T={T} DS={DS} user={user} merchant={merchant} toast={toast} />}
           {cur === "avisos"        && isOwner && <MerchantAlertsSection key={merchant?.id || "m"} T={T} merchant={merchant} onChange={reloadMerchant} />}
@@ -263,9 +261,58 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
 }
 
 // ─── Cuenta ──────────────────────────────────────────────────────
-function CuentaSection({ T, DS, user, merchant, toast }) {
+// Achica la foto a 256×256 (recorte centrado) y la devuelve como JPEG data URL (~20-40 KB).
+function shrinkPhoto(file) {
+  return new Promise((resolve, reject) => {
+    if (!/^image\/(jpeg|png|webp|gif|heic|heif)/i.test(file.type || "") && !/\.(jpe?g|png|webp)$/i.test(file.name || "")) return reject(new Error("Elegí una imagen (JPG, PNG o WebP)"));
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const S = 256, c = document.createElement("canvas"); c.width = S; c.height = S;
+        const side = Math.min(img.width, img.height), sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+        c.getContext("2d").drawImage(img, sx, sy, side, side, 0, 0, S, S);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL("image/jpeg", 0.85));
+      } catch (e) { reject(e); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("No pudimos leer esa imagen")); };
+    img.src = url;
+  });
+}
+
+function CuentaSection({ T, DS, user, merchant, toast, reloadMerchant }) {
   const iS = InputStyle(T);
   const email = user?.email || merchant?.email || "";
+  // Nombre y foto editables (merchant.owner_name / owner_photo del login; Google es el respaldo).
+  const [name, setName] = useState(merchant?.owner_name || user?.displayName || "");
+  const [photo, setPhoto] = useState(merchant?.owner_photo || null);      // data URL nueva, o la guardada
+  const [photoTouched, setPhotoTouched] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  useEffect(() => { setName(merchant?.owner_name || user?.displayName || ""); setPhoto(merchant?.owner_photo || null); setPhotoTouched(false); }, [merchant?.owner_name, merchant?.owner_photo, user?.displayName]);
+  const shownPhoto = photo || (!photoTouched ? user?.photoURL : null) || null;
+  const profileDirty = name.trim() !== (merchant?.owner_name || user?.displayName || "") || photoTouched;
+  async function pickPhoto(e) {
+    const f = e.target.files?.[0]; e.target.value = "";
+    if (!f) return;
+    try { setPhoto(await shrinkPhoto(f)); setPhotoTouched(true); } catch (err) { toast(err.message, "error"); }
+  }
+  async function saveProfile() {
+    const n = name.trim();
+    if (n.length < 2) return toast("Ingresá tu nombre y apellido", "error");
+    setSavingProfile(true);
+    try {
+      const body = { display_name: n };
+      if (photoTouched) body.photo = photo || null;
+      const r = await merchantAction("profile-save", body);
+      if (r?.error) throw new Error(r.error);
+      try { if (auth.currentUser) await updateProfile(auth.currentUser, { displayName: n }); } catch (_) {}
+      toast("Listo, guardamos tu nombre y tu foto", "success");
+      setPhotoTouched(false);
+      reloadMerchant?.();
+    } catch (e) { toast("No se pudo guardar: " + e.message, "error", 6000); }
+    finally { setSavingProfile(false); }
+  }
   const hasPassword = !!user?.providerData?.some(p => p.providerId === "password");
   const googleOnly  = !!user?.providerData?.some(p => p.providerId === "google.com") && !hasPassword;
   const [showEliminar, setShowEliminar] = useState(false);
@@ -296,15 +343,29 @@ function CuentaSection({ T, DS, user, merchant, toast }) {
     <>
       <Panel T={T} DS={DS} title="Acceso">
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
-          {user?.photoURL
-            ? <img src={user.photoURL} alt="" style={{ width: 44, height: 44, borderRadius: "50%", border: `2px solid ${T.border}`, flexShrink: 0 }} />
+          {shownPhoto
+            ? <img src={shownPhoto} alt="" referrerPolicy="no-referrer" style={{ width: 44, height: 44, borderRadius: "50%", border: `2px solid ${T.border}`, flexShrink: 0, objectFit: "cover" }} />
             : <div style={{ width: 44, height: 44, borderRadius: "50%", background: T.accentSolid + "22", color: T.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700, flexShrink: 0 }}>{(email || "?").charAt(0).toUpperCase()}</div>}
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: DS.w.bold, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user?.displayName || email}</div>
+            <div style={{ fontSize: 15, fontWeight: DS.w.bold, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{merchant?.owner_name || user?.displayName || email}</div>
             <div style={{ fontSize: DS.font.md, color: T.textSm, marginTop: 2 }}>
               {email}{googleOnly ? " · entrás con Google" : hasPassword ? " · email y contraseña" : ""}
             </div>
           </div>
+        </div>
+        {/* Nombre, apellido y foto (Thiago, 18-sept). */}
+        <div style={{ display: "grid", gap: 10, padding: "12px 14px", background: T.surface, border: `1px solid ${T.borderL}`, borderRadius: 12, marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: T.textMd, textTransform: "uppercase", letterSpacing: 0.4 }}>Tu nombre y tu foto</div>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="Nombre y apellido" aria-label="Nombre y apellido" maxLength={60} style={{ ...iS, flex: "1 1 220px", maxWidth: 360, marginBottom: 0 }} />
+            <label style={{ ...BtnSecondary(T), fontSize: DS.font.md, cursor: "pointer" }}>
+              {shownPhoto ? "Cambiar foto" : "Subir foto"}
+              <input type="file" accept="image/*" onChange={pickPhoto} style={{ display: "none" }} />
+            </label>
+            {shownPhoto && <button type="button" onClick={() => { setPhoto(null); setPhotoTouched(true); }} style={{ ...BtnSecondary(T), fontSize: DS.font.md, color: T.textSm }}>Quitar foto</button>}
+            <button type="button" onClick={saveProfile} disabled={savingProfile || !profileDirty} style={{ ...BtnPrimary(T), fontSize: DS.font.md, opacity: savingProfile || !profileDirty ? 0.6 : 1 }}>{savingProfile ? "Guardando…" : "Guardar"}</button>
+          </div>
+          <div style={{ fontSize: DS.font.sm, color: T.textSm, lineHeight: 1.5 }}>Se ven en el menú lateral y en los avisos que te mandamos. La foto se achica sola (JPG, PNG o WebP).</div>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {googleOnly ? (

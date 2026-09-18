@@ -360,7 +360,7 @@ export default function Dashboard({ user, onLogout }) {
               ) : tab === "retencion" ? (
                 integrationsReady ? <RetentionPage merchant={merchant} reloadMerchant={reloadMerchant} goTab={goTab}/> : needs("Retención")
               ) : tab === "flujos" ? (
-                <FlowsPage merchant={merchant}/>
+                <FlowsPage merchant={merchant} onMerchantChange={reloadMerchant}/>
               ) : tab === "whatsapp" ? (
                 <WhatsAppFlowsPage merchant={merchant} goConfig={goConfig}/>
               ) : tab === "afiliados" ? (

@@ -30,6 +30,7 @@
 //   POST   ?action=klaviyo-test       → manda un "Checkout Started" de prueba al mail del dueño
 //   (save-settings acepta `klaviyo_send_orders`; `abandoned_enabled` / `abandoned_coupons` se ignoran)
 //   POST   ?action=save-owner    { owner_name, owner_whatsapp, contact_email } → datos de contacto del dueño del LOGIN (se piden al registrarse)
+//   POST   ?action=profile-save  { display_name, photo|null } → nombre y apellido + foto (data URL ≤ 200 KB) del LOGIN; también actualiza el displayName de Firebase Auth
 //   POST   ?action=plan-request  { plan: "starter"|"growth"|"pro" } → pide un plan del SaaS (mail al admin)
 //   Flujos de email propios (_lib/flowsApi.js): GET ?action=flows · POST ?action=flow-save | flow-delete | flow-test
 //   WhatsApp Cloud API (_lib/whatsappApi.js): GET ?action=whatsapp-templates · POST ?action=whatsapp-save | whatsapp-disconnect | whatsapp-test
@@ -141,6 +142,7 @@ export default async function handler(req, res) {
         store_color: merchant.store_color || merchant.widget_color || "#10b981",
         store_photo: merchant.store_photo || null,
         owner_name: ownerDoc.owner_name || "",
+        owner_photo: ownerDoc.owner_photo || null,   // foto del dueño del login (data URL chica, Cuenta → Acceso)
         owner_whatsapp: ownerDoc.owner_whatsapp || "",
         contact_email: ownerDoc.contact_email || "",
         owner_info_missing: !ownerDoc.owner_whatsapp,
@@ -312,6 +314,7 @@ export default async function handler(req, res) {
     if (action === "saas-portal")          return saasPortal(ctx, merchantId, req, res);
     if (action === "wa-card-setup")        return waCardSetup(ctx, merchantId, req, res);
     if (action === "save-owner")           return saveOwner(ctx, req, res);
+    if (action === "profile-save")         return saveProfile(ctx, req, res);
     if (action === "ref-claim") {
       if (ctx.role && ctx.role !== "owner") return res.status(403).json({ error: "Solo el dueño de la cuenta." });
       try { const { claimReferral } = await import("./_lib/referrals.js"); const r = await claimReferral(uid, req.body?.code); return res.status(r.ok ? 200 : 400).json(r); }
@@ -1719,6 +1722,37 @@ function normalizeWhatsapp(raw) {
   if (d.length < 10 || d.length > 15) return null;
   return "+" + d;
 }
+// Cuenta → Acceso: nombre y apellido + foto del dueño del login (Thiago, 18-sept). La foto va
+// como data URL chica (el panel la achica a 256 px) en merchants/{uid}.owner_photo: no hace
+// falta Storage. El nombre también se copia al displayName de Firebase Auth.
+const PHOTO_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+async function saveProfile(ctx, req, res) {
+  const b = req.body || {};
+  const patch = {};
+  if ("display_name" in b) {
+    const name = String(b.display_name || "").trim().replace(/\s+/g, " ").slice(0, 60);
+    if (name.length < 2) return res.status(400).json({ error: "Ingresá tu nombre y apellido" });
+    patch.owner_name = name;
+  }
+  if ("photo" in b) {
+    if (b.photo === null || b.photo === "") patch.owner_photo = FieldValue.delete();
+    else {
+      const photo = String(b.photo || "");
+      if (!PHOTO_RE.test(photo)) return res.status(400).json({ error: "La foto tiene que ser JPG, PNG o WebP" });
+      if (photo.length > 270000) return res.status(400).json({ error: "La foto es muy pesada: probá con otra más chica" });
+      patch.owner_photo = photo;
+    }
+  }
+  if (!Object.keys(patch).length) return res.status(400).json({ error: "Nada para guardar" });
+  try {
+    await getOrCreateMerchant(ctx.uid, ctx.email || null);
+    await db().collection("merchants").doc(ctx.uid).set({ ...patch, updated_at: new Date().toISOString() }, { merge: true });
+    if (patch.owner_name) { try { await getAuth().updateUser(ctx.uid, { displayName: patch.owner_name }); } catch (e) { console.warn("[profile-save] auth displayName:", e.message); } }
+    clearMerchantCache?.(ctx.uid);
+    return res.json({ ok: true, owner_name: patch.owner_name || null, owner_photo: typeof patch.owner_photo === "string" ? patch.owner_photo : null });
+  } catch (e) { return res.status(500).json({ error: e.message }); }
+}
+
 async function saveOwner(ctx, req, res) {
   const b = req.body || {};
   const name = String(b.owner_name || "").trim().replace(/\s+/g, " ").slice(0, 60);
