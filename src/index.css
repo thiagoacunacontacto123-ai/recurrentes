@@ -64,3 +64,9 @@ input, textarea, select {
    arrastrar la página de costado (Thiago, 17-sept). Se recorta en el contenedor de
    la landing, NO en <html>: ahí `overflow` rompe el scroll vertical de la página. */
 .rec-landing-root { overflow-x: clip; }
+
+/* Analíticas: grupos de 4 KPIs. 4 columnas de ancho, 2 en ventanas medianas, 1 en celular.
+   Nunca 3 + 1 suelta (Thiago, 19-sept-2026). */
+.kpi-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1500px) { .kpi-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .kpi-grid-4 { grid-template-columns: minmax(0, 1fr); } }

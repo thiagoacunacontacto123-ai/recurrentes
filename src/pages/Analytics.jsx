@@ -121,7 +121,7 @@ export function AnalyticsPage({ merchant }) {
       ) : (
         <>
           {/* KPIs principales: delta vs mes anterior + sparkline mensual */}
-          <div className="kpi-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 220px), 1fr))", gap:10, marginBottom:10 }}>
+          <div className="kpi-grid kpi-grid-4" style={{ display:"grid", gap:10, marginBottom:10 }}>
             <KpiCard T={T} hero loading={first} label={kpiLabel("MRR", "Ingresos mensuales recurrentes: suma de lo que cobra cada suscripción activa, normalizado a 30 días. Incluye envío y cantidad.")}
               value={fmtARS(a.mrr)} curr={a.mrr} prev={a.mrr_prev_month || null} valueColor={T.accent} color={T.accentSolid}
               hint="vs. cierre del mes pasado · línea: cobrado por mes" spark={series("revenue_ars")}/>
@@ -135,7 +135,7 @@ export function AnalyticsPage({ merchant }) {
               value={`${(Number(a.churn_30d_pct) || 0).toLocaleString("es-AR", { maximumFractionDigits:1 })}%`} valueColor={(a.churn_30d_pct || 0) > 5 ? T.red : T.text} color={T.red}
               hint={`${fmtN(a.cancelled_30d)} baja${a.cancelled_30d === 1 ? "" : "s"} · línea: bajas por mes`} spark={series("cancelled")}/>
           </div>
-          <div className="kpi-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 200px), 1fr))", gap:10, marginBottom:18 }}>
+          <div className="kpi-grid kpi-grid-4" style={{ display:"grid", gap:10, marginBottom:18 }}>
             <KpiCard T={T} loading={first} label={kpiLabel("LTV promedio", "Lo que cobró en promedio cada suscriptor a lo largo de su vida (total cobrado ÷ suscriptores con al menos un cobro).")}
               value={a.ltv_avg != null ? fmtARS(a.ltv_avg) : "—"} hint="por suscriptor" color={T.accentSolid}/>
             <KpiCard T={T} loading={first} label={kpiLabel("Cobros por suscriptor", "Promedio de cobros OK por suscriptor. Sube con la retención.")}
