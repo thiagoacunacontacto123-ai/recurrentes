@@ -628,11 +628,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
               <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.55, marginTop:9, textAlign:"center" }}>
                 Te llevamos a Mercado Pago: entrás con la cuenta que cobra, tocás <S T={T}>Autorizar</S> y volvés acá conectado. No tenés que copiar nada.
               </div>
-              {!mpPaste && (
-                <div style={{ textAlign:"center", marginTop:16 }}>
-                  <button type="button" onClick={() => setMpPaste(true)} style={{ background:"none", border:"none", padding:0, color:T.textMd, fontSize:DS.font.sm, textDecoration:"underline", cursor:"pointer", fontFamily:F }}>¿Preferís pegar el Access Token?</button>
-                </div>
-              )}
+              {/* 19-sept (Thiago): fuera la alternativa de pegar el Access Token; la conexión es solo con un clic. */}
               {mpPaste && <div style={{ display:"flex", alignItems:"center", gap:10, margin:"16px 0 14px", fontSize:11, color:T.textSm }}><span style={{ flex:1, height:1, background:T.borderL }}/>o pegá tu Access Token<span style={{ flex:1, height:1, background:T.borderL }}/></div>}
             </>
           )}
