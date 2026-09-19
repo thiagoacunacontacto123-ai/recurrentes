@@ -75,11 +75,31 @@ export async function failedCharges(merchantRef, now = Date.now()) {
     logWarn("fulfill.query.fallback", { merchantId: merchantRef.id, reason: "sin índice shopify_order_id+created_at" });
     docs = (await col.where("created_at", ">=", since).orderBy("created_at", "desc").limit(500).get()).docs;
   }
-  return docs.filter(d => {
-    const c = d.data() || {};
-    // Solo charges con clave = payment id (las legacy `{pre}-N` no pasan por claimCharge).
-    return c.error && !c.shopify_order_id && c.status === "approved" && !isSim(d.id, c) && String(c.mp_payment_id) === d.id;
-  });
+  return docs.filter(isFailedCharge);
+}
+
+// Solo charges con clave = payment id (las legacy `{pre}-N` no pasan por claimCharge).
+export function isFailedCharge(d) {
+  const c = d.data() || {};
+  return Boolean(c.error) && !c.shopify_order_id && c.status === "approved" && !isSim(d.id, c) && String(c.mp_payment_id) === d.id;
+}
+
+// Modo global del cron: dos consultas collectionGroup traen los cobros sin orden y los
+// issues abiertos de TODAS las tiendas (índices COLLECTION_GROUP charges
+// shopify_order_id+created_at y fulfill_issues status+updated_at). Si falta alguno,
+// Firestore tira FAILED_PRECONDITION y el cron cae al recorrido por tienda.
+export async function collectFailedGlobal(now = Date.now()) {
+  const since = iso(now - WINDOW_MS);
+  const underMerchant = (d) => d.ref.parent?.parent?.parent?.id === "merchants" && d.ref.parent.parent.id;
+  const [charges, issues] = await Promise.all([
+    db().collectionGroup("charges").where("shopify_order_id", "==", null).where("created_at", ">=", since).orderBy("created_at", "desc").limit(500).get(),
+    db().collectionGroup("fulfill_issues").where("status", "==", "open").orderBy("updated_at").limit(300).get(),
+  ]);
+  const byMid = new Map();
+  const bucket = (mid) => { if (!byMid.has(mid)) byMid.set(mid, { failed: [], open: [] }); return byMid.get(mid); };
+  for (const d of charges.docs) { const mid = underMerchant(d); if (mid && isFailedCharge(d)) bucket(mid).failed.push(d); }
+  for (const d of issues.docs) { const mid = underMerchant(d); if (mid) bucket(mid).open.push(d); }
+  return byMid;
 }
 
 async function getOrCreateIssue(issuesCol, pid, c, now) {
@@ -303,17 +323,18 @@ export async function maybeAlert(mid, merchant, issueRef, issue, c, { now = Date
 }
 
 /** Una tienda: detecta, cierra lo resuelto, reintenta (si está prendido) y avisa. */
-export async function watchMerchant(mid, merchant, { now = Date.now(), deadline = Infinity } = {}) {
+// `failed` / `openDocs`: docs ya leídos por el modo global del cron; sin ellos consulta la tienda.
+export async function watchMerchant(mid, merchant, { now = Date.now(), deadline = Infinity, failed = null, openDocs = null } = {}) {
   const out = { failed_charges: 0, alerts: 0, platform_alerts: 0, retried: 0, fixed: 0, resolved: 0, needs_review: 0, gave_up: 0 };
   const merchantRef = db().collection("merchants").doc(mid);
   const issuesCol = merchantRef.collection("fulfill_issues");
-  const failed = await failedCharges(merchantRef, now);
+  if (!failed) failed = await failedCharges(merchantRef, now);
   out.failed_charges = failed.length;
   const failedIds = new Set(failed.map(d => d.id));
 
   // Issues abiertos cuyo charge ya no figura como fallido: lo arregló webhook/sync/panel.
-  const openSnap = await issuesCol.where("status", "==", "open").limit(50).get();
-  for (const d of openSnap.docs) {
+  if (!openDocs) openDocs = (await issuesCol.where("status", "==", "open").limit(50).get()).docs;
+  for (const d of openDocs) {
     if (failedIds.has(d.id)) continue;
     const ch = await merchantRef.collection("charges").doc(d.id).get();
     const cd = ch.data() || {};
@@ -355,18 +376,36 @@ export async function watchMerchant(mid, merchant, { now = Date.now(), deadline 
 export async function fulfillmentCron(res, { now, budgetMs = 150 * 1000 } = {}) {
   const start = Date.now();
   const deadline = start + budgetMs;
-  const tot = { ok: true, retry_enabled: retryEnabled(), merchants: 0, failed_charges: 0, alerts: 0, platform_alerts: 0, retried: 0, fixed: 0, resolved: 0, needs_review: 0, gave_up: 0, errors: 0, partial: false };
+  const tot = { ok: true, mode: "per-merchant", retry_enabled: retryEnabled(), merchants: 0, failed_charges: 0, alerts: 0, platform_alerts: 0, retried: 0, fixed: 0, resolved: 0, needs_review: 0, gave_up: 0, errors: 0, partial: false };
+  const add = (r) => { for (const k of Object.keys(r)) tot[k] = (tot[k] || 0) + r[k]; };
   try {
-    const snap = await db().collection("merchants").where("mp_access_token", "!=", "").get();
-    for (const m of snap.docs) {
-      if (Date.now() > deadline) { tot.partial = true; break; }
-      tot.merchants++;
-      try {
-        const r = await watchMerchant(m.id, m.data(), { now: now ?? Date.now(), deadline });
-        for (const k of Object.keys(r)) tot[k] = (tot[k] || 0) + r[k];
-      } catch (e) {
-        tot.errors++;
-        logError("fulfill.merchant.fail", { merchantId: m.id, error: e.message });
+    // ── MODO GLOBAL: solo las tiendas que tienen un cobro sin orden o un issue abierto ──
+    if (process.env.CRON_GLOBAL !== "0") {
+      let byMid = null;
+      try { byMid = await collectFailedGlobal(now ?? Date.now()); }
+      catch (e) { logWarn("fulfill.global.fallback", { error: String(e.message || e).slice(0, 220) }); }
+      if (byMid) {
+        tot.mode = "global";
+        const mids = [...byMid.keys()];
+        const snaps = mids.length ? await db().getAll(...mids.map(id => db().collection("merchants").doc(id))) : [];
+        for (const m of snaps) {
+          if (Date.now() > deadline) { tot.partial = true; break; }
+          const md = m.exists ? m.data() : null;
+          if (!md || md.archived_at || !md.mp_access_token) continue;
+          tot.merchants++;
+          const b = byMid.get(m.id);
+          try { add(await watchMerchant(m.id, md, { now: now ?? Date.now(), deadline, failed: b.failed, openDocs: b.open })); }
+          catch (e) { tot.errors++; logError("fulfill.merchant.fail", { merchantId: m.id, error: e.message }); }
+        }
+      }
+    }
+    if (tot.mode !== "global") {
+      const snap = await db().collection("merchants").where("mp_access_token", "!=", "").get();
+      for (const m of snap.docs) {
+        if (Date.now() > deadline) { tot.partial = true; break; }
+        tot.merchants++;
+        try { add(await watchMerchant(m.id, m.data(), { now: now ?? Date.now(), deadline })); }
+        catch (e) { tot.errors++; logError("fulfill.merchant.fail", { merchantId: m.id, error: e.message }); }
       }
     }
     tot.elapsed_ms = Date.now() - start;

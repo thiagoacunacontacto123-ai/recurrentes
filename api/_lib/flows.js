@@ -135,15 +135,14 @@ function renderStep(step, vars) {
 }
 
 // ── Runner ─────────────────────────────────────────────────────────
-export async function runFlowsForMerchant(mid, merchant, { deadline = Date.now() + 60e3, limit = 60 } = {}) {
-  const out = { processed: 0, sent: 0, scheduled: 0, completed: 0, exited: 0, entered: 0, errors: 0 };
+export async function loadFlows(mid) {
   const flowsSnap = await flowsCol(mid).get();
-  const flows = Object.fromEntries(flowsSnap.docs.map(d => [d.id, d.data()]));
-  try { out.entered += await scanUpcoming(mid, flows); }
-  catch (e) { out.errors++; console.warn(`[flows] upcoming ${mid}:`, e.message); }
+  return Object.fromEntries(flowsSnap.docs.map(d => [d.id, d.data()]));
+}
 
-  const due = await runsCol(mid).where("next_at", "<=", nowIso()).orderBy("next_at").limit(limit).get();
-  for (const doc of due.docs) {
+// Avanza corridas ya leídas (del recorrido por tienda o del modo global del cron).
+export async function advanceRuns(mid, merchant, flows, docs, { deadline = Infinity } = {}, out = { processed: 0, sent: 0, scheduled: 0, completed: 0, exited: 0, entered: 0, errors: 0 }) {
+  for (const doc of docs) {
     if (Date.now() > deadline) break;
     out.processed++;
     try { await advanceRun(mid, merchant, flows, doc, out); }
@@ -153,6 +152,28 @@ export async function runFlowsForMerchant(mid, merchant, { deadline = Date.now()
       await doc.ref.update({ status: "error", last_error: String(e.message || e).slice(0, 300), next_at: FieldValue.delete(), updated_at: nowIso() }).catch(() => {});
     }
   }
+  return out;
+}
+
+// Modo global del cron run-flows: UNA consulta trae las corridas vencidas de TODAS las
+// tiendas (índice COLLECTION_GROUP flow_runs status+next_at). Si falta el índice,
+// Firestore tira FAILED_PRECONDITION y el cron cae al recorrido por tienda.
+export async function collectDueRunsGlobal(now = nowIso(), limit = 400) {
+  const snap = await db().collectionGroup("flow_runs").where("status", "==", "waiting").where("next_at", "<=", now).orderBy("next_at").limit(limit).get();
+  return snap.docs;
+}
+
+// La búsqueda de "próximo cobro" corre 5 min de cada 30 (ver scanUpcoming).
+export const upcomingScanOpen = (now = Date.now()) => new Date(now).getMinutes() % 30 < 5;
+
+export async function runFlowsForMerchant(mid, merchant, { deadline = Date.now() + 60e3, limit = 60 } = {}) {
+  const out = { processed: 0, sent: 0, scheduled: 0, completed: 0, exited: 0, entered: 0, errors: 0 };
+  const flows = await loadFlows(mid);
+  try { out.entered += await scanUpcoming(mid, flows); }
+  catch (e) { out.errors++; console.warn(`[flows] upcoming ${mid}:`, e.message); }
+
+  const due = await runsCol(mid).where("next_at", "<=", nowIso()).orderBy("next_at").limit(limit).get();
+  await advanceRuns(mid, merchant, flows, due.docs, { deadline }, out);
   return out;
 }
 
@@ -217,7 +238,7 @@ async function advanceRun(mid, merchant, flows, doc, out) {
 
 // Próximo cobro: 2 veces por hora (ticks :00 y :30 del cron cada 5 min), activas cuyo
 // next_charge_at cae en [N días ± 12 h]. Dedup por fecha de cobro → una vez por ciclo.
-async function scanUpcoming(mid, flows) {
+export async function scanUpcoming(mid, flows) {
   const list = Object.entries(flows).filter(([, f]) => f.active === true && f.trigger === "upcoming_charge");
   if (!list.length || new Date().getMinutes() % 30 >= 5) return 0;
   const subsCol = db().collection("merchants").doc(mid).collection("subscribers");

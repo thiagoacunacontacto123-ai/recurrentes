@@ -345,6 +345,12 @@ El botón "Traer los de Shopify / Tiendanube" en Configuración → Descuentos n
   ```
   Eso crea TODOS los índices de `firestore.indexes.json` de una (los de cada tienda y los 4 de grupo). Tardan unos minutos en decir "Habilitado". Hasta que existan, el cron sigue funcionando con el recorrido tienda por tienda de siempre (en Admin → Salud, `cron_last.mode` dice `per-merchant`; cuando pase a `global` ya está).
   Si preferís a mano: https://console.firebase.google.com/project/recurrentes-16fbd/firestore/indexes → Crear índice → ID de colección `subscribers`, alcance **Grupo de colecciones**, y uno por cada par: `status` Asc + `next_charge_at` Asc · `status` Asc + `updated_at` Asc · `status` Asc + `created_at` Asc · `status` Asc + `resume_at` Asc.
+- [x] Los 4 índices de grupo de `subscribers` (creados el 18-sept a la noche; el cron ya corre en `global`).
+- [ ] **3 índices de grupo más** (19-sept), para que los otros dos crons (`run-flows` y `retry-fulfillment`) también dejen de recorrer tienda por tienda. Mismo camino: Firestore → Indexes → **Add index** → Query scope **Collection group**, todo Ascending salvo donde dice Desc:
+  - `flow_runs`: `status` Asc + `next_at` Asc
+  - `charges`: `shopify_order_id` Asc + `created_at` **Descending**
+  - `fulfill_issues`: `status` Asc + `updated_at` Asc
+  (o `npx firebase-tools deploy --only firestore:indexes --project recurrentes-16fbd`, que crea los que falten). Hasta que existan, esos dos crons siguen con el recorrido de siempre; en Admin → Salud, el heartbeat de cada uno dice `mode`.
 - [ ] **Números de WhatsApp (regla tuya, 18-sept): cada 100 tiendas con WhatsApp prendido, comprá un número nuevo de afuera** (como el de Zadarma) y agregalo a la WABA. Avisame cuando llegues a ~80 tiendas con WhatsApp: ahí armo el reparto de tiendas entre números (hoy el código manda todo por el único número).
 - [ ] **Tiendanube Partners → Permisos → Cupones: leer** (`read_coupons`).
 - [ ] **Meta**: plantillas en revisión aprobadas y app En vivo (vos decís que ya está: solo confirmar que a un número que NO sea de prueba le llegue un aviso).

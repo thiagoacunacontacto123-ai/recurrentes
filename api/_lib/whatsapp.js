@@ -420,14 +420,17 @@ export async function recordWaUsage(mid, mode, { now = new Date(), type = null, 
       ...(alert ? { wa_alerts_sent: inc(1), wa_alerts_cost_usd: inc(cost) } : {}),
     }, { merge: true });
     if (platform) {
+      // Lo que falta facturar (waBilling.js) va PRIMERO: es lo que se cobra. En plan gratis,
+      // al tope se pausa WhatsApp.
+      await db().collection("merchants").doc(mid).set({ wa_unbilled_usd: inc(cost) }, { merge: true });
+      if (merchant) await checkWaFreeCap(mid, merchant, (Number(merchant.wa_unbilled_usd) || 0) + cost);
+      // Agregado del Admin (1 doc por mes para toda la plataforma): best-effort, si se
+      // traba por contención no puede frenar el cobro de arriba.
       await db().collection("admin_usage").doc(month).set({
         month, wa_sent: inc(1), wa_cost_usd: inc(cost), wa_meta_cost_usd: inc(price), updated_at: at,
         ...(alert ? { wa_alerts_sent: inc(1) } : {}),
         merchants: { [mid]: { wa_sent: inc(1), wa_cost_usd: inc(cost), wa_meta_cost_usd: inc(price), ...(alert ? { wa_alerts_sent: inc(1) } : {}) } },
-      }, { merge: true });
-      // Lo que falta facturar (waBilling.js). En plan gratis, al tope se pausa WhatsApp.
-      await db().collection("merchants").doc(mid).set({ wa_unbilled_usd: inc(cost) }, { merge: true });
-      if (merchant) await checkWaFreeCap(mid, merchant, (Number(merchant.wa_unbilled_usd) || 0) + cost);
+      }, { merge: true }).catch(e => console.warn(`[whatsapp] admin_usage ${month}:`, e.message));
     }
     return { month, cost };
   } catch (e) {

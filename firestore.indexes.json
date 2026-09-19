@@ -185,6 +185,31 @@
         { "fieldPath": "resume_at", "order": "ASCENDING" }
       ]
     }
+,
+    {
+      "collectionGroup": "flow_runs",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "next_at", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "charges",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "shopify_order_id", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "fulfill_issues",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "updated_at", "order": "ASCENDING" }
+      ]
+    }
   ],
   "fieldOverrides": []
 }

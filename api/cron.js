@@ -31,7 +31,7 @@ import { db } from "./_lib/firebase.js";
 import { syncSubscriber } from "./_lib/sync.js";
 import { isProd } from "./_lib/config.js";
 import { timingSafeEqualStr } from "./_lib/token.js";
-import { runFlowsForMerchant } from "./_lib/flows.js";
+import { runFlowsForMerchant, loadFlows, advanceRuns, collectDueRunsGlobal, scanUpcoming, upcomingScanOpen } from "./_lib/flows.js";
 import { mpCancelPreapprovalPlan, mpUpdatePreapproval, mpGetPreapproval, isMpAuthError } from "./_lib/mp.js";
 import { refreshMpTokenIfNeeded } from "./_lib/mpOauth.js";
 // ?action=health (auth propia: CRON_SECRET o admin de ADMIN_EMAILS) + heartbeat de cada cron.
@@ -446,24 +446,69 @@ async function runFlowsCron(res) {
   const start = Date.now();
   const deadline = start + 200 * 1000;
   const tot = { merchants: 0, processed: 0, sent: 0, scheduled: 0, completed: 0, exited: 0, entered: 0, errors: 0 };
+  let mode = "per-merchant";
+  const add = (r) => { for (const k of Object.keys(r)) tot[k] = (tot[k] || 0) + r[k]; };
   try {
-    const snap = await db().collection("merchants").where("flows_enabled", "==", true).get();
-    for (const m of snap.docs) {
-      if (Date.now() > deadline) break;
-      tot.merchants += 1;
-      try {
-        const r = await runFlowsForMerchant(m.id, m.data(), { deadline });
-        for (const k of Object.keys(r)) tot[k] = (tot[k] || 0) + r[k];
-      } catch (e) { tot.errors += 1; console.error(`[cron] flows ${m.id}:`, e.message); }
+    // ── MODO GLOBAL: una consulta trae las corridas vencidas de todas las tiendas ──
+    if (process.env.CRON_GLOBAL !== "0") {
+      let due = null;
+      try { due = await collectDueRunsGlobal(); }
+      catch (e) { console.warn("[cron] run-flows global no disponible (¿falta el índice flow_runs status+next_at?), recorrido por tienda:", String(e.message || e).slice(0, 220)); }
+      if (due) {
+        mode = "global";
+        const byMid = new Map();
+        for (const doc of due) {
+          const mid = doc.ref.parent.parent?.id;
+          if (!mid) continue;
+          if (!byMid.has(mid)) byMid.set(mid, []);
+          byMid.get(mid).push(doc);
+        }
+        const seen = new Set();
+        const mids = [...byMid.keys()];
+        const snaps = mids.length ? await db().getAll(...mids.map(id => db().collection("merchants").doc(id))) : [];
+        for (const m of snaps) {
+          if (Date.now() > deadline) break;
+          const md = m.exists ? m.data() : null;
+          if (!md || md.archived_at) continue;
+          seen.add(m.id);
+          try {
+            const flows = await loadFlows(m.id);
+            add(await advanceRuns(m.id, md, flows, byMid.get(m.id), { deadline }));
+          } catch (e) { tot.errors += 1; console.error(`[cron] flows ${m.id}:`, e.message); }
+        }
+        // "Próximo cobro": 5 min de cada 30, solo tiendas con ese disparador activo, rotadas.
+        if (upcomingScanOpen()) {
+          const up = await db().collection("merchants").where("flows_active_triggers", "array-contains", "upcoming_charge").get();
+          const all = up.docs, off = all.length ? new Date().getMinutes() % all.length : 0;
+          for (const m of [...all.slice(off), ...all.slice(0, off)]) {
+            if (Date.now() > deadline) break;
+            const md = m.data();
+            if (md.archived_at) continue;
+            seen.add(m.id);
+            try { tot.entered += await scanUpcoming(m.id, await loadFlows(m.id)); }
+            catch (e) { tot.errors += 1; console.warn(`[cron] flows upcoming ${m.id}:`, e.message); }
+          }
+        }
+        tot.merchants = seen.size;
+      }
     }
-    const out = { ok: true, ...tot, elapsed_ms: Date.now() - start };
+    if (mode !== "global") {
+      const snap = await db().collection("merchants").where("flows_enabled", "==", true).get();
+      for (const m of snap.docs) {
+        if (Date.now() > deadline) break;
+        tot.merchants += 1;
+        try { add(await runFlowsForMerchant(m.id, m.data(), { deadline })); }
+        catch (e) { tot.errors += 1; console.error(`[cron] flows ${m.id}:`, e.message); }
+      }
+    }
+    const out = { ok: true, mode, ...tot, elapsed_ms: Date.now() - start };
     if (tot.processed || tot.entered || tot.errors) console.log("[cron] run-flows:", JSON.stringify(out));
     await cronHeartbeat("run-flows", out);
     return res.json(out);
   } catch (e) {
     // Igual que sync-all-pending: nunca 500 (el cron sigue vivo y reintenta).
     console.error("[cron] run-flows error global:", e.message);
-    const out = { ok: false, error: e.message, ...tot, elapsed_ms: Date.now() - start };
+    const out = { ok: false, error: e.message, mode, ...tot, elapsed_ms: Date.now() - start };
     await cronHeartbeat("run-flows", out);
     return res.status(200).json(out);
   }

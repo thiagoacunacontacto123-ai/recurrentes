@@ -123,3 +123,76 @@ test("(h2) el costo no crece con las tiendas que no tienen nada que hacer", asyn
   const quietas = stats.readLog.filter(x => String(x.path).startsWith("merchants/quieta_")).length;
   assert.equal(quietas, 0, `leyó ${quietas} docs de tiendas sin nada que hacer`);
 });
+
+// ─── run-flows en modo global ────────────────────────────────────────────────
+const FLOW = { name: "Bienvenida", trigger: "activated", active: true, steps: [{ type: "email", subject: "Hola {{nombre}}", body: "Gracias por suscribirte a {{producto}}." }] };
+const waitingRun = (email, subId) => ({
+  flow_id: "f1", flow_name: FLOW.name, trigger: "activated", subscriber_id: subId, email, steps: FLOW.steps,
+  step: 0, sent: 0, status: "waiting", next_at: ago(5 * 60_000), created_at: ago(6 * 60_000), updated_at: ago(6 * 60_000),
+});
+async function seedFlows() {
+  await db().collection("merchants").doc(MID).set({ email_reply_to: "atencion@lumina.test", flows_active_triggers: ["activated"], flows_enabled: true }, { merge: true });
+  seedDoc(`merchants/${MID}/flows/f1`, FLOW);
+  W.seedSub("sub_ana", subscriber({ customer_email: "ana@cliente.test", status: "active" }));
+  seedDoc(`merchants/${MID}/flow_runs/r1`, waitingRun("ana@cliente.test", "sub_ana"));
+  // Corrida ya terminada: no tiene que volver a salir.
+  seedDoc(`merchants/${MID}/flow_runs/r_done`, { ...waitingRun("otra@cliente.test", "sub_x"), status: "completed", next_at: null });
+  // Tienda archivada con una corrida vencida: no se manda nada.
+  seedDoc("merchants/archivada/flows/f1", FLOW);
+  seedDoc("merchants/archivada/flows_enabled_marker", {});
+  seedDoc("merchants/archivada/flow_runs/r_arch", waitingRun("arch@cliente.test", "s_arch"));
+}
+
+test("(h2) run-flows global: manda el mail de la corrida vencida y saltea la tienda archivada", async () => {
+  await seedFlows();
+  const r = await run("run-flows");
+  assert.equal(r.body.ok, true);
+  assert.equal(r.body.mode, "global");
+  assert.equal(r.body.processed, 1, "solo la corrida vencida de la tienda viva");
+  assert.equal(r.body.sent, 1);
+  assert.equal(rawGet(`merchants/${MID}/flow_runs/r1`).status, "completed");
+  assert.equal(rawGet(`merchants/${MID}/flow_runs/r_done`).status, "completed");
+  assert.equal(rawGet("merchants/archivada/flow_runs/r_arch").status, "waiting", "la archivada queda como estaba");
+  const mails = W.resend.sent.filter(m => (m.to || []).includes("ana@cliente.test"));
+  assert.equal(mails.length, 1);
+  assert.equal(mails[0].subject, "Hola Ana");
+});
+
+test("(h2) run-flows con CRON_GLOBAL=0: mismo resultado por el recorrido de siempre", async () => {
+  await seedFlows();
+  process.env.CRON_GLOBAL = "0";
+  const r = await run("run-flows");
+  assert.equal(r.body.mode, "per-merchant");
+  assert.equal(r.body.sent, 1);
+  assert.equal(rawGet(`merchants/${MID}/flow_runs/r1`).status, "completed");
+});
+
+// ─── retry-fulfillment en modo global ────────────────────────────────────────
+const failedCharge = (sid) => ({
+  subscriber_id: sid, mp_payment_id: "9001", amount_ars: 12300, status: "approved",
+  shopify_order_id: null, shopify_order_status_url: null, error: "Shopify POST /orders.json: variant no longer exists", created_at: ago(20 * 60_000),
+});
+
+test("(h2) retry-fulfillment global: abre el issue del cobro sin orden y saltea la archivada", async () => {
+  delete process.env.FULFILL_RETRY_ENABLED;
+  seedDoc(`merchants/${MID}/charges/9001`, failedCharge("sub_pausa"));
+  seedDoc("merchants/archivada/charges/9001", failedCharge("s_arch"));
+  const r = await run("retry-fulfillment");
+  assert.equal(r.body.ok, true);
+  assert.equal(r.body.mode, "global");
+  assert.equal(r.body.merchants, 1);
+  assert.equal(r.body.failed_charges, 1);
+  const issue = rawGet(`merchants/${MID}/fulfill_issues/9001`);
+  assert.equal(issue?.status, "open");
+  assert.equal(rawGet("merchants/archivada/fulfill_issues/9001"), undefined);
+  assert.equal(r.body.alerts, 0, "recién detectado: todavía no avisa");
+});
+
+test("(h2) retry-fulfillment con CRON_GLOBAL=0 abre el mismo issue", async () => {
+  delete process.env.FULFILL_RETRY_ENABLED;
+  process.env.CRON_GLOBAL = "0";
+  seedDoc(`merchants/${MID}/charges/9001`, failedCharge("sub_pausa"));
+  const r = await run("retry-fulfillment");
+  assert.equal(r.body.mode, "per-merchant");
+  assert.equal(rawGet(`merchants/${MID}/fulfill_issues/9001`)?.status, "open");
+});
