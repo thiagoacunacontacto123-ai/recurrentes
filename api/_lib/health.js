@@ -114,6 +114,8 @@ export async function cronHeartbeat(action, summary = {}) {
       elapsed_ms: Number(summary.elapsed_ms) || 0,
       partial: summary.partial === true,
       errors: Number(summary.errors) || 0,
+      // Crons con modo global (sync-all-pending, run-flows, retry-fulfillment): "global" o "per-merchant".
+      ...(summary.mode ? { mode: String(summary.mode) } : {}),
       ...(ok ? { last_ok_at: at } : { last_error_at: at }),
     };
     await db().collection(HEARTBEAT_DOC[0]).doc(HEARTBEAT_DOC[1]).set({ [action]: entry, updated_at: at }, { merge: true });
