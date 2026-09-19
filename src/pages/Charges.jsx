@@ -231,7 +231,7 @@ export function ChargesPage({ shop = null }) {
           <Btn T={T} variant="secondary" size="sm" onClick={loadAll} disabled={loading} style={{ height:34 }}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>
         </>}/>
 
-      <div className="kpi-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 210px), 1fr))", gap:10, marginBottom:10 }}>
+      <div className="kpi-grid" style={{ display:"grid", gap:10, marginBottom:10 }}>
         <KpiCard T={T} hero loading={!period} label="Cobrado" value={fmtARS(k.cobrado?.value)} curr={k.cobrado?.value} prev={k.cobrado?.prev}
           hint={`Este mes ${fmtARS(thisMonth?.amount)} · vs. los ${pl} anteriores`} spark={ser.cobrado} color={T.accentSolid} valueColor={T.accent}/>
         <KpiCard T={T} hero loading={!period} label="Cobros" value={fmtN(k.cobros?.value)} curr={k.cobros?.value} prev={k.cobros?.prev}

@@ -383,7 +383,7 @@ export function SubscriptionsPage({ devMode = false, shop = null }) {
         </>}/>
 
       {/* KPIs (últimos 30 días vs los 30 anteriores) — tocás una y filtra la tabla */}
-      <div className="kpi-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 200px), 1fr))", gap:10, marginBottom:18 }}>
+      <div className="kpi-grid" style={{ display:"grid", gap:10, marginBottom:18 }}>
         <KpiCard T={T} loading={!period} label="Activas" value={fmtN(counts.active)} curr={k.activas?.value} prev={k.activas?.prev}
           hint="vs. hace 30 días" spark={ser.activas} color={T.green} onClick={() => changeStatus("active")}/>
         <KpiCard T={T} loading={!period} label="Ingreso recurrente" value={fmtARS(k.mrr?.value)} curr={k.mrr?.value} prev={k.mrr?.prev}

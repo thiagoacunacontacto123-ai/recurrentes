@@ -110,7 +110,7 @@ export function FlowsPage({ merchant, onMerchantChange }) {
 
       {err && !loading && <Callout T={T} tone="danger" title="No pudimos cargar los flujos" style={{ marginBottom:16 }} right={<Btn T={T} variant="secondary" size="sm" onClick={load}>Reintentar</Btn>}>{err}</Callout>}
 
-      <div className="kpi-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 200px), 1fr))", gap:10, marginBottom:12 }}>
+      <div className="kpi-grid" style={{ display:"grid", gap:10, marginBottom:12 }}>
         <KpiCard T={T} loading={loading && !flows.length} label="Flujos activos" value={`${active} de ${flows.length}`} color={T.accentSolid} hint={active ? "mandando mails" : "ninguno activo todavía"}/>
         <KpiCard T={T} loading={loading && !flows.length} label="Mails enviados" value={fmtN(total(flows, "sent"))} color={T.blue} hint="por todos tus flujos"/>
         <KpiCard T={T} loading={loading && !flows.length} label="En curso" value={fmtN(flows.reduce((a, f) => a + (Number(f.running) || 0), 0))} color={T.yellow} hint="esperando su próximo mail"/>

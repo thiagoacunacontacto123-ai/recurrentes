@@ -47,7 +47,7 @@ export default function ReferralsPage({ merchant }) {
         </div>
       </div>
 
-      <div className="kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 200px), 1fr))", gap: 10, marginBottom: 14 }}>
+      <div className="kpi-grid" style={{ display: "grid", gap: 10, marginBottom: 14 }}>
         <KpiCard T={T} label="Ganado en total" value={usd(data.earned_usd)} color={T.accentSolid} valueColor={T.accent} hint="15% de cada pago de tus referidos"/>
         <KpiCard T={T} label="Crédito por aplicar" value={usd(data.pending_usd)} color={T.yellow} hint={data.has_stripe_customer ? "se descuenta en tu próxima factura" : "se aplica cuando actives tu plan"}/>
         <KpiCard T={T} label="Ya descontado" value={usd(data.applied_usd)} color={T.green} hint="aplicado a tus facturas de Recurrentes"/>

@@ -179,7 +179,7 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
   return (
     <div style={{ fontFamily: "inherit", color: T.text }}>
       {/* Estado de la cuenta de un vistazo — cada tarjeta abre su sección */}
-      <div className="kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 190px), 1fr))", gap: 10, marginBottom: 20 }}>
+      <div className="kpi-grid" style={{ display: "grid", gap: 10, marginBottom: 20 }}>
         <KpiCard T={T} label="Tu plan" value={billing?.plan_label || "—"} valueColor={billing?.needs_activation ? T.yellow : T.text} color={T.accentSolid}
           hint={nSubs == null ? "Recurrentes" : `${nSubs.toLocaleString("es-AR")} suscriptor${nSubs === 1 ? "" : "es"} activo${nSubs === 1 ? "" : "s"}${billing?.needs_activation ? " · falta activarlo" : ""}`} onClick={() => go("facturacion")} />
         <KpiCard T={T} label="Conexiones" value={`${reqTotal - missing.length} de ${reqTotal}`} valueColor={missing.length ? T.red : T.text} color={missing.length ? T.red : T.green}

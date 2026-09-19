@@ -79,7 +79,7 @@ export function RetentionPage({ merchant, reloadMerchant, goTab }) {
         right={<Btn T={T} variant="secondary" size="sm" onClick={load} disabled={loading} style={{ height:34 }}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>}/>
 
       {/* KPIs de los últimos 30 días — tocás una y abre su sección */}
-      <div className="kpi-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 210px), 1fr))", gap:10, marginBottom:16 }}>
+      <div className="kpi-grid" style={{ display:"grid", gap:10, marginBottom:16 }}>
         <KpiCard T={T} hero loading={first} label="Churn · 30 días" value={`${churn.toLocaleString("es-AR", { maximumFractionDigits:1 })}%`}
           valueColor={churn > 5 ? T.red : T.text} color={T.red} spark={monthly.map(m => Number(m.cancelled) || 0)}
           hint={`${fmtN(cancelled30)} baja${cancelled30 === 1 ? "" : "s"} · línea: bajas por mes`}/>

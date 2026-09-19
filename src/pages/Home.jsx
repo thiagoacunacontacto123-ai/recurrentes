@@ -111,7 +111,7 @@ export function HomeTab({ merchant, onGo, onGoConfig, onOpenGuide }) {
         <span style={{ fontSize:15, fontWeight:800, color:T.text, letterSpacing:-0.2 }}>Métricas principales</span>
         <DSBadge T={T} color={T.textSm} size="sm">Últimos {pl}</DSBadge>
       </div>
-      <div className="kpi-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 220px), 1fr))", gap:10, marginBottom:10 }}>
+      <div className="kpi-grid" style={{ display:"grid", gap:10, marginBottom:10 }}>
         <KpiCard T={T} hero loading={loading && !p} label="Ingreso recurrente" value={fmtARS(k.mrr?.value ?? s.mrr)} curr={k.mrr?.value} prev={k.mrr?.prev}
           hint="MRR: lo que cobrás por mes" spark={ser.mrr} color={T.accentSolid} valueColor={T.accent} onClick={() => onGo?.("analiticas")}/>
         <KpiCard T={T} hero loading={loading && !p} label="Cobrado" value={fmtARS(k.cobrado?.value)} curr={k.cobrado?.value} prev={k.cobrado?.prev}
@@ -121,7 +121,7 @@ export function HomeTab({ merchant, onGo, onGoConfig, onOpenGuide }) {
         <KpiCard T={T} hero loading={loading && !p} label="Altas" value={fmtN(k.nuevas?.value)} curr={k.nuevas?.value} prev={k.nuevas?.prev}
           hint={`Suscripciones nuevas · ${prevHint}`} spark={ser.nuevas} color={T.accentSolid}/>
       </div>
-      <div className="kpi-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 200px), 1fr))", gap:10, marginBottom:18 }}>
+      <div className="kpi-grid" style={{ display:"grid", gap:10, marginBottom:18 }}>
         <KpiCard T={T} loading={loading && !p} label="Bajas" value={fmtN(k.bajas?.value)} curr={k.bajas?.value} prev={k.bajas?.prev} invert
           hint="Cancelaciones" spark={ser.bajas} color={T.red} onClick={() => onGo?.("retencion")}/>
         <KpiCard T={T} loading={loading && !p} label="Pagos fallidos" value={fmtN(k.fallidos?.value)} curr={k.fallidos?.value} prev={k.fallidos?.prev} invert

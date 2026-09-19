@@ -92,7 +92,7 @@ export function CustomerPortalPage({ merchant, reloadMerchant, goTab }) {
     <div>
       <PageHeader T={T} title="Portal del cliente" subtitle="Lo que tus clientes pueden hacer solos desde el link que reciben por mail, y cómo se ve."/>
 
-      <div className="kpi-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 200px), 1fr))", gap:10, marginBottom:16 }}>
+      <div className="kpi-grid" style={{ display:"grid", gap:10, marginBottom:16 }}>
         <KpiCard T={T} label="Acciones habilitadas" value={`${enabled.length} de ${actions.length}`} color={T.accentSolid}
           hint={enabled.length ? enabled.map(a => a.title.split(" ")[0].toLowerCase()).join(" · ") : "el cliente no puede hacer nada solo"} onClick={() => goSec("acciones")}/>
       </div>

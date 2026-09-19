@@ -247,7 +247,7 @@ export function PlansPage({ merchant, onMerchantChange, forceSub = null }) {
       ) : (
         <>
           {/* KPIs */}
-          <div className="kpi-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 200px), 1fr))", gap:10, marginBottom:14 }}>
+          <div className="kpi-grid" style={{ display:"grid", gap:10, marginBottom:14 }}>
             <KpiCard T={T} label="Planes activos" value={fmtN(activeCount)} hint={inactiveCount ? `${inactiveCount} inactivo${inactiveCount === 1 ? "" : "s"}` : "todos a la venta"} color={T.accentSolid}
               onClick={() => setFilter("active")}/>
             <KpiCard T={T} label="Suscripciones activas" value={fmtN(activeSubs.length)} hint={`en ${Object.values(byPlan).filter(r => r.active).length} plan${Object.values(byPlan).filter(r => r.active).length === 1 ? "" : "es"}`} color={T.green}/>
