@@ -441,7 +441,7 @@ export function WhatsAppSection({ T }) {
 // ─── 4. Y además (funciones que ya existen) ──────────────────────────────
 export function ExtrasSection({ T }) {
   const items = [
-    ["M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82zM7 7h.01", "Cupones de descuento", "Porcentaje o monto fijo, y descuento solo en el primer cobro."],
+    ["M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82zM7 7h.01", "Cupones de descuento", "Porcentaje o monto fijo, para toda la suscripción."],
     ["M4 4h16v16H4zM4 9h16M9 9v11", "10 diseños de widget", "Con tu color, tus esquinas y tus textos."],
     ["M22 12h-6l-2 3h-4l-2-3H2", "Flujos de mails automáticos", "Checkout sin pagar, aviso de próximo cobro, pago rechazado y win-back, salen solos y con tu marca."],
     ["M18 20V10M12 20V4M6 20v-6", "Embudo a Meta", "Carrito, pago iniciado y primera compra por la API de Conversiones."],
@@ -612,7 +612,7 @@ const FAQS = [
   ["¿Puedo vender sin tienda online?", "Sí. Cada plan tiene su link: lo compartís por Instagram, WhatsApp o tu web, y el cliente se suscribe desde ahí."],
   ["¿Cuánto cuesta Recurrentes?", `Es gratis hasta ${FREE_SUBSCRIBERS} suscriptores activos. Después pagás según cuántos clientes tenés cobrando, desde USD 49 por mes, con todo incluido.`],
   ["¿Qué cuenta como suscriptor activo?", "Un cliente con su suscripción cobrando, o con un pago que Mercado Pago está reintentando. Los pausados y cancelados no cuentan."],
-  ["¿Puedo dar descuentos?", "Sí: descuento por suscribirse, packs con mejor precio, cupones y descuento solo en el primer cobro."],
+  ["¿Puedo dar descuentos?", "Sí: descuento por suscribirse, packs con mejor precio y cupones que valen para toda la suscripción."],
   ["¿Mercado Pago me cobra comisión?", "Sí, la comisión habitual de Mercado Pago por cada cobro, como en cualquier venta. Recurrentes no suma comisión por cobro: pagás un plan según tus suscriptores."],
   ["¿Qué pasa con los envíos?", "Cada cobro crea la orden con la dirección y el método de envío que eligió tu cliente, igual que una venta normal. Si cambia de dirección, lo hace desde su portal y el próximo pedido ya sale con la nueva."],
 ];

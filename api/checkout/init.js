@@ -565,7 +565,7 @@ export default async function handler(req, res) {
         subtotal = Math.max(0, subtotal - off);
       }
       discountCodeApplied = rawCode;
-      discountFirstOnly = hit.first_charge_only === true;
+      discountFirstOnly = false; // 19-sept-2026 (Thiago): el descuento vale para toda la suscripción; nunca se reprecia el preapproval
     } else if (hit && hit.recovery_only) {
       console.warn("[checkout/init] código recovery_only sin rc:", rawCode, merchantId);
     }

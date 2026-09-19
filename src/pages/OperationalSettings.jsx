@@ -83,7 +83,7 @@ export function DiscountCodesCard({ merchant, onChange }) {
 
   return (
     <Panel T={T} title="Códigos de descuento"
-      sub={<>El cliente los escribe en el checkout de suscripción. <strong style={{ color:T.textMd }}>Solo 1er cobro</strong>: las renovaciones se cobran a precio pleno.{codes.length ? ` · ${active} activo${active === 1 ? "" : "s"}` : ""}</>}
+      sub={<>El cliente lo escribe en el checkout de suscripción y el descuento <strong style={{ color:T.textMd }}>vale para todos los cobros</strong>, mientras dure la suscripción.{codes.length ? ` · ${active} activo${active === 1 ? "" : "s"}` : ""}</>}
       right={<>
         {dirty && <Dirty T={T}/>}
         {store && <Btn T={T} variant="secondary" size="sm" type="button" onClick={importFromStore} disabled={importing || dirty} title={dirty ? "Guardá o descartá los cambios antes de traer los de la tienda" : `Copia los códigos de descuento activos de ${store} (los que ya están no se tocan)`}>{importing ? <><Spinner size={12} color={T.accent}/> Trayendo…</> : `⤓ Traer los de ${store}`}</Btn>}
@@ -100,7 +100,6 @@ export function DiscountCodesCard({ merchant, onChange }) {
           </select>
           <input type="number" min="0" value={c.value} onChange={e=>upd(i, "value", e.target.value)} aria-label="Valor" style={{ ...inl, flex:"0 1 80px" }}/>
           <label style={{ display:"flex", gap:5, alignItems:"center", whiteSpace:"nowrap", fontSize:DS.font.sm, color:T.textMd, cursor:"pointer" }}><input type="checkbox" style={chk} checked={c.active !== false} onChange={e=>upd(i, "active", e.target.checked)}/>Activo</label>
-          <label style={{ display:"flex", gap:5, alignItems:"center", whiteSpace:"nowrap", fontSize:DS.font.sm, color:T.textMd, cursor:"pointer" }}><input type="checkbox" style={chk} checked={c.first_charge_only === true} onChange={e=>upd(i, "first_charge_only", e.target.checked)}/>Solo 1er cobro</label>
           <span style={{ marginLeft:"auto" }}><XBtn T={T} onClick={() => { setCodes(cs => cs.filter((_, j) => j !== i)); setDirty(true); }} title={`Quitar ${c.code || "código"}`}/></span>
         </div>
       ))}

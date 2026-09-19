@@ -172,7 +172,7 @@ async function handleDiscount(req, res) {
     const codes = Array.isArray(snap.data().discount_codes) ? snap.data().discount_codes : [];
     const hit = codes.find(c => String(c.code || "").trim().toUpperCase() === code && c.active !== false);
     if (!hit || (hit.recovery_only && !viaRecovery)) return res.json({ valid: false });
-    return res.json({ valid: true, code, type: hit.type || "percent", value: parseFloat(hit.value) || 0, first_charge_only: hit.first_charge_only === true });
+    return res.json({ valid: true, code, type: hit.type || "percent", value: parseFloat(hit.value) || 0, first_charge_only: false });
   } catch (e) {
     console.error("[public/discount] error:", e.message);
     return res.status(500).json({ error: "No se pudo validar el código" });
