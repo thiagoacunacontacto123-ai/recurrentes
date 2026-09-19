@@ -434,7 +434,7 @@ export async function emailStoreTransfer({ to, fromEmail, storeName, acceptUrl, 
   const vence = fmtDay(expiresAt);
   const body = `
     <p>${who ? `<b>${escapeHtml(who)}</b> te quiere pasar` : "Te quieren pasar"} la tienda <b>${escapeHtml(store)}</b> en Recurrentes.</p>
-    <p>Si aceptás, la tienda pasa a ser tuya con todo lo que tiene: planes, suscriptores, cobros y las conexiones con Shopify y Mercado Pago.</p>
+    <p>Si aceptás, la tienda pasa a ser tuya con todo lo que tiene: planes, suscriptores, cobros y las conexiones con la tienda online y la pasarela.</p>
     <p>Para aceptar tenés que entrar con <b>este mismo email</b>: <b>${escapeHtml(to)}</b>. Si todavía no tenés cuenta, la creás desde el link.</p>
     ${vence ? `<p>El link vence el <b>${escapeHtml(vence)}</b>.</p>` : ""}
     <p style="margin-top:14px;color:#6b7280;font-size:13px;">Si no esperabas este mail, ignoralo: no pasa nada hasta que aceptes.</p>`;
@@ -531,7 +531,7 @@ export async function emailOrderFailedAlert({ to, merchant, merchantId, customer
     ? "Un reintento automático se cortó a mitad. Antes de reintentar, fijate en Shopify si la orden ya existe (buscá el pago en las notas del pedido)."
     : retrying
       ? "Vamos a reintentar solos durante las próximas horas. Si el motivo es de configuración (Shopify desconectado, producto o variante borrados), arreglalo y tocá «Reintentar orden» en Cobros."
-      : "Arreglá el motivo (por ejemplo, reconectá Shopify o revisá que el producto exista) y tocá «Reintentar orden» en Cobros.";
+      : "Arreglá el motivo (por ejemplo, reconectá tu tienda online o revisá que el producto exista) y tocá «Reintentar orden» en Cobros.";
   const body = platform ? `
     <p>La tienda <b>${escapeHtml(store)}</b> tiene un cobro aprobado sin orden.</p>
     <table role="presentation" cellpadding="0" cellspacing="0" style="font-size:13px;margin:8px 0 14px;">

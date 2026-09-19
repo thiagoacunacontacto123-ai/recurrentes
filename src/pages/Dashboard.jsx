@@ -25,6 +25,7 @@ import { CustomerPortalPage } from "./CustomerPortal.jsx";
 import { FlowsPage } from "./Flows.jsx";
 import { emitTabShown } from "../lib/tabs.js";
 import { OwnerInfoModal } from "./OwnerInfo.jsx";
+import { StoreNameModal, storeNameAsked } from "./StoreName.jsx";
 import { readPendingSignup, clearPendingSignup } from "../lib/signup.js";
 import { mpOauthReturnToast } from "../lib/mpOauth.js";
 import { AdminPage, AdminViewBanner } from "./Admin.jsx";
@@ -202,6 +203,19 @@ export default function Dashboard({ user, onLogout }) {
   // Datos del paso 1 del registro (nombre, WhatsApp, email de contacto): se mandan una vez
   // que hay sesión. Si faltan y no hay nada pendiente, se piden con OwnerInfoModal.
   const [ownerAsk, setOwnerAsk] = useState(false);
+  // "¿Cómo se llama tu tienda?" una sola vez, apenas entra una cuenta nueva sin nombre
+  // (Thiago, 19-sept). Después del cartel de datos del dueño; si lo cierra queda "Mi tienda".
+  const [storeNameAsk, setStoreNameAsk] = useState(false);
+  useEffect(() => {
+    if (!merchant?.id || loading || ownerAsk) return;
+    if (merchant.role === "member" || merchant.admin_view) return;
+    if (merchant.store_name || merchant.shopify_shop || merchant.tiendanube_store_name) return;
+    const ageDays = (Date.now() - (Date.parse(merchant.created_at || "") || 0)) / 86400e3;
+    if (!(ageDays >= 0 && ageDays < 14)) return;
+    if (storeNameAsked(merchant.id)) return;
+    setStoreNameAsk(true);
+    // eslint-disable-next-line
+  }, [merchant?.id, loading, ownerAsk]);
   useEffect(() => {
     if (!merchant) return;
     const pending = readPendingSignup();
@@ -446,6 +460,8 @@ export default function Dashboard({ user, onLogout }) {
         </Modal>
       )}
       {!loading && merchant?.billing && !merchant?.admin_view && <PlanLimitModal T={T} billing={merchant.billing} merchantId={merchant.id} onGo={()=>goConfig("facturacion")}/>}
+      {storeNameAsk && !ownerAsk && merchant && <StoreNameModal T={T} merchant={merchant} onClose={() => setStoreNameAsk(false)}
+        onSaved={(name) => { setStoreNameAsk(false); setMerchant(m => m ? { ...m, store_name: name } : m); reloadWorkspace?.(); }}/>}
       {ownerAsk && merchant && <OwnerInfoModal T={T} user={user} merchant={merchant} onSaved={(d) => { setOwnerAsk(false); setMerchant(m => m ? { ...m, owner_info_missing: false, owner_name: d.owner_name, owner_whatsapp: d.owner_whatsapp, contact_email: d.contact_email } : m); }}/>}
       <ToastContainer T={T}/>
     </div>

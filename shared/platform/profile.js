@@ -202,8 +202,10 @@ export function merchantProfile(m) {
   const paymentConnected = paymentProvider === "mercadopago" ? !!doc.mp_access_token : false;
 
   const missing = [];
-  if (!channelConnected) missing.push(channelInfo.label);
-  if (!paymentConnected) missing.push(providerInfo.label);
+  // Sin conectar, hablamos en genérico (Thiago, 19-sept): la app no es "Shopify + MP",
+  // es tienda online + pasarela. Conectado, sí se nombra lo que hay.
+  if (!channelConnected) missing.push("tu tienda online");
+  if (!paymentConnected) missing.push("tu pasarela");
 
   return {
     businessType,

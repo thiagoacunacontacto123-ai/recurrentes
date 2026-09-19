@@ -104,7 +104,7 @@ export function TransferStoreModal({ T, store, onClose, onDone }) {
         <ul style={{ margin: "4px 0 0", paddingLeft: 18, lineHeight: 1.6 }}>
           <li>La tienda pasa a ser suya con todo: planes, suscriptores, cobros, historial y el plan de Recurrentes.</li>
           <li>Tus suscriptores no notan nada: el widget y los cobros siguen funcionando igual.</li>
-          <li>Las conexiones con Shopify y Mercado Pago quedan como están. <b>Si el Mercado Pago conectado es tuyo, la plata de los cobros sigue entrando a tu cuenta</b> hasta que la otra persona conecte el suyo.</li>
+          <li>Las conexiones con la tienda online y la pasarela quedan como están. <b>Si la pasarela conectada es tuya, la plata de los cobros sigue entrando a tu cuenta</b> hasta que la otra persona conecte el suyo.</li>
           <li>El resto del equipo sigue igual.</li>
           <li>Tiene 7 días para aceptar. Hasta entonces la podés cancelar.</li>
         </ul>
@@ -258,7 +258,7 @@ export function TransferAcceptPage({ user, authReady }) {
     <P><b style={{ color: T.text }}>{from}</b> te quiere transferir esta tienda de Recurrentes. Si aceptás:</P>
     <ul style={{ margin: "8px 0 14px", paddingLeft: 18, fontSize: 13, color: T.textMd, lineHeight: 1.65 }}>
       <li>Pasa a ser tuya con sus planes, suscriptores, cobros y su plan de Recurrentes.</li>
-      <li>Las conexiones con Shopify y Mercado Pago quedan como están. Si el Mercado Pago no es tuyo, conectá el tuyo para que los cobros entren a tu cuenta.</li>
+      <li>Las conexiones con la tienda online y la pasarela quedan como están. Si la pasarela no es tuya, conectá la tuya para que los cobros entren a tu cuenta.</li>
       <li>{info.keep_access ? `${from} sigue en el equipo como miembro. Lo podés sacar cuando quieras desde Configuración → Equipo.` : `${from} deja de tener acceso.`}</li>
       <li>El resto del equipo de la tienda sigue igual.</li>
     </ul>

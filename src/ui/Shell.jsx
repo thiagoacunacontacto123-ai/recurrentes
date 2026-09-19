@@ -239,7 +239,7 @@ export function NewStoreModal({T, onClose, onCreate}) {
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
           <div>
             <div style={{fontSize:17,fontWeight:700,color:T.text}}>Nueva tienda</div>
-            <div style={{fontSize:11,color:T.textSm,marginTop:2}}>Arranca vacía: conectás su Shopify y Mercado Pago desde Integraciones. Mismo login.</div>
+            <div style={{fontSize:11,color:T.textSm,marginTop:2}}>Arranca vacía: conectás su tienda online y su pasarela desde Integraciones. Mismo login.</div>
           </div>
           <ModalCloseBtn T={T} onClick={onClose} disabled={saving} /></div>
 
@@ -334,7 +334,7 @@ export function ManageStoreModal({T, store, totalStores, onClose, onSave, onDele
             ) : (
               <div style={{background:T.red+"10",border:`1px solid ${T.red}33`,borderRadius:10,padding:"12px 14px",boxShadow:`0 0 0 1px ${T.red}18, 0 4px 12px ${T.red}14`}}>
                 <div style={{fontSize:12,color:T.text,fontWeight:700,marginBottom:4}}>¿Eliminar la tienda "{store.name}"?</div>
-                <div style={{fontSize:11.5,color:T.textMd,lineHeight:1.5,marginBottom:8}}>Se borran sus planes, suscriptores, cobros y las vinculaciones con Shopify y Mercado Pago. Los cobros recurrentes de esta tienda dejan de ejecutarse.{store.is_primary&&totalStores>1?" Tu login sigue igual; pasás a otra de tus tiendas.":""}</div>
+                <div style={{fontSize:11.5,color:T.textMd,lineHeight:1.5,marginBottom:8}}>Se borran sus planes, suscriptores, cobros y las vinculaciones con la tienda online y la pasarela. Los cobros recurrentes de esta tienda dejan de ejecutarse.{store.is_primary&&totalStores>1?" Tu login sigue igual; pasás a otra de tus tiendas.":""}</div>
                 <div style={{display:"flex",gap:6}}>
                   <button onClick={()=>setConfirmDel(false)} disabled={saving} style={{...BtnSecondary(T),flex:1,padding:"7px",fontSize:11,borderRadius:8,justifyContent:"center"}}>Cancelar</button>
                   <button onClick={handleDelete} disabled={saving} style={{...BtnDanger(T),flex:1,padding:"7px",fontSize:11,borderRadius:8,justifyContent:"center",background:T.red,color:"#fff",boxShadow:`0 2px 12px ${T.red}55`}}>{saving?"Borrando...":"Sí, borrar"}</button>

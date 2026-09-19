@@ -160,7 +160,7 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
   ];
   const HEAD = {
     cuenta:        ["Cuenta", "Tu nombre, tu foto y tu acceso a Recurrentes: email de inicio de sesión, contraseña y eliminación de la cuenta."],
-    tiendas:       ["Tiendas", "Un mismo login puede manejar varias tiendas. Cada tienda tiene su propia conexión a Shopify y Mercado Pago, sus planes y sus suscriptores. Abajo, los datos de la tienda activa."],
+    tiendas:       ["Tiendas", "Un mismo login puede manejar varias tiendas. Cada tienda tiene su propia tienda online, su pasarela, sus planes y sus suscriptores. Abajo, los datos de la tienda activa."],
     equipo:        ["Equipo", "Invitá a gente de tu equipo con su propio login. Ven solo las secciones que les habilites."],
     avisos:        ["Avisos para vos", "Te avisamos por mail (y por WhatsApp si lo prendés) cuando un cliente se suscribe, pausa, cancela o le rechazan el pago de una renovación."],
     integraciones: ["Integraciones", withStore
@@ -384,7 +384,7 @@ function CuentaSection({ T, DS, user, merchant, toast, reloadMerchant }) {
         {!showEliminar ? (
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 220, fontSize: DS.font.md, color: T.textMd, lineHeight: 1.5 }}>
-              Elimina tu login y <strong style={{ color: T.text }}>todas tus tiendas</strong>: planes, suscriptores, historial de cobros y las conexiones a Shopify y Mercado Pago. Las suscripciones ya activas siguen cobrándose en tu cuenta de MP; pausalas antes si no querés eso.
+              Elimina tu login y <strong style={{ color: T.text }}>todas tus tiendas</strong>: planes, suscriptores, historial de cobros y las conexiones a la tienda online y la pasarela. Las suscripciones ya activas siguen cobrándose en tu cuenta de MP; pausalas antes si no querés eso.
             </div>
             <Btn T={T} variant="danger" onClick={() => setShowEliminar(true)}>Eliminar mi cuenta</Btn>
           </div>
@@ -459,7 +459,7 @@ function TiendasSection({ T, DS, user, merchant, workspace, reloadMerchant, toas
         try { api.setActiveMerchantId?.(user?.uid, id); } catch (_) {}
       }
       await reloadMerchant?.();
-      toast(`Tienda "${name}" creada. Conectá su Shopify y Mercado Pago desde Configuración → Integraciones.`, "success", 6000);
+      toast(`Tienda "${name}" creada. Conectá su tienda online y su pasarela desde Configuración → Integraciones.`, "success", 6000);
       return true;
     } catch (e) { toast("No se pudo crear: " + e.message, "error"); return false; }
   }
@@ -524,7 +524,7 @@ function TiendasSection({ T, DS, user, merchant, workspace, reloadMerchant, toas
           })}
         </div>
         <div style={{ fontSize: DS.font.sm, color: T.textSm, marginTop: 10, lineHeight: 1.5 }}>
-          Nombre, color y foto se editan desde "Gestionar" (lo mismo que ves en el selector del menú). Cada tienda nueva arranca vacía: conectá su Shopify y Mercado Pago desde Configuración → Integraciones.
+          Nombre, color y foto se editan desde "Gestionar" (lo mismo que ves en el selector del menú). Cada tienda nueva arranca vacía: conectá su tienda online y su pasarela desde Configuración → Integraciones.
         </div>
       </Panel>
 
