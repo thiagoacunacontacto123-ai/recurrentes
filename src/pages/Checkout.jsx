@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { resolvePack } from "../../shared/bundle/viewmodel.js";
+import { AppLoader } from "../ui/components.jsx";
 
 // Checkout propio de Recurrentes (hosteado). Dos entradas:
 //   · Link de suscripción (negocios sin tienda: servicios, digitales, venta por link):
@@ -308,7 +309,8 @@ export default function Checkout() {
     opt: { color: "#aaa", fontWeight: 400 },
   };
 
-  if (loading) return <div style={{ ...st.page, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ color: "#777", fontSize: 14 }}>Cargando…</div></div>;
+  // Misma animación de carga que el tablero (logo girando), Thiago 19-sept.
+  if (loading) return <div style={{ ...st.page, display: "flex", alignItems: "center", justifyContent: "center" }}><AppLoader T={{ textSm: "#777" }} text="Preparando tu suscripción…" minHeight="70vh"/></div>;
   if (loadErr) return <div style={{ ...st.page, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ ...st.card, maxWidth: 420, textAlign: "center" }}><div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Ups</div><div style={{ fontSize: 13, color: "#666", lineHeight: 1.5 }}>{loadErr}</div></div></div>;
 
   const freqTxt = freqText(pack ? pack.freqDays : (freqParam || plan.frequency_days));
