@@ -115,8 +115,8 @@ export default function BusinessProfileSection({ merchant, onChange, compact = f
     onSaved?.();
   }
 
-  const channels = Object.values(CHANNELS).filter(c => c.types.includes(type));
-  const providers = Object.values(PAYMENT_PROVIDERS);
+  const channels = Object.values(CHANNELS).filter(c => c.status !== "retired" && c.types.includes(type));
+  const providers = Object.values(PAYMENT_PROVIDERS).filter(p => p.status !== "retired");
   const soon = <DSBadge T={T} color={T.textSm} size="sm">Próximamente</DSBadge>;
 
   const typePicker = (

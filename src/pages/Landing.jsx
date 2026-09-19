@@ -26,14 +26,11 @@ const FLOW_STORES = [
   { n:"Tu propia web", s:"live" },
   { n:"WooCommerce", d:null, s:"soon" },
   { n:"Empretienda", s:"soon" },
-  { n:"Impultienda", s:"soon" },
   { n:"VTEX", s:"soon" },
 ];
 const FLOW_PAYMENTS = [
   { n:"Mercado Pago", s:"live" },
   { n:"Mobbex", s:"soon" },
-  { n:"Stripe", s:"soon" },
-  { n:"Whop", s:"soon" },
 ];
 // Dos ítems, no cuatro (Thiago, 18-sept): la suscripción cobrada y creada en la
 // tienda, y la confirmación al cliente. Más aire abajo del panel de conectores.

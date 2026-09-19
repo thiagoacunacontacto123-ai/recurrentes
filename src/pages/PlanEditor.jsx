@@ -397,7 +397,7 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
           {/* ─── Entrega digital (negocios sin envío: digitales, servicios) ─── */}
           {showDelivery && (
             <FormSection T={T} title="Qué recibe tu cliente">
-              <div style={{ ...small, marginBottom:10 }}>Pegá el link a tu curso, ebook, carpeta de Drive o área de {profile.vocab.customers}. Se lo mandamos por mail apenas se cobra la suscripción.</div>
+              <div style={{ ...small, marginBottom:10 }}>Pegá el link a tu contenido, carpeta de Drive o área de {profile.vocab.customers}. Se lo mandamos por mail apenas se cobra la suscripción.</div>
               <CheckLine T={T} checked={ddEnabled} onChange={(v)=>{ setDdTouched(true); setDdEnabled(v); }} style={{ marginBottom:12, color:T.text }}>Mandar el acceso por mail</CheckLine>
               <Field T={T} label="Link de acceso">
                 <input value={ddUrl} inputMode="url" onChange={e=>{ const v = e.target.value; setDdUrl(v); if (!ddTouched && v.trim()) setDdEnabled(true); }} style={iS} placeholder="https://drive.google.com/…"/>

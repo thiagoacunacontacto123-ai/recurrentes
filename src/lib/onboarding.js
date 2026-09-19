@@ -74,7 +74,7 @@ export const STEP_ICONS = {
 // Ejemplo de plan según el tipo de negocio (textos del onboarding y del editor).
 export function planExample(profile) {
   if (profile?.businessType === "service") return "Pase libre mensual";
-  if (profile?.businessType === "digital") return "Club de lectura: un ebook por mes";
+  if (profile?.businessType === "digital") return "Suscripción mensual";
   return "Café de especialidad cada 15 días";
 }
 

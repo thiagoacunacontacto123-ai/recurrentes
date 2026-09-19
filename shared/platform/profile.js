@@ -32,12 +32,15 @@ export const BUSINESS_TYPES = {
       next: "Próximo envío",
     },
   },
+  // Retirado el 19-sept-2026 (Thiago): una suscripción digital no necesita órdenes nuevas,
+  // así que Recurrentes no aporta nada. Queda en el modelo por compatibilidad, no se ofrece.
   digital: {
     id: "digital",
+    retired: true,
     label: "Productos digitales",
     short: "Digitales",
     emoji: "📚",
-    desc: "Ebooks, cursos, plantillas, audios o contenido exclusivo. Sin envío.",
+    desc: "Contenido sin envío.",
     shipping: false,
     vocab: {
       item: "producto digital", items: "productos digitales",
@@ -84,11 +87,11 @@ export const CHANNELS = {
     packs: true,     // el selector de packs; en Tiendanube el CTA de suscripción va al checkout de Recurrentes con la cantidad del pack y la compra única postea a /comprar/ como el tema
     desc: "Tus productos de Tiendanube como suscripción, con una orden por cobro.",
   },
-  impultienda: {
+  impultienda: { // retirado 19-sept-2026 (solo digitales): no se muestra en ningún lado
     id: "impultienda",
     label: "Impultienda",
     emoji: "📖",
-    status: "soon",
+    status: "retired",
     types: ["digital"],
     catalog: true, orders: true, widget: true,
     desc: "Tu tienda de ebooks: cada cobro libera el acceso al contenido.",
@@ -124,14 +127,16 @@ export const PAYMENT_PROVIDERS = {
     region: "Argentina",
     desc: "Suscripciones con tarjeta guardada; ya la usan tiendas Shopify y Tiendanube.",
   },
+  // Stripe y Whop (cobro a compradores del exterior, digitales): retirados el 19-sept-2026.
+  // Recurrentes cobra en pesos con Mercado Pago (Mobbex en camino). Quedan por compatibilidad.
   stripe: {
     id: "stripe",
     label: "Stripe",
     emoji: "🌎",
-    status: "soon",
+    status: "retired",
     currency: "USD",
     region: "Exterior (USD)",
-    desc: "Para vender afuera en dólares (ebooks, cursos, digitales). Se usa con una cuenta Stripe fuera de Argentina, por ejemplo una empresa en EE.UU.",
+    desc: "Cobros en dólares a compradores del exterior.",
   },
   // Whop: API con planes recurrentes, webhooks y cuentas conectadas. Encaja con
   // digitales vendidos al exterior en USD (Impultienda); no cobra en pesos a
@@ -140,10 +145,10 @@ export const PAYMENT_PROVIDERS = {
     id: "whop",
     label: "Whop",
     emoji: "🎟️",
-    status: "soon",
+    status: "retired",
     currency: "USD",
     region: "Exterior",
-    desc: "Membresías y productos digitales cobrados en dólares a compradores de afuera.",
+    desc: "Membresías cobradas en dólares a compradores de afuera.",
   },
 };
 

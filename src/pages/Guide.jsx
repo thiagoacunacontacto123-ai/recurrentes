@@ -20,11 +20,9 @@ export const GUIDE_SECTIONS = [
   // 18-sept: fuera "Pegar el snippet" (vive en Tienda online; Tiendanube no lo tiene),
   // "Probar" y "Tienda y envíos". Las secciones viejas siguen abajo por si algún link
   // las abre, pero no se muestran como pestaña.
-  { id:"inicio",  label:"Empezar" },
-  { id:"shopify", label:"Tienda online" },
-  { id:"mp",      label:"Pasarela" },
-  { id:"planes",  label:"Planes" },
-  { id:"diseno",  label:"Widget" },
+  // 19-sept (Thiago): Ayuda = solo Preguntas. Tienda y pasarela se conectan en Integraciones,
+  // planes y widget tienen su propia pantalla. Las secciones viejas quedan en el código
+  // por si algún link viejo las abre (#/dashboard/guia?s=…), pero no se muestran.
   { id:"faq",     label:"Preguntas" },
 ];
 
@@ -39,7 +37,7 @@ function readHashSec() {
 export default function GuidePage({ merchant, goTab, embedded = false, initial }) {
   const T = useT();
   const onb = useOnb();
-  const [sec, setSec] = useState(() => initial || readHashSec() || "inicio");
+  const [sec, setSec] = useState(() => initial || readHashSec() || "faq");
   useEffect(() => {
     const onHash = () => { const s = readHashSec(); if (s) setSec(s); };
     window.addEventListener("hashchange", onHash);
@@ -59,17 +57,19 @@ export default function GuidePage({ merchant, goTab, embedded = false, initial }
   const Body = ({
     inicio: SecInicio, shopify: SecTiendaOnline, mp: SecMp, planes: SecPlanes, diseno: SecDiseno,
     snippet: SecSnippet, probar: SecProbar, tienda: SecTienda, faq: SecFaq,
-  })[sec] || SecInicio;
+  })[sec] || SecFaq;
 
   return (
     <div style={{ fontFamily:"inherit", color:T.text }}>
       {!embedded && (
-        <PageHeader T={T} title="Guía" subtitle="Todo lo que necesitás para dejar Recurrentes andando en tu tienda, paso a paso y sin salir de la app."
+        <PageHeader T={T} title="Guía" subtitle="Preguntas frecuentes y soporte por WhatsApp."
           right={<a href={WHATSAPP_SOPORTE} target="_blank" rel="noopener noreferrer" style={{ ...btnLink(T), textDecoration:"none" }}>💬 Soporte por WhatsApp</a>}/>
       )}
-      <div style={{ marginBottom:DS.sp.lg, overflowX:"auto" }} className="no-scrollbar">
-        <SubTabs T={T} tabs={GUIDE_SECTIONS} active={sec} onChange={go}/>
-      </div>
+      {GUIDE_SECTIONS.length > 1 && (
+        <div style={{ marginBottom:DS.sp.lg, overflowX:"auto" }} className="no-scrollbar">
+          <SubTabs T={T} tabs={GUIDE_SECTIONS} active={sec} onChange={go}/>
+        </div>
+      )}
       <div className="gh-accordion" key={sec}>
         <Body {...ctx}/>
       </div>

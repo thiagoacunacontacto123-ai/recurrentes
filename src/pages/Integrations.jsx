@@ -11,7 +11,6 @@ import { MP_RECONNECT_COPY, MP_LAST_ERROR_COPY } from "../lib/mpOauth.js";
 import { CHANNELS, PAYMENT_PROVIDERS, merchantProfile, channelAvailable } from "../../shared/platform/profile.js";
 import { ShopifyConnectSteps, ShopifyTroubleshoot, ShopifyScopeNotice, TutorialVideo, shopifyCredsWarning } from "./ShopifyConnect.jsx";
 import { WhatsAppRow } from "./WhatsAppIntegration.jsx";
-import { UsdProviderRows } from "./UsdProviders.jsx";
 
 // ─── Integraciones (Configuración → Integraciones) — estilo Growith ──────
 // Una tarjeta con filas agrupadas (Tienda · Pasarelas · Publicidad · Emails):
@@ -420,11 +419,11 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
   // Lo que viene (visible, no elegible).
   // Una tienda a la vez: con una plataforma conectada, las otras no se muestran.
   const storeConnected = shopifyOk || tnOk;
-  const soonChannels = storeConnected ? [] : Object.values(CHANNELS).filter(c => !channelAvailable(c.id, m) && c.id !== profile.channel && c.types.includes(profile.businessType));
+  const soonChannels = storeConnected ? [] : Object.values(CHANNELS).filter(c => c.status !== "retired" && !channelAvailable(c.id, m) && c.id !== profile.channel && c.types.includes(profile.businessType));
   // Tiendanube habilitada pero no es el canal elegido: fila opcional para conectarla.
   // Sin tienda conectada las dos filas dicen "Necesaria": el comerciante conecta UNA de las dos (Thiago, 18-sept).
   const tnOptional = tnEnabled && !shopifyOk && profile.channel !== "tiendanube" && CHANNELS.tiendanube.types.includes(profile.businessType);
-  const soonProviders = Object.values(PAYMENT_PROVIDERS).filter(p => p.status !== "available" && !(p.id === "stripe" && m.stripe_enabled) && !(p.id === "whop" && m.whop_enabled));
+  const soonProviders = Object.values(PAYMENT_PROVIDERS).filter(p => p.status === "soon");
   const storeRequired = profile.channel === "shopify" || profile.channel === "tiendanube";
   const reqTotal = storeRequired ? 2 : 1;
   const reqOk = (storeRequired ? Number(profile.connected.channel) : 0) + Number(mpOk);
@@ -525,7 +524,6 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
         {!mpOk && <ReuseMpBox T={T} m={m} b={b} onChange={onChange}/>}
         {m.mobbex_available && <MobbexRow T={T} m={m} profile={profile} onChange={onChange} open={open === "mobbex"} onToggle={() => toggle("mobbex")}/>}
         {soonProviders.filter(p => !(p.id === "mobbex" && m.mobbex_available)).map(p => <Row key={p.id} T={T} id={p.id} label={p.label} soon sub={p.desc}/>)}
-        <UsdProviderRows T={T} m={m} onChange={onChange} open={open} toggle={toggle} ui={{ Row, Modal, Steps, CopyCode, S }}/>{/* Stripe / Whop si su *_ENABLED está prendido */}
 
         {/* ── Publicidad ── */}
         <GroupTitle T={T}>Publicidad</GroupTitle>

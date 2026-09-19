@@ -156,7 +156,7 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
     { group: "Negocio", id: "checkout", l: "Descuentos", d: "Códigos para el primer cobro", icon: "M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0" },
     { group: "Conexiones", id: "integraciones", l: "Integraciones", d: withStore ? `${profile.channelInfo.label}, ${profile.providerInfo.label}, Meta, WhatsApp` : `${profile.providerInfo.label}, Meta, WhatsApp`, icon: "M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71",
       badge: missing.length ? { t: `${missing.length} pendiente${missing.length === 1 ? "" : "s"}`, c: T.red } : null },
-    { group: "Ayuda", id: "ayuda", l: "Ayuda", d: "Guía paso a paso y soporte", icon: "M12 22a10 10 0 100-20 10 10 0 000 20zM9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" },
+    { group: "Ayuda", id: "ayuda", l: "Ayuda", d: "Preguntas frecuentes y soporte", icon: "M12 22a10 10 0 100-20 10 10 0 000 20zM9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01" },
   ];
   const HEAD = {
     cuenta:        ["Cuenta", "Tu nombre, tu foto y tu acceso a Recurrentes: email de inicio de sesión, contraseña y eliminación de la cuenta."],
@@ -168,7 +168,7 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
       : "Conectá tu pasarela (necesaria) y, si te sirven, Meta Ads y WhatsApp."],
     checkout:      ["Checkout", profile.caps.shipping ? "Lo que ve el cliente al suscribirse: las opciones de envío y los códigos de descuento." : "Los códigos de descuento que tus clientes pueden usar al suscribirse."],
     facturacion:   ["Facturación", "Tu plan de Recurrentes: qué incluye, cuántos suscriptores activos llevás y cómo cambiarlo."],
-    ayuda:         ["Ayuda", "La guía completa de Recurrentes: conectar tu tienda y tu pasarela, crear planes, activar el widget. Y el WhatsApp de soporte."],
+    ayuda:         ["Ayuda", "Preguntas frecuentes. Para conectar tu tienda y tu pasarela, Integraciones; y el WhatsApp de soporte para todo lo demás."],
   };
   const H = HEAD[sec] || ["", ""];
   const cur = NAVS.some(n => n.id === sec) ? sec : "cuenta";

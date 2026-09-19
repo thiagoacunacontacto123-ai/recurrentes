@@ -92,10 +92,9 @@ export default function OnboardingWizard({ T: Tp, DS: DSp, merchant, onb, onClos
     ],
   } : {
     h: <>Cobros recurrentes<br/>para cualquier negocio</>,
-    p: "Tiendas online, productos digitales o servicios con cuota: tu cliente paga una vez y después se cobra solo. Primero contanos qué vendés y armamos el panel a tu medida.",
+    p: "Tiendas online y servicios con cuota: tu cliente paga una vez y después se cobra solo, y cada cobro crea el pedido en tu tienda.",
     bullets: [
-      "Tiendas con Shopify (Tiendanube e Impultienda, muy pronto)",
-      "Productos digitales: ebooks, cursos, contenido exclusivo",
+      "Tiendas con Shopify o Tiendanube",
       "Gimnasios, clases, clubes y membresías con cuota",
       "Cobros en tu propia cuenta de Mercado Pago",
     ],
