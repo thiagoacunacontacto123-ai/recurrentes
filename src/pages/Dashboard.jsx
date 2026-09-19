@@ -339,6 +339,14 @@ export default function Dashboard({ user, onLogout }) {
   }, [merchant?.role, merchant?.member_secciones, isAdmin]);
   useEffect(() => { if (loading) return; if (!navList.some(n => n.id === tab)) goTab("analiticas"); }, [navList, tab, goTab, loading]);
 
+  // Precarga escalonada (todas las tiendas): apenas hay pantalla, montamos ocultas las 3 pestañas más usadas.
+  useEffect(() => {
+    if (loading || loadError || !merchant) return;
+    const timers = PREFETCH_TABS.map((id, i) => setTimeout(() => setMountedTabs(prev => prev.has(id) ? prev : new Set([...prev, id])), 300 * (i + 1)));
+    return () => timers.forEach(clearTimeout);
+    // eslint-disable-next-line
+  }, [loading, loadError, merchant?.id]);
+
   if (unverified) return <><VerifyEmailScreen user={user} onLogout={onLogout} onRetry={reloadMerchant}/><ToastContainer T={T}/></>;
   if (noStore) return <><StoreTransferredScreen user={user} onLogout={onLogout}/><ToastContainer T={T}/></>;
 
@@ -349,13 +357,6 @@ export default function Dashboard({ user, onLogout }) {
   // Tienda de muestra (video 3D): TODAS las pestañas quedan montadas y cargadas; al
   // cambiar de pestaña solo se muestra/oculta, sin spinners. Solo para esos ids.
   const prewarm = !loading && !loadError && !!merchant && PREWARM_MERCHANTS.has(merchant.id);
-  // Precarga escalonada (todas las tiendas): apenas hay pantalla, montamos ocultas las 3 pestañas más usadas.
-  useEffect(() => {
-    if (loading || loadError || !merchant) return;
-    const timers = PREFETCH_TABS.map((id, i) => setTimeout(() => setMountedTabs(prev => prev.has(id) ? prev : new Set([...prev, id])), 300 * (i + 1)));
-    return () => timers.forEach(clearTimeout);
-    // eslint-disable-next-line
-  }, [loading, loadError, merchant?.id]);
   const tabsToRender = prewarm ? [...PREWARM_TABS, ...(PREWARM_TABS.includes(tab) ? [] : [tab])] : [...new Set([...mountedTabs, tab])];
   const renderTab = (t) => (
     blockedTab(t) ? (
