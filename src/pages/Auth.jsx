@@ -156,12 +156,7 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
           // El mismo evento desde el navegador con el MISMO event_id que el servidor: Meta deduplica.
           pixelTrack("CompleteRegistration", { content_name: "registro" }, `acq_registered_${cred.user.uid}`);
         } catch (_) {}
-        // Mail de verificación PROPIO (castellano, con la marca). Si falla, el de Firebase de respaldo.
-        try {
-          const r = await apiPost("merchant", { name: nombre.trim() }, { action: "send-verification" });
-          if (!r?.ok) await sendEmailVerification(cred.user);
-          sessionStorage.setItem("rec_verify_sent", "1");
-        } catch (_) { try { await sendEmailVerification(cred.user); } catch (_) {} }
+        // Sin mail de verificación: se entra directo al panel (Thiago, 19-sept-2026).
       } else {
         await signInWithEmailAndPassword(auth, em, password);
       }

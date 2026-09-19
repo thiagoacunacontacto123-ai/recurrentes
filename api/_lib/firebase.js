@@ -48,15 +48,8 @@ export async function verifyBearer(req, res) {
     res.status(401).json({ error: "Token inválido" });
     return null;
   }
-  if (decoded.email_verified === false) {
-    try {
-      const snap = await db().collection("merchants").doc(decoded.uid).get();
-      if (snap.exists && snap.data()?.requires_email_verification === true) {
-        res.status(403).json({ error: "Verificá tu email para continuar", code: "email_unverified" });
-        return null;
-      }
-    } catch (_) { /* si Firestore falla, no bloqueamos por esto */ }
-  }
+  // Verificación de mail: fuera (Thiago, 19-sept-2026: "muy de estúpido"). Nadie queda
+  // bloqueado por no haber tocado el link; el mail de contacto se pide en el registro igual.
   return decoded;
 }
 
