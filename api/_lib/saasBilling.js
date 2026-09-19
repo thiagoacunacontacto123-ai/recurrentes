@@ -115,6 +115,8 @@ async function activatePlan({ mid, sub, subId, customer, tier, key, now = new Da
     plan_activated: tier || cur.plan_activated || null, plan_activated_at: cur.plan_activated_at || now,
     plan_requested: null, plan_requested_at: null,
   }, { merge: true });
+  // Adquisición: primer pago → Purchase (US$ del tramo) a NUESTRO pixel, una sola vez.
+  try { const { trackAcquisition } = await import("./acquisition.js"); await trackAcquisition(mid, "paid", { value: TIER_BY_ID[tier]?.usd, tier }); } catch (_) {}
   // Ramal admin: alguien pagó el plan por primera vez.
   await notifyAdmin("plan_paid", { merchantId: mid, store: storeLabel(cur, mid), detail: `${TIER_BY_ID[tier]?.label || tier || "plan"} · USD ${TIER_BY_ID[tier]?.usd ?? "?"} · primer pago`, key });
   // Afiliados: comisión al referente del dueño, y si el que paga tenía crédito

@@ -271,12 +271,48 @@ export function AdminPage() {
         </Panel>
       </div>
 
+          <AcquisitionPanel T={T} acq={o.acquisition}/>
           <HealthPanel T={T}/>
         </div>
       )}
 
       {openId && <MerchantPanel id={openId} onClose={() => setOpenId(null)} onChanged={reloadAll}/>}
     </div>
+  );
+}
+
+// ─── Adquisición: registros → conectaron → plan → pagan, por anuncio (Meta Ads propio) ───
+// Lo que Meta no puede ver: el pago llega 1 a 3 meses después del clic. Sale de
+// merchants/{uid}.acquisition (_lib/acquisition.js); el anuncio es el utm_content del link.
+function AcquisitionPanel({ T, acq }) {
+  const [range, setRange] = useState("d30");
+  const d = acq?.[range] || { totals: {}, by_ad: [] };
+  const t = d.totals || {};
+  const cols = [
+    { key:"ad", label:"Anuncio", render: r => <CellStack T={T} main={r.ad} sub={[r.campaign, r.source].filter(Boolean).join(" · ") || null}/> },
+    { key:"registered", label:"Registros", align:"right", nowrap:true, render: r => <b>{fmtN(r.registered)}</b> },
+    { key:"store_connected", label:"Conectaron tienda", align:"right", nowrap:true, render: r => `${fmtN(r.store_connected)} · ${r.pct_connected}%` },
+    { key:"first_plan", label:"Crearon plan", align:"right", nowrap:true, render: r => fmtN(r.first_plan) },
+    { key:"paid", label:"Pagan", align:"right", nowrap:true, render: r => `${fmtN(r.paid)} · ${r.pct_paid}%` },
+    { key:"usd_month", label:"US$/mes", align:"right", nowrap:true, render: r => fmtUsd(r.usd_month) },
+  ];
+  const sub = acq?.pixel
+    ? "Registros → conectaron la tienda → crearon plan → pagan, por anuncio (utm_content del link). Eventos al pixel propio por servidor: activo."
+    : "Falta el pixel propio: cargá META_PIXEL_ID, META_CAPI_TOKEN y VITE_META_PIXEL_ID en Vercel (TAREAS_THIAGO.md). La tabla igual se arma con los UTM de los links.";
+  return (
+    <Panel T={T} title="Adquisición · Meta Ads" sub={sub} style={{ marginBottom:16 }}
+      right={<Segmented T={T} ariaLabel="Período de adquisición" value={range} onChange={setRange} options={[{ id:"d30", label:"30 días" }, { id:"d90", label:"90 días" }, { id:"all", label:"Todo" }]}/>}>
+      <div style={{ display:"flex", gap:18, flexWrap:"wrap", padding:"0 16px 12px", fontSize:DS.font.sm, color:T.textMd }}>
+        <span><b style={{ color:T.text }}>{fmtN(t.registered)}</b> registros</span>
+        <span><b style={{ color:T.text }}>{fmtN(t.store_connected)}</b> conectaron ({t.pct_connected || 0}%)</span>
+        <span><b style={{ color:T.text }}>{fmtN(t.first_plan)}</b> crearon plan</span>
+        <span><b style={{ color:T.text }}>{fmtN(t.paid)}</b> pagan ({t.pct_paid || 0}%) · {fmtUsd(t.usd_month)} por mes</span>
+      </div>
+      <div style={{ padding:"0 16px 16px" }}>
+        <DSTable T={T} dense columns={cols} rows={d.by_ad || []} rowKey={r => r.ad} minWidth={680}
+          emptyText="Todavía no entró nadie con UTM. Los links de los anuncios tienen que llevar utm_source, utm_campaign y utm_content."/>
+      </div>
+    </Panel>
   );
 }
 

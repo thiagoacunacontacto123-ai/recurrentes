@@ -30,6 +30,7 @@ import { mpOauthReturnToast } from "../lib/mpOauth.js";
 import { AdminPage, AdminViewBanner } from "./Admin.jsx";
 import StoreStep2Modal from "./ShopifyStep2.jsx";
 
+import { readAttribution, clearAttribution } from "../lib/attribution.js";
 // Resuelve un id de tab (nuevo o viejo) a { tab, config?, query? }.
 function resolveTab(id) {
   if (NAV.some(n => n.id === id)) return { tab: id };
@@ -177,6 +178,19 @@ export default function Dashboard({ user, onLogout }) {
   useEffect(() => { reloadMerchant(); }, []);
   // Afiliados: si llegó desde recurrentesapp.com/?ref=CODIGO, la landing lo guardó;
   // con sesión se reclama una vez (el backend valida: cuenta nueva, no el propio código).
+  // Meta Ads propio: si la landing guardó de qué anuncio vino y la cuenta ya existe (entró con
+  // Google, o volvió desde otro dispositivo), se anota una vez por sesión. Primer toque gana.
+  useEffect(() => {
+    if (!merchant?.id) return;
+    try {
+      if (sessionStorage.getItem("rec_utm_sent")) return;
+      const att = readAttribution();
+      if (!att || !(att.utm_source || att.utm_campaign || att.fbclid || att.referrer)) return;
+      sessionStorage.setItem("rec_utm_sent", "1");
+      apiPost("merchant", { attribution: att }, { action: "attribution" }).then(d => { if (d?.ok) clearAttribution(); }).catch(() => null);
+    } catch (_) {}
+    // eslint-disable-next-line
+  }, [merchant?.id]);
   useEffect(() => {
     if (!merchant?.id) return;
     let code = null; try { code = localStorage.getItem("rec_ref"); } catch (_) {}
@@ -192,7 +206,7 @@ export default function Dashboard({ user, onLogout }) {
     if (!merchant) return;
     const pending = readPendingSignup();
     if (pending && merchant.owner_info_missing) {
-      apiPost("merchant", { owner_name: pending.owner_name, owner_whatsapp: pending.owner_whatsapp, contact_email: pending.contact_email }, { action: "save-owner" })
+      apiPost("merchant", { owner_name: pending.owner_name, owner_whatsapp: pending.owner_whatsapp, contact_email: pending.contact_email, attribution: readAttribution() }, { action: "save-owner" })
         .then(d => { if (d?.ok) { clearPendingSignup(); setMerchant(m => m ? { ...m, owner_info_missing: false, owner_name: d.owner_name, owner_whatsapp: d.owner_whatsapp, contact_email: d.contact_email } : m); } })
         .catch(() => {});   // con datos pendientes nunca se vuelven a pedir: se reintenta en la próxima carga
     } else {

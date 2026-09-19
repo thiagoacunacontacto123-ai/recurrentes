@@ -315,6 +315,12 @@ export default async function handler(req, res) {
     if (action === "wa-card-setup")        return waCardSetup(ctx, merchantId, req, res);
     if (action === "save-owner")           return saveOwner(ctx, req, res);
     if (action === "profile-save")         return saveProfile(ctx, req, res);
+    // Adquisición: la landing guardó el anuncio de origen y la cuenta ya existe (ej. entró
+    // con Google y no pasó por save-owner en el registro) → se anota igual, primer toque gana.
+    if (action === "attribution") {
+      try { const { recordAttribution } = await import("./_lib/acquisition.js"); await recordAttribution(uid, req.body?.attribution, { req }); return res.json({ ok: true }); }
+      catch (e) { return res.status(500).json({ error: e.message }); }
+    }
     if (action === "ref-claim") {
       if (ctx.role && ctx.role !== "owner") return res.status(403).json({ error: "Solo el dueño de la cuenta." });
       try { const { claimReferral } = await import("./_lib/referrals.js"); const r = await claimReferral(uid, req.body?.code); return res.status(r.ok ? 200 : 400).json(r); }
@@ -1232,7 +1238,7 @@ const purgeAtIso = () => new Date(Date.now() + PURGE_DAYS * 86400000).toISOStrin
 const emailLower = (v) => String(v || "").trim().toLowerCase();
 const isStoreId = (id) => /^m_[a-z0-9]+$/i.test(String(id || ""));
 // Acciones de perfil que funcionan sin tienda (login cuya principal fue transferida).
-const NO_STORE_ACTIONS = ["workspace", "store-create", "store-activate", "account-delete"];
+const NO_STORE_ACTIONS = ["workspace", "store-create", "store-activate", "account-delete", "attribution"];
 
 // Solo claves válidas con `true` (un miembro nunca recibe secciones inventadas).
 function cleanSecciones(obj) {
@@ -1764,6 +1770,13 @@ async function saveOwner(ctx, req, res) {
   await getOrCreateMerchant(ctx.uid, ctx.email || null);
   const prev = (await db().collection("merchants").doc(ctx.uid).get()).data() || {};
   await db().collection("merchants").doc(ctx.uid).set({ owner_name: name, owner_whatsapp: wa, contact_email: email, owner_info_at: new Date().toISOString() }, { merge: true });
+  // Adquisición: de qué anuncio vino (UTM/fbclid/fbp que guardó la landing) + el evento
+  // CompleteRegistration a NUESTRO pixel por servidor (_lib/acquisition.js). Nunca lanza.
+  try {
+    const { recordAttribution, trackAcquisition } = await import("./_lib/acquisition.js");
+    await recordAttribution(ctx.uid, b.attribution, { req });
+    await trackAcquisition(ctx.uid, "registered", { req });
+  } catch (e) { console.warn("[save-owner] acquisition:", e.message); }
   // Afiliados: el código del ?ref= con el que llegó (lo guarda la landing) se reclama acá.
   if (b.ref_code) { try { const { claimReferral } = await import("./_lib/referrals.js"); await claimReferral(ctx.uid, b.ref_code); } catch (e) { console.warn("[save-owner] ref:", e.message); } }
   // Ramal admin: alguien dejó su número por primera vez → aviso a Thiago para ir

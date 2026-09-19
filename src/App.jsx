@@ -12,6 +12,7 @@ import Checkout from "./pages/Checkout.jsx";
 import LegalPage, { SoportePage } from "./pages/Legal.jsx";
 import { TransferAcceptPage } from "./pages/Transfer.jsx";
 
+import { initPixel, pixelPageView } from "./lib/attribution.js";
 // Routing simple hash-based.
 // Rutas PÚBLICAS (ignoran si hay user logueado o no):
 //   #/portal?token=...           → Portal del cliente final
@@ -36,7 +37,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const onHash = () => setRoute(parseRoute());
+    initPixel(); // pixel de Meta de Recurrentes (solo con VITE_META_PIXEL_ID)
+    const onHash = () => { setRoute(parseRoute()); pixelPageView(); };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);

@@ -255,6 +255,7 @@ async function handleSaveCreds(req, res) {
         ...shopInfoPatch,
       } : { shopify_token: null }),
     }, { merge: true });
+    if (token) { try { const { trackAcquisition } = await import("./_lib/acquisition.js"); await trackAcquisition(merchantId, "store_connected", { req }); } catch (_) {} }
     return res.json({ ok: true, shop, connected: !!token, ...(token ? { shop_name: shopInfoPatch.shop_name || null, store_domain: shopInfoPatch.store_domain || merchant.store_domain || null } : {}) });
   } catch (e) {
     return res.status(500).json({ error: e.message });

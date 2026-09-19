@@ -5,6 +5,7 @@ import { DS } from "../ui/theme.js";
 import { Btn, Field, InputStyle, Hint, Spinner } from "../ui/components.jsx";
 import { normalizeWhatsapp, EMAIL_RE } from "../lib/signup.js";
 
+import { readAttribution } from "../lib/attribution.js";
 // "Completá tus datos": nombre, WhatsApp y email de contacto del dueño del login.
 // Aparece una vez si faltan (entró con Google desde "Iniciar sesión", o verificó el
 // mail en otro dispositivo y se perdieron los datos del paso 1 del registro).
@@ -22,7 +23,7 @@ export function OwnerInfoModal({ T, user, merchant, onSaved }) {
     if (!owner_whatsapp) return setErr("Ingresá tu WhatsApp con código de área (ej: 11 6411 7974).");
     if (!EMAIL_RE.test(email.trim())) return setErr("Ingresá un email de contacto válido.");
     setSaving(true); setErr("");
-    const d = await apiPost("merchant", { owner_name: name.trim(), owner_whatsapp, contact_email: email.trim().toLowerCase() }, { action: "save-owner" }).catch(e => ({ error: e.message }));
+    const d = await apiPost("merchant", { owner_name: name.trim(), owner_whatsapp, contact_email: email.trim().toLowerCase(), attribution: readAttribution() }, { action: "save-owner" }).catch(e => ({ error: e.message }));
     setSaving(false);
     if (d?.error) return setErr(d.error);
     onSaved?.(d);

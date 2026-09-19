@@ -162,6 +162,8 @@ export default async function handler(req, res) {
       updated_at: new Date().toISOString(),
     };
     await planRef.set(data);
+    // Adquisición: el primer plan de la cuenta → StartTrial a nuestro pixel (una sola vez).
+    try { const { trackAcquisition } = await import("./_lib/acquisition.js"); await trackAcquisition(merchantId, "first_plan", { req }); } catch (_) {}
     return res.json({ ok: true, plan: withPackDefaults({ id: planRef.id, ...data }) });
   }
 

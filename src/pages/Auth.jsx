@@ -17,6 +17,7 @@ import Landing from "./Landing.jsx";
 import { apiPost } from "../lib/api.js";
 import { savePendingSignup, readPendingSignup, normalizeWhatsapp, EMAIL_RE } from "../lib/signup.js";
 
+import { captureAttribution, readAttribution, pixelTrack } from "../lib/attribution.js";
 const F = "'Inter',system-ui,sans-serif";
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });
@@ -37,6 +38,8 @@ try {
   const _ref = new URLSearchParams(window.location.search).get("ref");
   if (_ref && /^[A-Za-z0-9]{6,12}$/.test(_ref)) localStorage.setItem("rec_ref", _ref.toUpperCase());
 } catch (_) {}
+// Meta Ads propio: de qué anuncio vino (utm_* / fbclid), primer toque gana (src/lib/attribution.js).
+captureAttribution();
 
 // Rutea #/login · #/registro · #/recuperar; por defecto la Landing.
 export function PublicSite() {
@@ -149,7 +152,9 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
         try {
           const pend = readPendingSignup();
           let ref = null; try { ref = localStorage.getItem("rec_ref"); } catch (_) {}
-          if (pend) await apiPost("merchant", { owner_name: pend.owner_name, owner_whatsapp: pend.owner_whatsapp, contact_email: pend.contact_email, ...(ref ? { ref_code: ref } : {}) }, { action: "save-owner" });
+          if (pend) await apiPost("merchant", { owner_name: pend.owner_name, owner_whatsapp: pend.owner_whatsapp, contact_email: pend.contact_email, ...(ref ? { ref_code: ref } : {}), attribution: readAttribution() }, { action: "save-owner" });
+          // El mismo evento desde el navegador con el MISMO event_id que el servidor: Meta deduplica.
+          pixelTrack("CompleteRegistration", { content_name: "registro" }, `acq_registered_${cred.user.uid}`);
         } catch (_) {}
         // Mail de verificación PROPIO (castellano, con la marca). Si falla, el de Firebase de respaldo.
         try {

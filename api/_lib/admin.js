@@ -36,6 +36,7 @@
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue } from "firebase-admin/firestore";
 import { db, requireAdmin } from "./firebase.js";
+import { acquisitionSummary, ownPixel } from "./acquisition.js";
 import { merchantProfile, CHANNELS, PAYMENT_PROVIDERS, BUSINESS_TYPES } from "../../shared/platform/profile.js";
 import { PRICING_TIERS, TIER_BY_ID, BILLABLE_STATUSES, tierRank } from "../../shared/platform/pricing.js";
 import { buildBilling, activatedTierId, isBeta, isInternal, PLAN_BY_ID } from "./plans_saas.js";
@@ -70,6 +71,7 @@ const LIST_FIELDS = [
   "billing_cache", "business_type", "channel", "payment_provider",
   "shopify_token", "mp_access_token", "mp_email", "klaviyo_api_key", "flows_enabled", "flows_active_triggers",
   "dev_mode", "analytics_cache.data.mrr",
+  "acquisition", // de qué anuncio vino + pasos (registro → tienda → plan → pago), _lib/acquisition.js
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -401,6 +403,11 @@ async function overview(query) {
     by_business_type: dist("business_type", BUSINESS_TYPES),
     by_tier: byTier,
     whatsapp: waTotals(data),
+    // Adquisición (Meta Ads propio): registros → conectaron → plan → pagan, por anuncio.
+    acquisition: (() => {
+      const usdById = Object.fromEntries(paying.map(r => [r.id, TIER_BY_ID[r.plan_activated]?.usd || 0]));
+      return { pixel: !!ownPixel(), d30: acquisitionSummary(accounts, usdById, { days: 30, nowMs }), d90: acquisitionSummary(accounts, usdById, { days: 90, nowMs }), all: acquisitionSummary(accounts, usdById, { days: null, nowMs }) };
+    })(),
     // Mis tiendas, aparte: para verlas sin que ensucien los números del negocio.
     internal: { count: internalRows.length, subs: sum(internalRows.map(r => r.subs)), mrr: Math.round(sum(internalRows.map(r => r.mrr))), names: internalRows.map(r => r.name) },
     saas: { paying: paying.length, usd_month: sum(paying.map(r => TIER_BY_ID[r.plan_activated]?.usd || 0)), beta: rows.filter(r => r.beta).length },

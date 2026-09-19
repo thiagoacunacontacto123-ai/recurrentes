@@ -351,6 +351,15 @@ El botón "Traer los de Shopify / Tiendanube" en Configuración → Descuentos n
   - `charges`: `shopify_order_id` Asc + `created_at` **Descending**
   - `fulfill_issues`: `status` Asc + `updated_at` Asc
   (o `npx firebase-tools deploy --only firestore:indexes --project recurrentes-16fbd`, que crea los que falten). Hasta que existan, esos dos crons siguen con el recorrido de siempre; en Admin → Salud, el heartbeat de cada uno dice `mode`.
+- [ ] **Pixel de Meta de Recurrentes (19-sept, para la pauta).** Sin esto Meta optimiza a ciegas. Son 3 pasos:
+  1. En https://business.facebook.com/events_manager2 → **Conectar orígenes de datos → Web → Crear un pixel**, nombre `Recurrentes`, sitio `recurrentesapp.com`. Copiá el **ID del conjunto de datos** (un número largo).
+  2. En ese mismo pixel → pestaña **Configuración** → **API de conversiones → Generar token de acceso**. Copialo (se muestra una sola vez).
+  3. En Vercel → Settings → Environment Variables (Production): `META_PIXEL_ID` = el ID, `META_CAPI_TOKEN` = el token (tipo Secret), y `VITE_META_PIXEL_ID` = el mismo ID. Después **Redeploy** (la variable `VITE_` entra en el build). Para probar antes de pautar: en Administrador de eventos → **Probar eventos** te da un código `TEST12345`; cargalo un rato como `META_TEST_EVENT_CODE`, registrá una cuenta de prueba y tienen que aparecer CompleteRegistration y, al conectar la tienda, Lead. Sacá la variable cuando termines.
+- [ ] **Links de los anuncios con UTM** (así el Admin te dice qué anuncio trae tiendas que pagan). En cada anuncio, URL del sitio:
+  ```
+  https://www.recurrentesapp.com/?utm_source=meta&utm_medium=paid&utm_campaign={{campaign.name}}&utm_content={{ad.name}}
+  ```
+  Meta reemplaza `{{campaign.name}}` y `{{ad.name}}` solo. Nombrá los anuncios como los guiones (`RC-A1-H2`) y la tabla "Adquisición · Meta Ads" del Admin (Más métricas) te muestra registros → conectaron → plan → pagan por anuncio.
 - [ ] **Números de WhatsApp (regla tuya, 18-sept): cada 100 tiendas con WhatsApp prendido, comprá un número nuevo de afuera** (como el de Zadarma) y agregalo a la WABA. Avisame cuando llegues a ~80 tiendas con WhatsApp: ahí armo el reparto de tiendas entre números (hoy el código manda todo por el único número).
 - [ ] **Tiendanube Partners → Permisos → Cupones: leer** (`read_coupons`).
 - [ ] **Meta**: plantillas en revisión aprobadas y app En vivo (vos decís que ya está: solo confirmar que a un número que NO sea de prueba le llegue un aviso).

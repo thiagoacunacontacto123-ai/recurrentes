@@ -107,6 +107,7 @@ export async function connectStore(merchantId, { store_id, access_token, scope }
     patch.channel = "tiendanube";
   }
   await ref.set(patch, { merge: true });
+  try { const { trackAcquisition } = await import("./acquisition.js"); await trackAcquisition(merchantId, "store_connected"); } catch (_) {}
   const setup = await setupStore(merchantId, storeId, access_token);
   return { ok: true, store: info, channel: patch.channel || prof.channel, ...setup };
 }

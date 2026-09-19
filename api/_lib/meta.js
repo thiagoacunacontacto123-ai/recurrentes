@@ -73,6 +73,7 @@ export async function sendMetaEvent(eventName, o) {
     custom_data: {
       value: Number(o.value) || 0,
       currency: o.currency || "ARS",
+      ...(o.customData && typeof o.customData === "object" ? o.customData : {}),
     },
   };
 
@@ -81,7 +82,8 @@ export async function sendMetaEvent(eventName, o) {
     const r = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ data: [event] }),
+      // test_event_code: solo mientras se prueba en Administrador de eventos → Probar eventos.
+      body: JSON.stringify({ data: [event], ...(o.testEventCode ? { test_event_code: o.testEventCode } : {}) }),
       signal: AbortSignal.timeout(10000),
     });
     const d = await r.json().catch(() => ({}));
