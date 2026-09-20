@@ -5,7 +5,7 @@ import { RecLogo } from "../ui/Shell.jsx";
 import { PricingTable } from "./Billing.jsx";
 import { FREE_SUBSCRIBERS } from "../../shared/platform/pricing.js";
 import { SectionsStyle, ProblemSection, DeepDivesSection, TrustSection, FaqSection, BigFooter, VideoSection, ComparisonSection, ReviewsSection, WhatsAppSection } from "./LandingSections.jsx";
-import { LANDING_VIDEO_URL, LANDING_VIDEO_POSTER, LANDING_VIDEO_DURATION } from "../lib/landingMedia.js";
+import { LANDING_VIDEOS } from "../lib/landingMedia.js";
 
 const F = "'Inter',system-ui,sans-serif";
 
@@ -290,7 +290,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
                 Empezar gratis
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </button>
-              <button onClick={ir("rec-video")} style={{...BtnSecondary(T),padding:"12px 18px",fontSize:14}}>Ver el video</button>
+              <button onClick={ir("rec-video")} style={{...BtnSecondary(T),padding:"12px 18px",fontSize:14}}>Ver los videos</button>
             </div>
           </div>
 
@@ -342,7 +342,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
 
       {/* Interés: el video (panel por dentro, en la tienda, precios). */}
       <SectionsStyle T={T}/>
-      <VideoSection T={T} url={LANDING_VIDEO_URL} poster={LANDING_VIDEO_POSTER} duration={LANDING_VIDEO_DURATION}/>
+      <VideoSection T={T} videos={LANDING_VIDEOS}/>
 
       {/* Comparativa justo debajo del video (Thiago, 17-sept). */}
       <ComparisonSection T={T}/>

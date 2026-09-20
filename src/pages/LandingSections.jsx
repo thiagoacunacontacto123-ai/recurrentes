@@ -31,12 +31,12 @@ export function SectionsStyle({ T }) {
       .ls-calc{display:grid;grid-template-columns:minmax(0,0.9fr) minmax(0,1.1fr);gap:24px;align-items:stretch;}
       .ls-foot{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:28px;}
       .ls-reviews{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:stretch;}
-      .ls-video-parts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
+      .ls-videos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px;align-items:start;}
       /* Tabla comparativa: en celular cada columna se lee sin deslizar */
       .ls-cmp-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
       .ls-cmp{width:100%;border-collapse:separate;border-spacing:0;min-width:720px;font-size:13.5px;}
       @media(max-width:640px){
-        .ls-video-parts{grid-template-columns:1fr;}
+        .ls-videos{grid-template-columns:1fr;gap:28px;max-width:420px;margin:0 auto;}
         .ls-cmp-wrap{overflow-x:visible;}
         .ls-cmp{min-width:0;font-size:12.5px;}
         .ls-cmp thead{display:none;}
@@ -678,45 +678,51 @@ export function BigFooter({ T, onGo, onRegister }) {
 
 
 // ─── Video: Recurrentes en acción (después de las integraciones) ─────────
-export function VideoSection({ T, url, poster, duration }) {
+// Dos videos verticales cortos: en computadora uno al lado del otro, en celular
+// uno debajo del otro. Al reproducir uno se pausa el otro.
+function VerticalPlayer({ T, video, onPlay, register }) {
   const ref = React.useRef(null);
   const [playing, setPlaying] = React.useState(false);
-  if (!url) return null;
+  React.useEffect(() => { register(video.id, ref); }, [video.id, register]);
   const play = () => { try { ref.current?.play(); } catch (_) {} };
-  const parts = [
-    ["01", "Por dentro", "El panel: suscriptores, cobros, analíticas y el widget."],
-    ["02", "En tu tienda", "Cómo lo ve tu cliente: packs, suscripción y compra única."],
-    ["03", "Precios", "Gratis hasta 10 suscriptores y cómo se cobra el plan."],
-  ];
+  return (
+    <div>
+      <div style={{position:"relative",background:"#0b0f0d",border:`1px solid ${T.border}`,borderRadius:22,overflow:"hidden",boxShadow:"0 30px 80px rgba(0,0,0,0.35)",aspectRatio:"9 / 16"}}>
+        <video ref={ref} src={video.url} poster={video.poster} controls playsInline preload="none"
+          onPlay={() => { setPlaying(true); onPlay(video.id); }} onPause={() => setPlaying(false)} onEnded={() => setPlaying(false)}
+          style={{display:"block",width:"100%",height:"100%",objectFit:"cover",background:"#0b0f0d"}}/>
+        {!playing && (
+          <button type="button" onClick={play} aria-label={`Reproducir: ${video.title}`}
+            style={{position:"absolute",inset:0,width:"100%",height:"100%",background:"linear-gradient(180deg, rgba(0,0,0,0.05) 40%, rgba(0,0,0,0.55))",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:14,color:"#fff",fontFamily:F}}>
+            <span style={{width:74,height:74,borderRadius:99,background:`linear-gradient(135deg, ${T.accentSolid}, #059669)`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 18px 44px ${T.accentSolid}66`}}>
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+            </span>
+            <span style={{fontSize:13,fontWeight:700,textShadow:"0 2px 10px rgba(0,0,0,0.6)"}}>{video.duration}</span>
+          </button>
+        )}
+      </div>
+      <div style={{display:"flex",gap:12,alignItems:"flex-start",padding:"14px 4px 0"}}>
+        <span style={{fontSize:11,fontWeight:800,color:T.accent,letterSpacing:0.6,marginTop:3}}>{video.n}</span>
+        <div><div style={{fontSize:15,fontWeight:800,color:T.text}}>{video.title}</div><div style={{fontSize:13,color:T.textSm,lineHeight:1.55,marginTop:2}}>{video.sub}</div></div>
+      </div>
+    </div>
+  );
+}
+export function VideoSection({ T, videos = [] }) {
+  const refs = React.useRef({});
+  const register = React.useCallback((id, ref) => { refs.current[id] = ref; }, []);
+  const onPlay = (id) => { for (const [k, r] of Object.entries(refs.current)) if (k !== id) { try { r.current?.pause(); } catch (_) {} } };
+  if (!videos.length) return null;
   return (
     <section className="ls-sec" id="rec-video" style={{paddingTop:34}}>
       <div className="ls-wrap">
-        <SectionHead T={T} eyebrow="Recurrentes en acción" title="Mirá cómo funciona, de punta a punta"
-          sub={`El panel por dentro, cómo se ve en tu tienda y cuánto cuesta. ${duration ? duration + ", " : ""}sin vueltas.`}/>
-        <div style={{position:"relative",maxWidth:960,margin:"0 auto"}}>
+        <SectionHead T={T} eyebrow="Recurrentes en acción" title="Mirá cómo funciona, en cuatro minutos"
+          sub="Primero por qué conviene cobrar todos los meses. Después el panel por dentro, tal como lo vas a usar."/>
+        <div style={{position:"relative",maxWidth:820,margin:"0 auto"}}>
           <div style={{position:"absolute",inset:-40,background:`radial-gradient(circle at 50% 30%, ${T.accentSolid}26 0%, transparent 60%)`,filter:"blur(34px)",pointerEvents:"none"}}/>
-          <div style={{position:"relative",background:"#0b0f0d",border:`1px solid ${T.border}`,borderRadius:20,overflow:"hidden",boxShadow:"0 30px 80px rgba(0,0,0,0.35)",aspectRatio:"1658 / 1080"}}>
-            <video ref={ref} src={url} poster={poster} controls playsInline preload="none"
-              onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)}
-              style={{display:"block",width:"100%",height:"100%",objectFit:"contain",background:"#0b0f0d"}}/>
-            {!playing && (
-              <button type="button" onClick={play} aria-label="Reproducir el video"
-                style={{position:"absolute",inset:0,width:"100%",height:"100%",background:"linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.35))",border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",gap:14,color:"#fff",fontFamily:F}}>
-                <span style={{width:84,height:84,borderRadius:99,background:`linear-gradient(135deg, ${T.accentSolid}, #059669)`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 18px 44px ${T.accentSolid}66`}}>
-                  <svg width="34" height="34" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
-                </span>
-                <span style={{fontSize:14,fontWeight:700,textShadow:"0 2px 10px rgba(0,0,0,0.6)"}}>Ver el recorrido completo{duration ? ` · ${duration}` : ""}</span>
-              </button>
-            )}
+          <div className="ls-videos" style={{position:"relative"}}>
+            {videos.map(v => <VerticalPlayer key={v.id} T={T} video={v} onPlay={onPlay} register={register}/>)}
           </div>
-        </div>
-        <div className="ls-video-parts" style={{maxWidth:960,margin:"22px auto 0"}}>
-          {parts.map(([n, t, d]) => (
-            <div key={n} style={{display:"flex",gap:12,alignItems:"flex-start",padding:"14px 16px",background:T.card,border:`1px solid ${T.border}`,borderRadius:14}}>
-              <span style={{fontSize:11,fontWeight:800,color:T.accent,letterSpacing:0.6,marginTop:2}}>{n}</span>
-              <div><div style={{fontSize:14,fontWeight:800,color:T.text}}>{t}</div><div style={{fontSize:12.5,color:T.textSm,lineHeight:1.55,marginTop:2}}>{d}</div></div>
-            </div>
-          ))}
         </div>
       </div>
     </section>
