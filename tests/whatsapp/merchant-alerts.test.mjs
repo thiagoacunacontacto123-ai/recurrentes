@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { createWorld, loadApi, subscriber, mpPayment, mpPreapproval, mpWebhookReq, luminaMerchant, MID, MP_TOKEN, PRODUCT_TITLE } from "../helpers/world.mjs";
 import { invoke, mockReq, mockRes } from "../helpers/http.mjs";
 import { stats, resetStats, seedDoc, rawGet, rawList } from "../helpers/fake-firestore.mjs";
+import { waChargeUsd, WHATSAPP_PRICE_USD_UTILITY_DEFAULT as UTIL } from "../../shared/platform/pricing.js";
 
 const PID = "700800900100";
 const TOKEN = "EAAplatformTOKEN1234567890abcdefXYZ";
@@ -130,9 +131,9 @@ test("alta: un solo WhatsApp (webhook + sync + otra llamada) con nombre de pila,
   assert.equal(u.wa_sent, 1);
   assert.equal(u.wa_alerts_sent, 1);
   assert.equal(u.wa_platform_sent, 1);
-  assert.ok(near(u.wa_cost_usd, 0.012 * 1.5), `precio × 1,50 (${u.wa_cost_usd})`);
+  assert.ok(near(u.wa_cost_usd, waChargeUsd(UTIL)), `precio × 1,50 (${u.wa_cost_usd})`);
   const au = rawGet(`admin_usage/${month}`);
-  assert.ok(near(au.merchants[MID].wa_cost_usd, 0.018) && au.merchants[MID].wa_alerts_sent === 1);
+  assert.ok(near(au.merchants[MID].wa_cost_usd, waChargeUsd(UTIL)) && au.merchants[MID].wa_alerts_sent === 1);
   const log = rawList(`merchants/${MID}/message_log`).map(d => d.data).find(l => l.type === "merchant_alert");
   assert.equal(log?.status, "sent");
   assert.equal(log.to.includes("••••"), true, "el teléfono queda enmascarado");

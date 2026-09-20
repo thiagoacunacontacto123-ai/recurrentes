@@ -78,7 +78,7 @@ const run = (mid, merchant, s, step = STEP, sid = "s1") => wa.runWhatsappFlowSte
   const js = JSON.stringify(safe);
   ok(safe.whatsapp_platform_available === true && safe.whatsapp_platform_enabled === true && safe.whatsapp_sender === "platform" && !js.includes(PLATFORM_PID) && !js.includes(PLATFORM_TOKEN),
     "GET del merchant: solo booleanos del número de Recurrentes (nunca su id ni su token)");
-  ok(near(safe.whatsapp_charge_usd, 0.018) && P.WHATSAPP_MARKUP === 1.5, `precio por aviso a clientes con +50% (${safe.whatsapp_charge_usd})`);
+  ok(near(safe.whatsapp_charge_usd, P.waChargeUsd(P.WHATSAPP_PRICE_USD_UTILITY_DEFAULT)) && P.WHATSAPP_MARKUP === 1.5, `precio por aviso a clientes con +50% (${safe.whatsapp_charge_usd})`);
 }
 
 // ── 2) Apagado = cero lecturas y cero llamadas (camino del cobro intacto) ──
@@ -131,8 +131,8 @@ let firstWamid;
   ok(log?.sender === "platform" && log.status === "sent", "message_log: enviado desde el número de Recurrentes");
   const u = (await M("mp1").collection("usage").doc(month).get()).data();
   const au = (await db().collection("admin_usage").doc(month).get()).data();
-  ok(u.wa_sent === 1 && u.wa_platform_sent === 1 && near(u.wa_cost_usd, 0.012 * 1.5), `uso del mes de la tienda: 1 aviso, US$ ${u.wa_cost_usd} (precio × 1,50)`);
-  ok(au.merchants.mp1.wa_sent === 1 && near(au.merchants.mp1.wa_cost_usd, 0.018) && near(au.merchants.mp1.wa_meta_cost_usd, 0.012) && au.wa_sent === 1, "admin: uso por comercio y total del mes");
+  ok(u.wa_sent === 1 && u.wa_platform_sent === 1 && near(u.wa_cost_usd, P.waChargeUsd(P.WHATSAPP_PRICE_USD_UTILITY_DEFAULT)), `uso del mes de la tienda: 1 aviso, US$ ${u.wa_cost_usd} (precio × 1,50)`);
+  ok(au.merchants.mp1.wa_sent === 1 && near(au.merchants.mp1.wa_cost_usd, P.waChargeUsd(P.WHATSAPP_PRICE_USD_UTILITY_DEFAULT)) && near(au.merchants.mp1.wa_meta_cost_usd, P.WHATSAPP_PRICE_USD_UTILITY_DEFAULT) && au.wa_sent === 1, "admin: uso por comercio y total del mes");
   const key = wa.phoneKey("+5491164117974");
   ok((await db().collection("wa_contacts").doc(key).get()).data()?.merchants?.mp1 && (await db().collection("wa_platform_msgs").doc(wa.messageLogId(r.id)).get()).data()?.mid === "mp1",
     "índices del número de Recurrentes: contacto → tienda y wamid → tienda");
@@ -140,12 +140,12 @@ let firstWamid;
   await run("mp1", merchant, sub({ customer_phone: "351 555 1234" }), STEP, "s2");
   delete process.env.WHATSAPP_PRICE_USD_UTILITY;
   const u2 = (await M("mp1").collection("usage").doc(month).get()).data();
-  ok(u2.wa_sent === 2 && near(u2.wa_cost_usd, 0.018 + 0.03), `WHATSAPP_PRICE_USD_UTILITY pisa el precio (acumulado US$ ${u2.wa_cost_usd})`);
+  ok(u2.wa_sent === 2 && near(u2.wa_cost_usd, P.waChargeUsd(P.WHATSAPP_PRICE_USD_UTILITY_DEFAULT) + 0.03), `WHATSAPP_PRICE_USD_UTILITY pisa el precio (acumulado US$ ${u2.wa_cost_usd})`);
   const n1 = posts().length;
   const custom = await run("mp1", merchant, sub(), { type: "whatsapp", template: "mi_plantilla_propia", lang: "es_AR", vars: {} });
   ok(custom.skipped && custom.reason === "template_not_platform" && posts().length === n1, "desde el número de Recurrentes solo salen plantillas de Recurrentes");
   const usage = await api("whatsapp-usage");
-  ok(usage.usage?.wa_sent === 2 && usage.sender === "platform" && near(usage.charge_usd, 0.018), "GET whatsapp-usage para el panel");
+  ok(usage.usage?.wa_sent === 2 && usage.sender === "platform" && near(usage.charge_usd, P.waChargeUsd(P.WHATSAPP_PRICE_USD_UTILITY_DEFAULT)), "GET whatsapp-usage para el panel");
 }
 
 // ── 5) Opt-in / baja ──

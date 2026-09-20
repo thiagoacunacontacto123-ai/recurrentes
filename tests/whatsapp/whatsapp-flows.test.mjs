@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { createWorld, loadApi, luminaMerchant, MID } from "../helpers/world.mjs";
 import { invoke } from "../helpers/http.mjs";
 import { seedDoc, rawList, rawGet } from "../helpers/fake-firestore.mjs";
+import { waChargeUsd, WHATSAPP_PRICE_USD_UTILITY_DEFAULT } from "../../shared/platform/pricing.js";
 
 process.env.WHATSAPP_PHONE_NUMBER_ID = "1319380847922196";
 process.env.WHATSAPP_WABA_ID = "1377371627894423";
@@ -27,7 +28,7 @@ test("(q) whatsapp-flows: las 4 plantillas a clientes, apagadas, con precio × 1
   assert.ok(r.body.templates.every(t => t.active === false && t.flow_id === null));
   assert.equal("markup" in r.body, false, "el recargo no se expone al panel");
   assert.equal("price_usd" in r.body, false, "ni el precio de Meta");
-  assert.ok(Math.abs(r.body.charge_usd - 0.018) < 1e-6, "0,012 × 1,50");
+  assert.ok(Math.abs(r.body.charge_usd - waChargeUsd(WHATSAPP_PRICE_USD_UTILITY_DEFAULT)) < 1e-6, "precio de Meta × 1,50");
   assert.equal(r.body.months.length, 3);
   assert.equal(r.body.usage.wa_sent, 0);
   // El texto de ejemplo lleva la marca de la tienda y no deja {{n}} sin reemplazar.
@@ -38,7 +39,7 @@ test("(q) whatsapp-flows: las 4 plantillas a clientes, apagadas, con precio × 1
   // El carrito es Marketing para Meta: cuesta más, y el panel lo dice por plantilla.
   const cart = r.body.templates[0];
   assert.ok(Math.abs(cart.charge_usd - 0.0618 * 1.5) < 1e-6, `carrito a precio marketing (${cart.charge_usd})`);
-  assert.ok(Math.abs(up.charge_usd - 0.018) < 1e-6);
+  assert.ok(Math.abs(up.charge_usd - waChargeUsd(WHATSAPP_PRICE_USD_UTILITY_DEFAULT)) < 1e-6);
 });
 
 test("(q) prender una plantilla crea SU flujo de sistema (wa_template) activo y lo indexa", async () => {

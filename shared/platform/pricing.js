@@ -66,14 +66,18 @@ export function tierRangeLabel(t) {
 // límite del plan). Solo los avisos al admin los paga Recurrentes.
 // Con su propio número paga él directo a Meta (costo 0 para Recurrentes).
 export const WHATSAPP_MARKUP = 1.50;
-// USD por plantilla de utilidad entregada a un número de Argentina. Fuente
-// (consultada 2026-09-15): la tabla oficial de Meta
-// (developers.facebook.com/docs/whatsapp/pricing → "USD rates" CSV, vigente
-// desde 2026-07-01; Argentina bajó utilidad y autenticación el 2025-10-01)
-// solo se descarga en CSV; el valor 0,0120 sale de ominiflow.com/whatsapp-api-pricing/argentina
-// (actualizado 2026-09-12, cita a Meta). NO confirmado contra el CSV: el backend
-// lo pisa con la env WHATSAPP_PRICE_USD_UTILITY.
-export const WHATSAPP_PRICE_USD_UTILITY_DEFAULT = 0.012;
+// USD por plantilla de UTILIDAD entregada a un número de Argentina.
+// 2026-09-20: corregido de 0,012 a 0,026. El 0,012 venía de un blog de terceros
+// (ominiflow) y nunca se había confirmado contra Meta; la tarifa de la doc oficial
+// para Argentina es 0,0260. Con el valor viejo le cobrábamos al comercio menos de
+// la mitad de lo que nos cuesta el mensaje: cada aviso de utilidad daba pérdida.
+// El backend lo puede pisar con la env WHATSAPP_PRICE_USD_UTILITY.
+//
+// OJO (oportunidad, no implementada): Meta NO cobra las plantillas de utilidad
+// enviadas dentro de la ventana de servicio de 24 h (el cliente escribió primero),
+// ni nada dentro de las 72 h de un anuncio Click-to-WhatsApp. Hoy cobramos todas
+// por igual. Cuando se registre esa ventana, esos mensajes deberían ir a costo 0.
+export const WHATSAPP_PRICE_USD_UTILITY_DEFAULT = 0.026;
 // Plantillas de MARKETING (carrito sin pagar): Meta las cobra bastante más. Misma
 // fuente (ominiflow, Argentina); el backend la pisa con WHATSAPP_PRICE_USD_MARKETING.
 export const WHATSAPP_PRICE_USD_MARKETING_DEFAULT = 0.0618;
