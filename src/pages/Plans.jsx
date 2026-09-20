@@ -8,7 +8,7 @@ import WidgetDesigner, { widgetSnippet } from "./WidgetDesigner.jsx";
 import { WidgetVerifyButton } from "./WidgetVerify.jsx";
 import PlanEditor, { FormSection, SubscriptionLinkBox } from "./PlanEditor.jsx";
 import { MONO, fmtARS, fmtFreq, RowMenu } from "./_shared.jsx";
-import { KpiCard, Segmented } from "../ui/charts.jsx";
+import { Segmented } from "../ui/charts.jsx";
 import { merchantProfile } from "../../shared/platform/profile.js";
 import { TIPS, readFlag, widgetKey } from "../lib/onboarding.js";
 
@@ -48,7 +48,6 @@ const SORTS = [
   { id:"new",  label:"Más nuevos" },
 ];
 const readSort = () => { try { const s = localStorage.getItem(SORT_KEY); return SORTS.some(x => x.id === s) ? s : "subs"; } catch (_) { return "subs"; } };
-const clip = (s, n = 22) => { s = String(s || ""); return s.length > n ? s.slice(0, n - 1) + "…" : s; };
 const SearchIcon = ({ color }) => (
   <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="5" stroke={color} strokeWidth="1.6"/><path d="M11 11l3.5 3.5" stroke={color} strokeWidth="1.6" strokeLinecap="round"/></svg>
 );
@@ -169,8 +168,6 @@ export function PlansPage({ merchant, onMerchantChange, forceSub = null }) {
 
   const activeCount = plans.filter(p => p.active !== false).length;
   const inactiveCount = plans.length - activeCount;
-  const top = useMemo(() => [...plans].sort((a, b) => stat(b).active - stat(a).active)[0], [plans, byPlan]);
-  const topStat = top ? stat(top) : null;
 
   const q = search.trim().toLowerCase();
   const list = useMemo(() => {
@@ -246,16 +243,6 @@ export function PlansPage({ merchant, onMerchantChange, forceSub = null }) {
           action={<Btn T={T} variant="solid" onClick={()=>setEditor({ plan: null })}>+ Nuevo plan</Btn>}/>
       ) : (
         <>
-          {/* KPIs */}
-          <div className="kpi-grid" style={{ display:"grid", gap:10, marginBottom:14 }}>
-            <KpiCard T={T} label="Planes activos" value={fmtN(activeCount)} hint={inactiveCount ? `${inactiveCount} inactivo${inactiveCount === 1 ? "" : "s"}` : "todos a la venta"} color={T.accentSolid}
-              onClick={() => setFilter("active")}/>
-            <KpiCard T={T} label="Suscripciones activas" value={fmtN(activeSubs.length)} hint={`en ${Object.values(byPlan).filter(r => r.active).length} plan${Object.values(byPlan).filter(r => r.active).length === 1 ? "" : "es"}`} color={T.green}/>
-            <KpiCard T={T} label="Ingreso recurrente" value={fmtARS(totalMrr)} valueColor={T.accent} hint="por mes, todos los planes" color={T.accentSolid}/>
-            <KpiCard T={T} label="Plan más elegido" value={top && topStat.active ? clip(top.product_title) : "—"}
-              hint={top && topStat.active ? `${fmtN(topStat.active)} activas · ${totalMrr ? Math.round((topStat.mrr / totalMrr) * 100) : 0}% del ingreso` : "todavía sin suscripciones"} color={T.blue}/>
-          </div>
-
           {/* Barra: estado · búsqueda · orden · conteo */}
           <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:10 }}>
             <Segmented T={T} options={filterTabs} value={filter} onChange={setFilter} ariaLabel="Estado del plan"/>
