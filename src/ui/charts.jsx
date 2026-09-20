@@ -139,7 +139,7 @@ export function BarList({ T, rows, color, fmt = (n) => Math.round(Number(n) || 0
 
 // Gráfico de área/líneas con pestañas y hover (línea vertical + valores del día).
 //   tabs: [{ id, label, series:[{ key, label, color, values, fmt }] }]
-export function AreaChart({ T, title, total, tabs, dates = [], fmtDate = (d) => d, height = 240 }) {
+export function AreaChart({ T, title, total, tabs, dates = [], fmtDate = (d) => d, height = 240, right = null }) {
   const [tabId, setTabId] = React.useState(tabs[0]?.id);
   const [hover, setHover] = React.useState(null);
   const wrapRef = React.useRef(null);
@@ -182,6 +182,7 @@ export function AreaChart({ T, title, total, tabs, dates = [], fmtDate = (d) => 
             </span>
           ))}
           {hover != null && <span style={{ fontSize:11, color:T.textSm }}>{fmtDate(dates[hover])}</span>}
+          {right}
         </div>
       </div>
       <div ref={wrapRef} onMouseMove={onMove} onMouseLeave={() => setHover(null)} style={{ position:"relative", width:"100%" }}>

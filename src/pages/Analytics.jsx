@@ -111,7 +111,6 @@ export function AnalyticsPage({ merchant, goTab }) {
     <div>
       <PageHeader T={T} title="Analíticas" subtitle="Cómo viene el negocio recurrente: ingresos, base de suscriptores, churn y recupero."
         right={<>
-          <DateRangePicker T={T} since={range.since} until={range.until} onChange={pickRange} presets={PRESETS_MESES}/>
           <Btn T={T} variant="secondary" size="sm" onClick={exportCsv} disabled={monthly.length === 0} style={{ height:34 }}>⬇ CSV mensual</Btn>
           <Btn T={T} variant="secondary" size="sm" onClick={() => load()} disabled={loading} style={{ height:34 }}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>
         </>}/>
@@ -164,6 +163,7 @@ export function AnalyticsPage({ merchant, goTab }) {
           <div style={{ marginBottom:18 }}>
             {first ? <Loading T={T}/> : (
               <AreaChart T={T} title={`Evolución · ${a.months ? `${a.months} ${a.months === 1 ? "mes" : "meses"}` : "período"}`} tabs={chartTabs} dates={monthly.map(m => m.month)} fmtDate={monthTick} height={220}
+                right={<DateRangePicker T={T} since={range.since} until={range.until} onChange={pickRange} presets={PRESETS_MESES}/>}
                 total={(tab) => tab.id === "cobrado" ? fmtARS(sum("revenue_ars")) : tab.id === "activas" ? `${fmtN(curMonth?.active_end)} activas` : `+${fmtN(sum("new"))} · −${fmtN(sum("cancelled"))}`}/>
             )}
           </div>
