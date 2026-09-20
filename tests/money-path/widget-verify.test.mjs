@@ -133,3 +133,21 @@ test("widget.js: detecta y esconde otros bundles (apps conocidas + heurística) 
   assert.equal(r.statusCode, 204);
   assert.equal(W.merchant().widget_verified_hidden, "Kaching Bundles, bloque de packs");
 });
+
+// Regla de Thiago (20-sept): SIEMPRE uno u otro. Si con el widget montado sigue a la vista otro
+// selector de packs que no supimos esconder, se restaura el tema (queda SU bundle), lo nuestro
+// se apaga y el panel recibe bundle_conflict con el cartel del WhatsApp.
+test("widget.js: conflicto de bundles → restaura el tema y avisa bundle_conflict", async () => {
+  const res = await invoke(widget, { method: "GET", query: { merchant: MID } });
+  const js = res.body;
+  assert.ok(js.includes("function foreignConflict(form)"), "detector de conflicto");
+  assert.ok(js.includes('restoreTheme("bundle_conflict"); report("bundle_conflict", extra); return;'), "restaura y reporta antes de dar ok");
+  assert.ok(js.includes("se.shadowRoot") && js.includes("var visibleCE"), "ve apps con shadow DOM (elementos custom inline)");
+  assert.ok(js.includes("var residual = function (el)"), "mide el bloque sin lo nuestro, sin el form ni la descripción");
+  new vm.Script(js);
+  const r = await seen({ rendered: "0", v: "1", reason: "bundle_conflict", product: PRODUCT_ID, path: "/products/capsulas", hid: "ABC-THING" });
+  assert.equal(r.statusCode, 204);
+  const m = W.merchant();
+  assert.equal(m.widget_last_issue?.reason, "bundle_conflict");
+  assert.equal(m.widget_last_issue?.hid, "ABC-THING");
+});

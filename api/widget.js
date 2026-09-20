@@ -321,7 +321,18 @@ export default async function handler(req, res) {
         vis = r.width > 20 && r.height > 20 && el.offsetParent !== null;
       } catch (e) {}
       visibleMs = vis ? visibleMs + step : 0;
-      if (visibleMs >= 3000) { clearInterval(t); extra.ms = visibleMs; report("ok", extra); return; }
+      if (visibleMs >= 3000) {
+        clearInterval(t); extra.ms = visibleMs;
+        try {
+          var subOn = document.body.classList.contains("rec-bundle-active") || document.body.classList.contains("rec-sub-active");
+          var conflict = subOn ? foreignConflict(document.querySelector('form[action*="/cart/add"]') || (typeof tnProductForm === "function" ? tnProductForm() : null)) : [];
+          if (conflict.length) {
+            extra.hid = (conflict[0].className || conflict[0].tagName || "").toString().slice(0, 80);
+            restoreTheme("bundle_conflict"); report("bundle_conflict", extra); return;
+          }
+        } catch (e) {}
+        report("ok", extra); return;
+      }
       if (elapsed >= 10000) { clearInterval(t); restoreTheme("hidden"); report("hidden", extra); }
     }, step);
   }
@@ -923,6 +934,8 @@ export default async function handler(req, res) {
     var area = buyArea(form);
     var cands = []; try { cands = area.querySelectorAll('[class*="bundle" i], [id*="bundle" i], [class*="quantity-break" i], [class*="qty-break" i], [class*="volume-disc" i], [class*="upsell" i], [class*="pack-select" i], [class*="packs" i]'); } catch (e) {}
     cands.forEach(function (el) { if (bad(el) || el.closest(FOREIGN_SKIP)) return; if (/price/i.test(el.className || "")) return; found.push(el); foreignFound["bloque de packs"] = true; });
+    var customs = []; try { customs = area.querySelectorAll("*"); } catch (e) {}
+    for (var ci = 0; ci < customs.length && ci < 600; ci++) { var ce = customs[ci]; if (ce.tagName.indexOf("-") < 0 || bad(ce) || ce.closest(FOREIGN_SKIP)) continue; if (/bundle|pack|upsell|deal|offer|volume|qty|quantity|combo|tier/i.test(ce.tagName) && !/quantity-input|variant|price/i.test(ce.tagName)) { found.push(ce); foreignFound["bloque de packs"] = true; } }
     var boxes = []; try { boxes = area.querySelectorAll("div, section, ul, fieldset"); } catch (e) {}
     var n = 0;
     for (var i = 0; i < boxes.length && n < 400; i++, n++) {
@@ -954,6 +967,54 @@ export default async function handler(req, res) {
     var names = foreignNames();
     if (hide && names && names !== lastForeignLog) { lastForeignLog = names; log("Otro selector de packs oculto: " + names + " — manda el de Recurrentes"); }
     return els.length;
+  }
+  // Regla de Thiago (20-sept): SIEMPRE uno u otro, nunca los dos ni ninguno. Si con el
+  // widget montado queda a la vista otro selector de packs que no supimos esconder
+  // (una app que envuelve el form, un tema raro…), dejamos la tienda como estaba
+  // (su bundle) y avisamos al panel con "bundle_conflict".
+  function foreignConflict(form) {
+    var hits = [];
+    var visible = function (el) { try { var r = el.getBoundingClientRect(); return r.width * r.height > 1200 && el.offsetParent !== null && getComputedStyle(el).visibility !== "hidden"; } catch (e) { return false; } };
+    var skip = function (el) { return !el || isOurs(el) || el.dataset.recForeign || el.closest(FOREIGN_SKIP) || el.closest("[data-rec-foreign]"); };
+    var NOISE = /price|precio|title|titulo|description|descripcion|media|gallery|swatch|variant|breadcrumb|review|rating|share|social/i;
+    // Texto del bloque SIN lo nuestro, sin el form (variantes, cantidad, botón), sin
+    // descripción/precio/galería: lo que queda es lo que ve el cliente como "otro selector".
+    var residual = function (el) {
+      var c = el.cloneNode(true);
+      var rm = []; try { rm = c.querySelectorAll('#recurrentes-widget, [data-rec-root], .recurrentes-bloque, .rc-once, form, select, option, label, script, style, [data-rec-foreign]'); } catch (e) {}
+      rm.forEach(function (n) { if (n.parentNode) n.parentNode.removeChild(n); });
+      var all = c.querySelectorAll("*");
+      for (var i = 0; i < all.length; i++) { var n = all[i]; if (NOISE.test((n.className || "") + " " + (n.id || "")) && n.parentNode) n.parentNode.removeChild(n); }
+      return (c.textContent || "").replace(/\\s+/g, " ").trim();
+    };
+    var area = buyArea(form);
+    var byName = []; try { byName = area.querySelectorAll(KNOWN_BUNDLES.map(function (k) { return k[1]; }).join(", ") + ', [class*="bundle" i], [id*="bundle" i], [class*="quantity-break" i], [class*="qty-break" i], [class*="volume-disc" i], [class*="upsell" i], [class*="pack-select" i]'); } catch (e) {}
+    byName.forEach(function (el) { if (skip(el) || !visible(el)) return; if (/price/i.test(el.className || "")) return; hits.push(el); });
+    // Apps con shadow DOM (no se puede leer lo que muestran): si hay un elemento
+    // custom visible con shadow root dentro del bloque de compra y no es nuestro, es otro selector.
+    var alls = []; try { alls = area.querySelectorAll("*"); } catch (e) {}
+    // Un custom element es inline por defecto: su rect puede dar 0 aunque adentro dibuje un bloque.
+    var visibleCE = function (el) {
+      try {
+        if (!el.isConnected || getComputedStyle(el).display === "none") return false;
+        if (visible(el)) return true;
+        var kids = el.shadowRoot ? el.shadowRoot.children : [];
+        for (var k = 0; k < kids.length; k++) { if (kids[k].tagName === "STYLE" || kids[k].tagName === "SCRIPT") continue; var r = kids[k].getBoundingClientRect(); if (r.width * r.height > 1200) return true; }
+        return false;
+      } catch (e) { return false; }
+    };
+    for (var si = 0; si < alls.length && si < 600; si++) { var se = alls[si]; if (se.tagName.indexOf("-") < 0 || !se.shadowRoot || skip(se) || !visibleCE(se)) continue; if (/quantity-input|variant-selects|variant-radios|product-form|price|media|gallery|modal|deferred|slider|share|localization|menu|header|drawer|cart/i.test(se.tagName)) continue; hits.push(se); }
+    var boxes = []; try { boxes = area.querySelectorAll("div, section, ul, fieldset"); } catch (e) {}
+    for (var i = 0; i < boxes.length && i < 150; i++) {
+      var el = boxes[i];
+      if (skip(el) || !visible(el) || NOISE.test((el.className || "") + " " + (el.id || ""))) continue;
+      var t = residual(el);
+      if (t.length < 12 || t.length > 700) continue;
+      if ((t.match(/(\\$|\\bARS)\\s?\\d[\\d.,]*/g) || []).length < 2) continue;
+      if (!/(\\bx\\s?\\d|\\d\\s?(u\\.|un\\b|unid|unidades)|\\bpack\\b|\\bcombo\\b|c\\/u|cada uno|por unidad|llev[aá]\\s?\\d)/i.test(t)) continue;
+      hits.push(el);
+    }
+    return hits.length ? outermost(hits) : [];
   }
   function foreignNames() { var k = Object.keys(foreignFound); return k.length ? k.join(", ").slice(0, 120) : null; }
   // Las apps inyectan tarde: re-mirar un rato después de montar.

@@ -675,7 +675,7 @@ async function handlePauseOffer(req, res) {
 //                            (máx. cada 20 s; con v=1 —lo abrió el panel para verificar— siempre)
 //   · rendered=0&reason=…  → widget_last_issue {at, reason, host, product, path} (máx. 1/min; v=1 siempre)
 // El panel ("Activar en mi tienda", _lib/widgetVerify.js) lee estos campos.
-export const WIDGET_ISSUE_REASONS = new Set(["no_product", "no_form", "no_plan", "hidden", "removed", "error"]);
+export const WIDGET_ISSUE_REASONS = new Set(["no_product", "no_form", "no_plan", "hidden", "removed", "error", "bundle_conflict"]);
 async function handleWidgetSeen(req, res) {
   res.setHeader("Cache-Control", "no-store");
   const merchantId = String(req.query.merchant || "").trim();
@@ -709,7 +709,7 @@ async function handleWidgetSeen(req, res) {
         const reason = String(req.query.reason || "");
         const lastI = Date.parse(d.widget_last_issue?.at || "") || 0;
         if (WIDGET_ISSUE_REASONS.has(reason) && (force || Date.now() - lastI > 60 * 1000)) {
-          patch.widget_last_issue = { at: now, reason, host: host || null, product: clip(req.query.product, 40), path: clip(req.query.path, 200) };
+          patch.widget_last_issue = { at: now, reason, host: host || null, product: clip(req.query.product, 40), path: clip(req.query.path, 200), hid: clip(req.query.hid, 120) };
         }
       }
       if (Object.keys(patch).length) await ref.update(patch);

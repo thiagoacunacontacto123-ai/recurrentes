@@ -13,6 +13,7 @@ import { merchantProfile } from "../../shared/platform/profile.js";
 const B = ({ T, children }) => <b style={{ color: T.text }}>{children}</b>;
 const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
 const WA = "https://wa.me/5491164117974?text=" + encodeURIComponent("Hola! El widget de Recurrentes no se ve en mi tienda. ¿Me ayudan?");
+const WA_BUNDLE = "https://wa.me/5491164117974?text=" + encodeURIComponent("Hola! Uso una app de bundles / un tema que Recurrentes todavía no reconoce. ¿Me lo dejan puesto a mano?");
 
 export const ISSUE_COPY = {
   no_form:    { title: "Cargó, pero no encontró el botón de comprar del tema", body: (T) => <>Tu tema (o una app de bundles / packs) cambió el formulario de compra y el widget no supo dónde ubicarse. Solución rápida: en el tema agregá <code style={{ fontFamily: MONO }}>&lt;div id="recurrentes-mount"&gt;&lt;/div&gt;</code> donde querés la caja. O <a href={WA} target="_blank" rel="noopener" style={{ color: T.accent }}>escribinos por WhatsApp</a> y lo acomodamos nosotros.</> },
@@ -20,6 +21,7 @@ export const ISSUE_COPY = {
   no_plan:    { title: "Cargó, pero ese producto no tiene un plan activo", body: () => <>El widget aparece solo en productos con plan. Fijate que el plan esté activo y sea de ese producto, o elegí otro plan arriba.</> },
   hidden:     { title: "Se montó, pero no se ve", body: () => <>Quedó sin tamaño en la página: otra app o el CSS del tema lo esconde. Suele pasar con apps de bundles que reemplazan el bloque de compra. Probá desactivarla en ese producto o escribinos por WhatsApp.</> },
   error:      { title: "El widget tuvo un error en tu tema y se apagó solo", body: () => <>Tu tienda siguió vendiendo con el botón de siempre (nunca dejamos el producto sin botón de compra). Escribinos por WhatsApp con el link del producto y lo revisamos.</> },
+  bundle_conflict: { title: "Tu integración funciona bien, pero tu tienda usa una app de bundles o un tema que todavía no tenemos en nuestros registros", body: (T) => <>Para no dejarte con dos selectores a la vez, dejamos tu bundle tal cual estaba y el de Recurrentes se apagó solo en ese producto. <a href={WA_BUNDLE} target="_blank" rel="noopener" style={{ color: T.accent, fontWeight: 700 }}>Escribinos por WhatsApp</a> y te lo dejamos puesto a mano. 100% gratis, obvio.</> },
   removed:    { title: "Apareció y el tema lo sacó", body: () => <>El tema volvió a dibujar el bloque de compra por JavaScript y borró el widget. Escribinos por WhatsApp: se resuelve con un ajuste chico.</> },
 };
 
