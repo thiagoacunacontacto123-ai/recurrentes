@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useTabRefresh } from "../lib/tabs.js";
+import { useTabRefresh, TAB_SHOWN_EVENT } from "../lib/tabs.js";
 import { apiGet, apiPost, apiPatch, apiDelete, apiSend } from "../lib/api.js";
 import { auth } from "../lib/firebase.js";
 import { DS, useT } from "../ui/theme.js";
 import { Btn, BtnSecondary, DSBadge, Modal, Field, InputStyle, Spinner, DSTable, CellStack, PageHeader, SubTabs, Hint, Loading, appConfirm, appAlert, appPrompt, toast } from "../ui/components.jsx";
-import { KpiCard, Segmented } from "../ui/charts.jsx";
+import { Segmented } from "../ui/charts.jsx";
 import { OnbEmpty } from "./Onboarding.jsx";
 import { TIPS } from "../lib/onboarding.js";
 import { MONO, fmtARS, fmtDateShort, fmtDateOnly, fmtDateTime, fmtDayMonth, fmtAgo, fmtFreq, SurfaceBox, KV, ExtLink, RowMenu, portalUrl, mpPaymentUrl, mpPreapprovalUrl, shopifyOrderUrl, orderLabel, copyText, hashQuery } from "./_shared.jsx";
@@ -200,7 +200,7 @@ export async function performSubAction(sub, action, ctx = {}) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// Página: Suscripciones — estilo Growith (Envíos): KPIs con sparkline arriba,
+// Página: Suscripciones — estilo Growith (Envíos): sin KPIs (viven en Analíticas desde 2026-09-19),
 // barra de estados con contadores + búsqueda + filtro por plan, tabla densa
 // paginada (25 por página). Mismas acciones y ficha que antes.
 // ═══════════════════════════════════════════════════════════════════
@@ -249,12 +249,11 @@ export function SubscriptionsPage({ devMode = false, shop = null }) {
   const [page, setPage] = useState(0);
   const [detail, setDetail] = useState(null);
   const [counts, setCounts] = useState({});
-  const [period, setPeriod] = useState(null);
   const [busyRow, setBusyRow] = useState(null);
 
   async function loadCounts() {
     const d = await apiGet("stats");
-    if (d && !d.error) { setCounts(c => ({ ...c, ...(d.totals || {}) })); setPeriod(d.period || null); }
+    if (d && !d.error) { setCounts(c => ({ ...c, ...(d.totals || {}) })); }
   }
   async function load(st = status, { silent = false } = {}) {
     if (!silent) setLoading(true);
@@ -269,6 +268,17 @@ export function SubscriptionsPage({ devMode = false, shop = null }) {
   useEffect(() => { loadCounts(); }, []);
   useEffect(() => { load(status); /* eslint-disable-next-line */ }, [status]);
   useTabRefresh("suscripciones", () => { loadCounts(); load(status, { silent: true }); });
+  // La pestaña queda montada: si otra pantalla (Analíticas, Inicio) abre
+  // #/dashboard/suscripciones?status=..., tomamos el filtro al volver a mostrarse.
+  useEffect(() => {
+    const onShown = (e) => {
+      if (e.detail?.tab !== "suscripciones") return;
+      const s = hashQuery().get("status");
+      if (s && STATUS_TABS.some(t => t.id === s)) setStatus(s);
+    };
+    window.addEventListener(TAB_SHOWN_EVENT, onShown);
+    return () => window.removeEventListener(TAB_SHOWN_EVENT, onShown);
+  }, []);
   useEffect(() => { setPage(0); }, [status, search, plan]);
 
   const planTitle = (s) => subAmounts(s).plan.product_title || s.product_title || "";
@@ -314,8 +324,6 @@ export function SubscriptionsPage({ devMode = false, shop = null }) {
 
   const tabs = STATUS_TABS.map(t => ({ id:t.id, label:t.label, count: t.statKey ? counts[t.statKey] : counts.unpaid }));
   const isUnpaid = status === "unpaid";
-  const k = period?.kpis || {};
-  const ser = period?.series || {};
 
   const clienteCol = { key:"cliente", label:"Cliente", render: s => {
     const name = s.customer_name || s.name;
@@ -381,18 +389,6 @@ export function SubscriptionsPage({ devMode = false, shop = null }) {
           <Btn T={T} variant="secondary" size="sm" onClick={exportCsv} style={{ height:34 }}>⬇ Exportar CSV</Btn>
           <Btn T={T} variant="secondary" size="sm" onClick={() => { load(); loadCounts(); }} disabled={loading} style={{ height:34 }}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>
         </>}/>
-
-      {/* KPIs (últimos 30 días vs los 30 anteriores) — tocás una y filtra la tabla */}
-      <div className="kpi-grid" style={{ display:"grid", gap:10, marginBottom:18 }}>
-        <KpiCard T={T} loading={!period} label="Activas" value={fmtN(counts.active)} curr={k.activas?.value} prev={k.activas?.prev}
-          hint="vs. hace 30 días" spark={ser.activas} color={T.green} onClick={() => changeStatus("active")}/>
-        <KpiCard T={T} loading={!period} label="Ingreso recurrente" value={fmtARS(k.mrr?.value)} curr={k.mrr?.value} prev={k.mrr?.prev}
-          hint="MRR · lo que cobrás por mes" spark={ser.mrr} color={T.accentSolid} valueColor={T.accent}/>
-        <KpiCard T={T} loading={!period} label="Pago fallido" value={fmtN(counts.payment_failed)}
-          hint="MP reintenta solo" spark={ser.fallidos} color={T.red} valueColor={(counts.payment_failed || 0) > 0 ? T.red : T.text} onClick={() => changeStatus("payment_failed")}/>
-        <KpiCard T={T} loading={!period} label="Bajas · 30 días" value={fmtN(k.bajas?.value)} curr={k.bajas?.value} prev={k.bajas?.prev} invert
-          hint={`Churn ${(k.churn_pct ?? 0).toLocaleString("es-AR")}%`} spark={ser.bajas} color={T.textSm} onClick={() => changeStatus("cancelled")}/>
-      </div>
 
       {/* Barra: estados con contadores · búsqueda · plan · conteo */}
       <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:10 }}>

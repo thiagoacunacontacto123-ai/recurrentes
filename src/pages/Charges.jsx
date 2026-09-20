@@ -3,12 +3,12 @@ import { useTabRefresh } from "../lib/tabs.js";
 import { apiGet, apiPost } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
 import { KPI, Btn, InputStyle, DSBadge, Spinner, DSTable, CellStack, PageHeader, SubTabs, Loading, appConfirm, toast } from "../ui/components.jsx";
-import { KpiCard, Segmented, AreaChart } from "../ui/charts.jsx";
+import { Segmented } from "../ui/charts.jsx";
 import DateRangePicker, { PRESETS_DIAS, rangoDePreset, hoyAR } from "../ui/DateRangePicker.jsx";
 import ChargesCalendar from "../ui/ChargesCalendar.jsx";
 import { OnbEmpty } from "./Onboarding.jsx";
 import { TIPS } from "../lib/onboarding.js";
-import { MONO, fmtARS, fmtDateTime, fmtDateOnly, ExtLink, mpPaymentUrl, shopifyOrderUrl, orderLabel, weekBucket, hashQuery } from "./_shared.jsx";
+import { MONO, fmtARS, fmtDateTime, ExtLink, mpPaymentUrl, shopifyOrderUrl, orderLabel, hashQuery } from "./_shared.jsx";
 
 // ─── Próximos cobros: GET /api/charges?view=upcoming con fallback a los subs
 // activos (next_charge_at ≤ 30 días) si el backend todavía no lo tiene.
@@ -41,12 +41,11 @@ export async function fetchErrors(processed = null) {
   return list.filter(c => c.error);
 }
 
-// ─── Página: Cobros — estilo Growith: período 7/30/90 con KPIs + sparkline,
-// gráfico diario (cobrado / cantidad), estados en píldoras con contador,
+// ─── Página: Cobros — sin KPIs ni gráfico (viven en Analíticas desde 2026-09-19):
+// período, estados en píldoras con contador,
 // búsqueda y tabla densa. Mismas acciones que antes (reintentar orden).
 // Período del calendario (Growith-style), persistido. Default: últimos 30 días.
 const RANGE_KEY = "rec_charges_range";
-const UPMODE_KEY = "rec_charges_upcoming_mode";
 const CAL_DAYS = 370;  // los 12 meses del calendario
 const defaultRange = () => { const [since, until] = rangoDePreset(PRESETS_DIAS.find(p => p.id === "30d")); return { since, until }; };
 const readRange = () => {
@@ -62,9 +61,7 @@ const readRange = () => {
   } catch (_) {}
   return { ...defaultRange(), preset: "30d" };
 };
-const UP_MODES = [{ id:"cal", label:"Calendario" }, { id:"list", label:"Lista" }];
 const fmtN = (n) => Math.round(Number(n) || 0).toLocaleString("es-AR");
-const fmtShortDate = (key) => { const [, m, d] = String(key).split("-"); return d ? `${parseInt(d)}/${parseInt(m)}` : key; };
 const SearchIcon = ({ color }) => (
   <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="5" stroke={color} strokeWidth="1.6"/><path d="M11 11l3.5 3.5" stroke={color} strokeWidth="1.6" strokeLinecap="round"/></svg>
 );
@@ -74,17 +71,15 @@ export function ChargesPage({ shop = null }) {
   const iS = InputStyle(T);
   const [view, setView] = useState(() => { const v = hashQuery().get("view"); return ["processed", "upcoming", "errors"].includes(v) ? v : "processed"; });
   const [range, setRange] = useState(readRange);
-  const [period, setPeriod] = useState(null);
+  const [ready, setReady] = useState(false);
   const [search, setSearch] = useState("");
   const [charges, setCharges] = useState([]);
   const [totals, setTotals] = useState({ amount_ars:0, ok:0, failed:0, total:0 });
   const [upcoming, setUpcoming] = useState([]);
   // Próximos cobros: lista semana por semana o calendario a 12 meses.
-  const [upMode, setUpMode] = useState(() => { try { return localStorage.getItem(UPMODE_KEY) === "list" ? "list" : "cal"; } catch (_) { return "cal"; } });
   const [upYear, setUpYear] = useState([]);       // proyección a 1 año (solo para el calendario)
   const [upYearLoading, setUpYearLoading] = useState(false);
   const [errors, setErrors] = useState([]);
-  const [thisMonth, setThisMonth] = useState(null);
   const [loading, setLoading] = useState(true);
   const [cursor, setCursor] = useState(null);
   const [retrying, setRetrying] = useState(null);
@@ -99,36 +94,25 @@ export function ChargesPage({ shop = null }) {
     if (!more) setTotals(d?.totals || { amount_ars:0, ok:0, failed:0, total:0 });
     return list;
   }
-  async function loadStats(r = range) {
-    const st = await apiGet("stats", { since: r.since, until: r.until }).catch(() => null);
-    if (st && !st.error) { setThisMonth(st.revenue?.this_month || null); setPeriod(st.period || null); }
-    return st;
-  }
   async function loadAll({ silent = false } = {}) {
     if (!silent) { setLoading(true); setUpYear([]); }
     try {
-      const [list, up, st] = await Promise.all([loadProcessed(false), fetchUpcoming().catch(() => []), loadStats()]);
+      const [list, up] = await Promise.all([loadProcessed(false), fetchUpcoming().catch(() => [])]);
       setUpcoming(up);
       setErrors(await fetchErrors(list).catch(() => []));
-      if (!st || st.error) {
-        const start = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-        const m = list.filter(c => !c.error && (c.created_at || "") >= start);
-        setThisMonth({ count: m.length, amount: m.reduce((a, c) => a + (c.amount_ars || 0), 0) });
-      }
-    } finally { setLoading(false); }
+    } finally { setLoading(false); setReady(true); }
   }
   useEffect(() => { loadAll(); }, []);
   useTabRefresh("cobros", () => loadAll({ silent: true }));
   // El año solo se pide cuando hace falta (vista Próximos + calendario).
   useEffect(() => {
-    if (view !== "upcoming" || upMode !== "cal" || upYear.length || upYearLoading) return;
+    if (view !== "upcoming" || upYear.length || upYearLoading) return;
     setUpYearLoading(true);
     fetchUpcoming(CAL_DAYS).then(setUpYear).catch(() => {}).finally(() => setUpYearLoading(false));
     /* eslint-disable-next-line */
-  }, [view, upMode]);
-  const pickUpMode = (m) => { setUpMode(m); try { localStorage.setItem(UPMODE_KEY, m); } catch (_) {} };
+  }, [view]);
   // Cambiar el período recarga métricas y la lista de cobros procesados.
-  useEffect(() => { if (period) { loadStats(range); loadProcessed(false, range); } /* eslint-disable-next-line */ }, [range.since, range.until]);
+  useEffect(() => { if (ready) loadProcessed(false, range); /* eslint-disable-next-line */ }, [range.since, range.until]);
   const pickRange = (since, until, preset) => { const r = { since, until, preset: preset || null }; setRange(r); try { localStorage.setItem(RANGE_KEY, JSON.stringify(r)); } catch (_) {} };
 
   // Reintenta la orden Shopify de un charge que quedó con error (mismo payment_id).
@@ -153,19 +137,8 @@ export function ChargesPage({ shop = null }) {
     .some(v => String(v ?? "").toLowerCase().includes(q));
   const chargesF = useMemo(() => charges.filter(match), [charges, q]);
   const errorsF = useMemo(() => errors.filter(match), [errors, q]);
-  const upcomingF = useMemo(() => upcoming.filter(match), [upcoming, q]);
   const upYearF = useMemo(() => upYear.filter(match), [upYear, q]);
 
-  const upcomingTotal = useMemo(() => upcoming.reduce((a, u) => a + (Number(u.amount_ars) || 0), 0), [upcoming]);
-  const weeks = useMemo(() => {
-    const map = new Map();
-    for (const u of upcomingF) {
-      const { idx, label } = weekBucket(u.next_charge_at);
-      if (!map.has(idx)) map.set(idx, { idx, label, items: [], total: 0 });
-      const w = map.get(idx); w.items.push(u); w.total += Number(u.amount_ars) || 0;
-    }
-    return [...map.values()].sort((a, b) => a.idx - b.idx);
-  }, [upcomingF]);
 
   const customerCell = (c) => <CellStack T={T} main={c.customer_name || c.name || c.customer_email || c.email || (c.subscriber_id ? `Sub ${String(c.subscriber_id).slice(0, 8)}…` : "—")} sub={(c.customer_name || c.name) ? (c.customer_email || c.email) : (c.plan_title || c.product_title || "")}/>;
   const dateCell = (iso) => <span style={{ color:T.textSm, fontSize:DS.font.sm, fontVariantNumeric:"tabular-nums" }}>{fmtDateTime(iso)}</span>;
@@ -199,12 +172,6 @@ export function ChargesPage({ shop = null }) {
         : <Btn T={T} variant="secondary" size="sm" onClick={(e) => { e.stopPropagation(); retryOrder(c); }} disabled={retrying === c.id} style={{ padding:"4px 9px", fontSize:DS.font.xs }}>{retrying === c.id ? <><Spinner size={10} color={T.textMd}/> Reintentando…</> : "↻ Reintentar orden"}</Btn> },
   ];
 
-  const upcomingCols = [
-    { key:"fecha", label:"Fecha", nowrap:true, render: u => <span style={{ color:T.text, fontVariantNumeric:"tabular-nums" }}>{fmtDateOnly(u.next_charge_at)}</span> },
-    { key:"cliente", label:"Cliente", render: u => <CellStack T={T} main={u.name || u.email} sub={u.name ? u.email : ""}/> },
-    { key:"plan", label:"Plan", hideMobile:true, render: u => <span style={{ color:T.textMd }}>{u.plan_title || "—"}</span> },
-    { key:"monto", label:"Monto", align:"right", nowrap:true, render: u => amountCell(u.amount_ars) },
-  ];
 
   const tabs = [
     { id:"processed", label:"Procesados", count: totals.total || charges.length || undefined },
@@ -212,16 +179,8 @@ export function ChargesPage({ shop = null }) {
     { id:"errors",    label:"Con error",  count: errors.length },
   ];
   const first = loading && charges.length === 0;
-  const k = period?.kpis || {};
-  const ser = period?.series || {};
-  const pl = period?.days ? `${period.days} días` : "período";
-  const ticket = k.cobros?.value ? k.cobrado.value / k.cobros.value : 0;
   // En calendario el conteo es el del año proyectado, no el de los 30 días.
-  const shown = view === "processed" ? chargesF.length : view === "upcoming" ? (upMode === "cal" ? upYearF.length : upcomingF.length) : errorsF.length;
-  const chartTabs = [
-    { id:"cobrado", label:"Cobrado", series:[{ key:"cobrado", label:"Cobrado", color:T.accentSolid, values: ser.cobrado || [], fmt: fmtARS }] },
-    { id:"cobros", label:"Cantidad", series:[{ key:"cobros", label:"Cobros", color:T.blue, values: ser.cobros || [], fmt: fmtN }] },
-  ];
+  const shown = view === "processed" ? chargesF.length : view === "upcoming" ? upYearF.length : errorsF.length;
 
   return (
     <div>
@@ -230,22 +189,6 @@ export function ChargesPage({ shop = null }) {
           <DateRangePicker T={T} since={range.since} until={range.until} onChange={pickRange}/>
           <Btn T={T} variant="secondary" size="sm" onClick={loadAll} disabled={loading} style={{ height:34 }}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>
         </>}/>
-
-      <div className="kpi-grid" style={{ display:"grid", gap:10, marginBottom:10 }}>
-        <KpiCard T={T} hero loading={!period} label="Cobrado" value={fmtARS(k.cobrado?.value)} curr={k.cobrado?.value} prev={k.cobrado?.prev}
-          hint={`Este mes ${fmtARS(thisMonth?.amount)} · vs. los ${pl} anteriores`} spark={ser.cobrado} color={T.accentSolid} valueColor={T.accent}/>
-        <KpiCard T={T} hero loading={!period} label="Cobros" value={fmtN(k.cobros?.value)} curr={k.cobros?.value} prev={k.cobros?.prev}
-          hint={ticket ? `Ticket promedio ${fmtARS(ticket)}` : "Pagos aprobados"} spark={ser.cobros} color={T.blue}/>
-        <KpiCard T={T} hero loading={first} label="Próximos 30 días" value={fmtARS(upcomingTotal)}
-          hint={`${fmtN(upcoming.length)} cobro${upcoming.length === 1 ? "" : "s"} programado${upcoming.length === 1 ? "" : "s"}`} color={T.accentSolid} onClick={() => setView("upcoming")}/>
-        <KpiCard T={T} hero loading={first} label="Con error" value={fmtN(errors.length)} valueColor={errors.length ? T.red : T.text}
-          hint={errors.length ? "Cobrados sin orden creada" : "Todo en orden"} spark={ser.fallidos} color={T.red} onClick={() => setView("errors")}/>
-      </div>
-
-      <div style={{ marginBottom:18 }}>
-        <AreaChart T={T} title={`Cobros · últimos ${pl}`} tabs={chartTabs} dates={ser.dates || []} fmtDate={fmtShortDate} height={200}
-          total={(tab) => tab.id === "cobrado" ? fmtARS(k.cobrado?.value) : `${fmtN(k.cobros?.value)} cobros`}/>
-      </div>
 
       {/* Barra: vista con contadores · búsqueda · conteo */}
       <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:10 }}>
@@ -275,33 +218,10 @@ export function ChargesPage({ shop = null }) {
       ) : view === "upcoming" ? (
         upcoming.length === 0 ? (
           <OnbEmpty section="cobros" icon="📅" title="No hay cobros programados" desc="Cuando tengas suscripciones activas, acá ves qué va a cobrar Mercado Pago en los próximos 12 meses, día por día."/>
-        ) : upMode === "cal" ? (
-          <div>
-            <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:10 }}>
-              <Segmented T={T} options={UP_MODES} value={upMode} onChange={pickUpMode} ariaLabel="Cómo ver los próximos cobros"/>
-            </div>
-            {upYearLoading && upYear.length === 0
-              ? <Loading T={T}/>
-              : <ChargesCalendar T={T} items={upYearF} months={12} fmtARS={fmtARS} loading={upYearLoading}/>}
-          </div>
-        ) : weeks.length === 0 ? (
-          <div style={{ padding:"28px 12px", textAlign:"center", color:T.textSm, fontSize:DS.font.base, border:`1px dashed ${T.border}`, borderRadius:12 }}>Ningún cobro programado coincide con la búsqueda.</div>
         ) : (
-          <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
-            <div style={{ display:"flex", justifyContent:"flex-end" }}>
-              <Segmented T={T} options={UP_MODES} value={upMode} onChange={pickUpMode} ariaLabel="Cómo ver los próximos cobros"/>
-            </div>
-            {weeks.map(w => (
-              <div key={w.idx}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:10, marginBottom:8, padding:"0 2px" }}>
-                  <div style={{ fontSize:DS.font.base, fontWeight:DS.w.bold, color:T.text }}>{w.label} <span style={{ color:T.textSm, fontWeight:DS.w.medium }}>· {w.items.length} cobro{w.items.length === 1 ? "" : "s"}</span></div>
-                  <div style={{ fontSize:DS.font.base, fontWeight:DS.w.black, color:T.accent, fontVariantNumeric:"tabular-nums" }}>{fmtARS(w.total)}</div>
-                </div>
-                <DSTable T={T} columns={upcomingCols} rows={w.items} rowKey={(u, i) => (u.subscriber_id || "u") + "-" + i} dense minWidth={560}/>
-              </div>
-            ))}
-            <div style={{ fontSize:DS.font.sm, color:T.textSm, padding:"0 2px" }}>Las fechas las define Mercado Pago según el ciclo de cada suscripción; pueden moverse 1-2 días.</div>
-          </div>
+          upYearLoading && upYear.length === 0
+            ? <Loading T={T}/>
+            : <ChargesCalendar T={T} items={upYearF} months={12} fmtARS={fmtARS} loading={upYearLoading}/>
         )
       ) : (
         errors.length === 0 ? (

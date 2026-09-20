@@ -396,7 +396,7 @@ export default function Dashboard({ user, onLogout }) {
               ) : t === "analiticas" ? (
                 // Pantalla de entrada. Con la tienda conectada, los datos; si todavía
                 // falta conectar algo, la puesta en marcha (el viejo Inicio).
-                integrationsReady ? <AnalyticsPage merchant={merchant}/> : <HomeTab merchant={merchant} onGo={goTab} onGoConfig={goConfig} onOpenGuide={()=>setWizardOpen(true)}/>
+                integrationsReady ? <AnalyticsPage merchant={merchant} goTab={goTab}/> : <HomeTab merchant={merchant} onGo={goTab} onGoConfig={goConfig} onOpenGuide={()=>setWizardOpen(true)}/>
               ) : t === "admin" ? (
                 isAdmin ? <AdminPage/> : null
               ) : t === "configuracion" ? (

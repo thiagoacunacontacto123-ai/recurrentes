@@ -3,6 +3,7 @@
 // Los cobros más allá del próximo de cada suscripción son proyectados (MP solo
 // confirma el siguiente), así que se marcan como estimados.
 import { useState, useMemo, useRef, useEffect } from "react";
+import ReactDOM from "react-dom";
 import { DS } from "./theme.js";
 
 const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
@@ -181,11 +182,14 @@ export default function ChargesCalendar({ T, items = [], months = 12, fmtARS, on
         </span>
       </div>
 
-      {abierto && (
+      {/* El desglose va por portal al body: dentro de la página (que anima con
+          transform) un position:fixed queda relativo a la página y aparece abajo,
+          no en el medio de lo que la persona está viendo (Thiago, 19-sept). */}
+      {abierto && ReactDOM.createPortal(
         <>
-          <div onClick={() => setOpen(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:60 }}/>
+          <div onClick={() => setOpen(null)} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:2000 }}/>
           <div role="dialog" aria-modal="true" aria-label={`Cobros del ${open}`}
-            style={{ position:"fixed", zIndex:61, left:"50%", top:"50%", transform:"translate(-50%,-50%)", width:"min(520px, calc(100vw - 28px))", maxHeight:"min(76vh, 620px)", overflowY:"auto", background:T.card, border:`1px solid ${T.border}`, borderRadius:16, boxShadow:"0 18px 50px rgba(0,0,0,0.45)", padding:16 }}>
+            style={{ position:"fixed", zIndex:2001, left:"50%", top:"50%", transform:"translate(-50%,-50%)", width:"min(520px, calc(100vw - 28px))", maxHeight:"min(76vh, 620px)", overflowY:"auto", background:T.card, border:`1px solid ${T.border}`, borderRadius:16, boxShadow:"0 18px 50px rgba(0,0,0,0.45)", padding:16 }}>
             <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:10, marginBottom:12 }}>
               <div>
                 <div style={{ fontSize:DS.font.base, fontWeight:DS.w.black, color:T.text }}>
@@ -215,7 +219,8 @@ export default function ChargesCalendar({ T, items = [], months = 12, fmtARS, on
               El primer cobro de cada suscripción lo confirma Mercado Pago; los siguientes se estiman con la frecuencia del plan y pueden moverse 1-2 días.
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );

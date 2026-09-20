@@ -6,6 +6,7 @@ import { Card, KPI, Btn, DSBadge, Spinner, DSTable, PageHeader, SubTabs, CardHea
 import { KpiCard, Segmented, AreaChart, BarList, Panel } from "../ui/charts.jsx";
 import DateRangePicker, { PRESETS_MESES, rangoDePreset, hoyAR } from "../ui/DateRangePicker.jsx";
 import { OnbEmpty } from "./Onboarding.jsx";
+import { fetchErrors } from "./Charges.jsx";
 import { fmtARS, fmtPct, downloadCsv } from "./_shared.jsx";
 
 // GET /api/stats?action=analytics&months=N. Si el backend todavía no lo tiene,
@@ -50,17 +51,19 @@ const monthTick = (ym) => `${MONTH_LABEL(ym)} ${String(ym).slice(2, 4)}`;
 
 // ─── Página: Analíticas — estilo Growith: KPIs con sparkline mensual,
 // gráfico con pestañas, próximos 30 días por semana, motivos de baja y mes a mes.
-export function AnalyticsPage({ merchant }) {
+export function AnalyticsPage({ merchant, goTab }) {
   const T = useT();
   const [range, setRange] = useState(readRange);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  const [chargeErrors, setChargeErrors] = useState(null); // cobros OK sin orden creada (antes vivía en Cobros)
 
   async function load(r = range, { silent = false } = {}) {
     if (!silent) setLoading(true);
     try {
-      const d = await fetchAnalytics(r);
+      const [d, ce] = await Promise.all([fetchAnalytics(r), fetchErrors().catch(() => null)]);
+      if (Array.isArray(ce)) setChargeErrors(ce.length);
       if (!d) setErr("No pudimos cargar las métricas"); else { setData(d); setErr(""); }
     } catch (e) { setErr(e.message || "Error"); }
     finally { setLoading(false); }
@@ -135,7 +138,17 @@ export function AnalyticsPage({ merchant }) {
               value={`${(Number(a.churn_30d_pct) || 0).toLocaleString("es-AR", { maximumFractionDigits:1 })}%`} valueColor={(a.churn_30d_pct || 0) > 5 ? T.red : T.text} color={T.red}
               hint={`${fmtN(a.cancelled_30d)} baja${a.cancelled_30d === 1 ? "" : "s"} · línea: bajas por mes`} spark={series("cancelled")}/>
           </div>
-          <div className="kpi-grid kpi-grid-4" style={{ display:"grid", gap:10, marginBottom:18 }}>
+          <div className="kpi-grid" style={{ display:"grid", gap:10, marginBottom:18 }}>
+            <KpiCard T={T} loading={first} label={kpiLabel("Pago fallido", "Suscripciones que hoy tienen el último cobro rechazado. Mercado Pago reintenta solo y nosotros le avisamos al cliente para que cambie la tarjeta.")}
+              value={fmtN(a.payment_failed)} hint="MP reintenta solo" color={T.red} valueColor={(a.payment_failed || 0) > 0 ? T.red : T.text}
+              onClick={() => goTab?.("suscripciones", "status=payment_failed")}/>
+            <KpiCard T={T} loading={first} label={kpiLabel("Con error", "Cobros que Mercado Pago aprobó pero cuya orden no se pudo crear en tu tienda. Desde Cobros → Con error se reintenta con un clic.")}
+              value={chargeErrors == null ? "—" : fmtN(chargeErrors)} hint={chargeErrors ? "Cobrados sin orden creada" : "Todo en orden"} color={T.red} valueColor={chargeErrors ? T.red : T.text}
+              onClick={() => goTab?.("cobros", "view=errors")}/>
+            <KpiCard T={T} loading={first} label={kpiLabel("Bajas 30 días", "Suscripciones canceladas en los últimos 30 días. El % compara este mes con el anterior; menos es mejor.")}
+              value={fmtN(a.cancelled_30d)} curr={curMonth ? Number(curMonth.cancelled) : null} prev={prevMonth ? Number(prevMonth.cancelled) : null} invert
+              hint={`Churn ${(Number(a.churn_30d_pct) || 0).toLocaleString("es-AR", { maximumFractionDigits:1 })}% · línea: bajas por mes`} spark={series("cancelled")} color={T.textSm}
+              onClick={() => goTab?.("suscripciones", "status=cancelled")}/>
             <KpiCard T={T} loading={first} label={kpiLabel("LTV promedio", "Lo que cobró en promedio cada suscriptor a lo largo de su vida (total cobrado ÷ suscriptores con al menos un cobro).")}
               value={a.ltv_avg != null ? fmtARS(a.ltv_avg) : "—"} hint="por suscriptor" color={T.accentSolid}/>
             <KpiCard T={T} loading={first} label={kpiLabel("Cobros por suscriptor", "Promedio de cobros OK por suscriptor. Sube con la retención.")}
