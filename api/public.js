@@ -705,6 +705,11 @@ async function handleWidgetSeen(req, res) {
             widget_verified_hidden: clip(req.query.hid, 120), // otro selector de packs que escondimos (app / tema / Liquid)
           });
         }
+        // El widget SE VE: el problema anterior ya no existe (el comercio desinstaló la app
+        // de bundles, cambió el tema o lo acomodamos a mano). Se borra siempre, aunque el
+        // tope de 20 s no deje reescribir widget_verified_at: si no, el cartel del panel
+        // sigue mostrando un conflicto que ya se resolvió y el comercio nos escribe al pedo.
+        if (d.widget_last_issue) patch.widget_last_issue = FieldValue.delete();
       } else if (rendered === "0") {
         const reason = String(req.query.reason || "");
         const lastI = Date.parse(d.widget_last_issue?.at || "") || 0;

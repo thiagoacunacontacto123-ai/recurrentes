@@ -151,3 +151,36 @@ test("widget.js: conflicto de bundles → restaura el tema y avisa bundle_confli
   assert.equal(m.widget_last_issue?.reason, "bundle_conflict");
   assert.equal(m.widget_last_issue?.hid, "ABC-THING");
 });
+
+// ── El cartel no queda viejo ────────────────────────────────────────────────
+// Caso real: el comercio tenía Kaching Bundles, el widget se corrió solo
+// (bundle_conflict) y el panel le mostró el cartel. Después desinstala Kaching.
+// El widget vuelve a montarse solo (la detección corre en CADA carga, no una vez),
+// así que el aviso tiene que desaparecer sin que nadie toque "Activar en mi tienda".
+test("el widget vuelve a verse → se borra el problema anterior (desinstaló la app de bundles)", async () => {
+  await seen({ rendered: "0", reason: "bundle_conflict", v: "1", hid: "kaching", product: PRODUCT_ID });
+  assert.equal(W.merchant().widget_last_issue?.reason, "bundle_conflict", "primero queda el conflicto");
+
+  await seen({ rendered: "1", v: "1", product: PRODUCT_ID, path: "/products/capsulas" });
+
+  assert.equal(W.merchant().widget_last_issue, undefined, "el aviso se va solo");
+  assert.ok(W.merchant().widget_verified_at, "y queda verificado");
+});
+
+test("se borra aunque el tope de 20 s no deje reescribir la verificación", async () => {
+  // Verificado recién (no se puede reescribir) y un problema posterior.
+  await seen({ rendered: "1", v: "1", product: PRODUCT_ID });
+  await seen({ rendered: "0", reason: "bundle_conflict", v: "1", hid: "pumper" });
+  assert.ok(W.merchant().widget_last_issue, "hay conflicto");
+
+  // Sin v=1: el throttle NO deja tocar widget_verified_at, pero el aviso igual se va.
+  await seen({ rendered: "1", product: PRODUCT_ID });
+
+  assert.equal(W.merchant().widget_last_issue, undefined);
+});
+
+test("un problema nuevo se sigue guardando después de haber estado OK", async () => {
+  await seen({ rendered: "1", v: "1", product: PRODUCT_ID });
+  await seen({ rendered: "0", reason: "no_form", v: "1", product: PRODUCT_ID });
+  assert.equal(W.merchant().widget_last_issue?.reason, "no_form", "el aviso vuelve a aparecer");
+});
