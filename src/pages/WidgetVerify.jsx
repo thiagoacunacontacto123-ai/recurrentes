@@ -150,7 +150,7 @@ export function WidgetStatusCard({ merchant, plans = [], onVerified, style = {} 
   const title = issue ? (ISSUE_COPY[issue.reason]?.title || "El widget no se pudo mostrar") : v ? "✓ El widget se ve en tu tienda" : "Todavía no verificaste que el widget se vea en tu tienda";
   const body = issue
     ? <>Lo detectamos el {when(issue.at)} en <B T={T}>{issue.host}{issue.path || ""}</B>. Tocá “Activar en mi tienda” para volver a probar y ver cómo arreglarlo.</>
-    : v ? <>Verificado el {when(v)} en <B T={T}>{m.widget_verified_host}{m.widget_verified_path || ""}</B>. Si cambiás el tema o instalás una app de bundles, volvé a verificar.</>
+    : v ? <>Verificado el {when(v)} en <B T={T}>{m.widget_verified_host}{m.widget_verified_path || ""}</B>.{m.widget_verified_hidden ? <> Había otro selector de packs (<B T={T}>{m.widget_verified_hidden}</B>) y lo ocultamos: en ese producto manda el de Recurrentes.</> : null} Si cambiás el tema o instalás una app de bundles, volvé a verificar.</>
     : <>Abrimos un producto tuyo y confirmamos que la caja de suscripción aparece de verdad (3 segundos en pantalla). Es la única forma de estar seguros de que tus clientes la ven.</>;
   return (
     <Callout T={T} tone={tone} title={title} style={{ marginBottom: 14, ...style }}

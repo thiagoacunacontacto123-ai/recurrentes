@@ -55,6 +55,7 @@ export function widgetVerifyStatus(m, since = "") {
   const verified = after(m?.widget_verified_at) ? {
     at: m.widget_verified_at, host: m.widget_verified_host || null, product: m.widget_verified_product || null,
     plan: m.widget_verified_plan || null, path: m.widget_verified_path || null, mode: m.widget_verified_mode || null,
+    hidden: m.widget_verified_hidden || null,
   } : null;
   const issue = m?.widget_last_issue && after(m.widget_last_issue.at) ? m.widget_last_issue : null;
   return { loaded: after(m?.widget_last_seen_at), verified, issue, last_verified_at: m?.widget_verified_at || null };

@@ -3,6 +3,7 @@
 import "../helpers/register.mjs";
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import vm from "node:vm";
 import { createWorld, loadApi, MID, SHOP, PLAN_ID, PRODUCT_ID, luminaMerchant } from "../helpers/world.mjs";
 import { invoke } from "../helpers/http.mjs";
 import { seedDoc } from "../helpers/fake-firestore.mjs";
@@ -24,7 +25,7 @@ test("widget.js: avisa visible 3 s (rendered=1) y los motivos por los que no se 
   assert.ok(js.includes('"&rendered=" + (state === "ok" ? "1" : "0")'), "manda rendered=1/0");
   assert.ok(js.includes("visibleMs >= 3000"), "exige 3 s seguidos visible");
   for (const r of ['report("no_product")', 'report("no_form"', 'report("no_plan"', 'report("hidden"', 'report("removed"']) assert.ok(js.includes(r), `reporta ${r}`);
-  assert.ok(js.includes('watchVisible(host, { product: productId, plan: plan.id, mode: "bundle" })') && js.includes('mode: "legacy"'), "mira el widget montado en packs y clásico");
+  assert.ok(js.includes('var watchExtra = { product: productId, plan: plan.id, mode: "bundle" }') && js.includes("watchVisible(host, watchExtra)") && js.includes('mode: "legacy"'), "mira el widget montado en packs y clásico");
 
   // Red de seguridad: nunca dejar el tema sin botón de compra.
   assert.ok(js.includes("function restoreTheme(reason)") && js.includes("function guarded(fn, where)"), "restoreTheme + guarded");
@@ -106,4 +107,29 @@ test("widgetVerifyUrl (Tiendanube): canonical_url del producto", async () => {
   assert.equal(r.url, "https://lumina.mitiendanube.com/productos/capsulas/?rec_verify=1");
   assert.equal(r.channel, "tiendanube");
   assert.ok(!W.router.find({ host: "api.tiendanube.com" })[0].url.includes("tn_tok"), "el token va en el header, no en la URL");
+});
+
+// 20-sept-2026 (Thiago: "todos usan app"): si la tienda ya tiene otro selector de packs
+// (app de bundles, el nativo del tema o un Liquid propio) el widget lo esconde solo y
+// manda el nuestro; al panel le llega qué escondió (hid=) y queda en widget_verified_hidden.
+test("widget.js: detecta y esconde otros bundles (apps conocidas + heurística) y lo reporta al panel", async () => {
+  const res = await invoke(widget, { method: "GET", query: { merchant: MID } });
+  const js = res.body;
+  for (const app of ["Kaching Bundles", "Pumper Bundles", "Selleasy", "Bundler", "Fast Bundle", "PickyStory", "Vitals", "Packs del tema"]) assert.ok(js.includes(`["${app}",`), `conoce ${app}`);
+  assert.ok(js.includes("function detectForeignBundles(form)") && js.includes("function hideForeignBundles(hide, form)"), "detector + ocultar/restaurar");
+  assert.ok(js.includes('[class*="bundle" i], [id*="bundle" i]'), "heurística por nombre de clase");
+  assert.ok(js.includes("if (prices.length < 2) continue;"), "heurística por varios precios + x2/unidades/pack");
+  assert.ok(js.includes("/price|precio|title|titulo|description|descripcion|media|gallery|variant|swatch/i"), "nunca toca el precio, el título ni la galería del producto");
+  assert.ok(js.includes('[class*="cart" i], [id*="cart" i], [class*="drawer" i]'), "no toca el carrito ni el drawer");
+  // se aplica en packs (al montar y en cada cambio de modo) y en el clásico (modo suscripción; compra única restaura)
+  assert.ok(js.includes("try { hideForeignBundles(true, form); watchExtra.hid = foreignNames(); } catch (e) {}"), "packs: al montar");
+  assert.ok(js.includes("try { hideForeignBundles(true, form); keepHidingForeign(form, null); } catch (e) {}") && js.includes("try { hideForeignBundles(false, form); } catch (e) {}"), "clásico: esconde en suscripción y restaura en compra única");
+  assert.ok(js.includes("[800, 2000, 4000, 8000]"), "vuelve a mirar porque las apps inyectan tarde");
+  assert.ok(js.includes('var keys = ["product", "plan", "ms", "mode", "hid"];'), "el beacon lleva hid=");
+  // el JS servido tiene que compilar (las regex van dentro de un template literal: barras dobles)
+  new vm.Script(js);
+
+  const r = await seen({ rendered: "1", v: "1", product: PRODUCT_ID, plan: PLAN_ID, path: "/products/capsulas", mode: "bundle", ms: "3000", hid: "Kaching Bundles, bloque de packs" });
+  assert.equal(r.statusCode, 204);
+  assert.equal(W.merchant().widget_verified_hidden, "Kaching Bundles, bloque de packs");
 });

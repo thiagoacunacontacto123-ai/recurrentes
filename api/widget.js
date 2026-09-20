@@ -301,7 +301,7 @@ export default async function handler(req, res) {
       if (!VERIFY && Date.now() - last < 2 * 60 * 1000) return;
       sessionStorage.setItem(key, String(Date.now()));
       var q = "&rendered=" + (state === "ok" ? "1" : "0") + (state === "ok" ? "" : "&reason=" + encodeURIComponent(state)) + (VERIFY ? "&v=1" : "");
-      var keys = ["product", "plan", "ms", "mode"];
+      var keys = ["product", "plan", "ms", "mode", "hid"];
       for (var i = 0; i < keys.length; i++) if (extra && extra[keys[i]] != null) q += "&" + keys[i] + "=" + encodeURIComponent(String(extra[keys[i]]));
       q += "&path=" + encodeURIComponent(location.pathname.slice(0, 200));
       new Image().src = API_BASE + "/api/public?action=widget-seen&merchant=" + encodeURIComponent(MERCHANT_ID) + "&host=" + encodeURIComponent(location.hostname) + q + "&_=" + Date.now();
@@ -822,6 +822,7 @@ export default async function handler(req, res) {
       }
       hideExternalBuyButtons(true);
       hideCustomSelector(true);
+      try { hideForeignBundles(true, form); keepHidingForeign(form, null); } catch (e) {}
       try { document.body.classList.add("rec-sub-active"); } catch(e){}
       subPanel.style.display = "block";
       widget.querySelector('[data-rec-mode="once"]').style.borderColor = "#d1d5db";
@@ -832,6 +833,7 @@ export default async function handler(req, res) {
       if (form) form.style.display = form.dataset.recPrevDisplay || "";
       hideExternalBuyButtons(false);
       hideCustomSelector(false);
+      try { hideForeignBundles(false, form); } catch (e) {}
       try { document.body.classList.remove("rec-sub-active"); } catch(e){}
       subPanel.style.display = "none";
       widget.querySelector('[data-rec-mode="once"]').style.borderColor = "${COL}";
@@ -869,6 +871,102 @@ export default async function handler(req, res) {
           delete el.dataset.recPrevDisplay;
         }
       });
+    });
+  }
+
+  // ─── Otros selectores de packs / bundles (20-sept-2026, Thiago: "todos usan app") ───
+  // Si la tienda ya tiene un bundle de una app (Kaching, Pumper, Selleasy, Bundler,
+  // Fast Bundle, Vitals, PickyStory…), el nativo del tema o un Liquid propio, lo
+  // escondemos nosotros: manda nuestro selector. Dos redes: (1) selectores conocidos
+  // de las apps más usadas; (2) heurística en el bloque de compra: algo que no es
+  // nuestro ni el form, con nombre tipo bundle/pack/volume/upsell o con varios
+  // precios + "x2 / unidades / pack / combo". Nunca tocamos el precio del producto.
+  var KNOWN_BUNDLES = [
+    ["Kaching Bundles", "kaching-bundles, .kaching-bundles, .kaching-bundles__block, [class^='kaching-']"],
+    ["Pumper Bundles", "pumper-bundles, .pumper-bundles, #pumper-bundles, .pb-bundles, [class^='pumper-']"],
+    ["Selleasy", ".lb-bundle-widget, .lb-upsell-widget, #logbase-widget, .selleasy-widget, [class^='lb-bundle']"],
+    ["Bundler", ".bundler-target-element, #bundler-app, .bundler-widget, [class^='bundler-']"],
+    ["Fast Bundle", "fast-bundle, .fast-bundle, #fast-bundle, [class^='fast-bundle']"],
+    ["Bundle Bear", ".bundle-bear, #bundle-bear, [class^='bundle-bear']"],
+    ["PickyStory", "pickystory-deal, .pickystory-container, [class^='pickystory']"],
+    ["Vitals", ".vtl-quantity-breaks, .vtl-bundle, .vtl-vd, .vtl-bundles-widget"],
+    ["Wide Bundles", "wide-bundles, .wide-bundles, #wide-bundles"],
+    ["Simple Bundles", "simple-bundles-widget, .simple-bundles, #simple-bundles"],
+    ["Rapi Bundle", "rapi-bundles, .rapi-bundle, [class^='rapi-bundle']"],
+    ["Monster Upsells", ".monster-upsells, #monster-upsells"],
+    ["Bundle Builder", ".bundle-builder, #bundle-builder"],
+    ["Rebuy", ".rebuy-widget"],
+    ["Packs del tema", "volume-pricing, .volume-pricing, quantity-rules, .quantity__rules, .price-per-item, .quantity-discount"]
+  ];
+  var FOREIGN_SKIP = '#recurrentes-widget, [data-rec-root], .recurrentes-bloque, .rc-once, [class*="cart" i], [id*="cart" i], [class*="drawer" i], [class*="carrito" i], header, footer, nav';
+  var foreignFound = {}, lastForeignLog = null; // nombre → true (para el reporte al panel)
+  function isOurs(el) { return !!(el.closest && (el.closest("#recurrentes-widget, [data-rec-root], .recurrentes-bloque, .rc-once"))); }
+  function buyArea(form) {
+    var sel = '.product__info-wrapper, .product__info-container, .product__info, .product-single__meta, .product-info, [id^="ProductInfo"], [class*="product-info"], [class*="product__info"], [class*="product-details"], [data-store="product-info"], .js-product-detail, .product-form-container';
+    var a = null;
+    try { a = form ? form.closest(sel) : document.querySelector(sel); } catch (e) {}
+    if (!a && form) a = (form.parentElement && form.parentElement.parentElement) || form.parentElement;
+    return a || document.body;
+  }
+  function outermost(list) {
+    return list.filter(function (el) { return !list.some(function (o) { return o !== el && o.contains(el); }); });
+  }
+  function detectForeignBundles(form) {
+    var found = [];
+    var bad = function (el) { return !el || isOurs(el) || el === form || (form && el.contains(form)) || (el.closest && el.closest(FOREIGN_SKIP) && !el.matches(FOREIGN_SKIP.split(",")[0])); };
+    // (1) apps conocidas, en toda la página menos carrito/header/footer
+    KNOWN_BUNDLES.forEach(function (k) {
+      var nodes = []; try { nodes = document.querySelectorAll(k[1]); } catch (e) {}
+      nodes.forEach(function (el) { if (bad(el)) return; if (el.closest(FOREIGN_SKIP)) return; found.push(el); foreignFound[k[0]] = true; });
+    });
+    // (2) heurística dentro del bloque de compra
+    var area = buyArea(form);
+    var cands = []; try { cands = area.querySelectorAll('[class*="bundle" i], [id*="bundle" i], [class*="quantity-break" i], [class*="qty-break" i], [class*="volume-disc" i], [class*="upsell" i], [class*="pack-select" i], [class*="packs" i]'); } catch (e) {}
+    cands.forEach(function (el) { if (bad(el) || el.closest(FOREIGN_SKIP)) return; if (/price/i.test(el.className || "")) return; found.push(el); foreignFound["bloque de packs"] = true; });
+    var boxes = []; try { boxes = area.querySelectorAll("div, section, ul, fieldset"); } catch (e) {}
+    var n = 0;
+    for (var i = 0; i < boxes.length && n < 400; i++, n++) {
+      var el = boxes[i];
+      if (bad(el) || el.closest(FOREIGN_SKIP) || /price|precio|title|titulo|description|descripcion|media|gallery|variant|swatch/i.test((el.className || "") + " " + (el.id || ""))) continue;
+      var t = (el.textContent || "").replace(/\\s+/g, " ").trim();
+      if (t.length < 12 || t.length > 700) continue;
+      var prices = t.match(/\\$\\s?\\d[\\d.,]*/g) || [];
+      if (prices.length < 2) continue;
+      if (!/(\\bx\\s?\\d|\\d\\s?(u\\.|un\\b|unid|unidades)|\\bpack\\b|\\bcombo\\b|c\\/u|cada uno|por unidad|llev[aá]\\s?\\d)/i.test(t)) continue;
+      if (el.querySelector("form, input[type=submit], button[name=add]")) continue;
+      found.push(el); foreignFound["bloque de packs"] = true;
+    }
+    found = outermost(found.filter(function (el, i, arr) { return arr.indexOf(el) === i; }));
+    return found;
+  }
+  function hideForeignBundles(hide, form) {
+    var els = hide ? detectForeignBundles(form) : document.querySelectorAll("[data-rec-foreign]");
+    els.forEach(function (el) {
+      if (hide) {
+        if (el.dataset.recForeign) return;
+        el.dataset.recForeign = "1";
+        if (el.style.display !== "none") { el.dataset.recPrevDisplay = el.style.display || ""; el.style.display = "none"; }
+      } else {
+        delete el.dataset.recForeign;
+        if (el.dataset.recPrevDisplay !== undefined) { el.style.display = el.dataset.recPrevDisplay; delete el.dataset.recPrevDisplay; }
+      }
+    });
+    var names = foreignNames();
+    if (hide && names && names !== lastForeignLog) { lastForeignLog = names; log("Otro selector de packs oculto: " + names + " — manda el de Recurrentes"); }
+    return els.length;
+  }
+  function foreignNames() { var k = Object.keys(foreignFound); return k.length ? k.join(", ").slice(0, 120) : null; }
+  // Las apps inyectan tarde: re-mirar un rato después de montar.
+  function keepHidingForeign(form, extraForReport) {
+    [800, 2000, 4000, 8000].forEach(function (ms) {
+      setTimeout(function () {
+        try {
+          if (!document.body.classList.contains("rec-bundle-active") && !document.body.classList.contains("rec-sub-active")) return;
+          var before = foreignNames();
+          hideForeignBundles(true, form);
+          if (extraForReport && foreignNames() !== before) extraForReport.hid = foreignNames();
+        } catch (e) {}
+      }, ms);
     });
   }
 
@@ -1146,7 +1244,10 @@ export default async function handler(req, res) {
       if (mountPoint) mountPoint.appendChild(host);
       else if (hideAnchor && hideAnchor.parentNode) hideAnchor.parentNode.insertBefore(host, hideAnchor);
       else form.parentNode.insertBefore(host, form);
-      watchVisible(host, { product: productId, plan: plan.id, mode: "bundle" });
+      var watchExtra = { product: productId, plan: plan.id, mode: "bundle" };
+      try { hideForeignBundles(true, form); watchExtra.hid = foreignNames(); } catch (e) {}
+      keepHidingForeign(form, watchExtra);
+      watchVisible(host, watchExtra);
 
       var state = { mode: bundle.modeDefault === "once" ? "once" : "sub", idx: parseInt(bundle.defaultIdx, 10) || 0 };
       if (bundle.states[state.mode + ":" + state.idx] === undefined) state.idx = 0;
@@ -1257,6 +1358,7 @@ export default async function handler(req, res) {
         // en los dos modos: la cantidad la decide el pack.
         hideExternalBuyButtons(state.mode === "sub");
         hideCustomSelector(true);
+        try { hideForeignBundles(true, form); } catch (e) {}
         if (!document.getElementById("rc-bundle-hide-style")) {
           var st = document.createElement("style");
           st.id = "rc-bundle-hide-style";

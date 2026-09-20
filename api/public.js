@@ -702,6 +702,7 @@ async function handleWidgetSeen(req, res) {
             widget_verified_at: now, widget_verified_host: host || null,
             widget_verified_product: clip(req.query.product, 40), widget_verified_plan: clip(req.query.plan, 60),
             widget_verified_path: clip(req.query.path, 200), widget_verified_mode: clip(req.query.mode, 10),
+            widget_verified_hidden: clip(req.query.hid, 120), // otro selector de packs que escondimos (app / tema / Liquid)
           });
         }
       } else if (rendered === "0") {

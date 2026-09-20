@@ -161,6 +161,7 @@ export default async function handler(req, res) {
         widget_verified_host: merchant.widget_verified_host || null,
         widget_verified_path: merchant.widget_verified_path || null,
         widget_verified_product: merchant.widget_verified_product || null,
+        widget_verified_hidden: merchant.widget_verified_hidden || null,
         widget_last_issue: merchant.widget_last_issue || null,
         shopify_has_own_app: !!(merchant.shopify_client_id && merchant.shopify_client_secret),
         shopify_env_app: !!(process.env.SHOPIFY_API_KEY && process.env.SHOPIFY_API_SECRET),
