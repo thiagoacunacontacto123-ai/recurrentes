@@ -743,24 +743,21 @@ const COMPARE_ROWS = [
     ["USD 99 a 249 por mes", "según el plan"],
     ["No lo publica", "acceso solo por invitación"],
     ["Plan Impulso", "$78.999 por mes"],
-    ["USD 99 a 599 por mes", "Recharge y Skio"]],
+    ["USD 99 a 499 por mes", "según el plan"]],
   ["Comisión sobre cada venta",
     ["0%", true],
     ["1,65% + IVA", "de todo lo que cobrás"],
     ["1,2% a 1,8%", "de todo lo que cobrás"],
     ["2%", "de todo lo que cobrás"],
     ["—", "va con el plan"],
-    ["1% a 1,49% + USD 0,19", "por transacción"]],
+    ["1,49% + USD 0,19", "por transacción"]],
   ["Costo de instalación",
-    ["$0", true],
-    "$0",
+    ["$0", true], "$0",
     ["$0", "hasta la primera suscripción"],
     ["USD 150", "pago único"],
-    "$0",
-    "$0"],
+    "$0", "$0"],
   ["Te la dejamos andando nosotros",
-    ["Sí, sin cargo", true],
-    "?",
+    ["Sí, sin cargo", true], false,
     ["Sí", "setup asistido"],
     ["Sí", "en 7 días"],
     ["No", "la configurás vos"],
@@ -768,18 +765,21 @@ const COMPARE_ROWS = [
   ["Cobra con Mercado Pago", true, true, true, true,
     ["Solo Pago Nube", "y solo tarjeta de crédito"], false],
   ["Funciona en Shopify", true, true, true, true, false, true],
-  ["Funciona en Tiendanube", true, true, "~", true, true, false],
-  ["Suscribir una variante puntual", true, "?", "?", "?",
+  ["Funciona en Tiendanube", true, true,
+    ["No", "te hacen pasar a Shopify"],
+    true, true, false],
+  ["Suscribir una variante puntual", true, false, false, false,
     ["No", "aplica a todas las variantes"], true],
-  ["Dos productos con suscripción en el mismo carrito", true, "?", "?", "?",
+  ["Dos productos con suscripción en el mismo carrito", true, false, false, false,
     ["No", "uno por carrito"], true],
   ["Diseños de widget listos para usar",
-    ["12 diseños con tus fotos", true], "?", "?", "?",
-    ["—", "el del tema"], "~"],
-  ["Mails automáticos con tu marca", true, "?", true, "?", "?", ["Sí", "en inglés"]],
-  ["Avisos por WhatsApp al cliente", ["Sí", true], "?", "?", "?", "?", "?"],
-  ["Avisos por WhatsApp al comerciante", ["Sí", true], "?", "?", "?", "?", "?"],
-  ["Portal del cliente: pausar, cancelar, cambiar dirección", true, "?", true, true, "?", true],
+    ["12 diseños con tus fotos", true], false, false, false,
+    ["—", "el del tema"], false],
+  ["Mails automáticos con tu marca", true, false, true, false, false,
+    ["Sí", "en inglés"]],
+  ["Avisos por WhatsApp al cliente", ["Sí", true], false, false, false, false, false],
+  ["Avisos por WhatsApp al comerciante", ["Sí", true], false, false, false, false, false],
+  ["Portal del cliente: pausar, cancelar, cambiar dirección", true, false, true, true, false, true],
   ["Toma todas las tiendas que quieran entrar",
     ["Sí", true], true, true,
     ["No", "10 marcas por mes"],
@@ -787,12 +787,12 @@ const COMPARE_ROWS = [
   ["Soporte en español por WhatsApp", ["Sí", true], true, true, true, "~", false],
 ];
 const COMPARE_COLS = [
-  { key:"rec",   title:"Recurrentes", real:true },
-  { key:"f1",    title:"Fácil Uno",   sub:"Argentina" },
-  { key:"rev",   title:"Reval",       sub:"Latam" },
-  { key:"pue",   title:"Puentify",    sub:"Argentina" },
-  { key:"tn",    title:"Tiendanube",  sub:"Suscripciones nativas" },
-  { key:"intl",  title:"Recharge · Skio", sub:"Internacionales" },
+  { key:"rec",  title:"Recurrentes", real:true },
+  { key:"f1",   title:"Fácil Uno",   sub:"Argentina",  ini:"F", c:"#4ADE80" },
+  { key:"rev",  title:"Reval",       sub:"Latam",      ini:"R", c:"#60A5FA" },
+  { key:"pue",  title:"Puentify",    sub:"Argentina",  ini:"P", c:"#A78BFA" },
+  { key:"tn",   title:"Tiendanube",  sub:"Nativas",    ini:"T", c:"#2FB8E6" },
+  { key:"rch",  title:"Recharge",    sub:"Internacional", ini:"R", c:"#F472B6" },
 ];
 // Links de cada dato, por si alguien quiere chequearlo (y para respaldarnos).
 const COMPARE_SOURCES = [
@@ -801,8 +801,12 @@ const COMPARE_SOURCES = [
   { t:"Puentify", u:"https://puentify.app/" },
   { t:"Tiendanube", u:"https://ayuda.tiendanube.com/es_ES/ventas/como-vender-productos-por-suscripcion-en-tiendanube" },
   { t:"Recharge", u:"https://getrecharge.com/pricing/" },
-  { t:"Skio", u:"https://apps.shopify.com/skio" },
 ];
+// Marca de cada competidor: inicial en un círculo con su color. No usamos sus
+// logos: son marcas registradas y no tenemos permiso para reproducirlos.
+function CompareMark({ ini, c }) {
+  return <span aria-hidden="true" style={{width:20,height:20,borderRadius:"50%",background:c+"22",color:c,border:`1.5px solid ${c}55`,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:900,flexShrink:0}}>{ini}</span>;
+}
 function CompareCell({ T, v }) {
   const ok = (c) => <Check c={c} size={16}/>;
   const no = (c) => <Cross c={c} size={16}/>;
@@ -829,8 +833,8 @@ export function ComparisonSection({ T }) {
   return (
     <section className="ls-sec-alt" id="rec-comparar">
       <div className="ls-wrap">
-        <SectionHead T={T} eyebrow="Comparativa" title="Lo mismo, sin comisión y sin dólares"
-          sub="Todos cobran un abono en dólares más un porcentaje de cada venta que hacés. Nosotros no cobramos comisión y los primeros 10 suscriptores son gratis. Cada dato sale de la web pública de cada producto."/>
+        <SectionHead T={T} eyebrow="Comparativa" title="Lo mismo, sin comisión y con más funciones"
+          sub="Casi todos cobran un porcentaje de cada venta que hacés, además del abono. Nosotros no cobramos comisión, los primeros 10 suscriptores son gratis y viene todo incluido: WhatsApp, mails con tu marca y 12 diseños de widget."/>
         <div className="ls-cmp-wrap" style={{borderRadius:18,border:`1px solid ${T.border}`,background:T.card}}>
           <table className="ls-cmp">
             <thead>
@@ -841,8 +845,8 @@ export function ComparisonSection({ T }) {
                     {c.real
                       ? <span style={{display:"inline-flex",alignItems:"center",gap:8,fontSize:15,fontWeight:800,color:T.text}}><RecLogoMini/> {c.title}</span>
                       : <span style={{display:"flex",flexDirection:"column",gap:3}}>
-                          <span style={{fontSize:14.5,fontWeight:800,color:T.textMd}}>{c.title}</span>
-                          <span style={{fontSize:10.5,fontWeight:700,color:T.textSm,letterSpacing:0.4,textTransform:"uppercase"}}>{c.sub}</span>
+                          <span style={{display:"inline-flex",alignItems:"center",gap:7,fontSize:14.5,fontWeight:800,color:T.textMd}}><CompareMark ini={c.ini} c={c.c}/>{c.title}</span>
+                          <span style={{fontSize:10.5,fontWeight:700,color:T.textSm,letterSpacing:0.4,textTransform:"uppercase",paddingLeft:27}}>{c.sub}</span>
                         </span>}
                   </th>
                 ))}
@@ -866,7 +870,7 @@ export function ComparisonSection({ T }) {
           Datos verificados el 21 de septiembre de 2026 en la web pública de cada producto:{" "}
           {COMPARE_SOURCES.map((f, i) => (
             <span key={f.t}>{i > 0 ? " · " : ""}<a href={f.u} target="_blank" rel="noopener noreferrer" style={{color:T.textMd,textDecoration:"underline"}}>{f.t}</a></span>
-          ))}. "No lo documenta" quiere decir que no lo encontramos publicado, no que no exista. El setup y la comisión de Puentify no figuran en su web: son datos de comercios que trabajan con ellos. Los precios los pone cada empresa y pueden cambiar.
+          ))}. El setup y la comisión de Puentify no figuran en su web: salen de comercios que trabajan con ellos. Recharge compró Skio en abril de 2026. Los precios los pone cada empresa y pueden cambiar.
         </p>
       </div>
     </section>
