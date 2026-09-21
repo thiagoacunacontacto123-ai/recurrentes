@@ -48,6 +48,7 @@ import { emitFlowEvent } from "../_lib/flows.js";
 import { metaFunnel } from "../_lib/meta.js";
 import { computeRecoverUrl } from "../_lib/abandoned.js";
 import { merchantProfile, hostedCheckoutUrl } from "../../shared/platform/profile.js";
+import { clampDiscountPct, discountAmountFor } from "../../shared/platform/discounts.js";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 // Subs que ya son cliente: su perfil en Klaviyo no se degrada a "checkout_started".
@@ -556,14 +557,11 @@ export default async function handler(req, res) {
     const codes = Array.isArray(merchant.discount_codes) ? merchant.discount_codes : [];
     const hit = codes.find(c => String(c.code || "").trim().toUpperCase() === rawCode && c.active !== false);
     if (hit && (!hit.recovery_only || viaRecovery)) {
+      // Misma cuenta que hace el checkout en el navegador (módulo compartido):
+      // si difieren, el comprador ve un precio y Mercado Pago le cobra otro.
       const type = hit.type || "percent";
-      if (type === "percent") {
-        const pct = Math.max(0, Math.min(90, parseFloat(hit.value) || 0));
-        if (pct > 0) { discountCodePct = pct; subtotal = Math.round(subtotal * (1 - pct / 100)); }
-      } else if (type === "fixed") {
-        const off = Math.max(0, Math.round(parseFloat(hit.value) || 0));
-        subtotal = Math.max(0, subtotal - off);
-      }
+      if (type === "percent") discountCodePct = clampDiscountPct(hit.value);
+      subtotal = Math.max(0, subtotal - discountAmountFor(subtotal, hit));
       discountCodeApplied = rawCode;
       discountFirstOnly = false; // 19-sept-2026 (Thiago): el descuento vale para toda la suscripción; nunca se reprecia el preapproval
     } else if (hit && hit.recovery_only) {

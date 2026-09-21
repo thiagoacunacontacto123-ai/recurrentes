@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { resolvePack } from "../../shared/bundle/viewmodel.js";
 import { AppLoader } from "../ui/components.jsx";
+import { discountAmountFor } from "../../shared/platform/discounts.js";
 
 // Checkout propio de Recurrentes (hosteado). Dos entradas:
 //   · Link de suscripción (negocios sin tienda: servicios, digitales, venta por link):
@@ -233,9 +234,10 @@ export default function Checkout() {
   const shippingSel = askAddress ? (rates[rateIdx] || planShipping) : null;
   const shippingPrice = shippingSel ? (Number(shippingSel.price) || 0) : 0;
   // Descuento validado contra el backend (el server lo vuelve a validar al pagar).
-  const discountAmt = discount
-    ? (discount.type === "fixed" ? Math.min(subtotal, Math.round(Number(discount.value) || 0)) : Math.round(subtotal * (Math.min(100, Number(discount.value) || 0) / 100)))
-    : 0;
+  // La cuenta la hace el módulo compartido, la MISMA que corre en el server.
+  // Antes acá el % se capeaba en 100 y en el server en 90: con un código del
+  // 99 % el comprador veía $595 y MP le cobraba $5.949 (21-sept).
+  const discountAmt = discountAmountFor(subtotal, discount);
   const total = Math.max(0, subtotal - discountAmt) + shippingPrice;
 
   async function aplicarCodigo(code, rc) {
