@@ -183,6 +183,9 @@ export default function Checkout() {
     free: planShippingFree || (plan?.shipping_price_ars || 0) === 0,
   };
 
+  // Última opción cuando la tienda no devuelve ninguna tarifa: un envío
+  // estándar en 0. Nunca se muestra junto a las reales, solo en su lugar.
+  const FALLBACK_RATE = { name: "Envío a domicilio", price: 0, _fallback: true };
   // Métodos de envío: de Shopify (tienda conectada) o los del checkout del merchant.
   const rateTimer = useRef(null);
   useEffect(() => {
@@ -212,13 +215,15 @@ export default function Checkout() {
         const r = await fetch(`/api/shopify?${q.toString()}`);
         const d = await r.json();
         const list = Array.isArray(d.rates) ? d.rates : [];
-        // Si la tienda no devolvió ninguna tarifa NO inventamos la del plan:
-        // mostrarle "Envío a domicilio · Gratis" cuando su tienda cobra envío es
-        // mentirle al comprador (caso Glowtherm, 21-sept). Se cobra 0 y el
-        // comerciante coordina el envío, que es lo que el backend ya hace.
-        setRates(list.length ? list : [{ name: "A coordinar con la tienda", price: 0, _fallback: true }]);
+        // Si la tienda no devolvió ninguna tarifa (permiso faltante, API caída,
+        // app de envíos que no cotiza a ese CP) mostramos UNA sola opción
+        // estándar. El precio va en 0 —es lo que el backend cobra cuando no
+        // pudo matchear una tarifa real— y el comerciante lo coordina al
+        // despachar. Antes acá se pintaba el envío del plan, que le mostraba al
+        // comprador un precio que la tienda no cobra (caso Glowtherm, 21-sept).
+        setRates(list.length ? list : [FALLBACK_RATE]);
         setRateIdx(0);
-      } catch (_) { setRates([{ name: "A coordinar con la tienda", price: 0, _fallback: true }]); setRateIdx(0); }
+      } catch (_) { setRates([FALLBACK_RATE]); setRateIdx(0); }
       finally { setRatesLoading(false); }
     }, 350);
     return () => clearTimeout(rateTimer.current);
