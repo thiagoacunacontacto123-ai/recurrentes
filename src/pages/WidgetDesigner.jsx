@@ -17,7 +17,15 @@ import { Segmented } from "../ui/charts.jsx";
 // Renderiza las variantes REALES de shared/bundle/templates.js en iframes
 // aislados del tema del dashboard y guarda todo con merchant?action=save-settings.
 
-export const DEFAULT_WIDGET_TEXTS = {
+export // Sugerencias de las 4 líneas de confianza (solo placeholder: no se guardan).
+const TRUST_HINTS = [
+  "Cancelás cuando quieras",
+  "Envío a todo el país",
+  "Pausá o cambiá la fecha desde tu portal",
+  "Opcional — escribí otra si querés",
+];
+
+const DEFAULT_WIDGET_TEXTS = {
   headline: "Elegí tu pack",
   once_label: "Compra única",
   sub_label: "Suscripción",
@@ -495,9 +503,14 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
           <Field T={T} label="Líneas de confianza (hasta 4)">
             <div style={{display:"flex",flexDirection:"column",gap:6}}>
               {[0,1,2,3].map(i => (
-                <input key={i} type="text" value={texts.trust_lines[i] ?? ""} onChange={e=>setTrust(i, e.target.value)} style={{...inputS,marginBottom:0}} placeholder={DEFAULT_WIDGET_TEXTS.trust_lines[i] || (i === 2 ? "Pausá o cambiá la fecha desde tu portal" : "")} maxLength={80}/>
+                <input key={i} type="text" value={texts.trust_lines[i] ?? ""} onChange={e=>setTrust(i, e.target.value)} style={{...inputS,marginBottom:0}}
+                  /* Las vacías decían nada y parecían un error: ahora avisan que son opcionales. */
+                  placeholder={texts.trust_lines[i] ? "" : (TRUST_HINTS[i] || "Opcional — escribí otra si querés")} maxLength={80}/>
               ))}
             </div>
+            <p style={{margin:"6px 0 0",fontSize:DS.font.sm,color:T.textSm,lineHeight:1.45}}>
+              Se muestran con un tilde debajo del botón. Las que dejes vacías no aparecen.
+            </p>
           </Field>
 
           <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
