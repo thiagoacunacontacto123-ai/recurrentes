@@ -17,15 +17,15 @@
 import { fmtARS } from "./viewmodel.js";
 
 export const BUNDLE_VARIANTS = [
-  { id: "v01", name: "Clásico",          description: "Cards apiladas estilo Lumina, ribbon en el pack recomendado y caja de suscripción punteada." },
+  { id: "v01", name: "Clásico",          description: "Cards apiladas estilo Lumina, ribbon en el pack recomendado y caja de suscripción punteada. Muestra la foto del pack si la cargaste." },
   { id: "v02", name: "Lista",            description: "Filas tipo radio con el precio a la derecha y pestañas Compra única / Suscripción arriba. El formato más usado por suplementos de USA." },
-  { id: "v03", name: "Compacto",         description: "Pills de cantidad, precio grande abajo y switch de suscripción. Ocupa poco alto." },
+  { id: "v03", name: "Compacto",         description: "Pills de cantidad con la foto del pack arriba, precio grande abajo y switch de suscripción. Ocupa poco alto." },
   { id: "v04", name: "Tabla",            description: "Comparativa por pack: una columna Una vez y otra Suscripción. Se elige tocando la celda." },
-  { id: "v05", name: "Tarjetas grandes", description: "Una card por pack, una debajo de otra, con etiqueta de ahorro lateral y segmentado de modo arriba." },
+  { id: "v05", name: "Tarjetas grandes", description: "Una card por pack con la foto al lado, etiqueta de ahorro lateral y segmentado de modo arriba." },
   { id: "v06", name: "Minimal",          description: "Líneas finas, sin fondos, tipografía protagonista. Para tiendas con estética limpia." },
   { id: "v07", name: "Segmentado",       description: "Control segmentado de packs y una card de precio con chips de modo." },
   { id: "v08", name: "Oscuro premium",   description: "Fondo oscuro, acento brillante y CTA con degradado. Para marcas premium." },
-  { id: "v09", name: "Pastel",           description: "Fondos suaves, esquinas bien redondeadas y tiles de pack en grilla." },
+  { id: "v09", name: "Pastel",           description: "Fondos suaves, esquinas bien redondeadas y tiles de pack en grilla, con la foto dentro del círculo." },
   { id: "v10", name: "Editorial",        description: "Dos columnas: packs a la izquierda y resumen del pedido sticky a la derecha. En mobile se apila." },
   { id: "v11", name: "Foto",             description: "Una fila por pack con la foto que subís vos, cinta en el recomendado y switch de suscripción antes del botón. El formato de los bundles que más venden." },
   { id: "v12", name: "Foto + regalos",   description: "Como Foto, y además cada pack muestra los regalos que incluye, con su imagen y el precio tachado. Para bundles con bonus." },
@@ -206,7 +206,9 @@ function v01(c) {
     return '<div class="rc-pack' + c.on(on) + c.on(!!p.badge, "has-badge") + '"' + c.radioAttrs(i) + ">" +
       (p.badge ? '<span class="rc-ribbon">' + esc(p.badge) + "</span>" : "") +
       '<span class="rc-radio" aria-hidden="true"><i></i></span>' +
-      '<span class="rc-qty" aria-hidden="true">×' + p.qty + "</span>" +
+      (p.image
+        ? '<span class="rc-qty rc-qty-img" aria-hidden="true"><img src="' + esc(p.image) + '" alt="" loading="lazy"><b>×' + p.qty + "</b></span>"
+        : '<span class="rc-qty" aria-hidden="true">×' + p.qty + "</span>") +
       '<span class="rc-info"><b class="rc-name">' + esc(p.label) + "</b>" +
         '<small class="rc-meta">' + esc([p.qty === 1 ? "1 unidad" : p.qty + " unidades", c.perUnit(p)].filter(Boolean).join(" · ")) + "</small>" +
         (c.savings(p) ? '<span class="rc-save">' + esc(c.savings(p)) + "</span>" : "") +
@@ -250,6 +252,11 @@ function v01(c) {
     S + " .rc-pack.is-on .rc-radio i{width:11px;height:11px}" +
     S + " .rc-qty{width:44px;height:44px;border-radius:calc(var(--rc-r) * .7);background:var(--rc-a-l2);color:var(--rc-a-t);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:17px;letter-spacing:-.3px}" +
     S + " .rc-pack.is-on .rc-qty{background:var(--rc-a);color:var(--rc-on-a)}" +
+    // Con foto: el recuadro la muestra y la cantidad baja a una chapita en la esquina.
+    S + " .rc-qty-img{position:relative;overflow:visible;background:#fff;border:1px solid #e6e6e6;padding:2px}" +
+    S + " .rc-pack.is-on .rc-qty-img{background:#fff;border-color:var(--rc-a)}" +
+    S + " .rc-qty-img img{width:100%;height:100%;object-fit:contain;border-radius:calc(var(--rc-r) * .5);display:block}" +
+    S + " .rc-qty-img b{position:absolute;right:-5px;bottom:-5px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--rc-a);color:var(--rc-on-a);font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff}" +
     S + " .rc-info{min-width:0;display:flex;flex-direction:column;gap:2px}" +
     S + " .rc-name{font-size:15px;font-weight:900;letter-spacing:.1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}" +
     S + " .rc-meta{font-size:12px;color:#666;font-weight:600}" +
@@ -347,7 +354,9 @@ function v03(c) {
   var S = c.S, t = c.t;
   var pills = c.packs.map(function (p, i) {
     var v = c.v(p);
-    return '<div class="rc-pill' + c.on(i === c.idx) + '"' + c.radioAttrs(i) + '><b>' + p.qty + "</b>" +
+    return '<div class="rc-pill' + c.on(i === c.idx) + '"' + c.radioAttrs(i) + ">" +
+      (p.image ? '<img class="rc-pill-img" src="' + esc(p.image) + '" alt="" loading="lazy">' : "") +
+      "<b>" + p.qty + "</b>" +
       (v.savingsPct ? "<small>−" + v.savingsPct + "%</small>" : "<small>&nbsp;</small>") +
       (p.badge ? '<span class="rc-pill-badge">' + esc(p.badge) + "</span>" : "") + "</div>";
   }).join("");
@@ -376,6 +385,9 @@ function v03(c) {
     S + " .rc-pill:hover{border-color:var(--rc-a-l3);background:var(--rc-a-l1)}" +
     S + " .rc-pill.is-on{border-color:var(--rc-a);background:var(--rc-a);color:var(--rc-on-a);box-shadow:0 4px 14px var(--rc-a-40)}" +
     S + " .rc-pill b{font-size:20px;font-weight:900}" +
+    // Foto del pack arriba del número: la pastilla se agranda sola.
+    S + " .rc-pill-img{width:100%;max-width:46px;height:34px;object-fit:contain;display:block;margin:0 auto 4px;border-radius:5px;background:#fff}" +
+    S + " .rc-pill.is-on .rc-pill-img{background:#fff;padding:1px}" +
     S + " .rc-pill small{font-size:11px;font-weight:700;color:var(--rc-a-t);margin-top:3px}" +
     S + " .rc-pill.is-on small{color:var(--rc-on-a);opacity:.9}" +
     S + " .rc-pill-badge{position:absolute;top:-9px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;padding:2px 7px;border-radius:20px;background:#161616;color:#fff;white-space:nowrap;max-width:96%;overflow:hidden;text-overflow:ellipsis}" +
@@ -477,6 +489,7 @@ function v05(c) {
     var meta = [c.perUnit(p), c.mode === "sub" ? (t.freq_prefix || "Te llega cada") + " " + p.freqLabel : ""].filter(Boolean).join(" · ");
     return '<div class="rc-card' + c.on(on) + '"' + c.radioAttrs(i) + ">" +
       '<div class="rc-side' + c.on(!v.savingsPct, "is-empty") + '">' + (v.savingsPct ? "<span>Ahorrás</span><b>" + v.savingsPct + "%</b>" : "<b>×" + p.qty + "</b>") + "</div>" +
+      (p.image ? '<img class="rc-card-img" src="' + esc(p.image) + '" alt="" loading="lazy">' : "") +
       '<div class="rc-body"><div class="rc-card-top"><b class="rc-card-name">' + esc(p.label) + "</b>" + (p.badge ? '<span class="rc-badge">' + esc(p.badge) + "</span>" : "") + "</div>" +
         '<div class="rc-card-price"><b>' + esc(fmtARS(v.price)) + "</b>" + c.compareHtml(p) + "</div>" +
         (meta ? "<small>" + esc(meta) + "</small>" : "") + "</div>" +
@@ -499,6 +512,8 @@ function v05(c) {
     S + " .rc-seg .rc-disc{color:var(--rc-a-b);margin-left:3px}" +
     S + " .rc-seg:not(.is-on) .rc-disc{color:var(--rc-a-t)}" +
     S + " .rc-cards{display:flex;flex-direction:column;gap:10px}" +
+    // Foto del pack entre la franja de ahorro y el texto.
+    S + " .rc-card-img{width:52px;height:52px;object-fit:contain;flex:none;align-self:center;margin-left:10px;border-radius:7px;background:#fff}" +
     S + " .rc-card{position:relative;display:grid;grid-template-columns:64px minmax(0,1fr) 28px;align-items:center;gap:0 14px;border:1.5px solid #e2e2e2;border-radius:var(--rc-r);background:#fff;overflow:hidden;min-height:84px;transition:border-color .2s,box-shadow .2s,transform .15s}" +
     S + " .rc-card:hover{border-color:var(--rc-a-l3);transform:translateY(-1px)}" +
     S + " .rc-card.is-on{border-color:var(--rc-a);box-shadow:0 8px 24px var(--rc-a-25)}" +
@@ -699,7 +714,10 @@ function v09(c) {
     var v = c.v(p), on = i === c.idx;
     return '<div class="rc-tile' + c.on(on) + '"' + c.radioAttrs(i) + ">" +
       (v.savingsPct ? '<span class="rc-bubble">−' + v.savingsPct + "%</span>" : "") +
-      '<span class="rc-tqty">' + p.qty + "</span><span class=\"rc-tlbl\">" + esc(p.label) + "</span>" +
+      (p.image
+        ? '<span class="rc-tqty rc-tqty-img"><img src="' + esc(p.image) + '" alt="" loading="lazy"><b>' + p.qty + "</b></span>"
+        : '<span class="rc-tqty">' + p.qty + "</span>") +
+      '<span class="rc-tlbl">' + esc(p.label) + "</span>" +
       '<span class="rc-tprice">' + esc(fmtARS(v.price)) + "</span>" + c.compareHtml(p, null, "rc-told") +
       (p.badge ? '<span class="rc-tbadge">' + esc(p.badge) + "</span>" : "") +
       "</div>";
@@ -726,6 +744,11 @@ function v09(c) {
     S + " .rc-bubble{position:absolute;top:-10px;right:-6px;background:var(--rc-a);color:var(--rc-on-a);font-size:11px;font-weight:900;padding:4px 8px;border-radius:20px;box-shadow:0 3px 10px var(--rc-a-40)}" +
     S + " .rc-tqty{width:44px;height:44px;border-radius:50%;background:var(--rc-a-l2);color:var(--rc-a-t);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;margin-bottom:8px}" +
     S + " .rc-tile.is-on .rc-tqty{background:var(--rc-a);color:var(--rc-on-a)}" +
+    // Con foto: el círculo la muestra y la cantidad queda como chapita.
+    S + " .rc-tqty-img{position:relative;overflow:visible;background:#fff;border:1.5px solid var(--rc-a-l2);padding:3px}" +
+    S + " .rc-tile.is-on .rc-tqty-img{background:#fff;border-color:var(--rc-a)}" +
+    S + " .rc-tqty-img img{width:100%;height:100%;object-fit:contain;border-radius:50%;display:block}" +
+    S + " .rc-tqty-img b{position:absolute;right:-4px;bottom:-4px;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:var(--rc-a);color:var(--rc-on-a);font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff}" +
     S + " .rc-tlbl{font-size:12px;font-weight:700;color:#555;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;max-width:100%}" +
     S + " .rc-tprice{font-size:16px;font-weight:900;color:#1d1d1d;white-space:nowrap}" +
     S + " .rc-told{font-size:11px;color:#aaa;margin-top:2px}" +

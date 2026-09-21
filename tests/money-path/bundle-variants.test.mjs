@@ -134,3 +134,26 @@ test("(j) el regalo también puede tener foto subida", () => {
   assert.ok(normalizePacks([{ qty: 1, price_ars: 100, gifts: [{ title: "x", image: "javascript:alert(1)" }] }]).error,
     "el regalo tampoco acepta javascript:");
 });
+
+// ── La foto del pack también en los diseños sin foto de origen ──────────────
+// Clásico, Compacto, Tarjetas grandes y Pastel tenían un cuadradito con el
+// número: ahora muestran la foto si el comercio la cargó, y siguen igual que
+// siempre si no la cargó.
+const CON_FOTO = ["v01", "v03", "v05", "v09", "v11", "v12"];
+
+test("(j) los diseños con lugar para foto la pintan cuando el pack la tiene", () => {
+  const conFoto = plan([{ qty: 1, price_ars: 8900, image: FOTO }, { qty: 2, price_ars: 17800, image: FOTO }]);
+  for (const v of CON_FOTO) {
+    const { html } = renderBundle(buildBundleVM({ merchant: { widget_variant: v }, plan: conFoto }), {});
+    assert.ok(html.includes(FOTO), `${v} muestra la foto`);
+  }
+});
+
+test("(j) sin foto, los 12 diseños siguen andando y no dejan una imagen vacía", () => {
+  const sinFoto = plan([{ qty: 1, price_ars: 8900 }, { qty: 2, price_ars: 17800 }]);
+  for (const v of VARIANT_IDS) {
+    const { html } = renderBundle(buildBundleVM({ merchant: { widget_variant: v }, plan: sinFoto }), {});
+    assert.ok(html.length > 100, `${v} renderiza`);
+    assert.ok(!html.includes("<img"), `${v} no deja un <img> sin src`);
+  }
+});
