@@ -741,7 +741,7 @@ const COMPARE_ROWS = [
     ["Gratis hasta 10 suscriptores", "rec"],
     ["Sin abono", "solo comisión"],
     ["USD 99 a 249 por mes", "según el plan"],
-    ["No lo publica", "acceso solo por invitación"],
+    ["Sin abono", "solo comisión"],
     ["Plan Impulso", "$78.999 por mes"],
     ["USD 99 a 499 por mes", "según el plan"]],
   ["Comisión sobre cada venta",
