@@ -649,7 +649,7 @@ const FROM_RE = /^[^<>]{1,60}<([^\s@<>]+@[^\s@<>]+\.[^\s@<>]+)>$/;
 const normHost = (v) => String(v || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/:\d+$/, "");
 
 // Widget de packs (bundle) — ver shared/bundle/SPEC.md.
-const WIDGET_VARIANT_RE = /^v(0[1-9]|10)$/;
+const WIDGET_VARIANT_RE = /^v(0[1-9]|1[0-2])$/;
 const WIDGET_TEXT_KEYS = ["headline", "once_label", "sub_label", "cta_once", "cta_sub", "savings_label", "per_unit_label", "freq_prefix"];
 const WIDGET_TEXT_MAX = 80, WIDGET_TRUST_MAX = 60, WIDGET_TRUST_LINES_MAX = 4;
 // Sanea `widget_texts`: solo claves conocidas, strings ≤ 80 (vacío = usar default
@@ -841,7 +841,7 @@ async function saveSettings(merchantId, req, res) {
   // Widget de packs (bundle)
   if ("widget_variant" in b) {
     const v = String(b.widget_variant || "").trim().toLowerCase();
-    if (!WIDGET_VARIANT_RE.test(v)) return bad("widget_variant debe ser v01..v10");
+    if (!WIDGET_VARIANT_RE.test(v)) return bad("widget_variant debe ser v01..v12");
     out.widget_variant = v;
   }
   // Textos legacy del widget viejo: se guardan tal cual (el widget clásico los

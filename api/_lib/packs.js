@@ -11,6 +11,8 @@
 //   plan.frequency_scales_with_qty: bool (default true) → freq = plan.frequency_days × qty
 
 export const MAX_PACKS = 6;
+// Regalos por pack (v12): lo que se anuncia como "+ GRATIS ...".
+export const MAX_GIFTS = 3;
 
 const isInt = (n) => Number.isInteger(n);
 const toInt = (v) => {
@@ -89,6 +91,10 @@ export function resolvePack(plan, idx) {
     idx: i, qty, price, subPrice, compareAt, freq, savingsPct,
     label: typeof pack.label === "string" ? pack.label : "",
     badge: typeof pack.badge === "string" && pack.badge ? pack.badge : null,
+    // Foto del pack: solo https (normalizePacks ya lo valida al guardar; acá
+    // volvemos a filtrar porque un plan viejo pudo quedar con otra cosa).
+    image: typeof pack.image === "string" && /^https:\/\//i.test(pack.image) ? pack.image : null,
+    gifts: Array.isArray(pack.gifts) ? pack.gifts.filter(g => g && typeof g.title === "string" && g.title).slice(0, MAX_GIFTS) : [],
     isDefault: pack.default === true,
   };
 }
@@ -130,10 +136,44 @@ export function normalizePacks(input) {
       sub_price_ars = toInt(p.sub_price_ars);
       if (sub_price_ars == null || sub_price_ars < 1) return { error: `${at}: sub_price_ars debe ser un entero ≥ 1 (o null)` };
     }
+    // Foto del pack (v11/v12): el comerciante pega la URL de la imagen que ya
+    // tiene en su tienda (la del bundle, el combo de 3 frascos, etc.). Solo
+    // https:// para no romper la tienda con contenido mixto ni meter javascript:.
+    let image = null;
+    if (p.image != null && String(p.image).trim()) {
+      const u = String(p.image).trim().slice(0, 500);
+      if (!/^https:\/\/[^\s"'<>]+$/i.test(u)) return { error: `${at}: la foto tiene que ser un link https://` };
+      image = u;
+    }
+    // Regalos del pack (v12): lo que se anuncia como "+ GRATIS ...". Son de
+    // MARKETING: se muestran en el widget y se listan en el mail, pero NO entran
+    // como línea en la orden (eso lo maneja el comerciante al despachar).
+    let gifts = [];
+    if (p.gifts != null) {
+      if (!Array.isArray(p.gifts)) return { error: `${at}: gifts debe ser un array` };
+      if (p.gifts.length > MAX_GIFTS) return { error: `${at}: máximo ${MAX_GIFTS} regalos` };
+      for (const g of p.gifts) {
+        if (!g || typeof g !== "object") return { error: `${at}: regalo inválido` };
+        const title = String(g.title ?? "").trim().slice(0, 80);
+        if (!title) return { error: `${at}: cada regalo necesita un nombre` };
+        let gimg = null;
+        if (g.image != null && String(g.image).trim()) {
+          const gu = String(g.image).trim().slice(0, 500);
+          if (!/^https:\/\/[^\s"'<>]+$/i.test(gu)) return { error: `${at}: la foto del regalo tiene que ser un link https://` };
+          gimg = gu;
+        }
+        let gcmp = null;
+        if (g.compare_at_ars != null && g.compare_at_ars !== "") {
+          gcmp = toInt(g.compare_at_ars);
+          if (gcmp == null || gcmp < 1) return { error: `${at}: el valor del regalo debe ser un entero ≥ 1 (o vacío)` };
+        }
+        gifts.push({ title, image: gimg, compare_at_ars: gcmp });
+      }
+    }
     const isDefault = p.default === true;
     if (isDefault) defaults++;
     if (defaults > 1) return { error: "Solo un pack puede ser el default" };
-    out.push({ qty, price_ars, compare_at_ars, label, badge, frequency_days, sub_price_ars, default: isDefault });
+    out.push({ qty, price_ars, compare_at_ars, label, badge, frequency_days, sub_price_ars, image, gifts, default: isDefault });
   }
   out.sort((a, b) => a.qty - b.qty);
   return { packs: out };

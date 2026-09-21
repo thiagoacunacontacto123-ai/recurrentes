@@ -23,7 +23,7 @@ export function pricingModeOf(plan) {
 }
 
 export function emptyPackRow(qty = 1) {
-  return { qty: String(qty), price_ars: "", compare_at_ars: "", label: "", badge: "", frequency_days: "", sub_price_ars: "", default: false };
+  return { qty: String(qty), price_ars: "", compare_at_ars: "", label: "", badge: "", frequency_days: "", sub_price_ars: "", image: "", gifts: [], default: false };
 }
 
 // Plan guardado → filas del editor.
@@ -37,6 +37,12 @@ export function packsFromPlan(plan) {
     badge: p.badge || "",
     frequency_days: p.frequency_days != null ? String(p.frequency_days) : "",
     sub_price_ars: p.sub_price_ars != null ? String(p.sub_price_ars) : "",
+    image: p.image || "",
+    gifts: Array.isArray(p.gifts) ? p.gifts.slice(0, 3).map(g => ({
+      title: g?.title || "",
+      image: g?.image || "",
+      compare_at_ars: g?.compare_at_ars != null ? String(g.compare_at_ars) : "",
+    })) : [],
     default: p.default === true,
   }));
 }
@@ -48,7 +54,7 @@ export function autoPacks(basePrice) {
     qty: String(qty),
     price_ars: String(Math.round(b * qty * (1 - off / 100))),
     compare_at_ars: "",
-    label, badge, frequency_days: "", sub_price_ars: "", default: def,
+    label, badge, frequency_days: "", sub_price_ars: "", image: "", gifts: [], default: def,
   });
   return [
     mk(1, 0, "1 unidad", "", false),
@@ -104,6 +110,16 @@ export function serializePacks(rows) {
       badge: (r.badge || "").trim() || null,
       frequency_days: r.frequency_days !== "" && int(r.frequency_days) >= 1 ? int(r.frequency_days) : null,
       sub_price_ars: r.sub_price_ars !== "" && num(r.sub_price_ars) > 0 ? Math.round(num(r.sub_price_ars)) : null,
+      // Foto del pack y regalos: los usan los diseños Foto (v11) y Foto + regalos (v12).
+      image: (r.image || "").trim() || null,
+      gifts: (Array.isArray(r.gifts) ? r.gifts : [])
+        .filter(g => (g?.title || "").trim())
+        .slice(0, 3)
+        .map(g => ({
+          title: (g.title || "").trim(),
+          image: (g.image || "").trim() || null,
+          compare_at_ars: g.compare_at_ars !== "" && num(g.compare_at_ars) > 0 ? Math.round(num(g.compare_at_ars)) : null,
+        })),
       default: r.default === true,
     }))
     .sort((a, b) => a.qty - b.qty);
@@ -143,6 +159,13 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
 
   const upd = (i, k, v) => onPacksChange(packs.map((r, j) => j === i ? { ...r, [k]: v } : r));
   const setDefault = (i) => onPacksChange(packs.map((r, j) => ({ ...r, default: j === i })));
+  // Regalos de un pack (máx. 3): los muestra el diseño "Foto + regalos".
+  const updGift = (i, gi, k, v) => onPacksChange(packs.map((r, j) => j === i
+    ? { ...r, gifts: (r.gifts || []).map((g, gj) => gj === gi ? { ...g, [k]: v } : g) } : r));
+  const addGift = (i) => onPacksChange(packs.map((r, j) => j === i
+    ? { ...r, gifts: [...(r.gifts || []), { title: "", image: "", compare_at_ars: "" }] } : r));
+  const rmGift = (i, gi) => onPacksChange(packs.map((r, j) => j === i
+    ? { ...r, gifts: (r.gifts || []).filter((_, gj) => gj !== gi) } : r));
   const remove = (i) => onPacksChange(packs.filter((_, j) => j !== i));
   const add = () => {
     if (packs.length >= PACKS_MAX) return;
@@ -215,6 +238,28 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                         <button type="button" onClick={()=>remove(i)} title="Quitar pack" style={{marginLeft:"auto",background:"transparent",border:"none",color:T.textSm,fontSize:15,cursor:"pointer",padding:"0 4px 6px",fontFamily:"inherit"}}
                           onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.textSm}>✕</button>
                       </div>
+                    </div>
+                    {/* Foto del pack y regalos: los dibujan los diseños Foto y Foto + regalos. */}
+                    <div style={{marginTop:8}}>
+                      <Lbl T={T}>Foto del pack (link de tu tienda)</Lbl>
+                      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                        {r.image ? <img src={r.image} alt="" style={{width:38,height:38,objectFit:"contain",borderRadius:6,border:`1px solid ${T.borderL}`,background:"#fff",flex:"none"}}/> : null}
+                        <input type="url" value={r.image} onChange={e=>upd(i,"image",e.target.value)} style={{...inp,flex:1}} placeholder="https://tutienda.com/…/pack-3.jpg"/>
+                      </div>
+                    </div>
+                    <div style={{marginTop:8}}>
+                      <Lbl T={T}>Regalos de este pack</Lbl>
+                      {(r.gifts || []).map((g, gi) => (
+                        <div key={gi} style={{display:"grid",gridTemplateColumns:"1fr 1fr 100px 26px",gap:6,marginBottom:6}}>
+                          <input type="text" value={g.title} onChange={e=>updGift(i,gi,"title",e.target.value)} style={inp} placeholder="Guía en PDF" maxLength={80}/>
+                          <input type="url" value={g.image} onChange={e=>updGift(i,gi,"image",e.target.value)} style={inp} placeholder="https://… (foto, opcional)"/>
+                          <input type="number" min="0" value={g.compare_at_ars} onChange={e=>updGift(i,gi,"compare_at_ars",e.target.value)} style={inp} placeholder="valor $"/>
+                          <button type="button" onClick={()=>rmGift(i,gi)} title="Quitar regalo" style={{background:"transparent",border:"none",color:T.textSm,cursor:"pointer",fontSize:14,fontFamily:"inherit"}}>✕</button>
+                        </div>
+                      ))}
+                      {(r.gifts || []).length < 3 && (
+                        <button type="button" onClick={()=>addGift(i)} style={{background:"transparent",border:`1px dashed ${T.border}`,borderRadius:DS.r.md,color:T.textMd,fontSize:DS.font.sm,padding:"6px 10px",cursor:"pointer",fontFamily:"inherit"}}>+ Agregar regalo</button>
+                      )}
                     </div>
                     <div style={{marginTop:8,fontSize:DS.font.sm,color:T.textMd,display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
                       <span style={{color:T.accent,fontWeight:DS.w.bold}}>Suscripción: {fmt(d.subPrice)} cada {d.freqDays} días</span>

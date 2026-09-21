@@ -27,6 +27,8 @@ export const BUNDLE_VARIANTS = [
   { id: "v08", name: "Oscuro premium",   description: "Fondo oscuro, acento brillante y CTA con degradado. Para marcas premium." },
   { id: "v09", name: "Pastel",           description: "Fondos suaves, esquinas bien redondeadas y tiles de pack en grilla." },
   { id: "v10", name: "Editorial",        description: "Dos columnas: packs a la izquierda y resumen del pedido sticky a la derecha. En mobile se apila." },
+  { id: "v11", name: "Foto",             description: "Una fila por pack con la foto que subís vos, cinta en el recomendado y switch de suscripción antes del botón. El formato de los bundles que más venden." },
+  { id: "v12", name: "Foto + regalos",   description: "Como Foto, y además cada pack muestra los regalos que incluye, con su imagen y el precio tachado. Para bundles con bonus." },
 ];
 
 // ─── utils ───────────────────────────────────────────────────────────
@@ -811,7 +813,192 @@ function v10(c) {
   return { html: html, css: css };
 }
 
-var RENDERERS = { v01: v01, v02: v02, v03: v03, v04: v04, v05: v05, v06: v06, v07: v07, v08: v08, v09: v09, v10: v10 };
+// ═════════════════════════════════════════════════════════════════════
+// v11 — Foto (packs con imagen + switch de suscripción)
+// Formato de los bundles que usan las tiendas de performance (Kaching y
+// compañía): una fila por pack con la FOTO que sube el comerciante, cinta
+// arriba a la derecha, precio por unidad en pill y el total a la derecha.
+// El switch de suscripción va ENTRE los packs y el CTA, y arranca en el modo
+// que tenga configurado la tienda (por defecto compra única).
+// ═════════════════════════════════════════════════════════════════════
+function v11(c) {
+  var S = c.S, t = c.t;
+
+  var packs = c.packs.map(function (p, i) {
+    var v = c.v(p), on = i === c.idx;
+    var img = p.image
+      ? '<span class="rc-ph"><img src="' + esc(p.image) + '" alt="" loading="lazy"></span>'
+      : '<span class="rc-ph rc-ph-x" aria-hidden="true"><b>×' + p.qty + "</b></span>";
+    var freq = c.mode === "sub" && p.freqLabel
+      ? '<span class="rc-fq">' + esc((t.freq_prefix || "Te llega cada") + " " + p.freqLabel) + "</span>"
+      : "";
+    return '<div class="rc-fp' + c.on(on) + '"' + c.radioAttrs(i) + ">" +
+      (p.badge ? '<span class="rc-ribbon">' + esc(p.badge) + "</span>" : "") +
+      '<span class="rc-fp-row">' + img +
+        '<span class="rc-fp-mid"><b class="rc-fp-name">' + esc(p.label) + "</b>" +
+          '<span class="rc-chips">' +
+            (c.perUnit(p) ? '<span class="rc-pill">' + esc(c.perUnit(p)) + "</span>" : "") + freq +
+          "</span>" +
+          (c.savings(p) ? '<span class="rc-fp-save">' + esc(c.savings(p)) + "</span>" : "") +
+        "</span>" +
+        '<span class="rc-fp-price">' + c.compareHtml(p) + "<b>" + esc(fmtARS(v.price)) + "</b></span>" +
+      "</span></div>";
+  }).join("");
+
+  var other = c.mode === "sub" ? "once" : "sub";
+  var sw =
+    '<button type="button" class="rc-swrow' + c.on(c.mode === "sub") + '" role="switch" aria-checked="' +
+      (c.mode === "sub" ? "true" : "false") + '" data-rc-action="mode" data-rc-value="' + other + '">' +
+      '<span class="rc-sw" aria-hidden="true"><i></i></span>' +
+      '<span class="rc-sw-txt"><b>' + c.modeLabel("sub", true) + "</b><small>" +
+        esc(c.mode === "sub" ? c.freqText() : "Activalo y te llega solo" + (c.sel && c.sel.freqLabel ? ", cada " + c.sel.freqLabel : "") + (c.disc > 0 ? ", con " + c.disc + "% off" : "")) +
+      "</small></span></button>";
+
+  var html = c.wrap(
+    (t.headline ? '<div class="rc-head"><h3>' + esc(t.headline) + "</h3></div>" : "") +
+    '<div class="rc-fps" role="radiogroup" aria-label="' + esc(t.headline || "Elegí tu pack") + '">' + packs + "</div>" +
+    sw + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust()
+  );
+
+  var css =
+    S + " .rc-head{display:flex;align-items:center;gap:12px;margin-bottom:16px}" +
+    S + " .rc-head::before," + S + " .rc-head::after{content:'';flex:1;height:1px;background:#e4e4e4}" +
+    S + " .rc-head h3{font-size:13px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;white-space:nowrap}" +
+    S + " .rc-fps{display:flex;flex-direction:column;gap:26px;margin-bottom:18px}" +
+    S + " .rc-fp{position:relative;border:1.5px solid #e1e1e1;border-radius:var(--rc-r);background:#fff;cursor:pointer;transition:border-color .2s,box-shadow .2s}" +
+    S + " .rc-fp:hover{border-color:var(--rc-a-l3)}" +
+    S + " .rc-fp.is-on{border:2.5px solid var(--rc-a);box-shadow:0 2px 10px var(--rc-a-l2)}" +
+    S + " .rc-ribbon{position:absolute;top:-14px;right:12px;background:var(--rc-a);color:var(--rc-on-a);font-size:12.5px;font-weight:700;padding:6px 14px;border-radius:7px;white-space:nowrap;max-width:calc(100% - 24px);overflow:hidden;text-overflow:ellipsis}" +
+    S + " .rc-fp-row{display:flex;align-items:center;gap:13px;padding:18px 16px}" +
+    S + " .rc-ph{width:96px;flex:none;display:flex;align-items:center;justify-content:center}" +
+    S + " .rc-ph img{max-width:100%;max-height:86px;height:auto;display:block;border-radius:6px}" +
+    S + " .rc-ph-x{height:64px;border-radius:8px;background:var(--rc-a-l1);color:var(--rc-a-t);font-size:22px;font-weight:900}" +
+    S + " .rc-fp-mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:0}" +
+    S + " .rc-fp-name{font-size:18px;font-weight:800;line-height:1.2}" +
+    S + " .rc-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}" +
+    S + " .rc-pill{background:#f3f3f3;font-size:13px;padding:5px 11px;border-radius:20px;font-weight:600}" +
+    S + " .rc-fq{background:var(--rc-a-l1);color:var(--rc-a-t);border:1px solid var(--rc-a-l2);font-size:12.5px;font-weight:700;padding:5px 11px;border-radius:20px}" +
+    S + " .rc-fp-save{font-size:13px;font-weight:800;color:var(--rc-ok);margin-top:7px}" +
+    S + " .rc-fp-price{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:2px}" +
+    S + " .rc-fp-price b{font-size:22px;font-weight:800;white-space:nowrap}" +
+    S + " .rc-fp-price .rc-old{font-size:13px}" +
+    S + " .rc-swrow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:2px solid #e1e1e1;border-radius:var(--rc-r);background:#fff;padding:13px 15px;margin-bottom:6px;transition:border-color .2s,background .2s}" +
+    S + " .rc-swrow.is-on{border-color:var(--rc-a);background:var(--rc-a-l1)}" +
+    S + " .rc-sw{position:relative;flex-shrink:0;width:46px;height:27px;border-radius:30px;background:#cfcfcf;transition:background .2s}" +
+    S + " .rc-sw i{position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .2s}" +
+    S + " .rc-swrow.is-on .rc-sw{background:var(--rc-a)}" +
+    S + " .rc-swrow.is-on .rc-sw i{transform:translateX(19px)}" +
+    S + " .rc-sw-txt{min-width:0;display:flex;flex-direction:column;gap:2px}" +
+    S + " .rc-sw-txt b{font-size:14.5px;font-weight:800}" +
+    S + " .rc-sw-txt small{font-size:12px;color:#555;line-height:1.35}" +
+    S + " .rc-cta{margin-top:12px !important;padding:18px 14px;font-size:18px}" +
+    "@container (max-width:379px){" +
+      S + " .rc-fp-row{gap:10px;padding:15px 12px}" +
+      S + " .rc-ph{width:70px}" + S + " .rc-ph img{max-height:66px}" +
+      S + " .rc-fp-name{font-size:16px}" + S + " .rc-fp-price b{font-size:19px}" +
+    "}";
+  return { html: html, css: css };
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// v12 — Foto + regalos (v11 con la franja de bonus debajo de cada pack)
+// Igual que v11, pero cada pack puede mostrar los regalos que incluye
+// (pack.gifts: [{ title, image, compare_at_ars }]). Es el formato de los
+// bundles con "+ GRATIS ..." que usan las tiendas de suplementos.
+// ═════════════════════════════════════════════════════════════════════
+function v12(c) {
+  var S = c.S, t = c.t;
+
+  var packs = c.packs.map(function (p, i) {
+    var v = c.v(p), on = i === c.idx;
+    var img = p.image
+      ? '<span class="rc-ph"><img src="' + esc(p.image) + '" alt="" loading="lazy"></span>'
+      : '<span class="rc-ph rc-ph-x" aria-hidden="true"><b>×' + p.qty + "</b></span>";
+    var freq = c.mode === "sub" && p.freqLabel
+      ? '<span class="rc-fq">' + esc((t.freq_prefix || "Te llega cada") + " " + p.freqLabel) + "</span>"
+      : "";
+    var gifts = (Array.isArray(p.gifts) ? p.gifts : []).map(function (g) {
+      var gi = g && g.image
+        ? '<img src="' + esc(g.image) + '" alt="" loading="lazy">'
+        : '<span class="rc-gi-x" aria-hidden="true">🎁</span>';
+      var old = g && g.compareAt ? '<s class="rc-gold">' + esc(fmtARS(g.compareAt)) + "</s>" : "";
+      return '<span class="rc-gift">' + gi + '<span class="rc-gt">' + esc(g && g.title ? g.title : "Regalo") + "</span>" + old + "</span>";
+    }).join("");
+    return '<div class="rc-fp' + c.on(on) + '"' + c.radioAttrs(i) + ">" +
+      (p.badge ? '<span class="rc-ribbon">' + esc(p.badge) + "</span>" : "") +
+      '<span class="rc-fp-row">' + img +
+        '<span class="rc-fp-mid"><b class="rc-fp-name">' + esc(p.label) + "</b>" +
+          '<span class="rc-chips">' +
+            (c.perUnit(p) ? '<span class="rc-pill">' + esc(c.perUnit(p)) + "</span>" : "") + freq +
+          "</span>" +
+          (c.savings(p) ? '<span class="rc-fp-save">' + esc(c.savings(p)) + "</span>" : "") +
+        "</span>" +
+        '<span class="rc-fp-price">' + c.compareHtml(p) + "<b>" + esc(fmtARS(v.price)) + "</b></span>" +
+      "</span>" + gifts + "</div>";
+  }).join("");
+
+  var other = c.mode === "sub" ? "once" : "sub";
+  var sw =
+    '<button type="button" class="rc-swrow' + c.on(c.mode === "sub") + '" role="switch" aria-checked="' +
+      (c.mode === "sub" ? "true" : "false") + '" data-rc-action="mode" data-rc-value="' + other + '">' +
+      '<span class="rc-sw" aria-hidden="true"><i></i></span>' +
+      '<span class="rc-sw-txt"><b>' + c.modeLabel("sub", true) + "</b><small>" +
+        esc(c.mode === "sub" ? c.freqText() : "Activalo y te llega solo" + (c.sel && c.sel.freqLabel ? ", cada " + c.sel.freqLabel : "") + (c.disc > 0 ? ", con " + c.disc + "% off" : "")) +
+      "</small></span></button>";
+
+  var html = c.wrap(
+    (t.headline ? '<div class="rc-head"><h3>' + esc(t.headline) + "</h3></div>" : "") +
+    '<div class="rc-fps" role="radiogroup" aria-label="' + esc(t.headline || "Elegí tu pack") + '">' + packs + "</div>" +
+    sw + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust()
+  );
+
+  var css =
+    S + " .rc-head{display:flex;align-items:center;gap:12px;margin-bottom:16px}" +
+    S + " .rc-head::before," + S + " .rc-head::after{content:'';flex:1;height:1px;background:#e4e4e4}" +
+    S + " .rc-head h3{font-size:13px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;white-space:nowrap}" +
+    S + " .rc-fps{display:flex;flex-direction:column;gap:26px;margin-bottom:18px}" +
+    S + " .rc-fp{position:relative;border:1.5px solid #e1e1e1;border-radius:var(--rc-r);background:#fff;cursor:pointer;overflow:hidden;transition:border-color .2s,box-shadow .2s}" +
+    S + " .rc-fp:hover{border-color:var(--rc-a-l3)}" +
+    S + " .rc-fp.is-on{border:2.5px solid var(--rc-a);box-shadow:0 2px 10px var(--rc-a-l2)}" +
+    S + " .rc-ribbon{position:absolute;top:-14px;right:12px;background:var(--rc-a);color:var(--rc-on-a);font-size:12.5px;font-weight:700;padding:6px 14px;border-radius:7px;white-space:nowrap;z-index:1;max-width:calc(100% - 24px);overflow:hidden;text-overflow:ellipsis}" +
+    S + " .rc-fp-row{display:flex;align-items:center;gap:13px;padding:18px 16px}" +
+    S + " .rc-ph{width:96px;flex:none;display:flex;align-items:center;justify-content:center}" +
+    S + " .rc-ph img{max-width:100%;max-height:86px;height:auto;display:block;border-radius:6px}" +
+    S + " .rc-ph-x{height:64px;border-radius:8px;background:var(--rc-a-l1);color:var(--rc-a-t);font-size:22px;font-weight:900}" +
+    S + " .rc-fp-mid{flex:1;min-width:0;display:flex;flex-direction:column}" +
+    S + " .rc-fp-name{font-size:18px;font-weight:800;line-height:1.2}" +
+    S + " .rc-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}" +
+    S + " .rc-pill{background:#f3f3f3;font-size:13px;padding:5px 11px;border-radius:20px;font-weight:600}" +
+    S + " .rc-fq{background:var(--rc-a-l1);color:var(--rc-a-t);border:1px solid var(--rc-a-l2);font-size:12.5px;font-weight:700;padding:5px 11px;border-radius:20px}" +
+    S + " .rc-fp-save{font-size:13px;font-weight:800;color:var(--rc-ok);margin-top:7px}" +
+    S + " .rc-fp-price{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:2px}" +
+    S + " .rc-fp-price b{font-size:22px;font-weight:800;white-space:nowrap}" +
+    S + " .rc-fp-price .rc-old{font-size:13px}" +
+    S + " .rc-gift{display:flex;align-items:center;gap:11px;background:var(--rc-a-l1);border-top:1px solid var(--rc-a-l2);padding:10px 16px}" +
+    S + " .rc-gift img{width:44px;height:44px;border-radius:6px;object-fit:cover;flex:none;background:#fff}" +
+    S + " .rc-gi-x{width:44px;height:44px;border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;flex:none}" +
+    S + " .rc-gt{flex:1;font-size:14px;font-weight:600;line-height:1.3}" +
+    S + " .rc-gold{font-size:13px;color:#8a8a8a;white-space:nowrap}" +
+    S + " .rc-swrow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:2px solid #e1e1e1;border-radius:var(--rc-r);background:#fff;padding:13px 15px;margin-bottom:6px;transition:border-color .2s,background .2s}" +
+    S + " .rc-swrow.is-on{border-color:var(--rc-a);background:var(--rc-a-l1)}" +
+    S + " .rc-sw{position:relative;flex-shrink:0;width:46px;height:27px;border-radius:30px;background:#cfcfcf;transition:background .2s}" +
+    S + " .rc-sw i{position:absolute;top:3px;left:3px;width:21px;height:21px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .2s}" +
+    S + " .rc-swrow.is-on .rc-sw{background:var(--rc-a)}" +
+    S + " .rc-swrow.is-on .rc-sw i{transform:translateX(19px)}" +
+    S + " .rc-sw-txt{min-width:0;display:flex;flex-direction:column;gap:2px}" +
+    S + " .rc-sw-txt b{font-size:14.5px;font-weight:800}" +
+    S + " .rc-sw-txt small{font-size:12px;color:#555;line-height:1.35}" +
+    S + " .rc-cta{margin-top:12px !important;padding:18px 14px;font-size:18px}" +
+    "@container (max-width:379px){" +
+      S + " .rc-fp-row{gap:10px;padding:15px 12px}" +
+      S + " .rc-ph{width:70px}" + S + " .rc-ph img{max-height:66px}" +
+      S + " .rc-fp-name{font-size:16px}" + S + " .rc-fp-price b{font-size:19px}" +
+      S + " .rc-gt{font-size:13px}" +
+    "}";
+  return { html: html, css: css };
+}
+
+var RENDERERS = { v01: v01, v02: v02, v03: v03, v04: v04, v05: v05, v06: v06, v07: v07, v08: v08, v09: v09, v10: v10, v11: v11, v12: v12 };
 
 // ─── API ─────────────────────────────────────────────────────────────
 export function renderBundle(vm, state) {

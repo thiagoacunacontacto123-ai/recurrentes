@@ -15,7 +15,7 @@
 //                    dependencias externas, se puede serializar con .toString()
 //   planHasPacks(plan) → bool (pricing_mode "packs" o packs.length > 0)
 
-export const VARIANT_IDS = ["v01", "v02", "v03", "v04", "v05", "v06", "v07", "v08", "v09", "v10"];
+export const VARIANT_IDS = ["v01", "v02", "v03", "v04", "v05", "v06", "v07", "v08", "v09", "v10", "v11", "v12"];
 
 export const TEXT_DEFAULTS = Object.freeze({
   headline: "Elegí tu pack",
@@ -109,9 +109,19 @@ export function resolvePack(plan, idx) {
     : (plan.frequency_scales_with_qty !== false ? planFreq * qty : planFreq);
   var label = typeof raw.label === "string" ? raw.label.replace(/\s+/g, " ").trim().slice(0, 60) : "";
   var badge = typeof raw.badge === "string" ? raw.badge.replace(/\s+/g, " ").trim().slice(0, 60) : "";
+  // Foto del pack (la usan v11/v12). Solo https: evita contenido mixto y javascript:.
+  var image = typeof raw.image === "string" && /^https:\/\//i.test(raw.image) ? raw.image.slice(0, 500) : null;
   return {
     idx: idx, qty: qty, label: label || (qty === 1 ? "1 unidad" : qty + " unidades"), badge: badge,
     priceOnce: priceOnce, priceSub: priceSub, compareAt: compareAt, freqDays: freqDays,
+    image: image,
+    gifts: Array.isArray(raw.gifts) ? raw.gifts.slice(0, 3).map(function (g) {
+      return {
+        title: String(g && g.title || "").slice(0, 80),
+        image: g && typeof g.image === "string" && /^https:\/\//i.test(g.image) ? g.image.slice(0, 500) : null,
+        compareAt: Number(g && g.compare_at_ars) > 0 ? Number(g.compare_at_ars) : null,
+      };
+    }).filter(function (g) { return g.title; }) : [],
     isDefault: raw.default === true,
   };
 }
@@ -177,6 +187,8 @@ export function buildBundleVM({ plan, merchant } = {}) {
       qty: r.qty,
       label: r.label,
       badge: r.badge,
+      image: r.image || null,
+      gifts: Array.isArray(r.gifts) ? r.gifts : [],
       priceOnce: r.priceOnce,
       priceSub: r.priceSub,
       compareAt: r.compareAt,
