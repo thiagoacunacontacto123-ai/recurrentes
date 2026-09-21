@@ -48,37 +48,18 @@ function btnStyles(T) {
   };
 }
 
-// "Que lo hagan por mí": el comerciante deja de pelear con el OAuth y lo
-// conectamos nosotros a mano (21-sept-2026, Thiago: "está bastante jodido, me
-// gusta que funcione bien, lo voy a empezar a poner yo a mano"). Va DENTRO del
-// modal de conexión, como alternativa: el que puede solo, sigue solo.
+// Número al que se piden las instalaciones a mano (21-sept-2026, Thiago).
 const WA_CONECTAR = "5491164117974";
-function ConectameVos({ T, plataforma, tienda }) {
-  const texto = `Hola! Quiero conectar mi ${plataforma} con Recurrentes y prefiero que lo hagan ustedes.${tienda ? ` Mi tienda es ${tienda}.` : ""}`;
-  return (
-    <div style={{ marginTop:14, padding:"12px 14px", border:`1px dashed ${T.border}`, borderRadius:DS.r.lg, background:T.surface }}>
-      <div style={{ fontSize:DS.font.md, fontWeight:DS.w.semibold, color:T.text, marginBottom:3 }}>¿Preferís que lo hagamos nosotros?</div>
-      <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, marginBottom:9 }}>
-        Nos escribís, nos das acceso y te lo dejamos andando. Sin cargo.
-      </div>
-      <a href={`https://wa.me/${WA_CONECTAR}?text=${encodeURIComponent(texto)}`} target="_blank" rel="noopener noreferrer"
-        style={{ display:"inline-flex", alignItems:"center", gap:7, fontSize:DS.font.sm, fontWeight:DS.w.semibold,
-          color:T.accent, textDecoration:"none", border:`1px solid ${T.accent}55`, borderRadius:DS.r.md, padding:"7px 12px" }}>
-        Conéctenmelo ustedes, gratis →
-      </a>
-    </div>
-  );
-}
 
 // Plataformas sin conector propio todavía: se muestran como "Próximamente" con el
 // botón de pedirlo por WhatsApp, y lo conectamos a mano.
 const OTHER_PLATFORMS = [
-  { id:"woocommerce", label:"WooCommerce", desc:"Tu WordPress con WooCommerce. Próximamente: te lo conectamos a mano, pedilo por WhatsApp." },
-  { id:"empretienda", label:"Empretienda", desc:"Próximamente: te lo conectamos a mano, pedilo por WhatsApp." },
-  { id:"vtex", label:"VTEX", desc:"Próximamente: te lo conectamos a mano, pedilo por WhatsApp." },
-  { id:"custom", label:"Desarrollo propio", desc:"Tu web a medida. Próximamente: te lo conectamos a mano, pedilo por WhatsApp." },
+  { id:"woocommerce", label:"WooCommerce", desc:"Tu WordPress con WooCommerce." },
+  { id:"empretienda", label:"Empretienda", desc:"Todavía no tiene conector propio." },
+  { id:"vtex", label:"VTEX", desc:"Todavía no tiene conector propio." },
+  { id:"custom", label:"Desarrollo propio", desc:"Tu web a medida." },
 ];
-function Row({ T, id, label, sub, connected, soon, required, error, warn, optional, ready, onConnect, onDisconnect, connectLabel = "Conectar", open, onToggle, action, children }) {
+function Row({ T, id, label, sub, connected, soon, required, error, warn, optional, ready, onConnect, onDisconnect, connectLabel = "Conectar", waInstall, open, onToggle, action, children }) {
   const b = btnStyles(T);
   const brand = BRAND[id] || T.accentSolid;
   return (
@@ -105,12 +86,27 @@ function Row({ T, id, label, sub, connected, soon, required, error, warn, option
           {connected && onToggle && <button type="button" style={b.ghost} aria-expanded={!!open} onClick={onToggle}>Ajustes {open ? "▴" : "▾"}</button>}
           {connected
             ? (onDisconnect && <button type="button" style={b.red} onClick={onDisconnect}>Desvincular</button>)
-            : soon ? <a href={`https://wa.me/5491164117974?text=${encodeURIComponent(`Hola! Quiero usar Recurrentes con ${label}. ¿Me lo pueden conectar?`)}`} target="_blank" rel="noopener noreferrer"
+            : soon ? <a href={`https://wa.me/${WA_CONECTAR}?text=${encodeURIComponent(`Hola! Quiero que sumen ${label} a Recurrentes.`)}`} target="_blank" rel="noopener noreferrer"
                 style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"8px 14px", borderRadius:10, border:`1px solid ${T.border}`, background:T.card, color:T.text, fontSize:12.5, fontWeight:700, textDecoration:"none", whiteSpace:"nowrap" }}>
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="#25D366" aria-hidden="true"><path d="M17.5 14.4c-.3-.1-1.8-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-.3-.1-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.6c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.9-2.2c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.1.2 2.1 3.2 5.1 4.5.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.4.2-.7.2-1.3.2-1.4-.1-.2-.3-.3-.6-.4zM12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2z"/></svg>
-                Pedirlo por WhatsApp
+                Pedir esta integración
               </a>
-            : onConnect ? <button type="button" style={b.solid} onClick={onConnect}>{connectLabel}</button> : null}
+            : <>
+                {/* El OAuth de Shopify/Tiendanube traba a mucha gente. Al lado de
+                    Conectar va el atajo para que lo hagamos nosotros (21-sept,
+                    Thiago: "lo voy a empezar a poner yo a mano"). */}
+                {waInstall && (
+                  <a href={`https://wa.me/${WA_CONECTAR}?text=${encodeURIComponent(`Hola! Quiero que me instalen ${label} en Recurrentes.`)}`}
+                    target="_blank" rel="noopener noreferrer"
+                    style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"8px 12px", borderRadius:10,
+                      border:`1px solid ${T.border}`, background:T.card, color:T.text, fontSize:12,
+                      fontWeight:700, textDecoration:"none", whiteSpace:"nowrap" }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#25D366" aria-hidden="true"><path d="M17.5 14.4c-.3-.1-1.8-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-.3-.1-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.6c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.9-2.2c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.1.2 2.1 3.2 5.1 4.5.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.4.2-.7.2-1.3.2-1.4-.1-.2-.3-.3-.6-.4zM12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2z"/></svg>
+                    Instalación gratis
+                  </a>
+                )}
+                {onConnect && <button type="button" style={b.solid} onClick={onConnect}>{connectLabel}</button>}
+              </>}
         </div>
       </div>
       {open && children && (
@@ -452,8 +448,8 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
   const code = (t) => <code style={{ fontFamily:MONO, fontSize:DS.font.sm, color:T.text }}>{t}</code>;
   // Fila de Tiendanube: necesaria si es el canal elegido; opcional si solo está habilitada.
   const tnRow = (required) => (
-    <Row T={T} id="tiendanube" label="Tiendanube" required={required} optional={!required} connected={tnOk} open={open === "tiendanube"} onToggle={() => toggle("tiendanube")}
-      sub={tnOk ? `${m.tiendanube_store_name || m.tiendanube_store_url || "Tienda conectada"} · lee tus productos y crea una orden con cada cobro` : "Para leer tus productos, mostrar el widget en tu tienda y crear una orden con cada cobro."}
+    <Row T={T} id="tiendanube" label="Tiendanube" required={required} optional={!required} connected={tnOk} open={open === "tiendanube"} onToggle={() => toggle("tiendanube")} waInstall
+      sub={tnOk ? `${m.tiendanube_store_name || m.tiendanube_store_url || "Tienda conectada"} · lee tus productos y crea una orden con cada cobro` : "Para leer tus productos, mostrar el widget en tu tienda y crear una orden con cada cobro. ¿Se te complica? Te la instalamos gratis en menos de 48 horas."}
       onConnect={openTn} onDisconnect={disconnectTiendanube}>
       <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", marginBottom:12 }}>
         <span style={{ fontSize:DS.font.md, color:T.textMd }}>Tienda: {code(m.tiendanube_store_url || m.tiendanube_store_id || "—")}</span>
@@ -492,8 +488,8 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
         {/* ── Tienda ── */}
         <GroupTitle T={T} first>Tienda</GroupTitle>
         {profile.channel === "shopify" ? (
-          <Row T={T} id="shopify" label="Shopify" required connected={shopifyOk} open={open === "shopify"} onToggle={() => toggle("shopify")}
-            sub={shopifyOk ? `${m.shopify_shop} · lee tus productos y crea una orden con cada cobro` : "Para leer tus productos y crear una orden en tu tienda con cada cobro."}
+          <Row T={T} id="shopify" label="Shopify" required connected={shopifyOk} open={open === "shopify"} onToggle={() => toggle("shopify")} waInstall
+            sub={shopifyOk ? `${m.shopify_shop} · lee tus productos y crea una orden con cada cobro` : "Para leer tus productos y crear una orden en tu tienda con cada cobro. ¿Se te complica? Te la instalamos gratis en menos de 48 horas."}
             onConnect={openShopify} onDisconnect={disconnectShopify}>
             <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", marginBottom:14 }}>
               <span style={{ fontSize:DS.font.md, color:T.textMd }}>Tienda: {code(m.shopify_shop || "—")}</span>
@@ -509,7 +505,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
             action={<a href="#/dashboard/planes" style={{ ...b.ghost, textDecoration:"none", display:"inline-block" }}>Ver mis links</a>}/>
         )}
         {tnOptional && tnRow(!storeConnected)}
-        {soonChannels.map(c => <Row key={c.id} T={T} id={c.id} label={c.label} soon sub={`${c.desc} Próximamente: mientras tanto te lo conectamos a mano, pedilo por WhatsApp.`}/>)}
+        {soonChannels.map(c => <Row key={c.id} T={T} id={c.id} label={c.label} soon sub={`${c.desc} Te la dejamos lista en menos de 7 días hábiles.`}/>)}
         {/* Otras plataformas: todavía no hay conector, se hacen a mano (Thiago, 18-sept). */}
         {!storeConnected && OTHER_PLATFORMS.map(o => <Row key={o.id} T={T} id={o.id} label={o.label} soon sub={o.desc}/>)}
 
@@ -606,7 +602,6 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
               <Hint T={T}>Se usa para autorizar y se guarda cifrado. Nunca se comparte.</Hint>
             </>
           )}
-                  <ConectameVos T={T} plataforma="Shopify" tienda={shopRaw || m.shopify_shop}/>
         </Modal>
       )}
 
@@ -626,7 +621,6 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
             <input value={tnUrl} onChange={e => setTnUrl(e.target.value)} placeholder="tutienda.mitiendanube.com" style={iS} autoFocus disabled={busy === "tiendanube"}/>
           </Field>
           <Hint T={T}>Si tenés dominio propio (tutienda.com.ar) también sirve. Si la dejás vacía, Tiendanube te pide elegir la tienda.</Hint>
-                  <ConectameVos T={T} plataforma="Tiendanube" tienda={m.tiendanube_store_name || m.store_name}/>
         </Modal>
       )}
 
