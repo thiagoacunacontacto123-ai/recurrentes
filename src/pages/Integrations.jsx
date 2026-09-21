@@ -488,32 +488,8 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
           {profile.ready && <a href="#/dashboard/planes" style={{ color:T.accent, fontWeight:700, textDecoration:"none", whiteSpace:"nowrap" }}>Todo listo · Ir a Planes →</a>}
         </div>
 
-        {/* ── Tienda ── */}
-        <GroupTitle T={T} first>Tienda</GroupTitle>
-        {profile.channel === "shopify" ? (
-          <Row T={T} id="shopify" label="Shopify" required connected={shopifyOk} open={open === "shopify"} onToggle={() => toggle("shopify")} waInstall
-            sub={shopifyOk ? `${m.shopify_shop} · lee tus productos y crea una orden con cada cobro` : "Para leer tus productos y crear una orden en tu tienda con cada cobro. ¿Se te complica? Te la instalamos gratis en menos de 48 horas."}
-            onConnect={openShopify} onDisconnect={disconnectShopify}>
-            <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", marginBottom:14 }}>
-              <span style={{ fontSize:DS.font.md, color:T.textMd }}>Tienda: {code(m.shopify_shop || "—")}</span>
-              <button type="button" style={b.ghost} onClick={openShopify}>Reconectar</button>
-            </div>
-            <ShopifyScopeNotice T={T} scope={m.shopify_scope} onReconnect={openShopify}/>
-            <div style={{ height:1, background:T.borderL, margin:"0 0 14px" }}/>
-            <WidgetThemeCard merchant={m} onChange={onChange} bare/>
-          </Row>
-        ) : profile.channel === "tiendanube" ? tnRow(true) : (
-          <Row T={T} id="link" label={profile.channelInfo.label} ready
-            sub="Vendés con links de suscripción a un checkout de Recurrentes. No hace falta conectar ninguna tienda."
-            action={<a href="#/dashboard/planes" style={{ ...b.ghost, textDecoration:"none", display:"inline-block" }}>Ver mis links</a>}/>
-        )}
-        {tnOptional && tnRow(!storeConnected)}
-        {soonChannels.map(c => <Row key={c.id} T={T} id={c.id} label={c.label} soon sub={`${c.desc} Te la dejamos lista en menos de 7 días hábiles.`}/>)}
-        {/* Otras plataformas: todavía no hay conector, se hacen a mano (Thiago, 18-sept). */}
-        {!storeConnected && OTHER_PLATFORMS.map(o => <Row key={o.id} T={T} id={o.id} label={o.label} soon sub={o.desc}/>)}
-
         {/* ── Pasarelas ── */}
-        <GroupTitle T={T}>Pasarelas de pago</GroupTitle>
+        <GroupTitle T={T} first>Pasarelas de pago</GroupTitle>
         <Row T={T} id="mercadopago" label="Mercado Pago" required connected={mpOk} open={open === "mp"} onToggle={() => toggle("mp")}
           warn={mpReconnect ? "Reconectar" : null} error={mpOk && !mpReconnect && Boolean(m.mp_last_error)}
           action={mpReconnect ? <button type="button" style={b.solid} onClick={() => openMp(false)}>Reconectar</button> : null}
@@ -556,6 +532,30 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
           </div>
           <button type="button" style={b.ghost} onClick={openMeta}>Cambiar credenciales</button>
         </Row>
+
+        {/* ── Tienda ── */}
+        <GroupTitle T={T}>Tienda</GroupTitle>
+        {profile.channel === "shopify" ? (
+          <Row T={T} id="shopify" label="Shopify" required connected={shopifyOk} open={open === "shopify"} onToggle={() => toggle("shopify")} waInstall
+            sub={shopifyOk ? `${m.shopify_shop} · lee tus productos y crea una orden con cada cobro` : "Para leer tus productos y crear una orden en tu tienda con cada cobro. ¿Se te complica? Te la instalamos gratis en menos de 48 horas."}
+            onConnect={openShopify} onDisconnect={disconnectShopify}>
+            <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", marginBottom:14 }}>
+              <span style={{ fontSize:DS.font.md, color:T.textMd }}>Tienda: {code(m.shopify_shop || "—")}</span>
+              <button type="button" style={b.ghost} onClick={openShopify}>Reconectar</button>
+            </div>
+            <ShopifyScopeNotice T={T} scope={m.shopify_scope} onReconnect={openShopify}/>
+            <div style={{ height:1, background:T.borderL, margin:"0 0 14px" }}/>
+            <WidgetThemeCard merchant={m} onChange={onChange} bare/>
+          </Row>
+        ) : profile.channel === "tiendanube" ? tnRow(true) : (
+          <Row T={T} id="link" label={profile.channelInfo.label} ready
+            sub="Vendés con links de suscripción a un checkout de Recurrentes. No hace falta conectar ninguna tienda."
+            action={<a href="#/dashboard/planes" style={{ ...b.ghost, textDecoration:"none", display:"inline-block" }}>Ver mis links</a>}/>
+        )}
+        {tnOptional && tnRow(!storeConnected)}
+        {soonChannels.map(c => <Row key={c.id} T={T} id={c.id} label={c.label} soon sub={`${c.desc} Te la dejamos lista en menos de 7 días hábiles.`}/>)}
+        {/* Otras plataformas: todavía no hay conector, se hacen a mano (Thiago, 18-sept). */}
+        {!storeConnected && OTHER_PLATFORMS.map(o => <Row key={o.id} T={T} id={o.id} label={o.label} soon sub={o.desc}/>)}
 
         {/* ── Mensajes (WhatsApp Cloud API, WhatsAppIntegration.jsx) ── */}
         <GroupTitle T={T}>Mensajes</GroupTitle>
