@@ -730,61 +730,75 @@ export function VideoSection({ T, videos = [] }) {
 }
 
 // ─── Comparativa (con nombres: solo datos publicados por cada uno) ──────
-// REGLA: cada celda tiene que ser verificable en la web pública del producto
-// (verificado 21-09-2026, ver COMPARE_SOURCES). Lo que el competidor NO
-// publica se dice "No lo publica", nunca se estima: una comparativa pública
-// con un número inventado es un problema legal.
+// REGLA: cada celda sale de la web pública del producto (verificado
+// 21-09-2026, ver COMPARE_SOURCES). Lo que el competidor NO publica se dice
+// "No lo documenta", nunca se estima.
+// Excepción: el setup y la comisión de Puentify no están en su web pero los
+// confirmó Thiago con comercios que trabajan con ellos; van marcados como
+// dato de mercado en la nota al pie, no como precio de lista.
 const COMPARE_ROWS = [
   ["Precio del plan",
-    ["Gratis hasta 10 suscriptores", true],
-    ["No lo publica", "Acceso solo por invitación"],
+    ["Gratis hasta 10 suscriptores", "rec"],
+    ["Sin abono", "solo comisión"],
     ["USD 99 a 249 por mes", "según el plan"],
+    ["No lo publica", "acceso solo por invitación"],
     ["Plan Impulso", "$78.999 por mes"],
     ["USD 99 a 599 por mes", "Recharge y Skio"]],
   ["Comisión sobre cada venta",
     ["0%", true],
-    "No lo publica",
+    ["1,65% + IVA", "de todo lo que cobrás"],
     ["1,2% a 1,8%", "de todo lo que cobrás"],
+    ["2%", "de todo lo que cobrás"],
     ["—", "va con el plan"],
     ["1% a 1,49% + USD 0,19", "por transacción"]],
-  ["Instalación",
-    ["Gratis, la hacemos nosotros", true],
-    ["Con cargo", "monto no publicado"],
-    "No lo publica",
-    "Incluida",
-    "No lo publica"],
-  ["Cobra con Mercado Pago", true, true, true,
+  ["Costo de instalación",
+    ["$0", true],
+    "$0",
+    ["$0", "hasta la primera suscripción"],
+    ["USD 150", "pago único"],
+    "$0",
+    "$0"],
+  ["Te la dejamos andando nosotros",
+    ["Sí, sin cargo", true],
+    "?",
+    ["Sí", "setup asistido"],
+    ["Sí", "en 7 días"],
+    ["No", "la configurás vos"],
+    ["No", "la configurás vos"]],
+  ["Cobra con Mercado Pago", true, true, true, true,
     ["Solo Pago Nube", "y solo tarjeta de crédito"], false],
-  ["Funciona en Shopify", true, true, true, false, true],
-  ["Funciona en Tiendanube", true, true, "~", true, false],
-  ["Suscribir una variante puntual", true, "?", "?",
+  ["Funciona en Shopify", true, true, true, true, false, true],
+  ["Funciona en Tiendanube", true, true, "~", true, true, false],
+  ["Suscribir una variante puntual", true, "?", "?", "?",
     ["No", "aplica a todas las variantes"], true],
-  ["Dos productos con suscripción en el mismo carrito", true, "?", "?",
+  ["Dos productos con suscripción en el mismo carrito", true, "?", "?", "?",
     ["No", "uno por carrito"], true],
   ["Diseños de widget listos para usar",
-    ["12 diseños con tus fotos", true], "?", "?",
+    ["12 diseños con tus fotos", true], "?", "?", "?",
     ["—", "el del tema"], "~"],
-  ["Mails automáticos con tu marca", true, "?", true, "?", ["Sí", "en inglés"]],
-  ["Avisos por WhatsApp al cliente", ["Sí", true], "?", "?", "?", "?"],
-  ["Avisos por WhatsApp al comerciante", ["Sí", true], "?", "?", "?", "?"],
-  ["Portal del cliente: pausar, cancelar, cambiar dirección", true, true, true, "?", true],
+  ["Mails automáticos con tu marca", true, "?", true, "?", "?", ["Sí", "en inglés"]],
+  ["Avisos por WhatsApp al cliente", ["Sí", true], "?", "?", "?", "?", "?"],
+  ["Avisos por WhatsApp al comerciante", ["Sí", true], "?", "?", "?", "?", "?"],
+  ["Portal del cliente: pausar, cancelar, cambiar dirección", true, "?", true, true, "?", true],
   ["Toma todas las tiendas que quieran entrar",
-    ["Sí", true],
+    ["Sí", true], true, true,
     ["No", "10 marcas por mes"],
-    true, true, true],
-  ["Soporte en español por WhatsApp", ["Sí", true], true, true, "~", false],
+    true, true],
+  ["Soporte en español por WhatsApp", ["Sí", true], true, true, true, "~", false],
 ];
 const COMPARE_COLS = [
   { key:"rec",   title:"Recurrentes", real:true },
-  { key:"pue",   title:"Puentify",    sub:"Argentina" },
+  { key:"f1",    title:"Fácil Uno",   sub:"Argentina" },
   { key:"rev",   title:"Reval",       sub:"Latam" },
+  { key:"pue",   title:"Puentify",    sub:"Argentina" },
   { key:"tn",    title:"Tiendanube",  sub:"Suscripciones nativas" },
   { key:"intl",  title:"Recharge · Skio", sub:"Internacionales" },
 ];
 // Links de cada dato, por si alguien quiere chequearlo (y para respaldarnos).
 const COMPARE_SOURCES = [
-  { t:"Puentify", u:"https://puentify.app/" },
+  { t:"Fácil Uno", u:"https://www.facil.uno/" },
   { t:"Reval", u:"https://appreval.com/" },
+  { t:"Puentify", u:"https://puentify.app/" },
   { t:"Tiendanube", u:"https://ayuda.tiendanube.com/es_ES/ventas/como-vender-productos-por-suscripcion-en-tiendanube" },
   { t:"Recharge", u:"https://getrecharge.com/pricing/" },
   { t:"Skio", u:"https://apps.shopify.com/skio" },
@@ -800,6 +814,10 @@ function CompareCell({ T, v }) {
   if (Array.isArray(v)) {
     const [main, note] = v;
     if (note === true) return <span style={{color:T.accent,fontWeight:800}}>{main}</span>;
+    // Celda nuestra con aclaración: el dato fuerte arriba, la letra chica abajo.
+    if (note === "rec") return <span style={{display:"inline-flex",flexDirection:"column",gap:2}}>
+      <span style={{color:T.accent,fontWeight:800}}>{main}</span>
+      <span style={{fontSize:11.5,color:T.textSm,lineHeight:1.4}}>Después, desde USD 49 por mes</span></span>;
     const icon = main === "No" ? no(T.textSm) : main === "~" ? <span style={{fontSize:14,color:T.yellow}}>~</span> : null;
     return <span style={{display:"inline-flex",flexDirection:"column",gap:2}}>
       <span style={{display:"inline-flex",alignItems:"center",gap:6,color:main === "No" ? T.textSm : T.text,fontWeight:600}}>{icon}{main}</span>
@@ -848,7 +866,7 @@ export function ComparisonSection({ T }) {
           Datos verificados el 21 de septiembre de 2026 en la web pública de cada producto:{" "}
           {COMPARE_SOURCES.map((f, i) => (
             <span key={f.t}>{i > 0 ? " · " : ""}<a href={f.u} target="_blank" rel="noopener noreferrer" style={{color:T.textMd,textDecoration:"underline"}}>{f.t}</a></span>
-          ))}. "No lo documenta" quiere decir que no lo encontramos publicado, no que no exista. Los precios los pone cada empresa y pueden cambiar.
+          ))}. "No lo documenta" quiere decir que no lo encontramos publicado, no que no exista. El setup y la comisión de Puentify no figuran en su web: son datos de comercios que trabajan con ellos. Los precios los pone cada empresa y pueden cambiar.
         </p>
       </div>
     </section>
