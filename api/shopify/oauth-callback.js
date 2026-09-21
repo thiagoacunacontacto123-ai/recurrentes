@@ -98,6 +98,12 @@ export default async function handler(req, res) {
     return res.status(500).send(`Error guardando token: ${e.message}`);
   }
   try { const { trackAcquisition } = await import("../_lib/acquisition.js"); await trackAcquisition(uid, "store_connected", { req }); } catch (_) {}
+  // Envíos de la tienda, solos (21-sept, Thiago). Best-effort: si falla, el
+  // checkout igual cotiza en vivo contra la tienda en cada compra.
+  try {
+    const { autoImportShippingRates } = await import("../_lib/shippingImport.js");
+    await autoImportShippingRates(uid, { ...merchant, shopify_shop: shopNorm, shopify_token: tokenData.access_token });
+  } catch (_) {}
 
   // Datos de la tienda (shop.json): nombre, mail, moneda, país, dominio propio.
   // Best effort: si falla, el merchant los puede traer después con

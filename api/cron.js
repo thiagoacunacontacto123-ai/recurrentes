@@ -99,6 +99,28 @@ export default async function handler(req, res) {
     const { billAllWaUsage } = await import("./_lib/waBilling.js");
     return res.json({ ok: true, ...(await billAllWaUsage(stripeRequest)) });
   }
+  if (action === "import-shipping") {
+    // Las tiendas que ya estaban conectadas antes del 21-sept traen sus envíos
+    // ahora (las nuevas los importan al conectar). Solo las que no tienen
+    // ninguno cargado: nunca se pisa lo que el comerciante eligió a mano.
+    // `?force=1` reimporta aunque ya tenga (para una tienda puntual con `?merchant=`).
+    const { autoImportShippingRates } = await import("./_lib/shippingImport.js");
+    const force = req.query.force === "1";
+    const soloUna = String(req.query.merchant || "").trim();
+    const col = db().collection("merchants");
+    const docs = soloUna
+      ? [await col.doc(soloUna).get()].filter(d => d.exists)
+      : (await col.where("shopify_token", "!=", null).get()).docs;
+    const out = { revisadas: 0, importadas: 0, detalle: [] };
+    for (const d of docs) {
+      const m = d.data() || {};
+      if (m.archived_at) continue;
+      out.revisadas++;
+      const r = await autoImportShippingRates(d.id, m, { force });
+      if (r.imported) { out.importadas++; out.detalle.push({ mid: d.id, tarifas: r.imported }); }
+    }
+    return res.json({ ok: true, ...out });
+  }
   if (action !== "sync-all-pending") {
     return res.status(400).json({ error: "action no reconocida" });
   }

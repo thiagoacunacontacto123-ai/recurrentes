@@ -142,7 +142,10 @@ test("(e) validaciones server-side: sin CP / sin DNI / precio adulterado → 400
 
   const tooMuchOff = await post(body({ quantity: 1, sub_discount: 80, base_price: 12000 }));
   assert.equal(tooMuchOff.statusCode, 200);
-  assert.equal(W.mp.plansCreated.at(-1).body.auto_recurring.transaction_amount, Math.round(12000 * 0.9) + 1500, "el descuento se capea al del plan (10%)");
+  // Sin envío: con tienda conectada el `shipping_price_ars` del plan ya no se
+  // cobra (21-sept). Acá no se eligió ninguna tarifa real, así que el cobro es
+  // solo el producto. Lo que prueba esta línea es el tope de descuento.
+  assert.equal(W.mp.plansCreated.at(-1).body.auto_recurring.transaction_amount, Math.round(12000 * 0.9), "el descuento se capea al del plan (10%)");
 
   assert.equal(W.mp.plansCreated.length, 1);
   assert.equal(W.subs().length, 1);

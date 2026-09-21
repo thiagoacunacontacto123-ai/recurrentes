@@ -650,7 +650,20 @@ export default async function handler(req, res) {
     shippingName = String(matchedRate.name).slice(0, 250);
     shippingCode = String(matchedRate.code || "").slice(0, 250);
     shippingSource = String(matchedRate.source || shippingSource || "").slice(0, 100);
+  } else if (merchant.shopify_shop || merchant.tiendanube_store_id) {
+    // Tienda conectada: el envío SIEMPRE sale de la tienda (21-sept, Thiago).
+    // Si llegamos acá es que no pudimos matchear ninguna tarifa real (el
+    // comprador mandó una que ya no existe, o la cotización falló). Cobrar acá
+    // la tarifa vieja del plan es peor que no cobrar envío: le saldría un precio
+    // que su tienda no cobra, y la orden iría con un método que su app de envíos
+    // no sabe despachar. Preferimos envío en 0 y que lo resuelva al despachar.
+    if (parseFloat(plan.shipping_price_ars) > 0) {
+      console.warn("[checkout/init] sin tarifa real, ignoro el envío del plan:", { merchantId, planShipping: plan.shipping_price_ars });
+    }
+    shippingCost = 0;
+    shippingName = String(shipping_method?.name || "").trim().slice(0, 250) || "Envío";
   } else {
+    // Sin tienda (ítem manual / venta por link): el envío del plan es lo único que hay.
     const shippingPrice = parseFloat(plan.shipping_price_ars) || 0;
     shippingCost = (freeShippingFrom > 0 && subtotal >= freeShippingFrom) ? 0 : shippingPrice;
     shippingName = plan.shipping_method_name || "Envío a domicilio";

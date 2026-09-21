@@ -170,6 +170,12 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
   // Envíos del checkout (Configuración → Tienda): si hay, el cliente elige entre esos.
   const checkoutRates = Array.isArray(m.checkout_shipping_rates) ? m.checkout_shipping_rates : [];
   const hasCheckoutRates = checkoutRates.length > 0;
+  // Tienda conectada = los envíos salen SOLOS de la tienda (21-sept, Thiago).
+  // El checkout cotiza contra el proveedor de envíos del comerciante igual que
+  // una venta común, así que el plan no pregunta ningún costo de envío: cargarlo
+  // a mano solo servía para que compitiera con el real y saliera un precio que la
+  // tienda no cobra. Sin tienda (ítem manual / venta por link) se siguen pidiendo.
+  const enviosDeLaTienda = profile.channel === "shopify" || profile.channel === "tiendanube";
   const goStoreSettings = () => { try { window.location.hash = "#/config/checkout"; } catch (_) {} };
 
   // ── borrador para la vista previa del widget ──────────────────────────
@@ -208,8 +214,10 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
       frequency_days: freqNum,
       discount_pct: discountNum,
       units_per_shipment: Math.max(1, parseInt(units, 10) || 1),
-      shipping_price_ars: showShipping ? (parseFloat(shippingPrice) || 0) : 0,
-      free_shipping_from_ars: showShipping ? (parseFloat(freeShipFrom) || 0) : 0,
+      // Con tienda conectada el envío lo pone la tienda: se guarda en 0 para que
+      // la tarifa del plan no le gane a la real en el checkout.
+      shipping_price_ars: (showShipping && !enviosDeLaTienda) ? (parseFloat(shippingPrice) || 0) : 0,
+      free_shipping_from_ars: (showShipping && !enviosDeLaTienda) ? (parseFloat(freeShipFrom) || 0) : 0,
       shipping_method_name: String(shippingName || "").trim() || "Envío a domicilio",
       qty_discount_tiers: showPacks ? tiers : [],
       allow_custom_frequency: showPacks ? allowCustomFreq : false,
@@ -367,11 +375,12 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
           {/* ─── Envío (solo negocios con envío) ─────────────────────── */}
           {showShipping && (
             <FormSection T={T} title="Envío">
-              {hasCheckoutRates ? (
+              {enviosDeLaTienda ? (
                 <SurfaceBox T={T}>
                   <div style={{ fontSize:DS.font.md, color:T.textMd, lineHeight:1.55 }}>
-                    El cliente elige entre los <strong style={{ color:T.text }}>envíos del checkout</strong> ({checkoutRates.slice(0, 3).map(r => r.name).join(" · ")}{checkoutRates.length > 3 ? ` · +${checkoutRates.length - 3}` : ""}).
-                    {" "}Se configuran en <button type="button" style={linkBtn} onClick={goStoreSettings}>Configuración → Checkout →</button>
+                    Se usan <strong style={{ color:T.text }}>los envíos de tu tienda</strong>, los mismos que cobrás en una venta común.
+                    {" "}Cuando el cliente pone su código postal, el checkout los cotiza y él elige.
+                    {hasCheckoutRates ? <> También ofrecés los que cargaste a mano ({checkoutRates.slice(0, 3).map(r => r.name).join(" · ")}{checkoutRates.length > 3 ? ` · +${checkoutRates.length - 3}` : ""}), en <button type="button" style={linkBtn} onClick={goStoreSettings}>Configuración → Checkout →</button></> : null}
                   </div>
                 </SurfaceBox>
               ) : (

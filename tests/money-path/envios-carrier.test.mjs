@@ -110,7 +110,7 @@ test("(e) precio adulterado en una opción paga: manda el de Shopify", async () 
   assert.equal(sub.plan_snapshot.shipping_method_code, DOMICILIO.code);
 });
 
-test("(e) code de carrier que ya no existe: cae al envío del plan, no inventa uno", async () => {
+test("(e) code de carrier que ya no existe: no inventa un método ni un precio", async () => {
   stubQuote([DOMICILIO]);   // la sucursal elegida ya no está entre las opciones
   const res = await post({ shipping_method: { name: SUCURSAL.title, code: SUCURSAL.code, price: 0 } });
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
@@ -159,4 +159,44 @@ test("sin carrier (tarifa manual del comerciante) no se manda source", async () 
   const enviada = W.shopify.orderPosts.at(-1).order.shipping_lines[0];
   assert.equal(enviada.source, undefined);
   assert.equal(enviada.code, "ANDREANI-PRIO");
+});
+
+// ─── Envíos de la tienda, siempre (21-sept-2026, Thiago) ───────────────────
+// Caso Glowtherm: tienda conectada, con su app de envíos andando, pero el plan
+// tenía cargado un `shipping_price_ars` viejo de cuando se creó. Ese número le
+// ganaba a la tarifa real y el comprador terminaba pagando un envío que la
+// tienda no cobra, con un método que la app de envíos no sabe despachar.
+// Ahora: con tienda conectada el envío SALE DE LA TIENDA o no se cobra.
+test("(e) GLOWTHERM: con tienda conectada, el envío viejo del plan NO se cobra", async () => {
+  stubQuote([DOMICILIO]);
+  // El comprador manda una tarifa que ya no existe → no matchea ninguna real.
+  const res = await post({ shipping_method: { name: "Correo viejo", code: "no-existe:123", price: 5000 } });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  const sub = rawGet(`merchants/${MID}/subscribers/${res.body.subscriber_id}`);
+  // El plan de prueba tiene shipping_price_ars: 1500. No se cobra.
+  assert.equal(sub.plan_snapshot.shipping_price_ars, 0, "no se cobra la tarifa fantasma del plan");
+  assert.equal(sub.plan_snapshot.shipping_method_code, "");
+  assert.equal(sub.plan_snapshot.shipping_method_source, "");
+});
+
+test("(e) la tarifa real de la tienda sí se cobra, con su code", async () => {
+  stubQuote([DOMICILIO]);
+  const res = await post({ shipping_method: { name: DOMICILIO.title, code: DOMICILIO.code, price: 2900 } });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  const sub = rawGet(`merchants/${MID}/subscribers/${res.body.subscriber_id}`);
+  assert.equal(sub.plan_snapshot.shipping_price_ars, 2900, "la de la tienda se cobra entera");
+  assert.equal(sub.plan_snapshot.shipping_method_code, DOMICILIO.code);
+});
+
+// Sin tienda (ítem manual / venta por link) NO hay de dónde sacar el envío:
+// ahí el del plan es lo único que existe y se tiene que seguir cobrando.
+test("(e) sin tienda conectada, el envío del plan sigue siendo el que manda", async () => {
+  const { seedDoc } = await import("../helpers/fake-firestore.mjs");
+  const m = luminaMerchant();
+  delete m.shopify_shop; delete m.shopify_token; delete m.tiendanube_store_id;
+  seedDoc(`merchants/${MID}`, m);
+  const res = await post({ shipping_method: { name: "Envío a domicilio", price: 1500 } });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  const sub = rawGet(`merchants/${MID}/subscribers/${res.body.subscriber_id}`);
+  assert.equal(sub.plan_snapshot.shipping_price_ars, 1500, "sin tienda, el envío del plan es lo único que hay");
 });
