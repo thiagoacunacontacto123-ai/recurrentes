@@ -1,3 +1,4 @@
+import { achicarImagen } from "../lib/imagen.js";
 import React from "react";
 import { DS, useT } from "../ui/theme.js";
 import { Btn, InputStyle, CheckLine, Callout, DSBadge } from "../ui/components.jsx";
@@ -151,7 +152,7 @@ const Lbl = ({ T, children }) => <label style={{display:"block",fontSize:DS.font
 
 // compact=true: solo las filas (sin título ni selector de modo) — lo usa el
 // diseñador del widget con mode="packs" fijo.
-export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, basePrice, discountPct, frequencyDays, freqScales, onFreqScalesChange, compact = false, radioName = "rc-pack-default" }) {
+export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, basePrice, discountPct, frequencyDays, freqScales, onFreqScalesChange, compact = false, radioName = "rc-pack-default", products = [], productImage = null, toast }) {
   const T = useT();
   const inp = { ...InputStyle(T), padding:"7px 9px", fontSize:DS.font.md };
   const ctx = { basePrice, discountPct, frequencyDays, freqScales, rows: packs };
@@ -166,6 +167,22 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
     ? { ...r, gifts: [...(r.gifts || []), { title: "", image: "", compare_at_ars: "" }] } : r));
   const rmGift = (i, gi) => onPacksChange(packs.map((r, j) => j === i
     ? { ...r, gifts: (r.gifts || []).filter((_, gj) => gj !== gi) } : r));
+  // Subir foto desde la compu: se achica en el navegador y viaja como data URL.
+  const subirFoto = async (e, aplicar) => {
+    const f = e.target.files?.[0]; e.target.value = "";
+    if (!f) return;
+    try { aplicar(await achicarImagen(f)); }
+    catch (err) { toast ? toast(err.message, "error") : alert(err.message); }
+  };
+  // Elegir un producto de la tienda como regalo: trae nombre y foto de una.
+  const regaloDesdeProducto = (i, gi, id) => {
+    const p = products.find(x => String(x.id) === String(id));
+    if (!p) return;
+    onPacksChange(packs.map((r, j) => j === i
+      ? { ...r, gifts: (r.gifts || []).map((g, gj) => gj === gi
+          ? { ...g, title: g.title || p.title, image: p.image || g.image || "" } : g) }
+      : r));
+  };
   const remove = (i) => onPacksChange(packs.filter((_, j) => j !== i));
   const add = () => {
     if (packs.length >= PACKS_MAX) return;
@@ -241,20 +258,46 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                     </div>
                     {/* Foto del pack y regalos: los dibujan los diseños Foto y Foto + regalos. */}
                     <div style={{marginTop:8}}>
-                      <Lbl T={T}>Foto del pack (link de tu tienda)</Lbl>
-                      <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                        {r.image ? <img src={r.image} alt="" style={{width:38,height:38,objectFit:"contain",borderRadius:6,border:`1px solid ${T.borderL}`,background:"#fff",flex:"none"}}/> : null}
-                        <input type="url" value={r.image} onChange={e=>upd(i,"image",e.target.value)} style={{...inp,flex:1}} placeholder="https://tutienda.com/…/pack-3.jpg"/>
+                      <Lbl T={T}>Foto del pack</Lbl>
+                      <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                        {r.image
+                          ? <img src={r.image} alt="" style={{width:42,height:42,objectFit:"contain",borderRadius:6,border:`1px solid ${T.borderL}`,background:"#fff",flex:"none"}}/>
+                          : <span style={{width:42,height:42,borderRadius:6,border:`1px dashed ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",color:T.textSm,fontSize:16,flex:"none"}}>🖼️</span>}
+                        <label style={{border:`1px solid ${T.border}`,borderRadius:DS.r.md,padding:"7px 11px",fontSize:DS.font.sm,color:T.textMd,cursor:"pointer",background:T.surface,whiteSpace:"nowrap"}}>
+                          {r.image ? "Cambiar" : "Subir foto"}
+                          <input type="file" accept="image/*" onChange={e=>subirFoto(e, v=>upd(i,"image",v))} style={{display:"none"}}/>
+                        </label>
+                        {r.image && <button type="button" onClick={()=>upd(i,"image","")} style={{background:"transparent",border:"none",color:T.textSm,fontSize:DS.font.sm,cursor:"pointer",fontFamily:"inherit"}}>Quitar</button>}
+                        {productImage && !r.image && (
+                          <button type="button" onClick={()=>upd(i,"image",productImage)} style={{background:"transparent",border:`1px dashed ${T.border}`,borderRadius:DS.r.md,padding:"7px 11px",fontSize:DS.font.sm,color:T.textMd,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>Usar la del producto</button>
+                        )}
                       </div>
                     </div>
                     <div style={{marginTop:8}}>
                       <Lbl T={T}>Regalos de este pack</Lbl>
                       {(r.gifts || []).map((g, gi) => (
-                        <div key={gi} style={{display:"grid",gridTemplateColumns:"1fr 1fr 100px 26px",gap:6,marginBottom:6}}>
-                          <input type="text" value={g.title} onChange={e=>updGift(i,gi,"title",e.target.value)} style={inp} placeholder="Guía en PDF" maxLength={80}/>
-                          <input type="url" value={g.image} onChange={e=>updGift(i,gi,"image",e.target.value)} style={inp} placeholder="https://… (foto, opcional)"/>
-                          <input type="number" min="0" value={g.compare_at_ars} onChange={e=>updGift(i,gi,"compare_at_ars",e.target.value)} style={inp} placeholder="valor $"/>
-                          <button type="button" onClick={()=>rmGift(i,gi)} title="Quitar regalo" style={{background:"transparent",border:"none",color:T.textSm,cursor:"pointer",fontSize:14,fontFamily:"inherit"}}>✕</button>
+                        <div key={gi} style={{border:`1px solid ${T.borderL}`,borderRadius:DS.r.md,padding:"8px 9px",marginBottom:6,background:T.surfaceAlt||"transparent"}}>
+                          <div style={{display:"flex",gap:7,alignItems:"center",marginBottom:6}}>
+                            {g.image
+                              ? <img src={g.image} alt="" style={{width:34,height:34,objectFit:"cover",borderRadius:5,border:`1px solid ${T.borderL}`,background:"#fff",flex:"none"}}/>
+                              : <span style={{width:34,height:34,borderRadius:5,border:`1px dashed ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flex:"none"}}>🎁</span>}
+                            <input type="text" value={g.title} onChange={e=>updGift(i,gi,"title",e.target.value)} style={{...inp,flex:1}} placeholder="Nombre del regalo" maxLength={80}/>
+                            <input type="number" min="0" value={g.compare_at_ars} onChange={e=>updGift(i,gi,"compare_at_ars",e.target.value)} style={{...inp,width:92,flex:"none"}} placeholder="valor $"/>
+                            <button type="button" onClick={()=>rmGift(i,gi)} title="Quitar regalo" style={{background:"transparent",border:"none",color:T.textSm,cursor:"pointer",fontSize:14,fontFamily:"inherit",flex:"none"}}>✕</button>
+                          </div>
+                          <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                            {products.length > 0 && (
+                              <select value="" onChange={e=>regaloDesdeProducto(i,gi,e.target.value)} style={{...inp,maxWidth:220}}>
+                                <option value="">Elegir de mi tienda…</option>
+                                {products.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+                              </select>
+                            )}
+                            <label style={{border:`1px solid ${T.border}`,borderRadius:DS.r.md,padding:"6px 10px",fontSize:DS.font.sm,color:T.textMd,cursor:"pointer",background:T.surface,whiteSpace:"nowrap"}}>
+                              {g.image ? "Cambiar foto" : "Subir foto"}
+                              <input type="file" accept="image/*" onChange={e=>subirFoto(e, v=>updGift(i,gi,"image",v))} style={{display:"none"}}/>
+                            </label>
+                            {g.image && <button type="button" onClick={()=>updGift(i,gi,"image","")} style={{background:"transparent",border:"none",color:T.textSm,fontSize:DS.font.sm,cursor:"pointer",fontFamily:"inherit"}}>Quitar foto</button>}
+                          </div>
                         </div>
                       ))}
                       {(r.gifts || []).length < 3 && (

@@ -15,6 +15,23 @@ export const MAX_PACKS = 6;
 export const MAX_GIFTS = 3;
 
 const isInt = (n) => Number.isInteger(n);
+
+// Foto de un pack o de un regalo. Dos formas válidas:
+//   · data:image/... → la subió el comerciante desde el panel (ya achicada en
+//     el navegador). Tope 200 KB: Firestore corta el documento en 1 MB y un
+//     plan puede tener 6 packs con 3 regalos cada uno.
+//   · https://...    → la copió de su tienda. http:// queda afuera para no
+//     romper la tienda con contenido mixto, y evita javascript:.
+const MAX_IMG_CHARS = 200000;
+function cleanImage(v, at, que) {
+  const u = String(v).trim();
+  if (/^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/i.test(u)) {
+    if (u.length > MAX_IMG_CHARS) return { error: `${at}: ${que} pesa demasiado, probá con una imagen más chica` };
+    return { value: u };
+  }
+  if (/^https:\/\/[^\s"'<>]+$/i.test(u)) return { value: u.slice(0, 500) };
+  return { error: `${at}: ${que} tiene que ser una imagen subida o un link https://` };
+}
 const toInt = (v) => {
   if (v === "" || v == null) return null;
   const n = Number(v);
@@ -91,9 +108,10 @@ export function resolvePack(plan, idx) {
     idx: i, qty, price, subPrice, compareAt, freq, savingsPct,
     label: typeof pack.label === "string" ? pack.label : "",
     badge: typeof pack.badge === "string" && pack.badge ? pack.badge : null,
-    // Foto del pack: solo https (normalizePacks ya lo valida al guardar; acá
-    // volvemos a filtrar porque un plan viejo pudo quedar con otra cosa).
-    image: typeof pack.image === "string" && /^https:\/\//i.test(pack.image) ? pack.image : null,
+    // Foto del pack: subida (data:image) o link https. normalizePacks ya lo
+    // valida al guardar; acá volvemos a filtrar por si un plan viejo o una
+    // escritura a mano dejó otra cosa.
+    image: typeof pack.image === "string" && /^(https:\/\/|data:image\/)/i.test(pack.image) ? pack.image : null,
     gifts: Array.isArray(pack.gifts) ? pack.gifts.filter(g => g && typeof g.title === "string" && g.title).slice(0, MAX_GIFTS) : [],
     isDefault: pack.default === true,
   };
@@ -141,9 +159,9 @@ export function normalizePacks(input) {
     // https:// para no romper la tienda con contenido mixto ni meter javascript:.
     let image = null;
     if (p.image != null && String(p.image).trim()) {
-      const u = String(p.image).trim().slice(0, 500);
-      if (!/^https:\/\/[^\s"'<>]+$/i.test(u)) return { error: `${at}: la foto tiene que ser un link https://` };
-      image = u;
+      const r = cleanImage(p.image, at, "la foto del pack");
+      if (r.error) return { error: r.error };
+      image = r.value;
     }
     // Regalos del pack (v12): lo que se anuncia como "+ GRATIS ...". Son de
     // MARKETING: se muestran en el widget y se listan en el mail, pero NO entran
@@ -158,9 +176,9 @@ export function normalizePacks(input) {
         if (!title) return { error: `${at}: cada regalo necesita un nombre` };
         let gimg = null;
         if (g.image != null && String(g.image).trim()) {
-          const gu = String(g.image).trim().slice(0, 500);
-          if (!/^https:\/\/[^\s"'<>]+$/i.test(gu)) return { error: `${at}: la foto del regalo tiene que ser un link https://` };
-          gimg = gu;
+          const gr = cleanImage(g.image, at, "la foto del regalo");
+          if (gr.error) return { error: gr.error };
+          gimg = gr.value;
         }
         let gcmp = null;
         if (g.compare_at_ars != null && g.compare_at_ars !== "") {

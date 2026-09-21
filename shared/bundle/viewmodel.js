@@ -110,7 +110,7 @@ export function resolvePack(plan, idx) {
   var label = typeof raw.label === "string" ? raw.label.replace(/\s+/g, " ").trim().slice(0, 60) : "";
   var badge = typeof raw.badge === "string" ? raw.badge.replace(/\s+/g, " ").trim().slice(0, 60) : "";
   // Foto del pack (la usan v11/v12). Solo https: evita contenido mixto y javascript:.
-  var image = typeof raw.image === "string" && /^https:\/\//i.test(raw.image) ? raw.image.slice(0, 500) : null;
+  var image = typeof raw.image === "string" && /^(https:\/\/|data:image\/)/i.test(raw.image) ? raw.image : null;
   return {
     idx: idx, qty: qty, label: label || (qty === 1 ? "1 unidad" : qty + " unidades"), badge: badge,
     priceOnce: priceOnce, priceSub: priceSub, compareAt: compareAt, freqDays: freqDays,
@@ -118,7 +118,7 @@ export function resolvePack(plan, idx) {
     gifts: Array.isArray(raw.gifts) ? raw.gifts.slice(0, 3).map(function (g) {
       return {
         title: String(g && g.title || "").slice(0, 80),
-        image: g && typeof g.image === "string" && /^https:\/\//i.test(g.image) ? g.image.slice(0, 500) : null,
+        image: g && typeof g.image === "string" && /^(https:\/\/|data:image\/)/i.test(g.image) ? g.image : null,
         compareAt: Number(g && g.compare_at_ars) > 0 ? Number(g.compare_at_ars) : null,
       };
     }).filter(function (g) { return g.title; }) : [],

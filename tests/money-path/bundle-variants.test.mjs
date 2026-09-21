@@ -96,3 +96,32 @@ test("(j) los planes que ya existen siguen igual: sin foto ni regalos", () => {
     assert.ok(out.html.length > 100, `${v} sigue andando`);
   }
 });
+
+// ── Fotos subidas desde el panel ────────────────────────────────────────────
+// El comercio ya no tiene que conseguir un link: elige el archivo y el panel lo
+// achica y lo manda como data URL. Firestore corta el doc en 1 MB, así que el
+// tamaño tiene tope; y solo se aceptan imágenes, nunca un data: de otra cosa.
+const DATA_OK = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD";
+
+test("(j) foto subida: acepta data:image, la guarda y la pinta", () => {
+  const r = normalizePacks([{ qty: 1, price_ars: 100, image: DATA_OK }]);
+  assert.equal(r.packs[0].image, DATA_OK, "se guarda tal cual");
+
+  const { html } = renderBundle(
+    buildBundleVM({ merchant: { widget_variant: "v11" }, plan: plan([{ qty: 1, price_ars: 100, image: DATA_OK }]) }), {});
+  assert.ok(html.includes(DATA_OK), "llega al HTML del widget");
+});
+
+test("(j) foto subida: rechaza lo que no sea una imagen y lo que pese de más", () => {
+  assert.ok(normalizePacks([{ qty: 1, price_ars: 100, image: "data:text/html;base64,PHNjcmlwdD4=" }]).error,
+    "data: que no es imagen");
+  const gorda = "data:image/jpeg;base64," + "A".repeat(200001);
+  assert.ok(normalizePacks([{ qty: 1, price_ars: 100, image: gorda }]).error, "imagen demasiado pesada");
+});
+
+test("(j) el regalo también puede tener foto subida", () => {
+  const r = normalizePacks([{ qty: 1, price_ars: 100, gifts: [{ title: "Guía", image: DATA_OK }] }]);
+  assert.equal(r.packs[0].gifts[0].image, DATA_OK);
+  assert.ok(normalizePacks([{ qty: 1, price_ars: 100, gifts: [{ title: "x", image: "javascript:alert(1)" }] }]).error,
+    "el regalo tampoco acepta javascript:");
+});

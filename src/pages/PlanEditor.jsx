@@ -358,6 +358,7 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
             <PacksEditor
               mode={pricingMode} onModeChange={setPricingMode}
               packs={packs} onPacksChange={setPacks}
+              products={products} productImage={product?.image || null} toast={toast}
               basePrice={basePrice} discountPct={discount} frequencyDays={frequency}
               freqScales={freqScales} onFreqScalesChange={setFreqScales}
             />
