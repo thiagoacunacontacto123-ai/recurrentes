@@ -218,3 +218,45 @@ test("(w) el server guarda la nota de cada pack", async () => {
   const largo = normalizePacks([{ qty: 1, price_ars: 100, note: "x".repeat(500) }]);
   assert.equal(largo.packs[0].note.length, 120);
 });
+
+// ─── Apagar un texto con una "x" (21-sept-2026, Thiago) ───────────────────
+// Dejar el campo vacío no alcanza: el widget cae al texto por defecto y vuelve
+// a aparecer. Con una "x" sola la sección entera desaparece.
+const VARIANTES = ["v01","v02","v03","v04","v05","v06","v07","v08","v09","v10","v11","v12"];
+const htmlX = (widget_texts, v = "v01", state = {}) =>
+  render2(buildBundleVM({ plan: PLAN_NOTAS, merchant: { widget_variant: v, widget_texts } }), state).html;
+// El aria-label del radiogroup conserva el título a propósito (accesibilidad):
+// se mira solo lo que el comprador VE.
+const visible = (h) => h.replace(/aria-label="[^"]*"/g, "");
+
+test('(w) una "x" apaga el texto en las 12 variantes', () => {
+  for (const v of VARIANTES) {
+    assert.ok(/Elegí tu pack/.test(htmlX({}, v)), `${v}: el título tiene que estar sin la x`);
+    assert.ok(!/Elegí tu pack/.test(visible(htmlX({ headline: "x" }, v))), `${v}: el título no se apagó`);
+    assert.ok(!/c\/u/.test(htmlX({ per_unit_label: "x" }, v)), `${v}: el por-unidad no se apagó`);
+    assert.ok(!/Ahorrás/.test(htmlX({ savings_label: "X" }, v, { mode: "sub" })), `${v}: el ahorro no se apagó`);
+  }
+});
+
+test('(w) solo apaga una "x" SOLA, no un texto que la contenga', () => {
+  assert.ok(htmlX({ headline: "xl" }).includes("xl"), '"xl" es un título válido');
+  assert.ok(htmlX({ headline: "Pack x2" }).includes("Pack x2"));
+  // Con espacios alrededor sí apaga: es el mismo tipeo.
+  assert.ok(!visible(htmlX({ headline: " x " })).includes("Elegí tu pack"));
+  assert.ok(!visible(htmlX({ headline: "X" })).includes("Elegí tu pack"));
+});
+
+test('(w) una línea de confianza en "x" se borra, las otras quedan', () => {
+  const h = htmlX({ trust_lines: ["x", "Envío gratis"] }, "v01", { mode: "sub" });
+  assert.ok(h.includes("Envío gratis"));
+  assert.ok(!/>x</.test(h), "la línea apagada no se dibuja");
+});
+
+test('(w) la "x" sobrevive el guardado (el server no la borra)', async () => {
+  createWorld({ merchant: luminaMerchant() });
+  const r = await guardar({ widget_texts: { headline: "x", per_unit_label: "x" } });
+  assert.equal(r.statusCode, 200, JSON.stringify(r.body));
+  const t = rawGet(`merchants/${MID}`).widget_texts;
+  assert.equal(t.headline, "x", "se guarda la x, el sanitizer del widget la interpreta");
+  assert.equal(t.per_unit_label, "x");
+});

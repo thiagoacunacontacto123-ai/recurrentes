@@ -578,6 +578,12 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
             <div style={{fontSize:12,fontWeight:700,color:T.text}}>Textos</div>
             <Btn T={T} variant="secondary" size="sm" type="button" onClick={resetTexts}>Restablecer textos</Btn>
           </div>
+          {/* Dejar un campo vacío NO alcanza: el widget cae al texto por defecto
+              y vuelve a aparecer. Con una "x" se apaga de verdad (21-sept). */}
+          <p style={{margin:"0 0 10px",fontSize:DS.font.sm,color:T.textSm,lineHeight:1.5}}>
+            ¿Querés que un texto no aparezca? Poné una <strong style={{color:T.text}}>x</strong> sola
+            en ese campo y esa parte desaparece del widget. Vacío vuelve al texto por defecto.
+          </p>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))",gap:"0 10px"}}>
             {TEXT_FIELDS.map(([k, label]) => (
               <Field key={k} T={T} label={label}>

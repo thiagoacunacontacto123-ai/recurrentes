@@ -157,16 +157,24 @@ function modeView(p, mode) {
   };
 }
 
+// Una "x" sola en un campo = APAGAR ese texto (21-sept-2026, Thiago). Dejarlo
+// vacío no alcanza: el widget cae al default y el texto vuelve a aparecer. Con
+// la x el campo queda en "" y la sección entera desaparece (los helpers que lo
+// pintan ya devuelven "" y las variantes saben no dibujar el bloque).
+// Se acepta "x" o "X", sola y sin nada más, para que nadie apague un texto sin querer.
+export const esApagado = (v) => typeof v === "string" && /^\s*[xX]\s*$/.test(v);
+
 function sanitizeTexts(raw) {
   const t = raw && typeof raw === "object" ? raw : {};
   const out = {};
   for (const k of Object.keys(TEXT_DEFAULTS)) {
     if (k === "trust_lines" || k === "trust_lines_once") continue;
-    out[k] = str(t[k], TEXT_DEFAULTS[k]);
+    out[k] = esApagado(t[k]) ? "" : str(t[k], TEXT_DEFAULTS[k]);
   }
   const limpiar = (arr, fallback) => {
     const src = Array.isArray(arr) ? arr : fallback;
-    return src.filter((l) => typeof l === "string" && l.trim()).map((l) => str(l, "")).filter(Boolean).slice(0, MAX_TRUST);
+    // Una línea en "x" se borra de la lista, igual que si estuviera vacía.
+    return src.filter((l) => typeof l === "string" && l.trim() && !esApagado(l)).map((l) => str(l, "")).filter(Boolean).slice(0, MAX_TRUST);
   };
   out.trust_lines = limpiar(t.trust_lines, TEXT_DEFAULTS.trust_lines);
   out.trust_lines_once = limpiar(t.trust_lines_once, TEXT_DEFAULTS.trust_lines_once);

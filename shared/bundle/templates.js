@@ -106,12 +106,23 @@ function buildCtx(vm, state) {
     showPerUnit: vm.showPerUnit !== false,
   };
   ctx.v = function (p, m) { return p[m || mode]; };
+  // Los textos vienen ya saneados: "" significa que el comerciante lo apagó con
+  // una "x" y esa sección no se dibuja (21-sept-2026). `undefined` es otra cosa
+  // —nunca se guardó— y ahí sí va el default de siempre.
+  var apagado = function (v) { return v === ""; };
+  // El título, listo para pegar. Vacío (apagado con "x") = no se dibuja ni el
+  // contenedor, así no queda un hueco arriba del widget.
+  ctx.headHtml = function (cls) {
+    if (!t.headline) return "";
+    return '<div class="' + (cls || "rc-head") + '"><h3>' + esc(t.headline) + "</h3></div>";
+  };
   ctx.savings = function (p, m) {
     var vv = ctx.v(p, m); if (!vv.savingsPct) return "";
+    if (apagado(t.savings_label)) return "";
     return String(t.savings_label || "Ahorrás {pct}%").replace("{pct}", String(vv.savingsPct));
   };
   ctx.perUnit = function (p, m) {
-    if (!ctx.showPerUnit) return "";
+    if (!ctx.showPerUnit || apagado(t.per_unit_label)) return "";
     var vv = ctx.v(p, m);
     return String(t.per_unit_label || "{price} c/u").replace("{price}", fmtARS(vv.perUnit));
   };
@@ -269,7 +280,7 @@ function v01(c) {
   }).join("");
 
   var html = c.wrap(
-    '<div class="rc-head"><h3>' + esc(t.headline) + "</h3></div>" +
+    c.headHtml() +
     '<div class="rc-packs" role="radiogroup" aria-label="' + esc(t.headline) + '">' + packs + "</div>" +
     '<div class="rc-modes" role="radiogroup" aria-label="Modo de compra">' + modes + "</div>" +
     c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust() + c.note()
@@ -351,7 +362,7 @@ function v02(c) {
       "</div>";
   }).join("");
   var html = c.wrap(
-    '<div class="rc-top"><h3>' + esc(t.headline) + "</h3>" +
+    '<div class="rc-top">' + (t.headline ? "<h3>" + esc(t.headline) + "</h3>" : "") +
     '<div class="rc-tabs" role="radiogroup" aria-label="Modo de compra">' + tabs + "</div></div>" +
     '<div class="rc-rows" role="radiogroup" aria-label="' + esc(t.headline) + '">' + rows + "</div>" +
     c.freqLine() + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust() + c.note()
@@ -411,7 +422,7 @@ function v03(c) {
       "</small></span></div>";
   var meta = [c.perUnit(c.sel || { sub: {}, once: {} }), c.savings(c.sel || {})].filter(Boolean);
   var html = c.wrap(
-    '<div class="rc-top"><span class="rc-lbl">' + esc(t.headline) + '</span><span class="rc-mode-lbl">' + c.modeLabel(c.mode) + "</span></div>" +
+    '<div class="rc-top">' + (t.headline ? '<span class="rc-lbl">' + esc(t.headline) + "</span>" : "") + '<span class="rc-mode-lbl">' + c.modeLabel(c.mode) + "</span></div>" +
     '<div class="rc-pills" role="radiogroup" aria-label="' + esc(t.headline) + '">' + pills + "</div>" +
     '<div class="rc-price-block"><span class="rc-big">' + esc(fmtARS(c.view.price)) + "</span>" + c.compareHtml(c.sel || { sub: {}, once: {} }) +
       (meta.length ? '<span class="rc-meta">' + meta.map(function (m, k) { return k === 1 ? '<em class="rc-save">' + esc(m) + "</em>" : esc(m); }).join(" · ") + "</span>" : "") + "</div>" +
@@ -476,7 +487,7 @@ function v04(c) {
     ? '<div class="rc-sum"><span><b>' + esc(c.sel.label) + "</b> · " + c.modeLabel(c.mode) + "</span><span class=\"rc-sum-price\">" + c.compareHtml(c.sel) + "<b>" + esc(fmtARS(c.view.price)) + "</b></span></div>"
     : "";
   var html = c.wrap(
-    '<h3 class="rc-h">' + esc(t.headline) + "</h3>" +
+    (t.headline ? '<h3 class="rc-h">' + esc(t.headline) + "</h3>" : "") +
     '<div class="rc-scroll"><table class="rc-table" role="radiogroup" aria-label="' + esc(t.headline) + '"><thead>' + thead + "</thead><tbody>" + tbody + "</tbody></table></div>" +
     summary + c.freqLine() + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust() + c.note()
   );
@@ -530,7 +541,7 @@ function v05(c) {
     var v = c.v(p), on = i === c.idx;
     var meta = [c.perUnit(p), c.mode === "sub" ? c.freqPrefix(p) + " " + p.freqLabel : ""].filter(Boolean).join(" · ");
     return '<div class="rc-card' + c.on(on) + '"' + c.radioAttrs(i) + ">" +
-      '<div class="rc-side' + c.on(!v.savingsPct, "is-empty") + '">' + (v.savingsPct ? "<span>Ahorrás</span><b>" + v.savingsPct + "%</b>" : "<b>×" + p.qty + "</b>") + "</div>" +
+      '<div class="rc-side' + c.on(!v.savingsPct || !c.savings(p), "is-empty") + '">' + (v.savingsPct && c.savings(p) ? "<span>Ahorrás</span><b>" + v.savingsPct + "%</b>" : "<b>×" + p.qty + "</b>") + "</div>" +
       (p.image ? '<img class="rc-card-img" src="' + esc(p.image) + '" alt="" loading="lazy">' : "") +
       '<div class="rc-body"><div class="rc-card-top"><b class="rc-card-name">' + esc(p.label) + "</b>" + (p.badge ? '<span class="rc-badge">' + esc(p.badge) + "</span>" : "") + "</div>" + c.packNote(p) +
         '<div class="rc-card-price"><b>' + esc(fmtARS(v.price)) + "</b>" + c.compareHtml(p) + "</div>" +
@@ -539,7 +550,7 @@ function v05(c) {
       "</div>";
   }).join("");
   var html = c.wrap(
-    '<div class="rc-top"><h3>' + esc(t.headline) + "</h3>" +
+    '<div class="rc-top">' + (t.headline ? "<h3>" + esc(t.headline) + "</h3>" : "") +
     '<div class="rc-segs" role="radiogroup" aria-label="Modo de compra">' + seg + "</div></div>" +
     '<div class="rc-cards" role="radiogroup" aria-label="' + esc(t.headline) + '">' + cards + "</div>" +
     c.freqLine() + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust() + c.note()
@@ -596,7 +607,7 @@ function v06(c) {
   }).join("");
   var detail = c.sel ? [c.perUnit(c.sel), c.savings(c.sel)].filter(Boolean).join(" · ") : "";
   var html = c.wrap(
-    '<div class="rc-mhead"><span class="rc-eyebrow">' + esc(t.headline) + '</span><div class="rc-links" role="radiogroup" aria-label="Modo de compra">' + links + "</div></div>" +
+    '<div class="rc-mhead">' + (t.headline ? '<span class="rc-eyebrow">' + esc(t.headline) + "</span>" : "") + '<div class="rc-links" role="radiogroup" aria-label="Modo de compra">' + links + "</div></div>" +
     '<div class="rc-mrows" role="radiogroup" aria-label="' + esc(t.headline) + '">' + rows + "</div>" +
     (detail ? '<p class="rc-mdetail">' + esc(detail) + "</p>" : "") +
     c.freqLine() + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust() + c.note()
@@ -647,7 +658,7 @@ function v07(c) {
     return '<button class="rc-chip' + c.on(m === c.mode) + '"' + c.modeAttrs(m) + ">" + c.modeLabel(m, true) + "</button>";
   }).join("");
   var html = c.wrap(
-    '<h3 class="rc-h">' + esc(t.headline) + "</h3>" +
+    (t.headline ? '<h3 class="rc-h">' + esc(t.headline) + "</h3>" : "") +
     '<div class="rc-segs" role="radiogroup" aria-label="' + esc(t.headline) + '">' + segs + "</div>" +
     '<div class="rc-pcard">' +
       '<div class="rc-chips" role="radiogroup" aria-label="Modo de compra">' + chips + "</div>" +
@@ -702,7 +713,7 @@ function v08(c) {
       "</div>";
   }).join("");
   var html = c.wrap(
-    '<div class="rc-dtop"><h3>' + esc(t.headline) + '</h3><div class="rc-mps" role="radiogroup" aria-label="Modo de compra">' + pills + "</div></div>" +
+    '<div class="rc-dtop">' + (t.headline ? "<h3>" + esc(t.headline) + "</h3>" : "") + '<div class="rc-mps" role="radiogroup" aria-label="Modo de compra">' + pills + "</div></div>" +
     '<div class="rc-dcs" role="radiogroup" aria-label="' + esc(t.headline) + '">' + cards + "</div>" +
     c.freqLine() + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust() + c.note()
   );
@@ -766,7 +777,7 @@ function v09(c) {
   }).join("");
   var detail = c.sel ? [c.perUnit(c.sel), c.savings(c.sel)].filter(Boolean).join(" · ") : "";
   var html = c.wrap(
-    '<h3 class="rc-h">' + esc(t.headline) + "</h3>" +
+    (t.headline ? '<h3 class="rc-h">' + esc(t.headline) + "</h3>" : "") +
     '<div class="rc-pts" role="radiogroup" aria-label="Modo de compra">' + toggle + "</div>" +
     '<div class="rc-tiles" role="radiogroup" aria-label="' + esc(t.headline) + '">' + tiles + "</div>" +
     (detail ? '<p class="rc-detail">' + esc(detail) + "</p>" : "") +
@@ -828,7 +839,7 @@ function v10(c) {
   }
   var html = c.wrap(
     '<div class="rc-ed">' +
-      '<div class="rc-ed-l"><h3 class="rc-eh">' + esc(t.headline) + "</h3>" +
+      '<div class="rc-ed-l">' + (t.headline ? '<h3 class="rc-eh">' + esc(t.headline) + "</h3>" : "") +
         '<div class="rc-etabs" role="radiogroup" aria-label="Modo de compra">' + tabs + "</div>" +
         '<div class="rc-erows" role="radiogroup" aria-label="' + esc(t.headline) + '">' + rows + "</div></div>" +
       '<aside class="rc-ed-r"><div class="rc-sum">' +
@@ -935,7 +946,7 @@ function v11(c) {
       "</small></span></button>";
 
   var html = c.wrap(
-    (t.headline ? '<div class="rc-head"><h3>' + esc(t.headline) + "</h3></div>" : "") +
+    c.headHtml() +
     '<div class="rc-fps" role="radiogroup" aria-label="' + esc(t.headline || "Elegí tu pack") + '">' + packs + "</div>" +
     sw + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust() + c.note()
   );
@@ -1029,7 +1040,7 @@ function v12(c) {
       "</small></span></button>";
 
   var html = c.wrap(
-    (t.headline ? '<div class="rc-head"><h3>' + esc(t.headline) + "</h3></div>" : "") +
+    c.headHtml() +
     '<div class="rc-fps" role="radiogroup" aria-label="' + esc(t.headline || "Elegí tu pack") + '">' + packs + "</div>" +
     sw + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust() + c.note()
   );
