@@ -347,7 +347,7 @@ function MetaMock({ T }) {
 export function DeepDivesSection({ T }) {
   const rows = [
     { eyebrow:"Widget", title:"Compra única o suscripción, en la misma página de producto", text:"Tu cliente elige cómo comprar sin salir del producto. Vos definís el descuento, la frecuencia y los packs.",
-      points:["Compra única o Suscripción, en la misma página de producto y con el botón de tu tema.","Packs x1 · x2 · x3 con precio tachado y etiqueta de \"más elegido\", en 10 diseños con tu color.","Descuento por suscribirse o solo en el primer cobro."], mock:<WidgetMock T={T}/> },
+      points:["Compra única o Suscripción, en la misma página de producto y con el botón de tu tema.","Packs x1 · x2 · x3 con precio tachado y etiqueta de \"más elegido\", en más de 10 diseños con tu color.","Descuento por suscribirse o solo en el primer cobro."], mock:<WidgetMock T={T}/> },
     { eyebrow:"Piloto automático", title:"Cada cobro aprobado se convierte en una orden", text:"Mercado Pago cobra en la fecha que corresponde y Recurrentes arma la orden en tu negocio, con todo lo que necesitás para despachar.",
       points:["Orden paga con dirección, envío y stock descontado.","El cliente recibe el mail de confirmación como en cualquier compra.","Sin planillas ni pedidos cargados a mano."], mock:<TimelineMock T={T}/> },
     { eyebrow:"Portal del suscriptor", title:"Tus clientes se gestionan solos", text:"Cada suscriptor tiene su link para ver su plan y hacer cambios sin escribirte.",
@@ -442,7 +442,7 @@ export function WhatsAppSection({ T }) {
 export function ExtrasSection({ T }) {
   const items = [
     ["M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82zM7 7h.01", "Cupones de descuento", "Porcentaje o monto fijo, para toda la suscripción."],
-    ["M4 4h16v16H4zM4 9h16M9 9v11", "10 diseños de widget", "Con tu color, tus esquinas y tus textos."],
+    ["M4 4h16v16H4zM4 9h16M9 9v11", "Más de 10 diseños de widget", "Con tu color, tus fotos y tus textos."],
     ["M22 12h-6l-2 3h-4l-2-3H2", "Flujos de mails automáticos", "Checkout sin pagar, aviso de próximo cobro, pago rechazado y win-back, salen solos y con tu marca."],
     ["M18 20V10M12 20V4M6 20v-6", "Embudo a Meta", "Carrito, pago iniciado y primera compra por la API de Conversiones."],
     ["M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8z", "Equipo con permisos", "Cada persona ve solo las secciones que le habilitás."],
@@ -756,12 +756,6 @@ const COMPARE_ROWS = [
     ["$0", "hasta la primera suscripción"],
     ["USD 150", "pago único"],
     "$0", "$0"],
-  ["Te la dejamos andando nosotros",
-    ["Sí, sin cargo", true], false,
-    ["Sí", "setup asistido"],
-    ["Sí", "en 7 días"],
-    ["No", "la configurás vos"],
-    ["No", "la configurás vos"]],
   ["Cobra con Mercado Pago", true, true, true, true,
     ["Solo Pago Nube", "y solo tarjeta de crédito"], false],
   ["Funciona en Shopify", true, true, true, true, false, true],
@@ -773,17 +767,13 @@ const COMPARE_ROWS = [
   ["Dos productos con suscripción en el mismo carrito", true, false, false, false,
     ["No", "uno por carrito"], true],
   ["Diseños de widget listos para usar",
-    ["12 diseños con tus fotos", true], false, false, false,
+    ["Más de 10 diseños con tus fotos", true], false, false, false,
     ["—", "el del tema"], false],
   ["Mails automáticos con tu marca", true, false, true, false, false,
     ["Sí", "en inglés"]],
   ["Avisos por WhatsApp al cliente", ["Sí", true], false, false, false, false, false],
   ["Avisos por WhatsApp al comerciante", ["Sí", true], false, false, false, false, false],
   ["Portal del cliente: pausar, cancelar, cambiar dirección", true, false, true, true, false, true],
-  ["Toma todas las tiendas que quieran entrar",
-    ["Sí", true], true, true,
-    ["No", "10 marcas por mes"],
-    true, true],
   ["Soporte en español por WhatsApp", ["Sí", true], true, true, true, "~", false],
 ];
 const COMPARE_COLS = [
@@ -834,7 +824,7 @@ export function ComparisonSection({ T }) {
     <section className="ls-sec-alt" id="rec-comparar">
       <div className="ls-wrap">
         <SectionHead T={T} eyebrow="Comparativa" title="Lo mismo, sin comisión y con más funciones"
-          sub="Casi todos cobran un porcentaje de cada venta que hacés, además del abono. Nosotros no cobramos comisión, los primeros 10 suscriptores son gratis y viene todo incluido: WhatsApp, mails con tu marca y 12 diseños de widget."/>
+          sub="Casi todos cobran un porcentaje de cada venta que hacés, además del abono. Nosotros no cobramos comisión, los primeros 10 suscriptores son gratis y viene todo incluido: WhatsApp, mails con tu marca y más de 10 diseños de widget."/>
         <div className="ls-cmp-wrap" style={{borderRadius:18,border:`1px solid ${T.border}`,background:T.card}}>
           <table className="ls-cmp">
             <thead>

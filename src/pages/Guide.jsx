@@ -275,11 +275,11 @@ function SecPlanes({ T, onb, goTab }) {
 
 function SecDiseno({ T, onb, goTab }) {
   return (
-    <Sec T={T} title="Widget: cómo se ve el selector" sub="El widget es el selector de packs que ve tu cliente en la página de producto. Hay 10 diseños con vista previa real usando tus planes. Vive en Planes → Widget."
+    <Sec T={T} title="Widget: cómo se ve el selector" sub="El widget es el selector de packs que ve tu cliente en la página de producto. Hay más de 10 diseños con vista previa real usando tus planes. Vive en Planes → Widget."
       right={<><StepStatus T={T} onb={onb} id="design"/><Btn T={T} variant="primary" size="sm" onClick={() => goPlanesWidget(goTab)}>Abrir Planes → Widget →</Btn></>}>
       <Steps T={T} items={[
         <>Entrá a <B T={T}>Planes → pestaña Widget</B>.<Crumb T={T} path="Recurrentes › Planes › Widget"/></>,
-        <>En la <B T={T}>galería</B> mirá los 10 diseños (v01 a v10) renderizados con tus packs. Tocá <B T={T}>Usar este</B> en el que más pegue con tu tienda.</>,
+        <>En la <B T={T}>galería</B> mirá todos los diseños renderizados con tus packs. Tocá <B T={T}>Usar este</B> en el que más pegue con tu tienda.</>,
         <>Ajustá el <B T={T}>color de acento</B> (el hex de tu marca), el <B T={T}>radio de esquinas</B>, si se muestran los <B T={T}>precios tachados</B> y el <B T={T}>precio por unidad</B>, cuál opción aparece primero y cuál arranca seleccionada (suscripción o compra única).</>,
         <>Editá los <B T={T}>textos</B>: título, etiquetas del toggle, botones y líneas de confianza. Todo con vista previa al instante.</>,
         <>Tocá <B T={T}>Guardar diseño</B>. Se aplica a todos los productos con plan, sin volver a tocar el snippet. Abajo tenés el snippet para copiar y la casilla "Ya lo pegué".</>,

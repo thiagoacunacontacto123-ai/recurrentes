@@ -78,7 +78,7 @@ export default function OnboardingWizard({ T: Tp, DS: DSp, merchant, onb, onClos
     bullets: [
       "Cobros recurrentes en tu propia cuenta de MP, sin intermediarios",
       "Una orden en Shopify por cada cobro, con envío y dirección",
-      "Widget con packs (x1, x2, x3) y 10 diseños para tu página de producto",
+      "Widget con packs (x1, x2, x3) y más de 10 diseños para tu página de producto",
       "Mails automáticos para recuperar checkouts sin pagar",
     ],
   } : profile.explicit ? {
