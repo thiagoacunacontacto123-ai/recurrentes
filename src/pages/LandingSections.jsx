@@ -34,7 +34,7 @@ export function SectionsStyle({ T }) {
       .ls-videos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px;align-items:start;}
       /* Tabla comparativa: en celular cada columna se lee sin deslizar */
       .ls-cmp-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-      .ls-cmp{width:100%;border-collapse:separate;border-spacing:0;min-width:720px;font-size:13.5px;}
+      .ls-cmp{width:100%;border-collapse:separate;border-spacing:0;min-width:940px;font-size:13px;}
       @media(max-width:640px){
         .ls-videos{grid-template-columns:1fr;gap:28px;max-width:420px;margin:0 auto;}
         .ls-cmp-wrap{overflow-x:visible;}
@@ -729,38 +729,81 @@ export function VideoSection({ T, videos = [] }) {
   );
 }
 
-// ─── Comparativa (nombres difuminados: comparamos funciones, no marcas) ──
-// Columnas: Recurrentes · la alternativa local · las apps internacionales de
-// Shopify. Valores: true ✓ · false ✗ · "~" según el caso · texto libre.
+// ─── Comparativa (con nombres: solo datos publicados por cada uno) ──────
+// REGLA: cada celda tiene que ser verificable en la web pública del producto
+// (verificado 21-09-2026, ver COMPARE_SOURCES). Lo que el competidor NO
+// publica se dice "No lo publica", nunca se estima: una comparativa pública
+// con un número inventado es un problema legal.
 const COMPARE_ROWS = [
-  ["Costo de instalación", ["Gratis", true], "USD 150", "Gratis"],
-  ["Cobra con Mercado Pago (crédito y débito en pesos)", true, true, ["✗", "Necesitan Shopify Payments, que no existe en Argentina"]],
-  ["Funciona en Shopify", true, true, true],
-  ["Funciona en Tiendanube", true, false, false],
-  ["Checkout propio con los envíos reales de tu tienda", true, "~", ["~", "Solo dentro del checkout de Shopify"]],
-  ["Packs x1 · x2 · x3 con precio propio y compra única con el botón del tema", true, "~", "~"],
-  ["Portal del cliente: pausar, cancelar, cambiar dirección", true, "~", true],
-  ["Avisos por WhatsApp y mails con tu marca", true, false, ["~", "Mails, en inglés"]],
-  ["Precio del plan", ["Gratis hasta 10 suscriptores", true], "A cotizar", "USD 99 a 499 por mes"],
-  ["Comisión sobre cada venta", ["Ninguna", true], ["Sí", "2% a 3% de cada cobro"], ["Sí", "1% a 2% de cada cobro"]],
-  ["Soporte en español por WhatsApp", true, true, false],
+  ["Precio del plan",
+    ["Gratis hasta 10 suscriptores", true],
+    ["No lo publica", "Acceso solo por invitación"],
+    ["USD 99 a 249 por mes", "según el plan"],
+    ["Plan Impulso", "$78.999 por mes"],
+    ["USD 99 a 599 por mes", "Recharge y Skio"]],
+  ["Comisión sobre cada venta",
+    ["0%", true],
+    "No lo publica",
+    ["1,2% a 1,8%", "de todo lo que cobrás"],
+    ["—", "va con el plan"],
+    ["1% a 1,49% + USD 0,19", "por transacción"]],
+  ["Instalación",
+    ["Gratis, la hacemos nosotros", true],
+    ["Con cargo", "monto no publicado"],
+    "No lo publica",
+    "Incluida",
+    "No lo publica"],
+  ["Cobra con Mercado Pago", true, true, true,
+    ["Solo Pago Nube", "y solo tarjeta de crédito"], false],
+  ["Funciona en Shopify", true, true, true, false, true],
+  ["Funciona en Tiendanube", true, true, "~", true, false],
+  ["Suscribir una variante puntual", true, "?", "?",
+    ["No", "aplica a todas las variantes"], true],
+  ["Dos productos con suscripción en el mismo carrito", true, "?", "?",
+    ["No", "uno por carrito"], true],
+  ["Diseños de widget listos para usar",
+    ["12 diseños con tus fotos", true], "?", "?",
+    ["—", "el del tema"], "~"],
+  ["Mails automáticos con tu marca", true, "?", true, "?", ["Sí", "en inglés"]],
+  ["Avisos por WhatsApp al cliente", ["Sí", true], "?", "?", "?", "?"],
+  ["Avisos por WhatsApp al comerciante", ["Sí", true], "?", "?", "?", "?"],
+  ["Portal del cliente: pausar, cancelar, cambiar dirección", true, true, true, "?", true],
+  ["Toma todas las tiendas que quieran entrar",
+    ["Sí", true],
+    ["No", "10 marcas por mes"],
+    true, true, true],
+  ["Soporte en español por WhatsApp", ["Sí", true], true, true, "~", false],
 ];
 const COMPARE_COLS = [
-  { key:"rec", title:"Recurrentes", real:true },
-  { key:"local", title:"Puentify", sub:"Alternativa local" },
-  { key:"intl", title:"Recharge · Skio · Appstle", sub:"Apps internacionales" },
+  { key:"rec",   title:"Recurrentes", real:true },
+  { key:"pue",   title:"Puentify",    sub:"Argentina" },
+  { key:"rev",   title:"Reval",       sub:"Latam" },
+  { key:"tn",    title:"Tiendanube",  sub:"Suscripciones nativas" },
+  { key:"intl",  title:"Recharge · Skio", sub:"Internacionales" },
 ];
-function CompareCell({ T, v, hero }) {
+// Links de cada dato, por si alguien quiere chequearlo (y para respaldarnos).
+const COMPARE_SOURCES = [
+  { t:"Puentify", u:"https://puentify.app/" },
+  { t:"Reval", u:"https://appreval.com/" },
+  { t:"Tiendanube", u:"https://ayuda.tiendanube.com/es_ES/ventas/como-vender-productos-por-suscripcion-en-tiendanube" },
+  { t:"Recharge", u:"https://getrecharge.com/pricing/" },
+  { t:"Skio", u:"https://apps.shopify.com/skio" },
+];
+function CompareCell({ T, v }) {
   const ok = (c) => <Check c={c} size={16}/>;
   const no = (c) => <Cross c={c} size={16}/>;
-  if (v === true) return <span style={{display:"inline-flex",alignItems:"center",gap:6,color:T.accent,fontWeight:700}}>{ok(T.accent)}{hero ? "Sí" : "Sí"}</span>;
+  if (v === true) return <span style={{display:"inline-flex",alignItems:"center",gap:6,color:T.accent,fontWeight:700}}>{ok(T.accent)}Sí</span>;
   if (v === false) return <span style={{display:"inline-flex",alignItems:"center",gap:6,color:T.textSm}}>{no(T.textSm)}No</span>;
   if (v === "~") return <span style={{display:"inline-flex",alignItems:"center",gap:6,color:T.yellow,fontWeight:600}}><span style={{fontSize:14}}>~</span>Según el caso</span>;
+  // "?" = el producto no lo documenta. No decimos que no lo tiene.
+  if (v === "?") return <span style={{color:T.textSm,fontSize:12.5}}>No lo documenta</span>;
   if (Array.isArray(v)) {
     const [main, note] = v;
     if (note === true) return <span style={{color:T.accent,fontWeight:800}}>{main}</span>;
-    const icon = main === "✗" ? no(T.textSm) : main === "~" ? <span style={{fontSize:14,color:T.yellow}}>~</span> : null;
-    return <span style={{display:"inline-flex",flexDirection:"column",gap:2}}><span style={{display:"inline-flex",alignItems:"center",gap:6,color:main === "✗" ? T.textSm : T.text,fontWeight:600}}>{icon}{main === "✗" ? "No" : main === "~" ? "Parcial" : main}</span><span style={{fontSize:11.5,color:T.textSm,lineHeight:1.4}}>{note}</span></span>;
+    const icon = main === "No" ? no(T.textSm) : main === "~" ? <span style={{fontSize:14,color:T.yellow}}>~</span> : null;
+    return <span style={{display:"inline-flex",flexDirection:"column",gap:2}}>
+      <span style={{display:"inline-flex",alignItems:"center",gap:6,color:main === "No" ? T.textSm : T.text,fontWeight:600}}>{icon}{main}</span>
+      <span style={{fontSize:11.5,color:T.textSm,lineHeight:1.4}}>{note}</span></span>;
   }
   return <span style={{color:T.textMd,fontWeight:600}}>{v}</span>;
 }
@@ -768,20 +811,20 @@ export function ComparisonSection({ T }) {
   return (
     <section className="ls-sec-alt" id="rec-comparar">
       <div className="ls-wrap">
-        <SectionHead T={T} eyebrow="Comparativa" title="Hecho para vender por suscripción en Argentina"
-          sub="Las apps internacionales cobran con pasarelas que acá no existen y se pagan en dólares más un porcentaje de cada venta. Comparamos funciones, no marcas: los nombres van difuminados."/>
+        <SectionHead T={T} eyebrow="Comparativa" title="Lo mismo, sin comisión y sin dólares"
+          sub="Todos cobran un abono en dólares más un porcentaje de cada venta que hacés. Nosotros no cobramos comisión y los primeros 10 suscriptores son gratis. Cada dato sale de la web pública de cada producto."/>
         <div className="ls-cmp-wrap" style={{borderRadius:18,border:`1px solid ${T.border}`,background:T.card}}>
           <table className="ls-cmp">
             <thead>
               <tr>
-                <th style={{textAlign:"left",padding:"16px 18px",fontSize:11,fontWeight:800,color:T.textSm,letterSpacing:0.6,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,width:"34%"}}>Qué mirar</th>
+                <th style={{textAlign:"left",padding:"16px 18px",fontSize:11,fontWeight:800,color:T.textSm,letterSpacing:0.6,textTransform:"uppercase",borderBottom:`1px solid ${T.border}`,width:"26%"}}>Qué mirar</th>
                 {COMPARE_COLS.map(c => (
-                  <th key={c.key} style={{textAlign:"left",padding:"14px 18px",borderBottom:`1px solid ${T.border}`,background:c.real ? T.accentSolid + "12" : "transparent",borderTop:c.real ? `3px solid ${T.accentSolid}` : "3px solid transparent"}}>
+                  <th key={c.key} style={{textAlign:"left",padding:"14px 16px",borderBottom:`1px solid ${T.border}`,background:c.real ? T.accentSolid + "12" : "transparent",borderTop:c.real ? `3px solid ${T.accentSolid}` : "3px solid transparent"}}>
                     {c.real
                       ? <span style={{display:"inline-flex",alignItems:"center",gap:8,fontSize:15,fontWeight:800,color:T.text}}><RecLogoMini/> {c.title}</span>
                       : <span style={{display:"flex",flexDirection:"column",gap:3}}>
-                          <span aria-hidden="true" style={{fontSize:15,fontWeight:800,color:T.textMd,filter:"blur(5px)",userSelect:"none",pointerEvents:"none"}}>{c.title}</span>
-                          <span style={{fontSize:11,fontWeight:700,color:T.textSm,letterSpacing:0.4,textTransform:"uppercase"}}>{c.sub}</span>
+                          <span style={{fontSize:14.5,fontWeight:800,color:T.textMd}}>{c.title}</span>
+                          <span style={{fontSize:10.5,fontWeight:700,color:T.textSm,letterSpacing:0.4,textTransform:"uppercase"}}>{c.sub}</span>
                         </span>}
                   </th>
                 ))}
@@ -792,8 +835,8 @@ export function ComparisonSection({ T }) {
                 <tr key={label}>
                   <td style={{padding:"13px 18px",color:T.text,fontWeight:600,borderBottom:i === COMPARE_ROWS.length - 1 ? "none" : `1px solid ${T.borderL || T.border}`,lineHeight:1.45}}>{label}</td>
                   {vals.map((v, j) => (
-                    <td key={j} data-col={j === 0 ? "Recurrentes" : COMPARE_COLS[j].sub} style={{padding:"13px 18px",borderBottom:i === COMPARE_ROWS.length - 1 ? "none" : `1px solid ${T.borderL || T.border}`,background:j === 0 ? T.accentSolid + "0a" : "transparent",verticalAlign:"top",lineHeight:1.45}}>
-                      <CompareCell T={T} v={v} hero={j === 0}/>
+                    <td key={j} data-col={j === 0 ? "Recurrentes" : COMPARE_COLS[j].title} style={{padding:"13px 16px",borderBottom:i === COMPARE_ROWS.length - 1 ? "none" : `1px solid ${T.borderL || T.border}`,background:j === 0 ? T.accentSolid + "0a" : "transparent",verticalAlign:"top",lineHeight:1.45}}>
+                      <CompareCell T={T} v={v}/>
                     </td>
                   ))}
                 </tr>
@@ -801,7 +844,12 @@ export function ComparisonSection({ T }) {
             </tbody>
           </table>
         </div>
-        <p style={{fontSize:12,color:T.textSm,textAlign:"center",margin:"16px auto 0",maxWidth:720,lineHeight:1.6}}>Información pública de cada producto a septiembre de 2026. "Según el caso" quiere decir que depende del plan o del tema de la tienda.</p>
+        <p style={{fontSize:12,color:T.textSm,textAlign:"center",margin:"16px auto 0",maxWidth:820,lineHeight:1.6}}>
+          Datos verificados el 21 de septiembre de 2026 en la web pública de cada producto:{" "}
+          {COMPARE_SOURCES.map((f, i) => (
+            <span key={f.t}>{i > 0 ? " · " : ""}<a href={f.u} target="_blank" rel="noopener noreferrer" style={{color:T.textMd,textDecoration:"underline"}}>{f.t}</a></span>
+          ))}. "No lo documenta" quiere decir que no lo encontramos publicado, no que no exista. Los precios los pone cada empresa y pueden cambiar.
+        </p>
       </div>
     </section>
   );
