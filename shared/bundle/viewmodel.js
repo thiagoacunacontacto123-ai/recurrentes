@@ -121,10 +121,13 @@ export function resolvePack(plan, idx) {
   // Texto propio del pack: "tratamiento bimensual", "dura 4 meses"… Vacío = no
   // se pinta nada y el widget queda como antes.
   var note = typeof raw.note === "string" ? raw.note.replace(/\s+/g, " ").trim().slice(0, 120) : "";
+  // El mismo renglón, distinto según el modo. Sin cargar = se usa el de
+  // suscripción, así los packs que ya tenían texto siguen igual.
+  var noteOnce = typeof raw.note_once === "string" ? raw.note_once.replace(/\s+/g, " ").trim().slice(0, 120) : "";
   // Foto del pack (la usan v11/v12). Solo https: evita contenido mixto y javascript:.
   var image = typeof raw.image === "string" && /^(https:\/\/|data:image\/)/i.test(raw.image) ? raw.image : null;
   return {
-    idx: idx, qty: qty, label: label || (qty === 1 ? "1 unidad" : qty + " unidades"), badge: badge, note: note,
+    idx: idx, qty: qty, label: label || (qty === 1 ? "1 unidad" : qty + " unidades"), badge: badge, note: note, noteOnce: noteOnce,
     priceOnce: priceOnce, priceSub: priceSub, compareAt: compareAt, freqDays: freqDays,
     image: image,
     gifts: Array.isArray(raw.gifts) ? raw.gifts.slice(0, 3).map(function (g) {
@@ -218,6 +221,7 @@ export function buildBundleVM({ plan, merchant } = {}) {
       qty: r.qty,
       label: r.label,
       note: r.note,
+      noteOnce: r.noteOnce,
       badge: r.badge,
       image: r.image || null,
       gifts: Array.isArray(r.gifts) ? r.gifts : [],

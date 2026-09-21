@@ -190,8 +190,11 @@ function buildCtx(vm, state) {
   // igual para todos los packs, así que no se podía diferenciar uno del otro.
   // Vacío = no se pinta nada y el pack queda como antes.
   ctx.packNote = function (p, cls) {
-    if (!p || !p.note) return "";
-    return '<small class="' + (cls || "rc-pnote") + '">' + esc(p.note) + "</small>";
+    if (!p) return "";
+    // En compra única manda su propio texto; si no lo cargó, el de suscripción.
+    var txt = (mode === "once" && p.noteOnce) ? p.noteOnce : p.note;
+    if (!txt) return "";
+    return '<small class="' + (cls || "rc-pnote") + '">' + esc(txt) + "</small>";
   };
   ctx.freqLine = function (cls) {
     return '<p class="' + (cls || "rc-freq") + '"><span class="rc-freq-ic">' + SVG_REPEAT + "</span>" + esc(ctx.freqText()) + "</p>";

@@ -260,3 +260,36 @@ test('(w) la "x" sobrevive el guardado (el server no la borra)', async () => {
   assert.equal(t.headline, "x", "se guarda la x, el sanitizer del widget la interpreta");
   assert.equal(t.per_unit_label, "x");
 });
+
+// ─── El texto del pack cambia según el modo (21-sept-2026, Thiago) ────────
+// "Que aparezca lo que quiere que diga cuando está puesto suscripción y lo que
+// diga cuando está puesto compra." Mismo renglón, distinto texto.
+test("(w) cada pack tiene un texto para suscripción y otro para compra única", () => {
+  const plan = {
+    pricing_mode: "packs", discount_pct: 15, frequency_days: 30,
+    packs: [
+      { qty: 4, price_ars: 32000, label: "Pack 4", note: "Tratamiento 4 meses", note_once: "4 potes sueltos" },
+      { qty: 1, price_ars: 10000, label: "1 pote", note: "Solo tiene el de sub" },
+    ],
+  };
+  const h = (mode) => render2(buildBundleVM({ plan, merchant: { widget_variant: "v01" } }), { mode }).html;
+  const sub = h("sub"), once = h("once");
+  assert.ok(sub.includes("Tratamiento 4 meses"), "en suscripción va el suyo");
+  assert.ok(!sub.includes("4 potes sueltos"), "y no el de compra única");
+  assert.ok(once.includes("4 potes sueltos"), "en compra única va el suyo");
+  assert.ok(!once.includes("Tratamiento 4 meses"));
+  // Sin cargar el de compra única se usa el de suscripción: los packs que ya
+  // tenían texto no cambian de golpe.
+  assert.ok(once.includes("Solo tiene el de sub"), "sin note_once cae al de suscripción");
+});
+
+test("(w) el server guarda los dos textos del pack", async () => {
+  const { normalizePacks } = await loadApi("api/_lib/packs.js");
+  const r = normalizePacks([{ qty: 4, price_ars: 32000, note: "  Tratamiento 4 meses ", note_once: "4 potes" }]);
+  assert.ok(!r.error, r.error);
+  assert.equal(r.packs[0].note, "Tratamiento 4 meses");
+  assert.equal(r.packs[0].note_once, "4 potes");
+  // Sin el segundo queda vacío (no undefined), que es lo que el widget lee para
+  // decidir si cae al de suscripción.
+  assert.equal(normalizePacks([{ qty: 1, price_ars: 100, note: "x" }]).packs[0].note_once, "");
+});

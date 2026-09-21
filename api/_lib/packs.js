@@ -108,6 +108,7 @@ export function resolvePack(plan, idx) {
     idx: i, qty, price, subPrice, compareAt, freq, savingsPct,
     label: typeof pack.label === "string" ? pack.label : "",
     note: typeof pack.note === "string" ? pack.note : "",
+    note_once: typeof pack.note_once === "string" ? pack.note_once : "",
     badge: typeof pack.badge === "string" && pack.badge ? pack.badge : null,
     // Foto del pack: subida (data:image) o link https. normalizePacks ya lo
     // valida al guardar; acá volvemos a filtrar por si un plan viejo o una
@@ -147,6 +148,11 @@ export function normalizePacks(input) {
     // "tratamiento ultra". Antes solo se podía escribir el mismo prefijo de
     // frecuencia para TODOS los packs, así que no se podía diferenciar uno.
     const note = String(p.note ?? "").trim().slice(0, 120);
+    // Y el de compra única (21-sept-2026, Thiago): el mismo renglón dice otra
+    // cosa según el modo. "Tratamiento 4 meses" cuando se suscribe, "4 potes"
+    // cuando lo compra suelto. Vacío = se usa el de suscripción (`note`), así
+    // los packs que ya tenían texto no cambian.
+    const note_once = String(p.note_once ?? "").trim().slice(0, 120);
     let badge = null;
     if (p.badge != null && String(p.badge).trim()) badge = String(p.badge).trim().slice(0, 24);
     let frequency_days = null;
@@ -196,7 +202,7 @@ export function normalizePacks(input) {
     const isDefault = p.default === true;
     if (isDefault) defaults++;
     if (defaults > 1) return { error: "Solo un pack puede ser el default" };
-    out.push({ qty, price_ars, compare_at_ars, label, note, badge, frequency_days, sub_price_ars, image, gifts, default: isDefault });
+    out.push({ qty, price_ars, compare_at_ars, label, note, note_once, badge, frequency_days, sub_price_ars, image, gifts, default: isDefault });
   }
   out.sort((a, b) => a.qty - b.qty);
   return { packs: out };
