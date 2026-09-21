@@ -112,6 +112,22 @@ export function WidgetVerifyModal({ merchant, plans = [], onClose, onVerified })
             Lo vimos {result.verified.ms ? `${Math.round(result.verified.ms / 1000)} segundos ` : ""}en <B T={T}>{nice(result.verified.host)}{result.verified.path || ""}</B>. La caja de suscripción ya está activa para tus clientes en todos los productos con plan.
           </Callout>
         )}
+        {/* 21-sept-2026 (Thiago): el caso más común después de que el widget SÍ
+            se ve. Escondemos solo las apps de bundles que conocemos; si el
+            comerciante usa otra le quedan los dos, uno arriba del otro, y no
+            tenemos cómo detectarlo desde acá. Se lo decimos nosotros primero,
+            con el paso exacto, en vez de que lo descubra un cliente suyo. */}
+        {phase === "ok" && result?.verified && (
+          <Callout T={T} tone="info" title="¿Ves dos bundles, uno arriba del otro?">
+            Es lo más común y se arregla en un minuto: pasa cuando ya tenías otra app de bundles o packs
+            (Kaching, Pumper, Selleasy…) y la nuestra no la reconoció para esconderla.{" "}
+            {tn
+              ? <>Entrá a <B T={T}>Mi Tiendanube → Aplicaciones</B>, buscá tu app de bundles y desactivala (o sacala de ese producto).</>
+              : <>Entrá a <B T={T}>Tienda online → Temas → Personalizar</B>, buscá el bloque de esa app en la página de producto y desactivalo. Si lo agregó como app embebida, desactivá la app en <B T={T}>Aplicaciones</B>.</>}
+            {" "}Con eso queda solo el nuestro, que ya incluye los packs y la suscripción.{" "}
+            <a href={WA_BUNDLE} target="_blank" rel="noopener" style={{ color: T.accent, fontWeight: 700 }}>Si preferís, escribinos</a> y lo dejamos andando nosotros, gratis.
+          </Callout>
+        )}
         {phase === "issue" && result?.issue && (() => { const c = ISSUE_COPY[result.issue.reason] || { title: "El widget no se pudo mostrar", body: () => <>Escribinos por WhatsApp con el link del producto y lo revisamos.</> }; return (
           <Callout T={T} tone="warning" title={c.title}>{c.body(T)}</Callout>
         ); })()}

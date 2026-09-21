@@ -213,6 +213,9 @@ export default async function handler(req, res) {
         widget_show_compare: merchant.widget_show_compare !== false,
         widget_show_per_unit: merchant.widget_show_per_unit !== false,
         widget_radius: Number.isInteger(merchant.widget_radius) ? Math.max(0, Math.min(32, merchant.widget_radius)) : 14,
+        widget_scale: Number.isInteger(merchant.widget_scale) ? Math.max(80, Math.min(120, merchant.widget_scale)) : 100,
+        widget_box_scale: Number.isInteger(merchant.widget_box_scale) ? Math.max(80, Math.min(120, merchant.widget_box_scale)) : 100,
+        widget_edge_to_edge: merchant.widget_edge_to_edge === true,
         // Códigos de descuento del merchant (para el checkout de suscripción)
         discount_codes: Array.isArray(merchant.discount_codes) ? merchant.discount_codes : [],
         // Klaviyo (recupero de carritos + eventos de suscripción). NUNCA la key.
@@ -904,6 +907,16 @@ async function saveSettings(merchantId, req, res) {
     if (!Number.isInteger(r) || r < 0 || r > 32) return bad("widget_radius debe ser un entero entre 0 y 32");
     out.widget_radius = r;
   }
+  // Tamaño del widget (21-sept-2026, Thiago): letra y alto de las tarjetas de
+  // 80 a 120 (100 = como se veía siempre), y si se pega a los bordes.
+  for (const [campo, label] of [["widget_scale", "el tamaño de la letra"], ["widget_box_scale", "el tamaño de los recuadros"]]) {
+    if (campo in b) {
+      const n = Number(b[campo]);
+      if (!Number.isInteger(n) || n < 80 || n > 120) return bad(`${label} tiene que ser un número entre 80 y 120`);
+      out[campo] = n;
+    }
+  }
+  if ("widget_edge_to_edge" in b) out.widget_edge_to_edge = b.widget_edge_to_edge === true;
 
   if (!Object.keys(out).length) return ignored.length ? res.json({ ok: true, ignored }) : bad("Nada para guardar");
   try {

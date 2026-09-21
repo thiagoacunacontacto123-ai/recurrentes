@@ -271,6 +271,10 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
   const [variant, setVariant] = useState(m.widget_variant || "v01");
   const [color, setColor] = useState(m.widget_color || "#10b981");
   const [radius, setRadius] = useState(Number.isFinite(+m.widget_radius) ? +m.widget_radius : 14);
+  // Tamaño: 100 = como se ve hoy. 80…120 (± 20 %).
+  const [scale, setScale] = useState(Number.isFinite(+m.widget_scale) ? +m.widget_scale : 100);
+  const [boxScale, setBoxScale] = useState(Number.isFinite(+m.widget_box_scale) ? +m.widget_box_scale : 100);
+  const [edgeToEdge, setEdgeToEdge] = useState(m.widget_edge_to_edge === true);
   const [texts, setTexts] = useState(() => normTexts(m.widget_texts));
   const [showCompare, setShowCompare] = useState(m.widget_show_compare !== false);
   const [showPerUnit, setShowPerUnit] = useState(m.widget_show_per_unit !== false);
@@ -282,6 +286,9 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
     setVariant(m.widget_variant || "v01");
     setColor(m.widget_color || "#10b981");
     setRadius(Number.isFinite(+m.widget_radius) ? +m.widget_radius : 14);
+    setScale(Number.isFinite(+m.widget_scale) ? +m.widget_scale : 100);
+    setBoxScale(Number.isFinite(+m.widget_box_scale) ? +m.widget_box_scale : 100);
+    setEdgeToEdge(m.widget_edge_to_edge === true);
     setTexts(normTexts(m.widget_texts));
     setShowCompare(m.widget_show_compare !== false);
     setShowPerUnit(m.widget_show_per_unit !== false);
@@ -314,6 +321,9 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
     widget_variant: variant,
     widget_color: color,
     widget_radius: radius,
+    widget_scale: scale,
+    widget_box_scale: boxScale,
+    widget_edge_to_edge: edgeToEdge,
     widget_texts: texts,
     widget_show_compare: showCompare,
     widget_show_per_unit: showPerUnit,
@@ -335,6 +345,9 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
       widget_variant: variant,
       widget_color: colorHex,
       widget_radius: Math.max(0, Math.min(32, Math.round(radius))),
+      widget_scale: Math.max(80, Math.min(120, Math.round(scale))),
+      widget_box_scale: Math.max(80, Math.min(120, Math.round(boxScale))),
+      widget_edge_to_edge: edgeToEdge,
       widget_texts: { ...texts, trust_lines: texts.trust_lines.map(s => s.trim()).filter(Boolean).slice(0, 4) },
       widget_show_compare: !!showCompare,
       widget_show_per_unit: !!showPerUnit,
@@ -469,6 +482,24 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
           <Field T={T} label={`Radio de bordes · ${radius}px`}>
             <input type="range" min="0" max="32" step="1" value={radius} onChange={e=>setRadius(parseInt(e.target.value,10)||0)} style={{width:"100%",accentColor:T.accentSolid}}/>
           </Field>
+
+          <Field T={T} label={`Tamaño de la letra · ${scale === 100 ? "normal" : (scale > 100 ? "+" : "") + (scale - 100) + "%"}`}>
+            <input type="range" min="80" max="120" step="5" value={scale} onChange={e=>setScale(parseInt(e.target.value,10)||100)} style={{width:"100%",accentColor:T.accentSolid}}/>
+          </Field>
+
+          <Field T={T} label={`Alto de los recuadros · ${boxScale === 100 ? "normal" : (boxScale > 100 ? "+" : "") + (boxScale - 100) + "%"}`}>
+            <input type="range" min="80" max="120" step="5" value={boxScale} onChange={e=>setBoxScale(parseInt(e.target.value,10)||100)} style={{width:"100%",accentColor:T.accentSolid}}/>
+          </Field>
+
+          <label style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer",padding:"2px 0 10px"}}>
+            <input type="checkbox" checked={edgeToEdge} onChange={e=>setEdgeToEdge(e.target.checked)} style={{marginTop:3,accentColor:T.accentSolid,width:16,height:16,flexShrink:0}}/>
+            <span>
+              <span style={{fontSize:DS.font.md,fontWeight:600,color:T.text}}>Pegado a los bordes</span>
+              <span style={{display:"block",fontSize:DS.font.sm,color:T.textSm,lineHeight:1.45,marginTop:2}}>
+                Ocupa todo el ancho del espacio donde está, sin aire a los costados. Útil si en tu tema queda angosto.
+              </span>
+            </span>
+          </label>
 
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 10px"}}>
             <Field T={T} label="Cuál aparece primero">

@@ -168,6 +168,15 @@ function buildCtx(vm, state) {
 // CSS común a todas las variantes (reset + variables). `${S}` es el scope.
 function baseCss(S, vm) {
   var vars = varsCss(paletteVars(vm.accent)) + ";--rc-r:" + (Number.isFinite(vm.radius) ? vm.radius : 14) + "px";
+  // Tamaño (21-sept-2026). 100 = exactamente como se veía antes.
+  //  · --rc-fs  escala la LETRA. Va como font-size de la raíz y todo el CSS de
+  //    las variantes está en px, así que además se aplica un zoom tipográfico
+  //    sobre los textos que heredan (los px siguen firmes donde hace falta).
+  //  · --rc-bs  escala el ALTO de las tarjetas (padding), sin tocar la letra.
+  //  · --rc-mx  el aire a los costados: 0 = pegado a los bordes.
+  var fs = Math.max(80, Math.min(120, Number(vm.scale) || 100)) / 100;
+  var bs = Math.max(80, Math.min(120, Number(vm.boxes) || 100)) / 100;
+  vars += ";--rc-fs:" + fs + ";--rc-bs:" + bs;
   return (
     S + "{" + vars + ";font-family:inherit;color:#161616;line-height:1.35;margin:14px 0;text-align:left;position:relative;container-type:inline-size;-webkit-font-smoothing:antialiased}" +
     S + "," + S + " *," + S + " *::before," + S + " *::after{box-sizing:border-box !important}" +
@@ -1043,15 +1052,47 @@ function v12(c) {
 var RENDERERS = { v01: v01, v02: v02, v03: v03, v04: v04, v05: v05, v06: v06, v07: v07, v08: v08, v09: v09, v10: v10, v11: v11, v12: v12 };
 
 // ─── API ─────────────────────────────────────────────────────────────
+// Ajustes de tamaño del comerciante (21-sept-2026, Thiago).
+//
+// El CSS de las variantes está escrito en px y el MISMO selector tiene medidas
+// distintas en cada una (.rc-cta es 16px en v01 y 18px en v05). Listar las
+// clases a mano quedaba desincronizado en cuanto alguien tocara una variante,
+// así que en vez de enumerar se reescribe el CSS ya generado: cada `font-size`
+// en px pasa a calc(<los px de siempre> * var(--rc-fs)), y lo mismo el padding
+// de las tarjetas con --rc-bs. Cada variante conserva sus proporciones.
+//
+// Con los ajustes en su valor por defecto NO se toca nada y el CSS servido
+// queda idéntico byte a byte: ninguna tienda cambia de aspecto sola.
+var RX_FS = /font-size:\s*([0-9.]+)px/g;
+var RX_PAD = /padding:\s*([0-9.]+)px\s+([0-9.]+)px/g;
+
+function escalarCss(css, fs, bs) {
+  var out = css;
+  if (fs !== 1) out = out.replace(RX_FS, function (_, px) { return "font-size:calc(" + px + "px * var(--rc-fs))"; });
+  if (bs !== 1) {
+    // Solo el padding de dos valores (vertical horizontal): el vertical escala,
+    // el horizontal queda igual para no deformar el ancho de las tarjetas.
+    out = out.replace(RX_PAD, function (_, v, h) { return "padding:calc(" + v + "px * var(--rc-bs)) " + h + "px"; });
+  }
+  return out;
+}
+
+function edgeCss(S, vm) {
+  // Pegado a los bordes del contenedor de la tienda, sin aire a los costados.
+  return vm.edge === true ? S + "{margin-left:0;margin-right:0;width:100%}" : "";
+}
+
 export function renderBundle(vm, state) {
   vm = vm && typeof vm === "object" ? vm : {};
   if (!RENDERERS[vm.variant]) vm = Object.assign({}, vm, { variant: "v01" });
   var c = buildCtx(vm, state || {});
+  var fs = Math.max(80, Math.min(120, Number(vm.scale) || 100)) / 100;
+  var bs = Math.max(80, Math.min(120, Number(vm.boxes) || 100)) / 100;
   if (!c.packs.length) {
-    return { html: c.wrap(""), css: baseCss(c.S, vm) };
+    return { html: c.wrap(""), css: escalarCss(baseCss(c.S, vm), fs, bs) + edgeCss(c.S, vm) };
   }
   var out = RENDERERS[vm.variant](c);
-  return { html: out.html, css: baseCss(c.S, vm) + out.css };
+  return { html: out.html, css: escalarCss(baseCss(c.S, vm) + out.css, fs, bs) + edgeCss(c.S, vm) };
 }
 
 export default renderBundle;

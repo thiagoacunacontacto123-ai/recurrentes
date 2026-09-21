@@ -168,6 +168,14 @@ export function buildBundleVM({ plan, merchant } = {}) {
     ? merchant.widget_color.trim().toLowerCase()
     : "#10b981";
   const radius = Math.min(40, int(merchant.widget_radius, 14));
+  // Ajustes de tamaño (21-sept-2026, Thiago). Los tres son relativos a lo que
+  // ya se veía: 100 = idéntico a antes, así que ninguna tienda cambia sola.
+  //  · scale  80…120 → tamaño de letra (el widget usa em, así que mueve todo junto)
+  //  · boxes  80…120 → alto/padding de las tarjetas, sin tocar la letra
+  //  · edge   pegado a los bordes del contenedor (true) o con aire a los costados
+  const scale = Math.max(80, Math.min(120, int(merchant.widget_scale, 100)));
+  const boxes = Math.max(80, Math.min(120, int(merchant.widget_box_scale, 100)));
+  const edge = bool(merchant.widget_edge_to_edge, false);
   const texts = sanitizeTexts(merchant.widget_texts);
   const showCompare = bool(merchant.widget_show_compare, true);
   const showPerUnit = bool(merchant.widget_show_per_unit, true);
@@ -214,6 +222,9 @@ export function buildBundleVM({ plan, merchant } = {}) {
     variant,
     accent,
     radius,
+    scale,
+    boxes,
+    edge,
     texts,
     showCompare,
     showPerUnit,
