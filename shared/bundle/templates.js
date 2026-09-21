@@ -81,6 +81,9 @@ function varsCss(vars) {
   return Object.keys(vars).map(function (k) { return k + ":" + vars[k]; }).join(";");
 }
 
+// Marquito de foto del respaldo (v11/v12): montaña + sol, el ícono universal
+// de "acá va una imagen".
+var SVG_PHOTO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
 var SVG_CHECK = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5"/></svg>';
 var SVG_LOCK = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
 var SVG_REPEAT = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>';
@@ -813,6 +816,18 @@ function v10(c) {
   return { html: html, css: css };
 }
 
+// Respaldo cuando el pack todavía no tiene foto: en vez de un "×3" gigante,
+// dibujamos un marquito de imagen por unidad (hasta 3) y, si el pack es más
+// grande, un "+N". Así se entiende de una que ahí va una foto y cuántas
+// unidades trae el pack.
+function phFallback(qty) {
+  var n = Math.max(1, Math.min(3, qty || 1));
+  var extra = (qty || 1) > 3 ? '<b class="rc-ph-more">+' + ((qty || 1) - 3) + "</b>" : "";
+  var frames = "";
+  for (var k = 0; k < n; k++) frames += '<i class="rc-ph-f">' + SVG_PHOTO + "</i>";
+  return '<span class="rc-ph rc-ph-x" aria-hidden="true">' + frames + extra + "</span>";
+}
+
 // ═════════════════════════════════════════════════════════════════════
 // v11 — Foto (packs con imagen + switch de suscripción)
 // Formato de los bundles que usan las tiendas de performance (Kaching y
@@ -828,7 +843,7 @@ function v11(c) {
     var v = c.v(p), on = i === c.idx;
     var img = p.image
       ? '<span class="rc-ph"><img src="' + esc(p.image) + '" alt="" loading="lazy"></span>'
-      : '<span class="rc-ph rc-ph-x" aria-hidden="true"><b>×' + p.qty + "</b></span>";
+      : phFallback(p.qty);
     var freq = c.mode === "sub" && p.freqLabel
       ? '<span class="rc-fq">' + esc((t.freq_prefix || "Te llega cada") + " " + p.freqLabel) + "</span>"
       : "";
@@ -872,7 +887,10 @@ function v11(c) {
     S + " .rc-fp-row{display:flex;align-items:center;gap:13px;padding:18px 16px}" +
     S + " .rc-ph{width:96px;flex:none;display:flex;align-items:center;justify-content:center}" +
     S + " .rc-ph img{max-width:100%;max-height:86px;height:auto;display:block;border-radius:6px}" +
-    S + " .rc-ph-x{height:64px;border-radius:8px;background:var(--rc-a-l1);color:var(--rc-a-t);font-size:22px;font-weight:900}" +
+    S + " .rc-ph-x{height:64px;display:flex;align-items:center;justify-content:center;gap:3px}" +
+    S + " .rc-ph-f{width:26px;height:32px;border-radius:5px;border:1.5px solid var(--rc-a-l3);background:var(--rc-a-l1);color:var(--rc-a-t);display:flex;align-items:center;justify-content:center;flex:none}" +
+    S + " .rc-ph-f svg{width:15px;height:15px;display:block}" +
+    S + " .rc-ph-more{font-size:12px;font-weight:800;color:var(--rc-a-t);margin-left:1px}" +
     S + " .rc-fp-mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:0}" +
     S + " .rc-fp-name{font-size:18px;font-weight:800;line-height:1.2}" +
     S + " .rc-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}" +
@@ -913,7 +931,7 @@ function v12(c) {
     var v = c.v(p), on = i === c.idx;
     var img = p.image
       ? '<span class="rc-ph"><img src="' + esc(p.image) + '" alt="" loading="lazy"></span>'
-      : '<span class="rc-ph rc-ph-x" aria-hidden="true"><b>×' + p.qty + "</b></span>";
+      : phFallback(p.qty);
     var freq = c.mode === "sub" && p.freqLabel
       ? '<span class="rc-fq">' + esc((t.freq_prefix || "Te llega cada") + " " + p.freqLabel) + "</span>"
       : "";
@@ -964,7 +982,10 @@ function v12(c) {
     S + " .rc-fp-row{display:flex;align-items:center;gap:13px;padding:18px 16px}" +
     S + " .rc-ph{width:96px;flex:none;display:flex;align-items:center;justify-content:center}" +
     S + " .rc-ph img{max-width:100%;max-height:86px;height:auto;display:block;border-radius:6px}" +
-    S + " .rc-ph-x{height:64px;border-radius:8px;background:var(--rc-a-l1);color:var(--rc-a-t);font-size:22px;font-weight:900}" +
+    S + " .rc-ph-x{height:64px;display:flex;align-items:center;justify-content:center;gap:3px}" +
+    S + " .rc-ph-f{width:26px;height:32px;border-radius:5px;border:1.5px solid var(--rc-a-l3);background:var(--rc-a-l1);color:var(--rc-a-t);display:flex;align-items:center;justify-content:center;flex:none}" +
+    S + " .rc-ph-f svg{width:15px;height:15px;display:block}" +
+    S + " .rc-ph-more{font-size:12px;font-weight:800;color:var(--rc-a-t);margin-left:1px}" +
     S + " .rc-fp-mid{flex:1;min-width:0;display:flex;flex-direction:column}" +
     S + " .rc-fp-name{font-size:18px;font-weight:800;line-height:1.2}" +
     S + " .rc-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}" +

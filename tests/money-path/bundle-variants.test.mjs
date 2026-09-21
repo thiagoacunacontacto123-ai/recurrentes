@@ -53,11 +53,17 @@ test("(j) v12: además muestra el regalo con su foto y el valor tachado", () => 
   assert.ok(html.includes('aria-checked="true"'), "en modo sub el interruptor está encendido");
 });
 
-test("(j) un pack sin foto no rompe: cae al recuadro con la cantidad", () => {
-  const vm = buildBundleVM({ merchant: { widget_variant: "v11" }, plan: plan([{ qty: 2, price_ars: 54900, label: "LLEVE 2" }]) });
+test("(j) un pack sin foto dibuja un marquito por unidad, no un número gigante", () => {
+  const vm = buildBundleVM({ merchant: { widget_variant: "v11" },
+    plan: plan([{ qty: 1, price_ars: 8900 }, { qty: 2, price_ars: 17800 }, { qty: 5, price_ars: 44500 }]) });
   const { html } = renderBundle(vm, {});
   assert.ok(!html.includes("<img"), "no pinta una imagen vacía");
-  assert.ok(html.includes("rc-ph-x"), "usa el recuadro de respaldo");
+
+  const bloques = html.split('class="rc-ph rc-ph-x"').slice(1).map(b => b.slice(0, b.indexOf("</span>")));
+  assert.equal((bloques[0].match(/rc-ph-f/g) || []).length, 1, "1 unidad → 1 marquito");
+  assert.equal((bloques[1].match(/rc-ph-f/g) || []).length, 2, "2 unidades → 2 marquitos");
+  assert.equal((bloques[2].match(/rc-ph-f/g) || []).length, 3, "5 unidades → 3 marquitos (tope)");
+  assert.ok(/>\+2</.test(bloques[2]), "y el resto se muestra como +2");
 });
 
 test("(j) lo que escribe el comercio va escapado (no se puede inyectar HTML)", () => {
