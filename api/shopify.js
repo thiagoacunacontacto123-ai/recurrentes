@@ -69,6 +69,15 @@ async function handleShippingRates(req, res) {
   try {
     const snap = await db().collection("merchants").doc(merchantId).get();
     const m = snap.exists ? snap.data() : null;
+    // Tiendanube: sus medios de envío activos (Correo Argentino, OCA, retiro…).
+    // No cotiza por CP como Shopify, pero el comprador ve los mismos métodos que
+    // vería comprando normal, en vez del envío inventado del plan.
+    if (!m?.shopify_token && m?.tiendanube_store_id && m?.tiendanube_token) {
+      const { tnShippingRates } = await import("./_lib/tiendanube.js");
+      const rates = await tnShippingRates(m.tiendanube_store_id, m.tiendanube_token);
+      res.setHeader("Cache-Control", "no-store");
+      return res.json({ rates });
+    }
     if (!m?.shopify_token || !m?.shopify_shop) return res.json({ rates: [] });
     // El comprador tiene que ver TODO lo que vería en el checkout de la tienda:
     // las opciones que cotiza la app de envíos del comerciante (con sucursales) y

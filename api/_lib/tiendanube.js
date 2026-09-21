@@ -451,6 +451,47 @@ const STOCK_RE = /stock|inventor|estoque|sin existencias|out of/i;
 // Tiendanube guarda la descripción por idioma: { es: "...", pt: null }. Leemos y
 // escribimos respetando el idioma que ya tenía, así una tienda en portugués no
 // termina con la descripción en la clave equivocada.
+// ─── Métodos de envío de la tienda ─────────────────────────────────────────
+// GET /shipping_carriers: los medios de envío que el comerciante tiene activos
+// (Correo Argentino, Andreani, OCA, retiro en local, envío propio…). Los usa el
+// checkout para mostrar los MISMOS envíos que el cliente vería comprando normal.
+//
+// Ojo con el precio: Tiendanube cotiza por destino y acá no tenemos el CP, así
+// que `price` queda en 0 salvo que el carrier declare un costo fijo. El nombre
+// y el code sí sirven, que es lo que necesita la orden para despacharse.
+// Requiere el scope `read_shipping`.
+export async function tnShippingRates(storeId, token) {
+  let data;
+  try { ({ data } = await call(storeId, token, "GET", "/shipping_carriers")); }
+  catch (e) {
+    console.warn(`[tiendanube] /shipping_carriers falló (${storeId}):`, e.message);
+    return [];
+  }
+  const carriers = Array.isArray(data) ? data : [];
+  const out = [];
+  const seen = new Set();
+  for (const c of carriers) {
+    if (c?.active === false) continue;
+    // Cada carrier puede exponer varias opciones (domicilio, sucursal…).
+    const opciones = Array.isArray(c?.options) && c.options.length ? c.options : [{ name: c?.name, code: c?.code }];
+    for (const o of opciones) {
+      const name = tnText(o?.name ?? c?.name).trim().slice(0, 250);
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        name,
+        price: Math.max(0, Math.round(Number(o?.price ?? o?.cost ?? 0) || 0)),
+        code: String(o?.code || c?.code || "").trim().slice(0, 50),
+        source: "tiendanube",
+      });
+    }
+  }
+  out.sort((a, b) => a.price - b.price);
+  return out;
+}
+
 export async function tnGetProductDescription(storeId, token, productId) {
   const { data } = await call(storeId, token, "GET", `/products/${productId}?fields=id,description`);
   const d = data?.description;

@@ -257,7 +257,8 @@ async function handlePlan(req, res) {
         ask_address: p.caps.requireAddress,
         require_phone: p.caps.requirePhone,
         require_tax_id: p.caps.requireTaxId,
-        shipping_from_store: p.channel === "shopify",
+        // Los envíos salen de la tienda en las dos plataformas (21-sept, Thiago).
+        shipping_from_store: p.channel === "shopify" || p.channel === "tiendanube",
         provider: p.paymentProvider,
         provider_label: p.providerInfo.label,
         currency: p.currency,

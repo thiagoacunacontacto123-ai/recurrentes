@@ -103,3 +103,45 @@ test("(e) force:1 reimporta aunque ya tenga (para arreglar una tienda puntual)",
   const nombres = rawGet(`merchants/${MID}`).checkout_shipping_rates.map(x => x.name);
   assert.ok(!nombres.includes("Viejo"), "con force sí se reemplazan");
 });
+
+// ─── Tiendanube: sus medios de envío, no un envío inventado ────────────────
+// 21-sept-2026 (Thiago: "¿por qué con Tiendanube no se traen los envíos?").
+// public.js mandaba shipping_from_store solo para Shopify, así que el checkout
+// de una tienda TN ni preguntaba y caía al envío del plan.
+const { tnShippingRates } = await loadApi("api/_lib/tiendanube.js");
+const TN_STORE = "1234567";
+const TN_TOKEN = "tn-token";
+
+const stubCarriers = (carriers) =>
+  W.router.on("GET", "api.tiendanube.com", /\/shipping_carriers$/, () => ({ status: 200, json: carriers }));
+
+test("(e) Tiendanube: lee los medios de envío activos con su code", async () => {
+  stubCarriers([
+    { id: 1, name: "Correo Argentino", code: "correo-argentino", active: true,
+      options: [{ name: "A domicilio", code: "ca-domicilio", price: 3500 }, { name: "A sucursal", code: "ca-sucursal", price: 2800 }] },
+    { id: 2, name: "Retiro en local", code: "pickup", active: true, options: [] },
+    { id: 3, name: "OCA (apagado)", code: "oca", active: false, options: [] },
+  ]);
+  const rates = await tnShippingRates(TN_STORE, TN_TOKEN);
+  const nombres = rates.map(r => r.name);
+  assert.ok(nombres.includes("A domicilio"), JSON.stringify(rates));
+  assert.ok(nombres.includes("A sucursal"));
+  assert.ok(nombres.includes("Retiro en local"));
+  assert.ok(!nombres.some(n => n.includes("OCA")), "el carrier apagado no se ofrece");
+  // Gratis primero, después por precio.
+  assert.equal(rates[0].price, 0);
+  assert.equal(rates.find(r => r.name === "A domicilio").code, "ca-domicilio");
+  assert.equal(rates.find(r => r.name === "A domicilio").source, "tiendanube");
+});
+
+test("(e) Tiendanube: si la API falla devuelve [] y no rompe el checkout", async () => {
+  W.router.on("GET", "api.tiendanube.com", /\/shipping_carriers$/, () => ({ status: 403, json: { description: "sin scope" } }));
+  assert.deepEqual(await tnShippingRates(TN_STORE, TN_TOKEN), []);
+});
+
+test("(e) Tiendanube: nombres traducidos ({es: ...}) se leen igual", async () => {
+  stubCarriers([{ id: 1, name: { es: "Envío a domicilio" }, code: "dom", active: true, options: [] }]);
+  const rates = await tnShippingRates(TN_STORE, TN_TOKEN);
+  assert.equal(rates.length, 1);
+  assert.equal(rates[0].name, "Envío a domicilio");
+});

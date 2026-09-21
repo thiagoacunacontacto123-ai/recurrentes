@@ -212,9 +212,13 @@ export default function Checkout() {
         const r = await fetch(`/api/shopify?${q.toString()}`);
         const d = await r.json();
         const list = Array.isArray(d.rates) ? d.rates : [];
-        setRates(list.length ? list : [planShipping]);
+        // Si la tienda no devolvió ninguna tarifa NO inventamos la del plan:
+        // mostrarle "Envío a domicilio · Gratis" cuando su tienda cobra envío es
+        // mentirle al comprador (caso Glowtherm, 21-sept). Se cobra 0 y el
+        // comerciante coordina el envío, que es lo que el backend ya hace.
+        setRates(list.length ? list : [{ name: "A coordinar con la tienda", price: 0, _fallback: true }]);
         setRateIdx(0);
-      } catch (_) { setRates([planShipping]); setRateIdx(0); }
+      } catch (_) { setRates([{ name: "A coordinar con la tienda", price: 0, _fallback: true }]); setRateIdx(0); }
       finally { setRatesLoading(false); }
     }, 350);
     return () => clearTimeout(rateTimer.current);
