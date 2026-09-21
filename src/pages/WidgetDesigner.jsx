@@ -35,18 +35,62 @@ const DEFAULT_WIDGET_TEXTS = {
   per_unit_label: "{price} c/u",
   freq_prefix: "Te llega cada",
   trust_lines: ["Cancelás cuando quieras", "Envío a todo el país"],
+  trust_lines_once: [],
+  note_sub: "",
+  note_once: "",
 };
 
+// Los textos, separados por dónde se ven (21-sept-2026, Thiago): lo común, lo
+// que solo aparece en suscripción y lo que solo aparece en compra única.
 const TEXT_FIELDS = [
   ["headline", "Título"],
-  ["once_label", "Etiqueta compra única"],
-  ["sub_label", "Etiqueta suscripción"],
-  ["cta_once", "Botón compra única"],
-  ["cta_sub", "Botón suscripción"],
   ["savings_label", "Ahorro ({pct} = %)"],
   ["per_unit_label", "Por unidad ({price} = precio)"],
+];
+const TEXT_FIELDS_SUB = [
+  ["sub_label", "Etiqueta del modo"],
+  ["cta_sub", "Botón"],
   ["freq_prefix", "Prefijo de frecuencia"],
 ];
+const TEXT_FIELDS_ONCE = [
+  ["once_label", "Etiqueta del modo"],
+  ["cta_once", "Botón"],
+];
+
+// Bloque de textos de UN modo (suscripción o compra única): sus etiquetas, sus
+// líneas de confianza y una nota libre. Los dos modos usan el mismo componente
+// para que no se desincronicen.
+function ModoTextos({ T, titulo, campos, texts, setText, inputS, lineas, campoLineas, setTrust, hints, notaKey, notaPlaceholder }) {
+  const arr = Array.isArray(lineas) ? lineas : [];
+  return (
+    <div style={{ border:`1px solid ${T.border}`, borderRadius:DS.r.lg, padding:"14px 14px 4px", marginBottom:12, background:T.surface }}>
+      <div style={{ fontSize:DS.font.md, fontWeight:DS.w.semibold, color:T.text, marginBottom:10 }}>{titulo}</div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 12px" }}>
+        {campos.map(([k, label]) => (
+          <Field key={k} T={T} label={label}>
+            <input type="text" value={texts[k] ?? ""} onChange={e=>setText(k, e.target.value)} style={inputS} placeholder={DEFAULT_WIDGET_TEXTS[k]} maxLength={80}/>
+          </Field>
+        ))}
+      </div>
+      <Field T={T} label="Líneas con tilde (hasta 4)">
+        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+          {[0,1,2,3].map(i => (
+            <input key={i} type="text" value={arr[i] ?? ""} onChange={e=>setTrust(i, e.target.value, campoLineas)}
+              style={{ ...inputS, marginBottom:0 }}
+              placeholder={arr[i] ? "" : (hints[i] || "Opcional — escribí otra si querés")} maxLength={80}/>
+          ))}
+        </div>
+        <p style={{ margin:"6px 0 0", fontSize:DS.font.sm, color:T.textSm, lineHeight:1.45 }}>
+          Aparecen con un tilde debajo del botón. Las vacías no se muestran.
+        </p>
+      </Field>
+      <Field T={T} label="Texto libre debajo">
+        <input type="text" value={texts[notaKey] ?? ""} onChange={e=>setText(notaKey, e.target.value)}
+          style={inputS} placeholder={notaPlaceholder} maxLength={200}/>
+      </Field>
+    </div>
+  );
+}
 
 // ── Ayuda de los desarrolladores por WhatsApp ────────────────────────
 export const DEV_WHATSAPP = "5491164117974";
@@ -119,6 +163,8 @@ function normTexts(t) {
   const src = t && typeof t === "object" ? t : {};
   const out = { ...DEFAULT_WIDGET_TEXTS, ...src };
   out.trust_lines = Array.isArray(src.trust_lines) ? src.trust_lines.slice(0, 4).map(s => String(s || "")) : [...DEFAULT_WIDGET_TEXTS.trust_lines];
+  // Compra única arranca sin líneas: si no las carga, se ve como siempre.
+  out.trust_lines_once = Array.isArray(src.trust_lines_once) ? src.trust_lines_once.slice(0, 4).map(s => String(s || "")) : [];
   return out;
 }
 
@@ -348,7 +394,11 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
       widget_scale: Math.max(80, Math.min(120, Math.round(scale))),
       widget_box_scale: Math.max(80, Math.min(120, Math.round(boxScale))),
       widget_edge_to_edge: edgeToEdge,
-      widget_texts: { ...texts, trust_lines: texts.trust_lines.map(s => s.trim()).filter(Boolean).slice(0, 4) },
+      widget_texts: {
+        ...texts,
+        trust_lines: (texts.trust_lines || []).map(s => s.trim()).filter(Boolean).slice(0, 4),
+        trust_lines_once: (texts.trust_lines_once || []).map(s => s.trim()).filter(Boolean).slice(0, 4),
+      },
       widget_show_compare: !!showCompare,
       widget_show_per_unit: !!showPerUnit,
       widget_mode_default: modeDefault,
@@ -380,7 +430,10 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
   }
   function resetTexts() { setTexts(normTexts(null)); toast("Textos restablecidos (guardá para aplicar)", "success"); }
   const setText = (k, v) => setTexts(t => ({ ...t, [k]: v }));
-  const setTrust = (i, v) => setTexts(t => { const arr = [...t.trust_lines]; arr[i] = v; return { ...t, trust_lines: arr }; });
+  // `campo` es trust_lines (suscripción) o trust_lines_once (compra única).
+  const setTrust = (i, v, campo = "trust_lines") => setTexts(t => {
+    const arr = [...(t[campo] || [])]; arr[i] = v; return { ...t, [campo]: arr };
+  });
 
 
   const selectedVariant = (BUNDLE_VARIANTS || []).find(v => v.id === variant);
@@ -531,18 +584,25 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
               </Field>
             ))}
           </div>
-          <Field T={T} label="Líneas de confianza (hasta 4)">
-            <div style={{display:"flex",flexDirection:"column",gap:6}}>
-              {[0,1,2,3].map(i => (
-                <input key={i} type="text" value={texts.trust_lines[i] ?? ""} onChange={e=>setTrust(i, e.target.value)} style={{...inputS,marginBottom:0}}
-                  /* Las vacías decían nada y parecían un error: ahora avisan que son opcionales. */
-                  placeholder={texts.trust_lines[i] ? "" : (TRUST_HINTS[i] || "Opcional — escribí otra si querés")} maxLength={80}/>
-              ))}
-            </div>
-            <p style={{margin:"6px 0 0",fontSize:DS.font.sm,color:T.textSm,lineHeight:1.45}}>
-              Se muestran con un tilde debajo del botón. Las que dejes vacías no aparecen.
-            </p>
-          </Field>
+
+          {/* Suscripción y compra única, cada uno con lo suyo (Thiago, 21-sept):
+              antes estaba todo mezclado en una lista y no se entendía qué texto
+              iba a ver el cliente en cada modo. */}
+          <ModoTextos
+            T={T} titulo="Cuando elige suscripción" campos={TEXT_FIELDS_SUB}
+            texts={texts} setText={setText} inputS={inputS}
+            lineas={texts.trust_lines} campoLineas="trust_lines" setTrust={setTrust}
+            hints={TRUST_HINTS} notaKey="note_sub"
+            notaPlaceholder="Ej: Te la mandamos a tu casa cada mes, sin que hagas nada."
+          />
+          <ModoTextos
+            T={T} titulo="Cuando elige compra única" campos={TEXT_FIELDS_ONCE}
+            texts={texts} setText={setText} inputS={inputS}
+            lineas={texts.trust_lines_once} campoLineas="trust_lines_once" setTrust={setTrust}
+            hints={["Ej: Envío en 48 horas", "Ej: Pagás una sola vez", "Opcional", "Opcional"]}
+            notaKey="note_once"
+            notaPlaceholder="Ej: Comprás una vez, sin renovación automática."
+          />
 
           <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
             <Btn T={T} variant="solid" type="button" onClick={save} disabled={saving}>{saving ? "Guardando…" : "Guardar diseño"}</Btn>

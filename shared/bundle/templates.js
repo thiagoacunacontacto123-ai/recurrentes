@@ -145,13 +145,21 @@ function buildCtx(vm, state) {
   };
   ctx.on = function (cond, cls) { return cond ? " " + (cls || "is-on") : ""; };
   ctx.trust = function (cls) {
-    // Las líneas de confianza ("Cancelás cuando quieras", "Envío a todo el país")
-    // hablan de la suscripción: en compra única no aplican y confunden. Ahí queda
-    // solo el candado de pago seguro.
-    var lines = mode === "sub" && Array.isArray(t.trust_lines) ? t.trust_lines : [];
+    // Cada modo tiene SUS líneas (21-sept-2026, Thiago). Las de suscripción
+    // ("Cancelás cuando quieras") no aplican a una compra suelta y confundían.
+    // trust_lines_once viene vacía por defecto: sin cargarla, compra única se ve
+    // igual que siempre (solo el candado).
+    var src = mode === "sub" ? t.trust_lines : t.trust_lines_once;
+    var lines = Array.isArray(src) ? src : [];
     var items = lines.map(function (l) { return '<li><span class="rc-tick">' + SVG_CHECK + "</span>" + esc(l) + "</li>"; }).join("");
     items += '<li><span class="rc-tick">' + SVG_LOCK + "</span>Pago seguro con Mercado Pago</li>";
     return '<ul class="' + (cls || "rc-trust") + '">' + items + "</ul>";
+  };
+  // Nota libre debajo del bloque, distinta por modo. "" = no se pinta nada.
+  ctx.note = function (cls) {
+    var txt = mode === "sub" ? t.note_sub : t.note_once;
+    if (!txt || !String(txt).trim()) return "";
+    return '<p class="' + (cls || "rc-note") + '">' + esc(String(txt).trim()) + "</p>";
   };
   ctx.cta = function (cls) {
     return '<button type="button" class="' + (cls || "rc-cta") + '" data-rc-action="cta" data-rc-mode="' + mode + '">' + ctx.ctaText() + "</button>";
@@ -196,6 +204,8 @@ function baseCss(S, vm) {
     S + " .rc-freq{display:flex;align-items:flex-start;gap:7px;font-size:12.5px;color:#4b4b4b;line-height:1.4}" +
     S + " .rc-freq-ic{color:var(--rc-a);flex-shrink:0;margin-top:2px;display:inline-flex}" +
     S + " .rc-trust{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:#5a5a5a;margin-top:12px}" +
+    // Nota libre del comerciante, distinta por modo. Solo existe si la cargó.
+    S + " .rc-note{font-size:12px;line-height:1.5;color:#6a6a6a;margin-top:10px}" +
     S + " .rc-trust li{display:inline-flex;align-items:center;gap:5px}" +
     S + " .rc-trust .rc-tick{color:var(--rc-a);display:inline-flex}" +
     S + " .rc-disc{font-weight:800;color:var(--rc-a-t)}" +
@@ -242,7 +252,7 @@ function v01(c) {
     '<div class="rc-head"><h3>' + esc(t.headline) + "</h3></div>" +
     '<div class="rc-packs" role="radiogroup" aria-label="' + esc(t.headline) + '">' + packs + "</div>" +
     '<div class="rc-modes" role="radiogroup" aria-label="Modo de compra">' + modes + "</div>" +
-    c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust()
+    c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust() + c.note()
   );
 
   var css =
@@ -324,7 +334,7 @@ function v02(c) {
     '<div class="rc-top"><h3>' + esc(t.headline) + "</h3>" +
     '<div class="rc-tabs" role="radiogroup" aria-label="Modo de compra">' + tabs + "</div></div>" +
     '<div class="rc-rows" role="radiogroup" aria-label="' + esc(t.headline) + '">' + rows + "</div>" +
-    c.freqLine() + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust()
+    c.freqLine() + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust() + c.note()
   );
   var css =
     S + " .rc-top{margin-bottom:12px}" +
@@ -382,7 +392,7 @@ function v03(c) {
     '<div class="rc-pills" role="radiogroup" aria-label="' + esc(t.headline) + '">' + pills + "</div>" +
     '<div class="rc-price-block"><span class="rc-big">' + esc(fmtARS(c.view.price)) + "</span>" + c.compareHtml(c.sel || { sub: {}, once: {} }) +
       (meta.length ? '<span class="rc-meta">' + meta.map(function (m, k) { return k === 1 ? '<em class="rc-save">' + esc(m) + "</em>" : esc(m); }).join(" · ") + "</span>" : "") + "</div>" +
-    switchHtml + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust()
+    switchHtml + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust() + c.note()
   );
   var css =
     S + "{padding:16px;border:1px solid #e4e4e4;border-radius:calc(var(--rc-r) * 1.2);background:#fff}" +
@@ -445,7 +455,7 @@ function v04(c) {
   var html = c.wrap(
     '<h3 class="rc-h">' + esc(t.headline) + "</h3>" +
     '<div class="rc-scroll"><table class="rc-table" role="radiogroup" aria-label="' + esc(t.headline) + '"><thead>' + thead + "</thead><tbody>" + tbody + "</tbody></table></div>" +
-    summary + c.freqLine() + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust()
+    summary + c.freqLine() + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust() + c.note()
   );
   var css =
     S + " .rc-h{font-size:14px;font-weight:800;margin-bottom:10px}" +
@@ -509,7 +519,7 @@ function v05(c) {
     '<div class="rc-top"><h3>' + esc(t.headline) + "</h3>" +
     '<div class="rc-segs" role="radiogroup" aria-label="Modo de compra">' + seg + "</div></div>" +
     '<div class="rc-cards" role="radiogroup" aria-label="' + esc(t.headline) + '">' + cards + "</div>" +
-    c.freqLine() + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust()
+    c.freqLine() + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust() + c.note()
   );
   var css =
     S + " .rc-top{margin-bottom:12px}" +
@@ -566,7 +576,7 @@ function v06(c) {
     '<div class="rc-mhead"><span class="rc-eyebrow">' + esc(t.headline) + '</span><div class="rc-links" role="radiogroup" aria-label="Modo de compra">' + links + "</div></div>" +
     '<div class="rc-mrows" role="radiogroup" aria-label="' + esc(t.headline) + '">' + rows + "</div>" +
     (detail ? '<p class="rc-mdetail">' + esc(detail) + "</p>" : "") +
-    c.freqLine() + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust()
+    c.freqLine() + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust() + c.note()
   );
   var css =
     S + "{color:#111}" +
@@ -621,7 +631,7 @@ function v07(c) {
       '<div class="rc-pcard-row"><span class="rc-pcard-name">' + esc(c.sel ? c.sel.label : "") + '</span><span class="rc-pcard-price">' + c.compareHtml(c.sel || { sub: {}, once: {} }) + "<b>" + esc(fmtARS(c.view.price)) + "</b></span></div>" +
       '<div class="rc-pcard-meta">' + [c.perUnit(c.sel || { sub: {}, once: {} }) ? "<span>" + esc(c.perUnit(c.sel)) + "</span>" : "", c.savings(c.sel || {}) ? '<span class="rc-save">' + esc(c.savings(c.sel)) + "</span>" : ""].filter(Boolean).join("") + "</div>" +
       c.freqLine() + c.cta() + '<div class="rc-err" role="alert"></div>' +
-    "</div>" + c.trust()
+    "</div>" + c.trust() + c.note()
   );
   var css =
     S + " .rc-h{font-size:14px;font-weight:800;margin-bottom:10px}" +
@@ -671,7 +681,7 @@ function v08(c) {
   var html = c.wrap(
     '<div class="rc-dtop"><h3>' + esc(t.headline) + '</h3><div class="rc-mps" role="radiogroup" aria-label="Modo de compra">' + pills + "</div></div>" +
     '<div class="rc-dcs" role="radiogroup" aria-label="' + esc(t.headline) + '">' + cards + "</div>" +
-    c.freqLine() + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust()
+    c.freqLine() + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust() + c.note()
   );
   var css =
     S + "{background:#0c0e13;color:#f3f4f6;padding:18px;border-radius:calc(var(--rc-r) * 1.3);border:1px solid rgba(255,255,255,.07);box-shadow:0 20px 50px rgba(0,0,0,.35)}" +
@@ -737,7 +747,7 @@ function v09(c) {
     '<div class="rc-pts" role="radiogroup" aria-label="Modo de compra">' + toggle + "</div>" +
     '<div class="rc-tiles" role="radiogroup" aria-label="' + esc(t.headline) + '">' + tiles + "</div>" +
     (detail ? '<p class="rc-detail">' + esc(detail) + "</p>" : "") +
-    c.freqLine() + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust()
+    c.freqLine() + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust() + c.note()
   );
   var css =
     S + "{background:var(--rc-a-l1);padding:18px;border-radius:calc(var(--rc-r) * 1.8);color:#2a2a2a}" +
@@ -802,7 +812,7 @@ function v10(c) {
         '<small class="rc-sum-eyebrow">Tu pedido</small>' +
         '<b class="rc-sum-title">' + esc(sel ? sel.label : "") + (sel && c.savings(sel) ? ' <em class="rc-sum-save">' + esc(c.savings(sel)) + "</em>" : "") + "</b>" +
         '<div class="rc-lines">' + lines + "</div>" +
-        c.freqLine() + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust() +
+        c.freqLine() + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust() + c.note() +
       "</div></aside>" +
     "</div>"
   );
@@ -904,7 +914,7 @@ function v11(c) {
   var html = c.wrap(
     (t.headline ? '<div class="rc-head"><h3>' + esc(t.headline) + "</h3></div>" : "") +
     '<div class="rc-fps" role="radiogroup" aria-label="' + esc(t.headline || "Elegí tu pack") + '">' + packs + "</div>" +
-    sw + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust()
+    sw + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust() + c.note()
   );
 
   var css =
@@ -998,7 +1008,7 @@ function v12(c) {
   var html = c.wrap(
     (t.headline ? '<div class="rc-head"><h3>' + esc(t.headline) + "</h3></div>" : "") +
     '<div class="rc-fps" role="radiogroup" aria-label="' + esc(t.headline || "Elegí tu pack") + '">' + packs + "</div>" +
-    sw + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust()
+    sw + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust() + c.note()
   );
 
   var css =

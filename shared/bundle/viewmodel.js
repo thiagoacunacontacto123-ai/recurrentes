@@ -27,6 +27,13 @@ export const TEXT_DEFAULTS = Object.freeze({
   per_unit_label: "{price} c/u",
   freq_prefix: "Te llega cada",
   trust_lines: ["Cancelás cuando quieras", "Envío a todo el país"],
+  // 21-sept-2026 (Thiago): textos propios de COMPRA ÚNICA. Hasta hoy las
+  // trust_lines eran solo de suscripción y en compra única no aparecía nada
+  // más que el candado. Vacías por defecto = el widget queda igual que antes.
+  trust_lines_once: [],
+  // Nota libre debajo de cada modo. "" = no se pinta nada (sin cambio visual).
+  note_sub: "",
+  note_once: "",
 });
 
 export const MAX_PACKS = 6;
@@ -149,12 +156,15 @@ function sanitizeTexts(raw) {
   const t = raw && typeof raw === "object" ? raw : {};
   const out = {};
   for (const k of Object.keys(TEXT_DEFAULTS)) {
-    if (k === "trust_lines") continue;
+    if (k === "trust_lines" || k === "trust_lines_once") continue;
     out[k] = str(t[k], TEXT_DEFAULTS[k]);
   }
-  let lines = Array.isArray(t.trust_lines) ? t.trust_lines : TEXT_DEFAULTS.trust_lines;
-  lines = lines.filter((l) => typeof l === "string" && l.trim()).map((l) => str(l, "")).filter(Boolean).slice(0, MAX_TRUST);
-  out.trust_lines = lines;
+  const limpiar = (arr, fallback) => {
+    const src = Array.isArray(arr) ? arr : fallback;
+    return src.filter((l) => typeof l === "string" && l.trim()).map((l) => str(l, "")).filter(Boolean).slice(0, MAX_TRUST);
+  };
+  out.trust_lines = limpiar(t.trust_lines, TEXT_DEFAULTS.trust_lines);
+  out.trust_lines_once = limpiar(t.trust_lines_once, TEXT_DEFAULTS.trust_lines_once);
   return out;
 }
 

@@ -653,8 +653,11 @@ const normHost = (v) => String(v || "").trim().toLowerCase().replace(/^https?:\/
 
 // Widget de packs (bundle) — ver shared/bundle/SPEC.md.
 const WIDGET_VARIANT_RE = /^v(0[1-9]|1[0-2])$/;
+// note_sub / note_once (21-sept-2026): el texto libre debajo de cada modo.
+// Son más largos que una etiqueta, por eso WIDGET_NOTE_MAX aparte.
 const WIDGET_TEXT_KEYS = ["headline", "once_label", "sub_label", "cta_once", "cta_sub", "savings_label", "per_unit_label", "freq_prefix"];
-const WIDGET_TEXT_MAX = 80, WIDGET_TRUST_MAX = 60, WIDGET_TRUST_LINES_MAX = 4;
+const WIDGET_NOTE_KEYS = ["note_sub", "note_once"];
+const WIDGET_TEXT_MAX = 80, WIDGET_NOTE_MAX = 200, WIDGET_TRUST_MAX = 60, WIDGET_TRUST_LINES_MAX = 4;
 // Sanea `widget_texts`: solo claves conocidas, strings ≤ 80 (vacío = usar default
 // → se omite), trust_lines ≤ 4 strings ≤ 60. Devuelve { texts } (null si nada) o { error }.
 function sanitizeWidgetTexts(input) {
@@ -667,14 +670,22 @@ function sanitizeWidgetTexts(input) {
     const v = input[k].trim().slice(0, WIDGET_TEXT_MAX);
     if (v) texts[k] = v;
   }
-  if ("trust_lines" in input && input.trust_lines != null) {
-    if (!Array.isArray(input.trust_lines)) return { error: "widget_texts.trust_lines debe ser un array" };
-    const lines = input.trust_lines
+  for (const k of WIDGET_NOTE_KEYS) {
+    if (!(k in input) || input[k] == null) continue;
+    if (typeof input[k] !== "string") return { error: `widget_texts.${k} debe ser texto` };
+    const v = input[k].trim().slice(0, WIDGET_NOTE_MAX);
+    if (v) texts[k] = v;
+  }
+  // Líneas con tilde, una lista por modo: trust_lines (suscripción) y
+  // trust_lines_once (compra única, vacía por defecto).
+  for (const k of ["trust_lines", "trust_lines_once"]) {
+    if (!(k in input) || input[k] == null) continue;
+    if (!Array.isArray(input[k])) return { error: `widget_texts.${k} debe ser un array` };
+    texts[k] = input[k]
       .filter(l => typeof l === "string")
       .map(l => l.trim().slice(0, WIDGET_TRUST_MAX))
       .filter(Boolean)
-      .slice(0, WIDGET_TRUST_LINES_MAX);
-    texts.trust_lines = lines; // [] explícito = sin líneas de confianza
+      .slice(0, WIDGET_TRUST_LINES_MAX); // [] explícito = sin líneas
   }
   return { texts: Object.keys(texts).length ? texts : null };
 }

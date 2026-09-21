@@ -102,3 +102,58 @@ test("(w) el server guarda los tres valores y rechaza los inválidos", async () 
   // Y no pisó lo que ya estaba bien guardado.
   assert.equal(rawGet(`merchants/${MID}`).widget_scale, 120);
 });
+
+// ─── Textos propios de cada modo (21-sept-2026, Thiago) ────────────────────
+// "que todos los textos sean editables, tanto de compra única como de
+// suscripción; que se dividan en dos el editor de textos".
+// Antes: las líneas con tilde eran SOLO de suscripción y en compra única no
+// aparecía nada más que el candado, sin forma de escribir nada ahí.
+const { renderBundle: render2 } = await loadApi("shared/bundle/templates.js");
+const html = (widget_texts, state = {}) =>
+  render2(buildBundleVM({ plan: PLAN, merchant: { widget_variant: "v01", widget_texts } }), state).html;
+
+test("(w) sin cargar nada, compra única se ve como siempre", () => {
+  const base = html(undefined, { mode: "once" });
+  assert.equal(html({}, { mode: "once" }), base);
+  assert.ok(base.includes("Pago seguro con Mercado Pago"), "el candado sigue");
+});
+
+test("(w) cada modo muestra SUS líneas y no las del otro", () => {
+  const t = { trust_lines: ["Cancelás cuando quieras"], trust_lines_once: ["Envío en 48 horas"] };
+  const sub = html(t, { mode: "sub" }), once = html(t, { mode: "once" });
+  assert.ok(sub.includes("Cancelás cuando quieras") && !sub.includes("Envío en 48 horas"));
+  assert.ok(once.includes("Envío en 48 horas") && !once.includes("Cancelás cuando quieras"));
+});
+
+test("(w) el texto libre de cada modo se pinta solo en el suyo", () => {
+  const t = { note_sub: "ZZTELLEGA", note_once: "QQUNAVEZ" };
+  const sub = html(t, { mode: "sub" }), once = html(t, { mode: "once" });
+  assert.ok(sub.includes("ZZTELLEGA") && !sub.includes("QQUNAVEZ"));
+  assert.ok(once.includes("QQUNAVEZ") && !once.includes("ZZTELLEGA"));
+  // Vacío = no se pinta el bloque.
+  assert.ok(!html({ note_sub: "" }, { mode: "sub" }).includes('class="rc-note"'));
+});
+
+test("(w) los textos del comerciante se escapan (no se inyecta HTML)", () => {
+  const malo = '<img src=x onerror=alert(1)>';
+  for (const t of [{ note_sub: malo }, { trust_lines_once: [malo] }]) {
+    const h = html(t, { mode: t.note_sub ? "sub" : "once" });
+    assert.ok(!/<img [^>]*onerror/i.test(h), "no puede entrar un tag vivo");
+  }
+});
+
+test("(w) el server guarda los textos de los dos modos", async () => {
+  createWorld({ merchant: luminaMerchant() });
+  const r = await guardar({ widget_texts: {
+    note_sub: "Te llega sola cada mes", note_once: "Sin renovación",
+    trust_lines: ["Cancelás cuando quieras"], trust_lines_once: ["Envío en 48 horas"],
+  } });
+  assert.equal(r.statusCode, 200, JSON.stringify(r.body));
+  const t = rawGet(`merchants/${MID}`).widget_texts;
+  assert.equal(t.note_sub, "Te llega sola cada mes");
+  assert.equal(t.note_once, "Sin renovación");
+  assert.deepEqual(t.trust_lines_once, ["Envío en 48 horas"]);
+  // Y el tipo equivocado se rechaza en vez de guardarse mal.
+  const malo = await guardar({ widget_texts: { trust_lines_once: "no es un array" } });
+  assert.equal(malo.statusCode, 400);
+});
