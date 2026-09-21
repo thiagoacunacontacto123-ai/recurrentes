@@ -24,7 +24,7 @@ export function pricingModeOf(plan) {
 }
 
 export function emptyPackRow(qty = 1) {
-  return { qty: String(qty), price_ars: "", compare_at_ars: "", label: "", badge: "", frequency_days: "", sub_price_ars: "", image: "", gifts: [], default: false };
+  return { qty: String(qty), price_ars: "", compare_at_ars: "", label: "", note: "", badge: "", frequency_days: "", sub_price_ars: "", image: "", gifts: [], default: false };
 }
 
 // Plan guardado → filas del editor.
@@ -35,6 +35,7 @@ export function packsFromPlan(plan) {
     price_ars: p.price_ars != null ? String(p.price_ars) : "",
     compare_at_ars: p.compare_at_ars != null ? String(p.compare_at_ars) : "",
     label: p.label || "",
+    note: p.note || "",
     badge: p.badge || "",
     frequency_days: p.frequency_days != null ? String(p.frequency_days) : "",
     sub_price_ars: p.sub_price_ars != null ? String(p.sub_price_ars) : "",
@@ -55,7 +56,7 @@ export function autoPacks(basePrice) {
     qty: String(qty),
     price_ars: String(Math.round(b * qty * (1 - off / 100))),
     compare_at_ars: "",
-    label, badge, frequency_days: "", sub_price_ars: "", image: "", gifts: [], default: def,
+    label, note: "", badge, frequency_days: "", sub_price_ars: "", image: "", gifts: [], default: def,
   });
   return [
     mk(1, 0, "1 unidad", "", false),
@@ -108,6 +109,7 @@ export function serializePacks(rows) {
       price_ars: Math.round(num(r.price_ars)),
       compare_at_ars: r.compare_at_ars !== "" && num(r.compare_at_ars) > 0 ? Math.round(num(r.compare_at_ars)) : null,
       label: (r.label || "").trim() || `${int(r.qty)} ${int(r.qty) === 1 ? "unidad" : "unidades"}`,
+      note: (r.note || "").trim(),
       badge: (r.badge || "").trim() || null,
       frequency_days: r.frequency_days !== "" && int(r.frequency_days) >= 1 ? int(r.frequency_days) : null,
       sub_price_ars: r.sub_price_ars !== "" && num(r.sub_price_ars) > 0 ? Math.round(num(r.sub_price_ars)) : null,
@@ -255,6 +257,14 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                         <button type="button" onClick={()=>remove(i)} title="Quitar pack" style={{marginLeft:"auto",background:"transparent",border:"none",color:T.textSm,fontSize:15,cursor:"pointer",padding:"0 4px 6px",fontFamily:"inherit"}}
                           onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.textSm}>✕</button>
                       </div>
+                    </div>
+                    {/* Texto propio de ESTE pack (21-sept-2026, Thiago): "tratamiento
+                        bimensual" en el de 2, "tratamiento ultra" en el de 4. Antes
+                        el único texto de ese renglón era el mismo para todos. */}
+                    <div style={{marginTop:8}}>
+                      <Lbl T={T}>Texto de este pack</Lbl>
+                      <input type="text" value={r.note} onChange={e=>upd(i,"note",e.target.value)} style={inp}
+                        placeholder="Ej: tratamiento bimensual — se ve debajo del nombre" maxLength={120}/>
                     </div>
                     {/* Foto del pack y regalos: los dibujan los diseños Foto y Foto + regalos. */}
                     <div style={{marginTop:8}}>

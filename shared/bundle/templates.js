@@ -125,11 +125,21 @@ function buildCtx(vm, state) {
     if (m === "sub" && withDisc && ctx.disc > 0) return esc(base) + ' <em class="rc-disc">−' + ctx.disc + "%</em>";
     return esc(base);
   };
+  // Prefijo de la línea de frecuencia para UN pack. Si el comerciante escribió
+  // el suyo en el diseñador, se respeta; si no, lleva la cantidad del pack.
+  ctx.freqPrefix = function (p) {
+    if (t.freq_prefix) return t.freq_prefix;
+    return (p && p.qty > 1) ? "Te llegan " + p.qty + " cada" : "Te llega cada";
+  };
   ctx.freqText = function (p) {
     p = p || sel;
     if (mode !== "sub") return "Compra por única vez · sin renovación automática";
     var fl = p && p.freqLabel ? p.freqLabel : "";
-    return (t.freq_prefix || "Te llega cada") + (fl ? " " + fl : "") + " · pausás o cancelás cuando quieras";
+    // "Te llegan 2 cada 12 meses", no "Te llega cada 12 meses" (21-sept-2026,
+    // Thiago): sin la cantidad el comprador no sabe QUÉ le llega en cada envío.
+    // Solo cuando el pack trae más de uno y el comerciante no cambió el prefijo:
+    // si lo escribió él, se respeta tal cual.
+    return ctx.freqPrefix(p) + (fl ? " " + fl : "") + " · pausás o cancelás cuando quieras";
   };
   ctx.ctaText = function () {
     var lbl = mode === "sub" ? (t.cta_sub || "Suscribirme") : (t.cta_once || "Agregar al carrito");
@@ -163,6 +173,14 @@ function buildCtx(vm, state) {
   };
   ctx.cta = function (cls) {
     return '<button type="button" class="' + (cls || "rc-cta") + '" data-rc-action="cta" data-rc-mode="' + mode + '">' + ctx.ctaText() + "</button>";
+  };
+  // Texto propio de UN pack (21-sept-2026, Thiago): "tratamiento bimensual",
+  // "tratamiento ultra". Antes el único texto de ese renglón era freq_prefix,
+  // igual para todos los packs, así que no se podía diferenciar uno del otro.
+  // Vacío = no se pinta nada y el pack queda como antes.
+  ctx.packNote = function (p, cls) {
+    if (!p || !p.note) return "";
+    return '<small class="' + (cls || "rc-pnote") + '">' + esc(p.note) + "</small>";
   };
   ctx.freqLine = function (cls) {
     return '<p class="' + (cls || "rc-freq") + '"><span class="rc-freq-ic">' + SVG_REPEAT + "</span>" + esc(ctx.freqText()) + "</p>";
@@ -206,6 +224,8 @@ function baseCss(S, vm) {
     S + " .rc-trust{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:#5a5a5a;margin-top:12px}" +
     // Nota libre del comerciante, distinta por modo. Solo existe si la cargó.
     S + " .rc-note{font-size:12px;line-height:1.5;color:#6a6a6a;margin-top:10px}" +
+    // Texto propio de cada pack, debajo de su nombre.
+    S + " .rc-pnote{display:block;font-size:11.5px;line-height:1.4;color:#7a7a7a;font-weight:500;margin-top:2px}" +
     S + " .rc-trust li{display:inline-flex;align-items:center;gap:5px}" +
     S + " .rc-trust .rc-tick{color:var(--rc-a);display:inline-flex}" +
     S + " .rc-disc{font-weight:800;color:var(--rc-a-t)}" +
@@ -228,7 +248,7 @@ function v01(c) {
       (p.image
         ? '<span class="rc-qty rc-qty-img" aria-hidden="true"><img src="' + esc(p.image) + '" alt="" loading="lazy"><b>×' + p.qty + "</b></span>"
         : '<span class="rc-qty" aria-hidden="true">×' + p.qty + "</span>") +
-      '<span class="rc-info"><b class="rc-name">' + esc(p.label) + "</b>" +
+      '<span class="rc-info"><b class="rc-name">' + esc(p.label) + "</b>" + c.packNote(p) +
         '<small class="rc-meta">' + esc([p.qty === 1 ? "1 unidad" : p.qty + " unidades", c.perUnit(p)].filter(Boolean).join(" · ")) + "</small>" +
         (c.savings(p) ? '<span class="rc-save">' + esc(c.savings(p)) + "</span>" : "") +
       "</span>" +
@@ -240,7 +260,7 @@ function v01(c) {
     var on = m === c.mode;
     var price = c.sel ? fmtARS(c.sel[m].price) : "";
     var sub = m === "sub"
-      ? (t.freq_prefix || "Te llega cada") + " " + (c.sel ? c.sel.freqLabel : "") + " · pausás o cancelás cuando quieras"
+      ? c.freqPrefix(c.sel) + " " + (c.sel ? c.sel.freqLabel : "") + " · pausás o cancelás cuando quieras"
       : "Sin renovación automática";
     return '<button class="rc-mode' + c.on(on) + '"' + c.modeAttrs(m) + ">" +
       '<span class="rc-check" aria-hidden="true">' + SVG_CHECK + "</span>" +
@@ -325,7 +345,7 @@ function v02(c) {
     var meta = [c.perUnit(p), c.mode === "sub" ? "cada " + p.freqLabel : ""].filter(Boolean).join(" · ");
     return '<div class="rc-row' + c.on(on) + '"' + c.radioAttrs(i) + ">" +
       '<span class="rc-dot" aria-hidden="true"></span>' +
-      '<span class="rc-row-main"><span class="rc-row-top"><b>' + esc(p.label) + "</b>" + (p.badge ? '<span class="rc-tag">' + esc(p.badge) + "</span>" : "") + "</span>" +
+      '<span class="rc-row-main"><span class="rc-row-top"><b>' + esc(p.label) + "</b>" + (p.badge ? '<span class="rc-tag">' + esc(p.badge) + "</span>" : "") + "</span>" + c.packNote(p) +
         (meta ? "<small>" + esc(meta) + "</small>" : "") + "</span>" +
       '<span class="rc-row-price"><b>' + esc(fmtARS(v.price)) + "</b>" + c.compareHtml(p) + (c.savings(p) ? "<em>" + esc(c.savings(p)) + "</em>" : "") + "</span>" +
       "</div>";
@@ -369,6 +389,9 @@ function v02(c) {
 // ═════════════════════════════════════════════════════════════════════
 // v03 — Compacto (pills de cantidad + precio grande + switch)
 // ═════════════════════════════════════════════════════════════════════
+// v03 · Compacto: píldoras chicas con la cantidad y el precio. Es la única
+// variante SIN el texto propio del pack (packNote): no entra en una píldora de
+// 64px sin romper la grilla. Quien lo necesite tiene las otras once.
 function v03(c) {
   var S = c.S, t = c.t;
   var pills = c.packs.map(function (p, i) {
@@ -440,7 +463,7 @@ function v04(c) {
   }).join("") + "</tr>";
   var tbody = c.packs.map(function (p, i) {
     var on = i === c.idx;
-    return '<tr class="rc-tr' + c.on(on) + '"' + c.radioAttrs(i) + '><th scope="row" class="rc-td-pack"><span class="rc-dot" aria-hidden="true"></span><span><b>' + esc(p.label) + "</b>" +
+    return '<tr class="rc-tr' + c.on(on) + '"' + c.radioAttrs(i) + '><th scope="row" class="rc-td-pack"><span class="rc-dot" aria-hidden="true"></span><span><b>' + esc(p.label) + "</b>" + c.packNote(p) +
       (p.badge ? '<small class="rc-badge">' + esc(p.badge) + "</small>" : "") + "</span></th>" +
       cols.map(function (m) {
         var v = p[m], cur = on && m === c.mode;
@@ -505,11 +528,11 @@ function v05(c) {
   }).join("");
   var cards = c.packs.map(function (p, i) {
     var v = c.v(p), on = i === c.idx;
-    var meta = [c.perUnit(p), c.mode === "sub" ? (t.freq_prefix || "Te llega cada") + " " + p.freqLabel : ""].filter(Boolean).join(" · ");
+    var meta = [c.perUnit(p), c.mode === "sub" ? c.freqPrefix(p) + " " + p.freqLabel : ""].filter(Boolean).join(" · ");
     return '<div class="rc-card' + c.on(on) + '"' + c.radioAttrs(i) + ">" +
       '<div class="rc-side' + c.on(!v.savingsPct, "is-empty") + '">' + (v.savingsPct ? "<span>Ahorrás</span><b>" + v.savingsPct + "%</b>" : "<b>×" + p.qty + "</b>") + "</div>" +
       (p.image ? '<img class="rc-card-img" src="' + esc(p.image) + '" alt="" loading="lazy">' : "") +
-      '<div class="rc-body"><div class="rc-card-top"><b class="rc-card-name">' + esc(p.label) + "</b>" + (p.badge ? '<span class="rc-badge">' + esc(p.badge) + "</span>" : "") + "</div>" +
+      '<div class="rc-body"><div class="rc-card-top"><b class="rc-card-name">' + esc(p.label) + "</b>" + (p.badge ? '<span class="rc-badge">' + esc(p.badge) + "</span>" : "") + "</div>" + c.packNote(p) +
         '<div class="rc-card-price"><b>' + esc(fmtARS(v.price)) + "</b>" + c.compareHtml(p) + "</div>" +
         (meta ? "<small>" + esc(meta) + "</small>" : "") + "</div>" +
       '<span class="rc-tick2" aria-hidden="true">' + SVG_CHECK + "</span>" +
@@ -568,7 +591,7 @@ function v06(c) {
   var rows = c.packs.map(function (p, i) {
     var v = c.v(p), on = i === c.idx;
     return '<div class="rc-mrow' + c.on(on) + '"' + c.radioAttrs(i) + '><span class="rc-mark" aria-hidden="true"></span>' +
-      '<span class="rc-mname"><b>' + esc(p.label) + "</b>" + (p.badge ? "<em>" + esc(p.badge) + "</em>" : "") + "</span>" +
+      '<span class="rc-mname"><b>' + esc(p.label) + "</b>" + (p.badge ? "<em>" + esc(p.badge) + "</em>" : "") + c.packNote(p) + "</span>" +
       '<span class="rc-mprice">' + c.compareHtml(p) + "<b>" + esc(fmtARS(v.price)) + "</b></span></div>";
   }).join("");
   var detail = c.sel ? [c.perUnit(c.sel), c.savings(c.sel)].filter(Boolean).join(" · ") : "";
@@ -628,7 +651,7 @@ function v07(c) {
     '<div class="rc-segs" role="radiogroup" aria-label="' + esc(t.headline) + '">' + segs + "</div>" +
     '<div class="rc-pcard">' +
       '<div class="rc-chips" role="radiogroup" aria-label="Modo de compra">' + chips + "</div>" +
-      '<div class="rc-pcard-row"><span class="rc-pcard-name">' + esc(c.sel ? c.sel.label : "") + '</span><span class="rc-pcard-price">' + c.compareHtml(c.sel || { sub: {}, once: {} }) + "<b>" + esc(fmtARS(c.view.price)) + "</b></span></div>" +
+      '<div class="rc-pcard-row"><span class="rc-pcard-name">' + esc(c.sel ? c.sel.label : "") + (c.sel ? c.packNote(c.sel) : "") + '</span><span class="rc-pcard-price">' + c.compareHtml(c.sel || { sub: {}, once: {} }) + "<b>" + esc(fmtARS(c.view.price)) + "</b></span></div>" +
       '<div class="rc-pcard-meta">' + [c.perUnit(c.sel || { sub: {}, once: {} }) ? "<span>" + esc(c.perUnit(c.sel)) + "</span>" : "", c.savings(c.sel || {}) ? '<span class="rc-save">' + esc(c.savings(c.sel)) + "</span>" : ""].filter(Boolean).join("") + "</div>" +
       c.freqLine() + c.cta() + '<div class="rc-err" role="alert"></div>' +
     "</div>" + c.trust() + c.note()
@@ -674,7 +697,7 @@ function v08(c) {
     return '<div class="rc-dc' + c.on(on) + '"' + c.radioAttrs(i) + ">" +
       (p.badge ? '<span class="rc-dbadge">' + esc(p.badge) + "</span>" : "") +
       '<span class="rc-dring" aria-hidden="true"><i></i></span>' +
-      '<span class="rc-dinfo"><b>' + esc(p.label) + "</b><small>" + esc([p.qty === 1 ? "1 unidad" : p.qty + " unidades", c.perUnit(p)].filter(Boolean).join(" · ")) + "</small></span>" +
+      '<span class="rc-dinfo"><b>' + esc(p.label) + "</b><small>" + esc([p.qty === 1 ? "1 unidad" : p.qty + " unidades", c.perUnit(p)].filter(Boolean).join(" · ")) + "</small>" + c.packNote(p) + "</span>" +
       '<span class="rc-dprice"><b>' + esc(fmtARS(v.price)) + "</b>" + c.compareHtml(p) + (v.savingsPct ? "<em>−" + v.savingsPct + "%</em>" : "") + "</span>" +
       "</div>";
   }).join("");
@@ -736,7 +759,7 @@ function v09(c) {
       (p.image
         ? '<span class="rc-tqty rc-tqty-img"><img src="' + esc(p.image) + '" alt="" loading="lazy"><b>' + p.qty + "</b></span>"
         : '<span class="rc-tqty">' + p.qty + "</span>") +
-      '<span class="rc-tlbl">' + esc(p.label) + "</span>" +
+      '<span class="rc-tlbl">' + esc(p.label) + c.packNote(p) + "</span>" +
       '<span class="rc-tprice">' + esc(fmtARS(v.price)) + "</span>" + c.compareHtml(p, null, "rc-told") +
       (p.badge ? '<span class="rc-tbadge">' + esc(p.badge) + "</span>" : "") +
       "</div>";
@@ -792,7 +815,7 @@ function v10(c) {
   var rows = c.packs.map(function (p, i) {
     var v = c.v(p), on = i === c.idx;
     return '<div class="rc-erow' + c.on(on) + '"' + c.radioAttrs(i) + '><span class="rc-edot" aria-hidden="true"></span>' +
-      '<span class="rc-ename"><b>' + esc(p.label) + "</b>" + (p.badge ? "<em>" + esc(p.badge) + "</em>" : "") + (c.showPerUnit ? "<small>" + esc(c.perUnit(p)) + "</small>" : "") + "</span>" +
+      '<span class="rc-ename"><b>' + esc(p.label) + "</b>" + (p.badge ? "<em>" + esc(p.badge) + "</em>" : "") + (c.showPerUnit ? "<small>" + esc(c.perUnit(p)) + "</small>" : "") + c.packNote(p) + "</span>" +
       '<span class="rc-eprice"><b>' + esc(fmtARS(v.price)) + "</b>" + c.compareHtml(p) + "</span></div>";
   }).join("");
   var lines = "";
@@ -887,12 +910,12 @@ function v11(c) {
       ? '<span class="rc-ph"><img src="' + esc(p.image) + '" alt="" loading="lazy"></span>'
       : phFallback(p.qty);
     var freq = c.mode === "sub" && p.freqLabel
-      ? '<span class="rc-fq">' + esc((t.freq_prefix || "Te llega cada") + " " + p.freqLabel) + "</span>"
+      ? '<span class="rc-fq">' + esc(c.freqPrefix(p) + " " + p.freqLabel) + "</span>"
       : "";
     return '<div class="rc-fp' + c.on(on) + '"' + c.radioAttrs(i) + ">" +
       (p.badge ? '<span class="rc-ribbon">' + esc(p.badge) + "</span>" : "") +
       '<span class="rc-fp-row">' + img +
-        '<span class="rc-fp-mid"><b class="rc-fp-name">' + esc(p.label) + "</b>" +
+        '<span class="rc-fp-mid"><b class="rc-fp-name">' + esc(p.label) + "</b>" + c.packNote(p) +
           '<span class="rc-chips">' +
             (c.perUnit(p) ? '<span class="rc-pill">' + esc(c.perUnit(p)) + "</span>" : "") + freq +
           "</span>" +
@@ -974,7 +997,7 @@ function v12(c) {
       ? '<span class="rc-ph"><img src="' + esc(p.image) + '" alt="" loading="lazy"></span>'
       : phFallback(p.qty);
     var freq = c.mode === "sub" && p.freqLabel
-      ? '<span class="rc-fq">' + esc((t.freq_prefix || "Te llega cada") + " " + p.freqLabel) + "</span>"
+      ? '<span class="rc-fq">' + esc(c.freqPrefix(p) + " " + p.freqLabel) + "</span>"
       : "";
     var gifts = (Array.isArray(p.gifts) ? p.gifts : []).map(function (g) {
       var gi = g && g.image
@@ -986,7 +1009,7 @@ function v12(c) {
     return '<div class="rc-fp' + c.on(on) + '"' + c.radioAttrs(i) + ">" +
       (p.badge ? '<span class="rc-ribbon">' + esc(p.badge) + "</span>" : "") +
       '<span class="rc-fp-row">' + img +
-        '<span class="rc-fp-mid"><b class="rc-fp-name">' + esc(p.label) + "</b>" +
+        '<span class="rc-fp-mid"><b class="rc-fp-name">' + esc(p.label) + "</b>" + c.packNote(p) +
           '<span class="rc-chips">' +
             (c.perUnit(p) ? '<span class="rc-pill">' + esc(c.perUnit(p)) + "</span>" : "") + freq +
           "</span>" +

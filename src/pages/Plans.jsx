@@ -75,6 +75,7 @@ export function PlansPage({ merchant, onMerchantChange, forceSub = null }) {
   // editor: null | { plan: null } (nuevo) | { plan } (edición)
   const [editor, setEditor] = useState(null);
   const [linkFor, setLinkFor] = useState(null);
+  const [justCreated, setJustCreated] = useState(null); // plan recién creado con tienda: ofrecemos ir al widget
   // Desde Widget → "Editar packs de este plan" llega #/dashboard/planes?edit=<id>:
   // abrimos ese plan en el editor apenas cargan los planes.
   const [pendingEdit, setPendingEdit] = useState(() => {
@@ -189,7 +190,15 @@ export function PlansPage({ merchant, onMerchantChange, forceSub = null }) {
       <PlanEditor
         plan={editor.plan} products={products} merchant={merchant}
         onBack={()=>setEditor(null)}
-        onSaved={(np)=>{ const wasNew = !editor.plan; setEditor(null); loadAll(); if (wasNew && np?.id && !widgetOn) setLinkFor(np); }}
+        onSaved={(np)=>{
+          const wasNew = !editor.plan; setEditor(null); loadAll();
+          // Sin tienda (venta por link): lo que necesita es el link. Con tienda:
+          // el paso siguiente es el widget. 21-sept-2026 (Thiago): "le expliqué
+          // que era por dos partes separadas" — el comerciante crea el plan y
+          // pregunta por los colores, porque nada le dice que eso vive en otro lado.
+          if (wasNew && np?.id && !widgetOn) setLinkFor(np);
+          else if (wasNew && np?.id) setJustCreated(np);
+        }}
         onGoWidget={()=>{ setEditor(null); goSub("widget"); }}
       />
     );
@@ -344,6 +353,23 @@ export function PlansPage({ merchant, onMerchantChange, forceSub = null }) {
       )}
 
       {linkFor && <SubscriptionLinkModal plan={linkFor} merchant={merchant} profile={profile} onClose={()=>setLinkFor(null)}/>}
+      {justCreated && (
+        <Modal T={T} title="Listo, tu plan ya está creado" onClose={()=>setJustCreated(null)} maxWidth={460}
+          footer={
+            <div style={{ display:"flex", gap:8, justifyContent:"flex-end", flexWrap:"wrap" }}>
+              <Btn T={T} variant="secondary" onClick={()=>setJustCreated(null)}>Después lo veo</Btn>
+              <Btn T={T} variant="solid" onClick={()=>{ setJustCreated(null); goSub("widget"); }}>Elegir el diseño →</Btn>
+            </div>
+          }>
+          <p style={{ margin:0, fontSize:DS.font.base, color:T.textMd, lineHeight:1.6 }}>
+            <strong style={{color:T.text}}>{justCreated.product_title || "Tu plan"}</strong> ya está activo y tus clientes lo ven en la página de ese producto.
+          </p>
+          <p style={{ margin:"10px 0 0", fontSize:DS.font.base, color:T.textMd, lineHeight:1.6 }}>
+            Los colores, el diseño y los textos de la caja se eligen en <strong style={{color:T.text}}>Widget</strong>, que es una sección aparte.
+            Ahí también podés ver cómo queda antes de publicarla.
+          </p>
+        </Modal>
+      )}
     </div>
   );
 }

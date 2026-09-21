@@ -157,3 +157,64 @@ test("(w) el server guarda los textos de los dos modos", async () => {
   const malo = await guardar({ widget_texts: { trust_lines_once: "no es un array" } });
   assert.equal(malo.statusCode, 400);
 });
+
+// ─── Texto propio de cada pack + cantidad en la frecuencia (21-sept) ──────
+// Thiago: "en el pack de dos meses quiero poner tratamiento bimensual, en el
+// de cuatro tratamiento ultra; hoy solo se puede cambiar todo generalizado".
+// Y: "que diga te llegan X cada 12 meses, la cantidad de potes".
+const PLAN_NOTAS = {
+  pricing_mode: "packs", discount_pct: 15, frequency_days: 30, frequency_scales_with_qty: true,
+  packs: [
+    { qty: 1, price_ars: 10000, label: "1 pote" },
+    { qty: 2, price_ars: 18000, label: "Pack 2", note: "Tratamiento bimensual" },
+    { qty: 4, price_ars: 32000, label: "Pack 4", note: "Tratamiento ultra" },
+  ],
+};
+const htmlNotas = (variant, state = {}, merchant = {}) =>
+  render2(buildBundleVM({ plan: PLAN_NOTAS, merchant: { widget_variant: variant, ...merchant } }), state).html;
+
+test("(w) cada pack muestra SU texto, no uno general", () => {
+  // 11 de 12: v03 son píldoras de 64px y no le entra (está documentado).
+  const conNota = ["v01","v02","v04","v05","v06","v08","v09","v10","v11","v12"];
+  for (const v of conNota) {
+    const h = htmlNotas(v);
+    assert.ok(h.includes("Tratamiento bimensual"), `${v}: falta la nota del pack de 2`);
+    assert.ok(h.includes("Tratamiento ultra"), `${v}: falta la nota del pack de 4`);
+  }
+  // Un pack sin nota no pinta el bloque vacío.
+  const sinNota = render2(buildBundleVM({ plan: { ...PLAN_NOTAS, packs: [{ qty: 1, price_ars: 10000 }] }, merchant: { widget_variant: "v01" } }), {}).html;
+  assert.ok(!sinNota.includes("rc-pnote"), "sin nota no se pinta nada");
+});
+
+test("(w) la nota del pack se escapa", () => {
+  const h = render2(buildBundleVM({
+    plan: { ...PLAN_NOTAS, packs: [{ qty: 1, price_ars: 10000, note: '<img src=x onerror=alert(1)>' }] },
+    merchant: { widget_variant: "v01" },
+  }), {}).html;
+  assert.ok(!/<img [^>]*onerror/i.test(h));
+});
+
+test("(w) la frecuencia dice CUÁNTOS le llegan", () => {
+  const dos = htmlNotas("v01", { mode: "sub", selectedIdx: 1 });
+  assert.ok(dos.includes("Te llegan 2 cada"), "el pack de 2 tiene que decir la cantidad");
+  // Con uno solo no tiene sentido "Te llegan 1".
+  const uno = htmlNotas("v01", { mode: "sub", selectedIdx: 0 });
+  assert.ok(uno.includes("Te llega cada") && !uno.includes("Te llegan 1"));
+  // Si el comerciante escribió su prefijo, manda el suyo.
+  const propio = htmlNotas("v01", { mode: "sub", selectedIdx: 1 }, { widget_texts: { freq_prefix: "Lo recibís cada" } });
+  assert.ok(propio.includes("Lo recibís cada") && !propio.includes("Te llegan"));
+});
+
+test("(w) el server guarda la nota de cada pack", async () => {
+  const { normalizePacks } = await loadApi("api/_lib/packs.js");
+  const r = normalizePacks([
+    { qty: 2, price_ars: 18000, label: "Pack 2", note: "  Tratamiento bimensual  " },
+    { qty: 4, price_ars: 32000, label: "Pack 4" },
+  ]);
+  assert.ok(!r.error, r.error);
+  assert.equal(r.packs[0].note, "Tratamiento bimensual", "se guarda con trim");
+  assert.equal(r.packs[1].note, "", "sin nota queda vacía, no undefined");
+  // Tope de largo: no puede reventar el doc ni el diseño.
+  const largo = normalizePacks([{ qty: 1, price_ars: 100, note: "x".repeat(500) }]);
+  assert.equal(largo.packs[0].note.length, 120);
+});

@@ -48,6 +48,28 @@ function btnStyles(T) {
   };
 }
 
+// "Que lo hagan por mí": el comerciante deja de pelear con el OAuth y lo
+// conectamos nosotros a mano (21-sept-2026, Thiago: "está bastante jodido, me
+// gusta que funcione bien, lo voy a empezar a poner yo a mano"). Va DENTRO del
+// modal de conexión, como alternativa: el que puede solo, sigue solo.
+const WA_CONECTAR = "5491164117974";
+function ConectameVos({ T, plataforma, tienda }) {
+  const texto = `Hola! Quiero conectar mi ${plataforma} con Recurrentes y prefiero que lo hagan ustedes.${tienda ? ` Mi tienda es ${tienda}.` : ""}`;
+  return (
+    <div style={{ marginTop:14, padding:"12px 14px", border:`1px dashed ${T.border}`, borderRadius:DS.r.lg, background:T.surface }}>
+      <div style={{ fontSize:DS.font.md, fontWeight:DS.w.semibold, color:T.text, marginBottom:3 }}>¿Preferís que lo hagamos nosotros?</div>
+      <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, marginBottom:9 }}>
+        Nos escribís, nos das acceso y te lo dejamos andando. Sin cargo.
+      </div>
+      <a href={`https://wa.me/${WA_CONECTAR}?text=${encodeURIComponent(texto)}`} target="_blank" rel="noopener noreferrer"
+        style={{ display:"inline-flex", alignItems:"center", gap:7, fontSize:DS.font.sm, fontWeight:DS.w.semibold,
+          color:T.accent, textDecoration:"none", border:`1px solid ${T.accent}55`, borderRadius:DS.r.md, padding:"7px 12px" }}>
+        Conéctenmelo ustedes, gratis →
+      </a>
+    </div>
+  );
+}
+
 // Plataformas sin conector propio todavía: se muestran como "Próximamente" con el
 // botón de pedirlo por WhatsApp, y lo conectamos a mano.
 const OTHER_PLATFORMS = [
@@ -584,6 +606,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
               <Hint T={T}>Se usa para autorizar y se guarda cifrado. Nunca se comparte.</Hint>
             </>
           )}
+                  <ConectameVos T={T} plataforma="Shopify" tienda={shopRaw || m.shopify_shop}/>
         </Modal>
       )}
 
@@ -603,6 +626,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
             <input value={tnUrl} onChange={e => setTnUrl(e.target.value)} placeholder="tutienda.mitiendanube.com" style={iS} autoFocus disabled={busy === "tiendanube"}/>
           </Field>
           <Hint T={T}>Si tenés dominio propio (tutienda.com.ar) también sirve. Si la dejás vacía, Tiendanube te pide elegir la tienda.</Hint>
+                  <ConectameVos T={T} plataforma="Tiendanube" tienda={m.tiendanube_store_name || m.store_name}/>
         </Modal>
       )}
 

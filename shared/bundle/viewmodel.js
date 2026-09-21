@@ -25,7 +25,9 @@ export const TEXT_DEFAULTS = Object.freeze({
   cta_sub: "Suscribirme",
   savings_label: "Ahorrás {pct}%",
   per_unit_label: "{price} c/u",
-  freq_prefix: "Te llega cada",
+  // "" a propósito (21-sept-2026): vacío = el widget arma "Te llegan 2 cada…"
+  // con la cantidad del pack. Si el comerciante escribe algo acá, manda lo suyo.
+  freq_prefix: "",
   trust_lines: ["Cancelás cuando quieras", "Envío a todo el país"],
   // 21-sept-2026 (Thiago): textos propios de COMPRA ÚNICA. Hasta hoy las
   // trust_lines eran solo de suscripción y en compra única no aparecía nada
@@ -116,10 +118,13 @@ export function resolvePack(plan, idx) {
     : (plan.frequency_scales_with_qty !== false ? planFreq * qty : planFreq);
   var label = typeof raw.label === "string" ? raw.label.replace(/\s+/g, " ").trim().slice(0, 60) : "";
   var badge = typeof raw.badge === "string" ? raw.badge.replace(/\s+/g, " ").trim().slice(0, 60) : "";
+  // Texto propio del pack: "tratamiento bimensual", "dura 4 meses"… Vacío = no
+  // se pinta nada y el widget queda como antes.
+  var note = typeof raw.note === "string" ? raw.note.replace(/\s+/g, " ").trim().slice(0, 120) : "";
   // Foto del pack (la usan v11/v12). Solo https: evita contenido mixto y javascript:.
   var image = typeof raw.image === "string" && /^(https:\/\/|data:image\/)/i.test(raw.image) ? raw.image : null;
   return {
-    idx: idx, qty: qty, label: label || (qty === 1 ? "1 unidad" : qty + " unidades"), badge: badge,
+    idx: idx, qty: qty, label: label || (qty === 1 ? "1 unidad" : qty + " unidades"), badge: badge, note: note,
     priceOnce: priceOnce, priceSub: priceSub, compareAt: compareAt, freqDays: freqDays,
     image: image,
     gifts: Array.isArray(raw.gifts) ? raw.gifts.slice(0, 3).map(function (g) {
@@ -204,6 +209,7 @@ export function buildBundleVM({ plan, merchant } = {}) {
       idx: packs.length,
       qty: r.qty,
       label: r.label,
+      note: r.note,
       badge: r.badge,
       image: r.image || null,
       gifts: Array.isArray(r.gifts) ? r.gifts : [],

@@ -33,7 +33,7 @@ const DEFAULT_WIDGET_TEXTS = {
   cta_sub: "Suscribirme",
   savings_label: "Ahorrás {pct}%",
   per_unit_label: "{price} c/u",
-  freq_prefix: "Te llega cada",
+  freq_prefix: "",   // vacío = automático: "Te llegan 2 cada 30 días"
   trust_lines: ["Cancelás cuando quieras", "Envío a todo el país"],
   trust_lines_once: [],
   note_sub: "",
@@ -50,7 +50,7 @@ const TEXT_FIELDS = [
 const TEXT_FIELDS_SUB = [
   ["sub_label", "Etiqueta del modo"],
   ["cta_sub", "Botón"],
-  ["freq_prefix", "Prefijo de frecuencia"],
+  ["freq_prefix", "Prefijo de frecuencia (vacío = automático)"],
 ];
 const TEXT_FIELDS_ONCE = [
   ["once_label", "Etiqueta del modo"],
@@ -68,7 +68,8 @@ function ModoTextos({ T, titulo, campos, texts, setText, inputS, lineas, campoLi
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"0 12px" }}>
         {campos.map(([k, label]) => (
           <Field key={k} T={T} label={label}>
-            <input type="text" value={texts[k] ?? ""} onChange={e=>setText(k, e.target.value)} style={inputS} placeholder={DEFAULT_WIDGET_TEXTS[k]} maxLength={80}/>
+            <input type="text" value={texts[k] ?? ""} onChange={e=>setText(k, e.target.value)} style={inputS}
+              placeholder={k === "freq_prefix" ? "Te llegan 2 cada…" : DEFAULT_WIDGET_TEXTS[k]} maxLength={80}/>
           </Field>
         ))}
       </div>
@@ -580,7 +581,8 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(140px, 1fr))",gap:"0 10px"}}>
             {TEXT_FIELDS.map(([k, label]) => (
               <Field key={k} T={T} label={label}>
-                <input type="text" value={texts[k] ?? ""} onChange={e=>setText(k, e.target.value)} style={inputS} placeholder={DEFAULT_WIDGET_TEXTS[k]} maxLength={80}/>
+                <input type="text" value={texts[k] ?? ""} onChange={e=>setText(k, e.target.value)} style={inputS}
+              placeholder={k === "freq_prefix" ? "Te llegan 2 cada…" : DEFAULT_WIDGET_TEXTS[k]} maxLength={80}/>
               </Field>
             ))}
           </div>

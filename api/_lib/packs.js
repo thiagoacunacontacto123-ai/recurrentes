@@ -107,6 +107,7 @@ export function resolvePack(plan, idx) {
   return {
     idx: i, qty, price, subPrice, compareAt, freq, savingsPct,
     label: typeof pack.label === "string" ? pack.label : "",
+    note: typeof pack.note === "string" ? pack.note : "",
     badge: typeof pack.badge === "string" && pack.badge ? pack.badge : null,
     // Foto del pack: subida (data:image) o link https. normalizePacks ya lo
     // valida al guardar; acá volvemos a filtrar por si un plan viejo o una
@@ -142,6 +143,10 @@ export function normalizePacks(input) {
       if (compare_at_ars == null || compare_at_ars < price_ars) return { error: `${at}: compare_at_ars debe ser un entero ≥ price_ars (o null)` };
     }
     const label = String(p.label ?? "").trim().slice(0, 40);
+    // Texto propio del pack (21-sept-2026, Thiago): "tratamiento bimensual",
+    // "tratamiento ultra". Antes solo se podía escribir el mismo prefijo de
+    // frecuencia para TODOS los packs, así que no se podía diferenciar uno.
+    const note = String(p.note ?? "").trim().slice(0, 120);
     let badge = null;
     if (p.badge != null && String(p.badge).trim()) badge = String(p.badge).trim().slice(0, 24);
     let frequency_days = null;
@@ -191,7 +196,7 @@ export function normalizePacks(input) {
     const isDefault = p.default === true;
     if (isDefault) defaults++;
     if (defaults > 1) return { error: "Solo un pack puede ser el default" };
-    out.push({ qty, price_ars, compare_at_ars, label, badge, frequency_days, sub_price_ars, image, gifts, default: isDefault });
+    out.push({ qty, price_ars, compare_at_ars, label, note, badge, frequency_days, sub_price_ars, image, gifts, default: isDefault });
   }
   out.sort((a, b) => a.qty - b.qty);
   return { packs: out };
