@@ -56,7 +56,7 @@ const run = (mid) => new Promise((resolve) => {
 
 // ── Permisos compartidos ──
 ok(shared.SHOPIFY_SCOPE_IDS.includes("read_discounts") && !shared.SHOPIFY_REQUIRED_SCOPE_IDS.includes("read_discounts"), "read_discounts va en el OAuth y en la lista a pegar, pero NO es obligatorio");
-ok(shared.missingShopifyScopes("read_products,read_orders,write_orders,write_customers,read_shipping").length === 0, "una tienda vieja sin read_discounts no ve el aviso de permisos");
+ok(shared.missingShopifyScopes("read_products,read_orders,write_orders,write_customers,read_shipping,write_draft_orders").length === 0, "una tienda vieja sin read_discounts no ve el aviso de permisos");
 ok(JSON.stringify(shared.missingShopifyScopes("read_products", ["read_discounts"])) === JSON.stringify(["read_discounts"]), "pero el import sí lo detecta como faltante");
 
 // ── Mapeos puros ──

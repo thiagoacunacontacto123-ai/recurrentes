@@ -58,10 +58,12 @@ await M("m4").collection("subscribers").doc("b").set({ customer_email: "dani@x.c
 tokenStatus.tok_m1 = "alive"; tokenStatus.tok_m3 = "alive"; tokenStatus.tok_m4 = "dead";
 
 // ── 0) Scopes compartidos ──
-ok(shared.SHOPIFY_SCOPES_STRING === "read_products,read_orders,write_orders,read_customers,write_customers,read_shipping,read_discounts", "lista de scopes compartida (con read_shipping, sin write_draft_orders)");
-ok(shared.oauthScopes("read_products, write_draft_orders") === shared.SHOPIFY_SCOPES_STRING + ",write_draft_orders", "la env solo SUMA scopes");
+// write_draft_orders volvió el 21-sept: draftOrderCalculate (la cotización de
+// envíos en vivo) lo exige. Ver tests/money-path/envios-auto.test.mjs.
+ok(shared.SHOPIFY_SCOPES_STRING === "read_products,read_orders,write_orders,read_customers,write_customers,read_shipping,write_draft_orders,read_discounts", "lista de scopes compartida (con read_shipping y write_draft_orders)");
+ok(shared.oauthScopes("read_products, read_inventory") === shared.SHOPIFY_SCOPES_STRING + ",read_inventory", "la env solo SUMA scopes");
 ok(shared.oauthScopes("") === shared.SHOPIFY_SCOPES_STRING, "sin env: lista compartida");
-ok(JSON.stringify(shared.missingShopifyScopes("write_orders,write_customers,read_products")) === JSON.stringify(["read_shipping"]), "falta read_shipping (write_X cubre read_X)");
+ok(JSON.stringify(shared.missingShopifyScopes("write_orders,write_customers,read_products")) === JSON.stringify(["read_shipping","write_draft_orders"]), "faltan read_shipping y write_draft_orders (write_X cubre read_X)");
 ok(shared.missingShopifyScopes(null).length === 0, "sin dato de scopes: no se sugiere nada");
 
 // ── 1) Firmas inválidas: 401 y nada cambia ──

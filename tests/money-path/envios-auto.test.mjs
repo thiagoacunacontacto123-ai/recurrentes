@@ -145,3 +145,31 @@ test("(e) Tiendanube: nombres traducidos ({es: ...}) se leen igual", async () =>
   assert.equal(rates.length, 1);
   assert.equal(rates[0].name, "Envío a domicilio");
 });
+
+// ─── El permiso que hacía falta para cotizar ───────────────────────────────
+// 21-sept-2026, caso Glowtherm: el checkout no mostraba NINGÚN envío. Su tienda
+// no tiene tarifas fijas (solo una app de envíos), así que dependía de la
+// cotización en vivo — y Shopify la rechazaba:
+//   "Access denied for draftOrderCalculate field.
+//    Required access: `write_draft_orders` access scope."
+// El scope estaba sacado a mano con el comentario "no se usa en ningún lado",
+// escrito antes de que existiera shQuoteShippingRates. Este test es para que no
+// se vuelva a sacar.
+const { SHOPIFY_REQUIRED_SCOPE_IDS, SHOPIFY_SCOPES_STRING, oauthScopes, missingShopifyScopes } =
+  await loadApi("shared/platform/shopify.js");
+
+test("(e) write_draft_orders es obligatorio: sin él Shopify no cotiza los envíos", () => {
+  assert.ok(SHOPIFY_REQUIRED_SCOPE_IDS.includes("write_draft_orders"),
+    "draftOrderCalculate lo exige; sin esto el comprador se queda sin envíos");
+  assert.ok(SHOPIFY_SCOPES_STRING.includes("write_draft_orders"), "tiene que estar en lo que se pega en Shopify");
+  assert.ok(oauthScopes().includes("write_draft_orders"), "y en lo que pide el OAuth");
+});
+
+test("(e) al que conectó con el scope viejo el panel le avisa", () => {
+  // Exactamente los scopes que tenía Glowtherm el 21-sept.
+  const viejos = "read_customers,write_customers,read_discounts,read_orders,write_orders,read_products,read_shipping";
+  const faltan = missingShopifyScopes(viejos);
+  assert.deepEqual(faltan, ["write_draft_orders"], "el panel tiene que pedirle reconectar");
+  // Con el permiso puesto no molesta más.
+  assert.deepEqual(missingShopifyScopes(viejos + ",write_draft_orders"), []);
+});

@@ -13,7 +13,6 @@
 // (no se fuerza reconexión): el panel sugiere "Reconectar" cuando falta alguno.
 
 // Permisos (scopes) que Recurrentes necesita, con el motivo en criollo.
-// write_draft_orders se sacó: no se usa en ningún lado.
 export const SHOPIFY_SCOPES = [
   { id: "read_products",   why: "Leer tus productos y variantes para armar los planes." },
   { id: "read_orders",     why: "Revisar órdenes ya creadas y no duplicar ninguna." },
@@ -21,6 +20,12 @@ export const SHOPIFY_SCOPES = [
   { id: "read_customers",  why: "Buscar si el cliente ya existe en tu tienda." },
   { id: "write_customers", why: "Crear o actualizar el cliente con su dirección." },
   { id: "read_shipping",   why: "Leer tus tarifas de envío para el checkout." },
+  // 21-sept-2026: VUELVE. Estaba sacado con el comentario "no se usa en ningún
+  // lado", pero la cotización en vivo (shQuoteShippingRates → draftOrderCalculate)
+  // lo exige: sin él Shopify responde ACCESS_DENIED y el comprador se queda sin
+  // envíos. Se notó en Glowtherm, que no tiene tarifas fijas —solo app de
+  // envíos— así que la cotización era su única fuente.
+  { id: "write_draft_orders", why: "Cotizar tus envíos reales igual que en tu checkout." },
   // Opcional: solo lo usa el botón "Traer los descuentos de Shopify" (Configuración →
   // Descuentos). Si falta, todo lo demás anda y NO mostramos el aviso de permisos.
   { id: "read_discounts",  why: "Traer tus códigos de descuento al checkout de suscripción.", optional: true },
