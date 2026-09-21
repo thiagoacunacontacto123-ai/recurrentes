@@ -53,17 +53,20 @@ test("(j) v12: además muestra el regalo con su foto y el valor tachado", () => 
   assert.ok(html.includes('aria-checked="true"'), "en modo sub el interruptor está encendido");
 });
 
-test("(j) un pack sin foto dibuja un marquito por unidad, no un número gigante", () => {
+test("(j) un pack sin foto muestra UN marco de imagen con la cantidad", () => {
   const vm = buildBundleVM({ merchant: { widget_variant: "v11" },
     plan: plan([{ qty: 1, price_ars: 8900 }, { qty: 2, price_ars: 17800 }, { qty: 5, price_ars: 44500 }]) });
   const { html } = renderBundle(vm, {});
   assert.ok(!html.includes("<img"), "no pinta una imagen vacía");
 
   const bloques = html.split('class="rc-ph rc-ph-x"').slice(1).map(b => b.slice(0, b.indexOf("</span>")));
-  assert.equal((bloques[0].match(/rc-ph-f/g) || []).length, 1, "1 unidad → 1 marquito");
-  assert.equal((bloques[1].match(/rc-ph-f/g) || []).length, 2, "2 unidades → 2 marquitos");
-  assert.equal((bloques[2].match(/rc-ph-f/g) || []).length, 3, "5 unidades → 3 marquitos (tope)");
-  assert.ok(/>\+2</.test(bloques[2]), "y el resto se muestra como +2");
+  assert.equal(bloques.length, 3, "un marco por pack");
+  // UN solo marco por pack: repetirlo se leía como "este pack trae N fotos".
+  bloques.forEach((b, i) => {
+    assert.equal((b.match(/<svg/g) || []).length, 1, `pack ${i + 1}: un solo ícono`);
+  });
+  assert.ok(/>×1</.test(bloques[0]) && /×2</.test(bloques[1]) && /×5</.test(bloques[2]),
+    "la cantidad va como chapita, incluso arriba de 3");
 });
 
 test("(j) lo que escribe el comercio va escapado (no se puede inyectar HTML)", () => {

@@ -821,11 +821,11 @@ function v10(c) {
 // grande, un "+N". Así se entiende de una que ahí va una foto y cuántas
 // unidades trae el pack.
 function phFallback(qty) {
-  var n = Math.max(1, Math.min(3, qty || 1));
-  var extra = (qty || 1) > 3 ? '<b class="rc-ph-more">+' + ((qty || 1) - 3) + "</b>" : "";
-  var frames = "";
-  for (var k = 0; k < n; k++) frames += '<i class="rc-ph-f">' + SVG_PHOTO + "</i>";
-  return '<span class="rc-ph rc-ph-x" aria-hidden="true">' + frames + extra + "</span>";
+  // UN marco con el ícono de imagen y la cantidad como chapita en la esquina.
+  // Antes se repetía un marquito por unidad y se leía como "este pack trae 2
+  // fotos" en vez de "acá va la foto del pack de 2".
+  return '<span class="rc-ph rc-ph-x" aria-hidden="true">' + SVG_PHOTO +
+    '<b class="rc-ph-q">×' + (qty || 1) + "</b></span>";
 }
 
 // ═════════════════════════════════════════════════════════════════════
@@ -887,10 +887,9 @@ function v11(c) {
     S + " .rc-fp-row{display:flex;align-items:center;gap:13px;padding:18px 16px}" +
     S + " .rc-ph{width:96px;flex:none;display:flex;align-items:center;justify-content:center}" +
     S + " .rc-ph img{max-width:100%;max-height:86px;height:auto;display:block;border-radius:6px}" +
-    S + " .rc-ph-x{height:64px;display:flex;align-items:center;justify-content:center;gap:3px}" +
-    S + " .rc-ph-f{width:26px;height:32px;border-radius:5px;border:1.5px solid var(--rc-a-l3);background:var(--rc-a-l1);color:var(--rc-a-t);display:flex;align-items:center;justify-content:center;flex:none}" +
-    S + " .rc-ph-f svg{width:15px;height:15px;display:block}" +
-    S + " .rc-ph-more{font-size:12px;font-weight:800;color:var(--rc-a-t);margin-left:1px}" +
+    S + " .rc-ph-x{position:relative;width:64px;height:64px;border-radius:9px;border:1.5px dashed var(--rc-a-l3);background:var(--rc-a-l1);color:var(--rc-a-t);display:flex;align-items:center;justify-content:center;margin:0 auto}" +
+    S + " .rc-ph-x svg{width:24px;height:24px;display:block;opacity:.85}" +
+    S + " .rc-ph-q{position:absolute;right:-5px;bottom:-5px;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:var(--rc-a);color:var(--rc-on-a);font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff}" +
     S + " .rc-fp-mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:0}" +
     S + " .rc-fp-name{font-size:18px;font-weight:800;line-height:1.2}" +
     S + " .rc-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}" +
@@ -982,10 +981,9 @@ function v12(c) {
     S + " .rc-fp-row{display:flex;align-items:center;gap:13px;padding:18px 16px}" +
     S + " .rc-ph{width:96px;flex:none;display:flex;align-items:center;justify-content:center}" +
     S + " .rc-ph img{max-width:100%;max-height:86px;height:auto;display:block;border-radius:6px}" +
-    S + " .rc-ph-x{height:64px;display:flex;align-items:center;justify-content:center;gap:3px}" +
-    S + " .rc-ph-f{width:26px;height:32px;border-radius:5px;border:1.5px solid var(--rc-a-l3);background:var(--rc-a-l1);color:var(--rc-a-t);display:flex;align-items:center;justify-content:center;flex:none}" +
-    S + " .rc-ph-f svg{width:15px;height:15px;display:block}" +
-    S + " .rc-ph-more{font-size:12px;font-weight:800;color:var(--rc-a-t);margin-left:1px}" +
+    S + " .rc-ph-x{position:relative;width:64px;height:64px;border-radius:9px;border:1.5px dashed var(--rc-a-l3);background:var(--rc-a-l1);color:var(--rc-a-t);display:flex;align-items:center;justify-content:center;margin:0 auto}" +
+    S + " .rc-ph-x svg{width:24px;height:24px;display:block;opacity:.85}" +
+    S + " .rc-ph-q{position:absolute;right:-5px;bottom:-5px;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:var(--rc-a);color:var(--rc-on-a);font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff}" +
     S + " .rc-fp-mid{flex:1;min-width:0;display:flex;flex-direction:column}" +
     S + " .rc-fp-name{font-size:18px;font-weight:800;line-height:1.2}" +
     S + " .rc-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}" +
