@@ -475,6 +475,9 @@ export async function tnShippingRates(storeId, token) {
     // Cada carrier puede exponer varias opciones (domicilio, sucursal…).
     const opciones = Array.isArray(c?.options) && c.options.length ? c.options : [{ name: c?.name, code: c?.code }];
     for (const o of opciones) {
+      // Una opción apagada dentro de un carrier prendido (ej: Correo con
+      // "a sucursal" desactivado) no la tiene que ver el comprador.
+      if (o?.active === false) continue;
       const name = tnText(o?.name ?? c?.name).trim().slice(0, 250);
       if (!name) continue;
       const key = name.toLowerCase();

@@ -134,6 +134,22 @@ test("(e) Tiendanube: lee los medios de envío activos con su code", async () =>
   assert.equal(rates.find(r => r.name === "A domicilio").source, "tiendanube");
 });
 
+test("(e) Tiendanube: una opción apagada de un carrier prendido no se ofrece", async () => {
+  // El filtro miraba solo el carrier: un Correo Argentino activo con "a sucursal"
+  // desactivado le mostraba igual la sucursal al comprador. 22-sept-2026.
+  stubCarriers([
+    { id: 1, name: "Correo Argentino", code: "correo-argentino", active: true,
+      options: [
+        { name: "A domicilio", code: "ca-domicilio", price: 3500 },
+        { name: "A sucursal", code: "ca-sucursal", price: 2800, active: false },
+      ] },
+  ]);
+  const rates = await tnShippingRates(TN_STORE, TN_TOKEN);
+  const nombres = rates.map(r => r.name);
+  assert.ok(nombres.includes("A domicilio"), JSON.stringify(rates));
+  assert.ok(!nombres.includes("A sucursal"), "la opción apagada no se ofrece");
+});
+
 test("(e) Tiendanube: si la API falla devuelve [] y no rompe el checkout", async () => {
   W.router.on("GET", "api.tiendanube.com", /\/shipping_carriers$/, () => ({ status: 403, json: { description: "sin scope" } }));
   assert.deepEqual(await tnShippingRates(TN_STORE, TN_TOKEN), []);

@@ -407,7 +407,12 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
                 <SurfaceBox T={T}>
                   <div style={{ fontSize:DS.font.md, color:T.textMd, lineHeight:1.55 }}>
                     Se usan <strong style={{ color:T.text }}>los envíos de tu tienda</strong>, los mismos que cobrás en una venta común.
-                    {" "}Cuando el cliente pone su código postal, el checkout los cotiza y él elige.
+                    {/* Shopify cotiza en vivo por CP (draftOrderCalculate). Tiendanube
+                        NO: su API devuelve los medios activos, sin precio por destino.
+                        Decir lo mismo de las dos era mentira. 22-sept, Thiago. */}
+                    {profile.channel === "tiendanube"
+                      ? <> Tu cliente elige entre <strong style={{ color:T.text }}>los mismos medios</strong> que tenés activos (Correo Argentino, OCA, retiro…). Los que tengan un precio fijo se cobran; los que Tiendanube cotiza por código postal te los mostramos, pero el precio lo tenés que cargar a mano en <button type="button" style={linkBtn} onClick={goStoreSettings}>Configuración → Checkout →</button></>
+                      : <> Cuando el cliente pone su código postal, el checkout los cotiza y él elige.</>}
                     {hasCheckoutRates ? <> También ofrecés los que cargaste a mano ({checkoutRates.slice(0, 3).map(r => r.name).join(" · ")}{checkoutRates.length > 3 ? ` · +${checkoutRates.length - 3}` : ""}), en <button type="button" style={linkBtn} onClick={goStoreSettings}>Configuración → Checkout →</button></> : null}
                   </div>
                 </SurfaceBox>
