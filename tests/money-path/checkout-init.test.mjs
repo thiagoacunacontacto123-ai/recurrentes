@@ -171,3 +171,32 @@ test("(e) MP caído: 502 con mensaje para el comprador, sub en error y aviso al 
   assert.equal(s.data.status, "error");
   assert.ok(W.merchant().mp_last_error);
 });
+
+// ─── Un plan, muchas variantes (22-sept-2026, Thiago) ────────────────────
+// "No tenemos ningún plan si tiene muchos sabores, muchas variables". Un plan
+// cubre TODAS las variantes del producto: la que se factura es la que el
+// cliente eligió en la página, no la que quedó fija en el plan.
+test("(e) se suscribe a la variante que eligió, no a la del plan", async () => {
+  const otra = "99887766554";
+  const res = await post(body({ shopify_variant_id: otra }));
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  const sub = rawGet(`merchants/${MID}/subscribers/${res.body.subscriber_id}`);
+  assert.equal(sub.plan_snapshot.shopify_variant_id, otra, "va la del selector");
+  assert.notEqual(sub.plan_snapshot.shopify_variant_id, String(VARIANT_ID), "no la del plan");
+});
+
+test("(e) sin variante en el body sigue usando la del plan", async () => {
+  const res = await post(body({}));
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  const sub = rawGet(`merchants/${MID}/subscribers/${res.body.subscriber_id}`);
+  assert.equal(String(sub.plan_snapshot.shopify_variant_id), String(VARIANT_ID));
+});
+
+test("(e) una variante con forma inválida se ignora", async () => {
+  for (const basura of ["", "abc", "12", "'; DROP TABLE--", "9".repeat(40)]) {
+    const res = await post(body({ shopify_variant_id: basura }));
+    assert.equal(res.statusCode, 200, `${basura}: ${JSON.stringify(res.body)}`);
+    const sub = rawGet(`merchants/${MID}/subscribers/${res.body.subscriber_id}`);
+    assert.equal(String(sub.plan_snapshot.shopify_variant_id), String(VARIANT_ID), `con "${basura}" tiene que caer a la del plan`);
+  }
+});

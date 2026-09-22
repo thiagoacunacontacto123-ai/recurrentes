@@ -1469,10 +1469,12 @@ export default async function handler(req, res) {
         // resuelve precio, cantidad y frecuencia del pack por su índice.
         setBusy(true, "Abriendo el checkout…");
         window.location.href = API_BASE + "/#/checkout?merchant=" + encodeURIComponent(MERCHANT_ID) +
-          "&plan=" + encodeURIComponent(plan.id) + "&pack=" + encodeURIComponent(state.idx) + fbCheckoutQs();
+          "&plan=" + encodeURIComponent(plan.id) + "&pack=" + encodeURIComponent(state.idx) +
+          (variantId ? "&variant=" + encodeURIComponent(variantId) : "") + fbCheckoutQs();
       }
       function addToCart() {
-        var vid = plan.shopify_variant_id || variantId;
+        // La del selector primero: si el cliente cambió de sabor, va ese.
+        var vid = variantId || plan.shopify_variant_id;
         if (!vid) { showErr("No pudimos identificar la variante. Recargá la página."); return; }
         // Tiendanube no tiene /cart/add.js: agregamos con el MISMO POST que usa el
         // formulario del tema (/comprar/ con add_to_cart + quantity). Cae en la
@@ -1656,7 +1658,10 @@ export default async function handler(req, res) {
             "&plan=" + encodeURIComponent(plan.id) +
             "&qty=" + q +
             "&freq_days=" + encodeURIComponent(plan.frequency_days || 30) +
-            "&variant=" + encodeURIComponent(plan.shopify_variant_id || variantId || "") + fbCheckoutQs();
+            // La del SELECTOR primero (22-sept): un plan cubre todas las
+            // variantes del producto, así que el que elige frutilla se lleva
+            // frutilla. La del plan queda de respaldo.
+            "&variant=" + encodeURIComponent(variantId || plan.shopify_variant_id || "") + fbCheckoutQs();
           return;
         }
         startSubscribe(plan, subPanel);

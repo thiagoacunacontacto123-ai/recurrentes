@@ -281,6 +281,10 @@ export default function Checkout() {
         ...(!pack && baseParam > 0 ? { base_price: baseParam, sub_discount: subOffParam } : {}),
         ...(discount?.code ? { discount_code: discount.code } : {}),
         ...(discount?.viaRecovery && rcParam ? { recovery_token: rcParam } : {}),
+        // La variante que venía en la URL (la que eligió en la página del
+        // producto). Sin esto el backend usa la del plan y el que compró
+        // frutilla recibía la variante por defecto (22-sept).
+        ...(variantParam ? { shopify_variant_id: variantParam } : {}),
         customer: { email: email.trim(), name: name.trim(), phone: phone.trim(), tax_id: taxid.trim() },
         ...(cfg?.whatsapp_optin ? { whatsapp_optin: waOptin } : {}),
         fb: fbAttribution(qParams()),

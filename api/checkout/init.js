@@ -389,9 +389,20 @@ export default async function handler(req, res) {
 
   const finalQty = pack ? pack.qty : (qtyReq || parseInt(plan.units_per_shipment) || 1);
   const freqDays = pack ? pack.freq : resolveFrequency(plan, frequency_days);
-  // La variante que se factura es SIEMPRE la del plan (la orden Shopify se crea
-  // con plan_snapshot.shopify_variant_id). El body sólo sirve si el plan no tiene.
-  const variantId = String(plan.shopify_variant_id || req.body.shopify_variant_id || "");
+  // La variante que se factura es la que ELIGIÓ el cliente en la página del
+  // producto (22-sept-2026, Thiago: "no tenemos ningún plan si tiene muchos
+  // sabores"). Un plan cubre todas las variantes del producto: el widget manda
+  // la del selector y esa es la que va a la orden, así el que compra frutilla
+  // recibe frutilla.
+  //
+  // Solo se acepta si es un id de variante con forma válida; si viene vacío o
+  // raro, se usa la del plan. El precio se valida igual contra Shopify más
+  // abajo (getVariantUnitPrice), así que una variante inventada no sirve para
+  // pagar menos: se cobra lo que Shopify diga que vale.
+  const variantPedida = String(req.body.shopify_variant_id || "").trim();
+  const variantId = /^\d{6,20}$/.test(variantPedida)
+    ? variantPedida
+    : String(plan.shopify_variant_id || "");
 
   // ── CAPTURA DE LEAD (carrito abandonado ANTES de tocar Pagar) ────────────────
   // El widget llama esto apenas el cliente escribe un email válido en el checkout.
@@ -439,7 +450,7 @@ export default async function handler(req, res) {
         plan_id: plan.id,
         quantity: finalQty,
         plan_snapshot: {
-          shopify_variant_id: plan.shopify_variant_id || null,
+          shopify_variant_id: variantId || plan.shopify_variant_id || null,
           shopify_product_id: plan.shopify_product_id || null,
           product_title: plan.product_title || "Suscripción",
           frequency_days: freqDays,
@@ -738,7 +749,7 @@ export default async function handler(req, res) {
     plan_id: plan.id,
     quantity: finalQty,
     plan_snapshot: {
-      shopify_variant_id: plan.shopify_variant_id || null,
+      shopify_variant_id: variantId || plan.shopify_variant_id || null,
       shopify_product_id: plan.shopify_product_id || null,
       product_title: plan.product_title || "Suscripción",
       // Perfil del negocio al momento de suscribirse (para reportes y soporte).
