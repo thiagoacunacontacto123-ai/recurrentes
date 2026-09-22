@@ -115,6 +115,15 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
   const [variantId, setVariantId] = useState("");
   const product = products.find(p => String(p.id) === String(productId));
   const variant = product?.variants?.find(v => String(v.id) === String(variantId));
+  // Sabores a precios distintos: los packs se arman con UN precio (el de la
+  // variante guardada), asi que conviene avisarlo antes de que lo descubra
+  // cobrando de menos. 22-sept, Thiago.
+  const preciosDispares = useMemo(() => {
+    const vs = product?.variants || [];
+    if (vs.length < 2) return false;
+    const ps = vs.map(v => Number(v.price) || 0).filter(n => n > 0);
+    return ps.length > 1 && new Set(ps).size > 1;
+  }, [product]);
   // En edición: la variante actual del plan en Shopify (para mostrar su precio de hoy).
   const shopifyVariant = useMemo(() => {
     if (!isEdit || manual) return null;
@@ -342,9 +351,17 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
               {product && product.variants.length > 1 && (
                 <Hint T={T}>
                   Este producto tiene <strong style={{ color:T.text }}>{product.variants.length} variantes</strong> y
-                  el plan las cubre todas: tu cliente elige la suya en la página y esa es la que recibe.
-                  {variant ? <> El precio de los packs sale de <strong style={{ color:T.text }}>{variant.title}</strong>.</> : null}
+                  el plan las cubre todas: tu cliente elige la suya en la página y esa es la que recibe
+                  en cada envío. Un sabor por suscripción: si el pack es de 3, van los 3 del mismo.
+                  {variant ? <> Los packs se arman con el precio de <strong style={{ color:T.text }}>{variant.title}</strong>.</> : null}
                 </Hint>
+              )}
+              {preciosDispares && (
+                <Callout T={T} tone="warning" style={{ marginBottom:12 }}>
+                  Tus variantes no valen todas lo mismo. El pack cobra siempre
+                  {variant ? <> el precio de <strong style={{ color:T.text }}>{variant.title}</strong></> : " un solo precio"},
+                  elija el sabor que elija. Si la diferencia te importa, escribinos y lo resolvemos juntos.
+                </Callout>
               )}
               {variant && <Hint T={T}>Precio normal (de {profile.channelInfo.label}): <strong style={{ color:T.text }}>{fmtARS(basePrice)}</strong>. Es la base de los packs y del descuento.</Hint>}
             </>
