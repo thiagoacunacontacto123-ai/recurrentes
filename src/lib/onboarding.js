@@ -165,7 +165,11 @@ export function computeSteps({ merchant, user, plansCount }) {
   }
 
   if (p.caps.widget) {
-    steps.push({ id:"design", done:designOk, manual:true, manualLabel:"Me quedo con este diseño", manualKey:designKey(mid), title:"Elegir el diseño del widget",
+    // Trabado hasta tener las integraciones, igual que "crear el plan"
+    // (22-sept, Thiago: "no debería dejar ir a modificar ningún widget si no
+    // hay integraciones"). Sin tienda no hay productos ni vista previa real.
+    steps.push({ id:"design", done:designOk, manual:true, manualLabel:"Me quedo con este diseño", manualKey:designKey(mid),
+      locked:!p.ready, lockedMsg, title:"Elegir el diseño del widget",
       short:"10 diseños del selector de packs, con tu color y tus textos.",
       why:"El widget es lo que ve tu cliente en la página de producto. Elegí uno de los 10 diseños con vista previa real, ajustá el color, las esquinas y los textos.",
       needs:["El color principal de tu marca (hex)","Un plan creado para ver la vista previa con tus packs (opcional)"],
@@ -177,7 +181,9 @@ export function computeSteps({ merchant, user, plansCount }) {
     // pasa cuando la caja no se ve.
     steps.push({ id:"activar", done: !!m.widget_verified_at || readFlag(widgetKey(mid)),
       manual:true, manualLabel:"Ya la vi en mi tienda", manualKey:widgetKey(mid),
-      locked:!planOk, lockedMsg:"Primero creá un plan.", title:"Ver la caja en tu tienda",
+      locked: !p.ready || !planOk,
+      lockedMsg: !p.ready ? lockedMsg : "Primero creá un plan.",
+      title:"Ver la caja en tu tienda",
       short:"Abrí un producto con plan y fijate que aparezca la caja de suscripción.",
       why:"Si ves DOS selectores de packs (el tuyo y el nuestro), es porque tenés otra app de bundles ocupando ese lugar: desactivá su widget en ese producto y queda solo el de Recurrentes. Si no aparece ninguno, escribinos y lo miramos.",
       needs:["Un plan activo con un producto de tu tienda","Si tenés otra app de bundles (Kaching, Pumper, Selleasy…), desactivá su widget"],

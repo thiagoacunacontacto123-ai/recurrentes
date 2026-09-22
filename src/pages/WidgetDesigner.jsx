@@ -8,6 +8,7 @@ import { buildBundleVM } from "../../shared/bundle/viewmodel.js";
 import { pricingModeOf } from "./PacksEditor.jsx";
 import { WidgetDesignTip } from "./Onboarding.jsx";
 import { useOnb } from "../lib/onboarding.js";
+import { merchantProfile } from "../../shared/platform/profile.js";
 import { MONO } from "./_shared.jsx";
 import { Segmented } from "../ui/charts.jsx";
 
@@ -497,6 +498,21 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
   const sectionH = { fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, marginBottom:8, letterSpacing:-0.2 };
   const small = { fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5 };
   const linkBtn = { background:"transparent", border:"none", color:T.accent, fontWeight:DS.w.semibold, cursor:"pointer", fontFamily:"inherit", fontSize:DS.font.sm, padding:0 };
+
+  // Sin las integraciones no hay diseñador (22-sept, Thiago): no hay productos
+  // que leer ni vista previa real, y lo que se guarde acá no se ve en ningún
+  // lado. El paso del plan de acción ya lo trababa; esto cierra la entrada por
+  // el menú lateral. Va DESPUÉS de todos los hooks (regla de Dashboard.jsx:
+  // ningún return anticipado antes de los hooks).
+  const perfil = merchantProfile(m);
+  if (!perfil.ready) {
+    return (
+      <Callout T={T} tone="warning" title="Primero conectá tus integraciones"
+        right={<Btn T={T} variant="solid" size="sm" onClick={() => { try { window.location.hash = "#/config/integraciones"; } catch (_) {} }}>Ir a Integraciones →</Btn>}>
+        El diseñador muestra tus productos y tus precios de verdad. Conectá {perfil.missing.join(" y ")} y volvé: vas a poder ver cómo queda la caja con tus packs.
+      </Callout>
+    );
+  }
 
   return (
     <div>
