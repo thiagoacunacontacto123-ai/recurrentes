@@ -113,7 +113,7 @@ export function PlansPage({ merchant, onMerchantChange, forceSub = null }) {
     ]);
     setPlans(p?.plans || []);
     setProducts(pr?.products || []);
-    setCatalogError(pr?.error ? { error: pr.error, code: pr.code, scope: pr.scope } : null);
+    setCatalogError(pr?.error ? { error: pr.error, code: pr.code, scope: pr.scope, scopes_granted: pr.scopes_granted } : null);
     setActiveSubs(act?.subscribers || []);
     setFailedSubs(fail?.subscribers || []);
     setLoading(false);

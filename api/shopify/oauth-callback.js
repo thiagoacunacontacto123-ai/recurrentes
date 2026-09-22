@@ -88,6 +88,9 @@ export default async function handler(req, res) {
     await db().collection("merchants").doc(uid).set({
       shopify_shop: shopNorm,
       shopify_token: tokenData.access_token,
+      // Lo que dice el token... que puede venir VACIO (caso Wellfresh, 22-sept):
+      // Shopify aprueba el OAuth pero no otorga ningun permiso. Por eso abajo se
+      // le pregunta a Shopify los permisos REALES y se guardan en shopify_scopes.
       shopify_scope: tokenData.scope,
       shopify_connected_at: new Date().toISOString(),
       shopify_method: ownApp ? "oauth_dev_dashboard" : "oauth_recurrentes_app",
@@ -97,6 +100,23 @@ export default async function handler(req, res) {
   } catch (e) {
     return res.status(500).send(`Error guardando token: ${e.message}`);
   }
+  // Permisos REALES del token, preguntados a Shopify. Si faltan los obligatorios
+  // la tienda queda marcada y el panel lo avisa, en vez de descubrirlo cuando
+  // falla el primer cobro. Best-effort: si no se puede consultar, no molesta.
+  try {
+    const { shAccessScopes } = await import("../_lib/shopify.js");
+    const { SHOPIFY_REQUIRED_SCOPE_IDS } = await import("../../shared/platform/shopify.js");
+    const scopes = await shAccessScopes(shopNorm, tokenData.access_token);
+    if (scopes.length) {
+      const faltan = SHOPIFY_REQUIRED_SCOPE_IDS.filter(id => !scopes.includes(id));
+      await db().collection("merchants").doc(uid).set({
+        shopify_scopes: scopes,
+        shopify_scopes_missing: faltan.length ? faltan : null,
+        shopify_scopes_checked_at: new Date().toISOString(),
+      }, { merge: true });
+    }
+  } catch (e) { console.warn("[shopify/callback] scopes:", e.message); }
+
   try { const { trackAcquisition } = await import("../_lib/acquisition.js"); await trackAcquisition(uid, "store_connected", { req }); } catch (_) {}
   // Envíos de la tienda, solos (21-sept, Thiago). Best-effort: si falla, el
   // checkout igual cotiza en vivo contra la tienda en cada compra.

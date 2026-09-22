@@ -73,6 +73,26 @@ const cleanHost = (h) => String(h || "").toLowerCase().replace(/^https?:\/\//, "
 // dominio propio, zona horaria. LANZA si Shopify falla (el caller decide si es
 // best-effort). `domains` = hosts únicos (myshopify + dominio primario).
 export const SHOP_INFO_FIELDS = "name,email,customer_email,currency,country_code,money_format,iana_timezone,domain,myshopify_domain,primary_domain,phone";
+// Permisos REALES del token, preguntandoselos a Shopify (22-sept-2026).
+// Caso Wellfresh: el OAuth termino "bien" pero Shopify devolvio el token con
+// scope VACIO, y lo guardamos igual. La tienda quedaba conectada y sin poder
+// leer productos ni crear ordenes: el error recien aparecia al usar el panel.
+// Devuelve [] si no se puede consultar (no rompe: el caller decide).
+export async function shAccessScopes(shop, token) {
+  try {
+    // Va FUERA del path versionado (/admin/oauth/...), por eso no usa call().
+    const r = await fetchRetry(`https://${shop}/admin/oauth/access_scopes.json`, {
+      headers: { "X-Shopify-Access-Token": token, "Accept": "application/json" },
+    }, { ms: 10000 });
+    if (!r.ok) return [];
+    const data = await r.json().catch(() => null);
+    return (data?.access_scopes || []).map(x => String(x.handle || "").trim().toLowerCase()).filter(Boolean);
+  } catch (e) {
+    console.warn("[shopify/scopes]", e.message);
+    return [];
+  }
+}
+
 export async function shGetShopInfo(shop, token) {
   const data = await call(shop, token, "GET", `/shop.json?fields=${SHOP_INFO_FIELDS}`);
   const s = data?.shop || {};

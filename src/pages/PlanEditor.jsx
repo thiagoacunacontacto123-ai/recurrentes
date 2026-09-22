@@ -339,9 +339,13 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
                   right={catalogError.code === "scope_missing"
                     ? <Btn T={T} variant="secondary" size="sm" type="button" onClick={()=>{ try { window.location.hash = "#/config/integraciones"; } catch (_) {} }}>Reconectar →</Btn>
                     : null}>
-                  {catalogError.code === "scope_missing"
-                    ? <>No podemos leer tus productos: tu app de Shopify todavía no tiene aprobado el permiso <strong style={{ color:T.text }}>read_products</strong>. Reconectá la tienda aceptando los permisos y van a aparecer acá.</>
-                    : <>No pudimos traer tus productos de {profile.channelInfo.label}. {catalogError.error}</>}
+                  {catalogError.code !== "scope_missing"
+                    ? <>No pudimos traer tus productos de {profile.channelInfo.label}. {catalogError.error}</>
+                    : catalogError.scopes_granted === 0
+                      // Token sin NINGUN permiso: no alcanza con tildar uno, hay
+                      // que cargar los scopes en la app y reinstalarla.
+                      ? <>Tu tienda está conectada pero <strong style={{ color:T.text }}>la app de Shopify no tiene ningún permiso</strong>. En tu panel de Shopify, entrá a la app que creaste → Configuración → API access scopes, tildá los permisos que te pasamos, guardá y volvé a conectar acá. Sin esto tampoco vamos a poder crear las órdenes de los cobros.</>
+                      : <>No podemos leer tus productos: falta el permiso <strong style={{ color:T.text }}>read_products</strong>. Reconectá la tienda aceptando los permisos y van a aparecer acá.</>}
                 </Callout>
               )}
               <Field T={T} label={`Producto ${profile.channelInfo.label}`} required>

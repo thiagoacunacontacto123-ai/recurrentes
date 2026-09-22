@@ -15,7 +15,7 @@
 //   GET  ?action=shipping-rates-admin (auth, dueño) → tarifas de Shopify para
 //        importarlas al panel: { rates:[{name,price,code,source:"shopify"}], note? }
 import { db, requireMerchant } from "./_lib/firebase.js";
-import { shListProducts, shGetShippingRates, shQuoteShippingRates, shGetShopInfo, buildShopInfoPatch, shopifyRatesForPanel } from "./_lib/shopify.js";
+import { shListProducts, shGetShippingRates, shQuoteShippingRates, shGetShopInfo, buildShopInfoPatch, shopifyRatesForPanel, shAccessScopes } from "./_lib/shopify.js";
 import { signToken } from "./_lib/token.js";
 import { appBaseUrl } from "./_lib/config.js";
 import { rateLimit, clientIp } from "./_lib/ratelimit.js";
@@ -214,10 +214,19 @@ async function handleProducts(req, res) {
     // comerciante creia que no tenia productos. Se marca aparte para que el
     // panel pueda explicarlo y mandarlo a reconectar.
     const msg = String(e.message || "");
-    if (/requires merchant approval|read_products/i.test(msg)) {
+    if (/requires merchant approval|access denied|read_products/i.test(msg)) {
+      // Le preguntamos a Shopify que permisos tiene REALMENTE el token: si no
+      // tiene NINGUNO (caso Wellfresh: el OAuth aprobo pero no otorgo nada) el
+      // aviso tiene que ser otro, porque no alcanza con tildar read_products.
+      let scopes = [];
+      try {
+        const m2 = (await db().collection("merchants").doc(merchantId).get()).data() || {};
+        scopes = await shAccessScopes(m2.shopify_shop, m2.shopify_token);
+      } catch (_) {}
       return res.status(403).json({
         error: "Tu app de Shopify todavía no tiene permiso para leer los productos.",
-        code: "scope_missing", scope: "read_products", products: [],
+        code: "scope_missing", scope: "read_products",
+        scopes_granted: scopes.length, products: [],
       });
     }
     return res.status(502).json({ error: e.message });
