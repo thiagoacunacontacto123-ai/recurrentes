@@ -15,7 +15,7 @@
 //                    dependencias externas, se puede serializar con .toString()
 //   planHasPacks(plan) → bool (pricing_mode "packs" o packs.length > 0)
 
-export const VARIANT_IDS = ["v01", "v02", "v03", "v04", "v05", "v06", "v07", "v08", "v09", "v10", "v11", "v12"];
+export const VARIANT_IDS = ["v01", "v02", "v03", "v04", "v05", "v06", "v07", "v08", "v09", "v10", "v11", "v12", "v13"];
 
 export const TEXT_DEFAULTS = Object.freeze({
   headline: "Elegí tu pack",

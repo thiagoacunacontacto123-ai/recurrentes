@@ -29,6 +29,7 @@ export const BUNDLE_VARIANTS = [
   { id: "v10", name: "Editorial",        description: "Dos columnas: packs a la izquierda y resumen del pedido sticky a la derecha. En mobile se apila." },
   { id: "v11", name: "Foto",             description: "Una fila por pack con la foto que subís vos, cinta en el recomendado y switch de suscripción antes del botón. El formato de los bundles que más venden." },
   { id: "v12", name: "Foto + regalos",   description: "Como Foto, y además cada pack muestra los regalos que incluye, con su imagen y el precio tachado. Para bundles con bonus." },
+  { id: "v13", name: "Foto + check",     description: "Como Foto, pero la suscripción se activa con un cuadrado de tilde sobre un recuadro punteado, en vez del switch. El punteado la separa de los packs y se lee como un extra que se agrega." },
 ];
 
 // ─── utils ───────────────────────────────────────────────────────────
@@ -997,6 +998,97 @@ function v11(c) {
 }
 
 // ═════════════════════════════════════════════════════════════════════
+// v13 — Foto + check (22-sept-2026, Thiago)
+// Igual que v11 (una fila por pack con la foto), pero la suscripción NO se
+// activa con un switch: es un cuadrado de tilde como el de v01, dentro de un
+// recuadro de línea punteada. El punteado lo despega de los packs y lo hace
+// leer como algo que se AGREGA, no como una opción más de la lista.
+// ═════════════════════════════════════════════════════════════════════
+function v13(c) {
+  var S = c.S, t = c.t;
+
+  var packs = c.packs.map(function (p, i) {
+    var v = c.v(p), on = i === c.idx;
+    var img = p.image
+      ? '<span class="rc-ph"><img src="' + esc(p.image) + '" alt="" loading="lazy"></span>'
+      : phFallback(p.qty);
+    var freq = c.mode === "sub" && p.freqLabel
+      ? '<span class="rc-fq">' + esc(c.freqPrefix(p) + " " + p.freqLabel) + "</span>"
+      : "";
+    return '<div class="rc-fp' + c.on(on) + '"' + c.radioAttrs(i) + ">" +
+      (p.badge ? '<span class="rc-ribbon">' + esc(p.badge) + "</span>" : "") +
+      '<span class="rc-fp-row">' + img +
+        '<span class="rc-fp-mid"><b class="rc-fp-name">' + esc(p.label) + "</b>" + c.packNote(p) +
+          '<span class="rc-chips">' +
+            (c.perUnit(p) ? '<span class="rc-pill">' + esc(c.perUnit(p)) + "</span>" : "") + freq +
+          "</span>" +
+          (c.savings(p) ? '<span class="rc-fp-save">' + esc(c.savings(p)) + "</span>" : "") +
+        "</span>" +
+        '<span class="rc-fp-price">' + c.compareHtml(p) + "<b>" + esc(fmtARS(v.price)) + "</b></span>" +
+      "</span></div>";
+  }).join("");
+
+  // El cuadrado de tilde: mismo gesto que v01, pero cuadrado y punteado.
+  var other = c.mode === "sub" ? "once" : "sub";
+  var sub =
+    '<button type="button" class="rc-subbox' + c.on(c.mode === "sub") + '" role="checkbox" aria-checked="' +
+      (c.mode === "sub" ? "true" : "false") + '" data-rc-action="mode" data-rc-value="' + other + '">' +
+      '<span class="rc-sqr" aria-hidden="true">' + SVG_CHECK + "</span>" +
+      '<span class="rc-sub-txt"><b>' + c.modeLabel("sub", true) + "</b><small>" +
+        esc(c.mode === "sub" ? c.freqText() : "Activalo y te llega solo" + (c.sel && c.sel.freqLabel ? ", cada " + c.sel.freqLabel : "") + (c.disc > 0 ? ", con " + c.disc + "% off" : "")) +
+      "</small></span></button>";
+
+  var html = c.wrap(
+    c.headHtml() +
+    '<div class="rc-fps" role="radiogroup" aria-label="' + esc(t.headline || "Elegí tu pack") + '">' + packs + "</div>" +
+    sub + c.cta() + '<div class="rc-err" role="alert"></div>' + c.trust() + c.note()
+  );
+
+  var css =
+    S + " .rc-head{display:flex;align-items:center;gap:12px;margin-bottom:16px}" +
+    S + " .rc-head::before," + S + " .rc-head::after{content:'';flex:1;height:1px;background:#e4e4e4}" +
+    S + " .rc-head h3{font-size:13px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;white-space:nowrap}" +
+    S + " .rc-fps{display:flex;flex-direction:column;gap:26px;margin-bottom:18px}" +
+    S + " .rc-fp{position:relative;border:1.5px solid #e1e1e1;border-radius:var(--rc-r);background:#fff;cursor:pointer;transition:border-color .2s,box-shadow .2s}" +
+    S + " .rc-fp:hover{border-color:var(--rc-a-l3)}" +
+    S + " .rc-fp.is-on{border:2.5px solid var(--rc-a);box-shadow:0 2px 10px var(--rc-a-l2)}" +
+    S + " .rc-ribbon{position:absolute;top:-14px;right:12px;background:var(--rc-a);color:var(--rc-on-a);font-size:12.5px;font-weight:700;padding:6px 14px;border-radius:7px;white-space:nowrap;max-width:calc(100% - 24px);overflow:hidden;text-overflow:ellipsis}" +
+    S + " .rc-fp-row{display:flex;align-items:center;gap:13px;padding:18px 16px}" +
+    S + " .rc-ph{width:96px;flex:none;display:flex;align-items:center;justify-content:center}" +
+    S + " .rc-ph img{max-width:100%;max-height:86px;height:auto;display:block;border-radius:6px}" +
+    S + " .rc-ph-x{position:relative;width:64px;height:64px;border-radius:9px;border:1.5px dashed var(--rc-a-l3);background:var(--rc-a-l1);color:var(--rc-a-t);display:flex;align-items:center;justify-content:center;margin:0 auto}" +
+    S + " .rc-ph-x svg{width:24px;height:24px;display:block;opacity:.85}" +
+    S + " .rc-ph-q{position:absolute;right:-5px;bottom:-5px;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:var(--rc-a);color:var(--rc-on-a);font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff}" +
+    S + " .rc-fp-mid{flex:1;min-width:0;display:flex;flex-direction:column;gap:0}" +
+    S + " .rc-fp-name{font-size:18px;font-weight:800;line-height:1.2}" +
+    S + " .rc-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}" +
+    S + " .rc-pill{background:#f3f3f3;font-size:13px;padding:5px 11px;border-radius:20px;font-weight:600}" +
+    S + " .rc-fq{background:var(--rc-a-l1);color:var(--rc-a-t);border:1px solid var(--rc-a-l2);font-size:12.5px;font-weight:700;padding:5px 11px;border-radius:20px}" +
+    S + " .rc-fp-save{font-size:13px;font-weight:800;color:var(--rc-ok);margin-top:7px}" +
+    S + " .rc-fp-price{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:2px}" +
+    S + " .rc-fp-price b{font-size:22px;font-weight:800;white-space:nowrap}" +
+    S + " .rc-fp-price .rc-old{font-size:13px}" +
+    // El recuadro punteado + el cuadrado de tilde.
+    S + " .rc-subbox{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:2px dashed #cbcbcb;border-radius:var(--rc-r);background:#fff;padding:14px 15px;margin-bottom:6px;cursor:pointer;transition:border-color .2s,background .2s}" +
+    S + " .rc-subbox:hover{border-color:var(--rc-a-l3)}" +
+    S + " .rc-subbox.is-on{border-color:var(--rc-a);background:var(--rc-a-l1)}" +
+    S + " .rc-sqr{width:26px;height:26px;flex-shrink:0;border:2px solid #cfcfcf;border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--rc-on-a);background:#fff;transition:all .2s}" +
+    S + " .rc-sqr svg{opacity:0;transform:scale(.4);transition:all .18s}" +
+    S + " .rc-subbox.is-on .rc-sqr{border-color:var(--rc-a);background:var(--rc-a)}" +
+    S + " .rc-subbox.is-on .rc-sqr svg{opacity:1;transform:scale(1)}" +
+    S + " .rc-sub-txt{min-width:0;display:flex;flex-direction:column;gap:2px}" +
+    S + " .rc-sub-txt b{font-size:14.5px;font-weight:800}" +
+    S + " .rc-sub-txt small{font-size:12px;color:#555;line-height:1.35}" +
+    S + " .rc-cta{margin-top:12px !important;padding:18px 14px;font-size:18px}" +
+    "@container (max-width:379px){" +
+      S + " .rc-fp-row{gap:10px;padding:15px 12px}" +
+      S + " .rc-ph{width:70px}" + S + " .rc-ph img{max-height:66px}" +
+      S + " .rc-fp-name{font-size:16px}" + S + " .rc-fp-price b{font-size:19px}" +
+    "}";
+  return { html: html, css: css };
+}
+
+// ═════════════════════════════════════════════════════════════════════
 // v12 — Foto + regalos (v11 con la franja de bonus debajo de cada pack)
 // Igual que v11, pero cada pack puede mostrar los regalos que incluye
 // (pack.gifts: [{ title, image, compare_at_ars }]). Es el formato de los
@@ -1096,7 +1188,7 @@ function v12(c) {
   return { html: html, css: css };
 }
 
-var RENDERERS = { v01: v01, v02: v02, v03: v03, v04: v04, v05: v05, v06: v06, v07: v07, v08: v08, v09: v09, v10: v10, v11: v11, v12: v12 };
+var RENDERERS = { v01: v01, v02: v02, v03: v03, v04: v04, v05: v05, v06: v06, v07: v07, v08: v08, v09: v09, v10: v10, v11: v11, v12: v12, v13: v13 };
 
 // ─── API ─────────────────────────────────────────────────────────────
 // Ajustes de tamaño del comerciante (21-sept-2026, Thiago).
