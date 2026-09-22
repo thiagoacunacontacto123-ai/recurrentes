@@ -225,31 +225,37 @@ export function UseCasesSection({ T }) {
 // El widget REAL (mismas plantillas que la tienda: shared/bundle), interactivo:
 // toggle Compra única / Suscripción y clic en los packs. Nada dibujado a mano,
 // así la landing nunca promete algo que el producto no tiene.
-// Mismo bundle que le armamos a Glowderm (22-sept, Thiago): packs por meses,
-// badges, texto propio por pack y el ahorro a la derecha. Cambia solo el color,
-// que acá es el verde de Recurrentes.
+// El bundle de Glowderm, TAL CUAL (22-sept, Thiago): mismos packs, mismos
+// nombres, mismos badges y los mismos precios. Lo único distinto es el color:
+// donde ellos tienen rosa, acá va el verde de Recurrentes.
+//
+// Los precios de suscripción van explícitos (sub_price_ars) para que den los
+// mismos números que en su tienda; si se calcularan con el descuento del plan
+// saldrían otros.
 const DEMO_PLAN = {
-  id: "demo", product_title: "Bálsamo Natural", frequency_days: 60,
+  id: "demo", product_title: "Glow Derm", frequency_days: 60,
   frequency_scales_with_qty: false, discount_pct: 15, base_price_ars: 59990,
-  // Precios con descuento real por cantidad (como los usa Glowderm): cuantas
-  // más unidades, más barata la unidad. Así el "ahorrás" cambia por pack en vez
-  // de repetir el mismo 15% tres veces.
   packs: [
-    { qty: 1, price_ars: 59990, label: "Pack 2 meses", note: "1 envase · te dura 2 meses" },
-    { qty: 2, price_ars: 101980, label: "Pack 4 meses", badge: "Más elegido",
-      note: "2 envases juntos · te duran 4 meses", frequency_days: 120, default: true },
-    { qty: 3, price_ars: 134970, label: "Pack 6 meses", badge: "Mejor precio",
-      note: "3 envases juntos · te duran 6 meses", frequency_days: 180 },
+    { qty: 1, price_ars: 59990, sub_price_ars: 50992, label: "Pack 2x1",
+      frequency_days: 60, default: true },
+    { qty: 2, price_ars: 119980, sub_price_ars: 59492, label: "Pack 4 Meses",
+      badge: "Más elegido", frequency_days: 120 },
+    { qty: 3, price_ars: 179970, sub_price_ars: 76492, label: "Pack 6 Meses",
+      badge: "Mejor precio", frequency_days: 180 },
+    { qty: 6, price_ars: 359940, sub_price_ars: 101992, label: "Pack Anual",
+      badge: "Descuento exclusivo", frequency_days: 360 },
   ],
 };
-// v01 "Filas": el mismo diseño que eligió Glowderm. Ocupa más alto que el
-// compacto pero es el que de verdad usan los clientes, así que es el que hay
-// que mostrar.
-const DEMO_MERCHANT = { widget_variant: "v01", widget_color: "#10b981", widget_radius: 14, widget_mode_default: "sub" };
+// v01 "Filas", el mismo diseño que eligió Glowderm.
+const DEMO_MERCHANT = {
+  widget_variant: "v01", widget_color: "#10b981", widget_radius: 14,
+  widget_mode_default: "sub",
+  widget_texts: { headline: "Envío Gratis + 3 Cuotas Sin Interés" },
+};
 function WidgetMock({ T }) {
   return (
     <MockFrame T={T} label="Widget en tu producto">
-      <BundlePreview plan={DEMO_PLAN} merchant={DEMO_MERCHANT} footer={false} maxWidth={470} minHeight={520} style={{ margin: "0 -4px" }}/>
+      <BundlePreview plan={DEMO_PLAN} merchant={DEMO_MERCHANT} footer={false} maxWidth={470} minHeight={620} style={{ margin: "0 -4px" }}/>
       <div style={{ marginTop: 10, fontSize: 11.5, color: T.textSm, textAlign: "center" }}>
         Probalo: tocá los packs y cambiá entre <strong style={{ color: T.textMd }}>Compra única</strong> y <strong style={{ color: T.textMd }}>Suscripción</strong>.
       </div>
