@@ -184,8 +184,55 @@ function RotatingWords({ T }) {
   );
 }
 
+// Barra fija de abajo con "Empezar gratis". Aparece cuando el visitante ya
+// bajó una pantalla y media, y se esconde al llegar al pie (ahí ya está el CTA
+// grande y taparlo sería redundante).
+function StickyCta({ T, onRegister, onToggle }) {
+  const [visible, setVisible] = React.useState(false);
+  React.useEffect(() => {
+    let ticking = false;
+    const mirar = () => {
+      ticking = false;
+      const y = window.scrollY;
+      const alFinal = y + window.innerHeight > document.body.scrollHeight - 700;
+      setVisible(y > window.innerHeight * 1.4 && !alFinal);
+    };
+    const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(mirar); } };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    mirar();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  // El aviso va aparte: setVisible ya corta solo cuando el valor no cambia, así
+  // que esto corre una vez por transición y no en cada scroll.
+  const avisar = React.useRef(onToggle); avisar.current = onToggle;
+  React.useEffect(() => { avisar.current?.(visible); }, [visible]);
+  return (
+    <div aria-hidden={!visible} style={{
+      position:"fixed", left:0, right:0, bottom:0, zIndex:85,
+      transform: visible ? "translateY(0)" : "translateY(110%)",
+      transition:"transform .28s cubic-bezier(.4,0,.2,1)",
+      pointerEvents: visible ? "auto" : "none",
+      background:T.card, borderTop:`1px solid ${T.border}`,
+      boxShadow:"0 -8px 28px rgba(0,0,0,0.22)",
+      padding:"11px 16px calc(11px + env(safe-area-inset-bottom))",
+    }}>
+      <div style={{maxWidth:1100, margin:"0 auto", display:"flex", alignItems:"center", gap:14}}>
+        <div className="rec-sticky-txt" style={{flex:1, minWidth:0}}>
+          <div style={{fontSize:14, fontWeight:800, color:T.text, lineHeight:1.25}}>Gratis hasta {FREE_SUBSCRIBERS} suscriptores</div>
+          <div style={{fontSize:12, color:T.textSm, lineHeight:1.35, marginTop:1}}>Sin tarjeta y sin comisión por venta.</div>
+        </div>
+        <button onClick={onRegister} style={{...BtnSolid(T), padding:"12px 22px", fontSize:14.5, whiteSpace:"nowrap", flexShrink:0}}>
+          Empezar gratis
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister }) {
   const irRegistro = () => { if (onRegister) onRegister(); else window.location.hash = "#/registro"; };
+  // Con la barra fija abajo, el botón de WhatsApp se corre para no taparla.
+  const [stickyOn, setStickyOn] = React.useState(false);
   const irLogin = () => { if (onLogin) onLogin(); else window.location.hash = "#/login"; };
   const ir = (id) => () => { try { document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }); } catch (_) {} };
 
@@ -401,12 +448,19 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
 
       <FaqSection T={T}/>
 
+      {/* Barra fija con el CTA, como las de las tiendas de dropshipping: aparece
+          al bajar un poco y acompaña el scroll (22-sept, Thiago). En celular es
+          donde más rinde, pero se muestra en las dos. */}
+      <StickyCta T={T} onRegister={irRegistro} onToggle={setStickyOn}/>
+
       {/* WhatsApp de Thiago, abajo a la derecha: la gente toca y le habla (18-sept). */}
       <a href={`https://wa.me/5491164117974?text=${encodeURIComponent("Hola! Vi Recurrentes y quiero saber más para mi tienda.")}`} target="_blank" rel="noopener noreferrer" aria-label="Escribinos por WhatsApp"
-        className="rec-wa-fab" style={{position:"fixed",right:18,bottom:18,zIndex:90,width:56,height:56,borderRadius:"50%",background:"#25D366",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 10px 28px rgba(37,211,102,0.45)",textDecoration:"none"}}>
+        className="rec-wa-fab" style={{position:"fixed",right:18,bottom:stickyOn ? 92 : 18,zIndex:90,width:56,height:56,borderRadius:"50%",background:"#25D366",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 10px 28px rgba(37,211,102,0.45)",textDecoration:"none"}}>
         <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.5 14.4c-.3-.1-1.8-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-.3-.1-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.6c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.9-2.2c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.1.2 2.1 3.2 5.1 4.5.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.4.2-.7.2-1.3.2-1.4-.1-.2-.3-.3-.6-.4zM12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2z"/></svg>
       </a>
-      <style>{`.rec-wa-fab:hover{transform:translateY(-2px);transition:transform .15s ease} @media(max-width:640px){.rec-wa-fab{right:14px;bottom:14px;width:52px;height:52px}}`}</style>
+      <style>{`.rec-wa-fab:hover{transform:translateY(-2px);transition:transform .15s ease} @media(max-width:640px){.rec-wa-fab{right:14px;width:52px;height:52px}
+}
+        .rec-wa-fab{transition:bottom .28s cubic-bezier(.4,0,.2,1),transform .15s ease}`}</style>
 
       {/* CTA final */}
       <section className="rec-land-wrap" style={{paddingTop:72,paddingBottom:72}}>

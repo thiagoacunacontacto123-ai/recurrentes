@@ -206,11 +206,40 @@ export function BundleFrame({ html, css, interactive = false, onAction, minHeigh
     const doc = ref.current?.contentDocument;
     if (!doc) return;
     if (interactive) {
+      // En el celular el `click` dentro del iframe llega tarde o no llega: el
+      // navegador espera a descartar que el toque sea un scroll o un doble tap
+      // (22-sept-2026, Thiago: "en celular no funciona tocarlo"). Así que se
+      // escucha el TOQUE y se resuelve ahí mismo; el click posterior se ignora
+      // para no ejecutar la acción dos veces.
+      let ultimoToque = 0;
+      const disparar = (el) => {
+        onActionRef.current?.(el.getAttribute("data-rc-action"), el.getAttribute("data-rc-value"));
+      };
+      const blanco = (e) => {
+        const t = e.target;
+        return t && t.closest ? t.closest("[data-rc-action]") : null;
+      };
+      // Dónde empezó el dedo: si se movió, fue scroll y no se cuenta como toque.
+      let desde = null;
+      doc.addEventListener("touchstart", (e) => {
+        const t = e.touches && e.touches[0];
+        desde = t ? { x: t.clientX, y: t.clientY, el: blanco(e) } : null;
+      }, { passive: true });
+      doc.addEventListener("touchend", (e) => {
+        const ini = desde; desde = null;
+        if (!ini || !ini.el) return;
+        const t = e.changedTouches && e.changedTouches[0];
+        if (t && Math.hypot(t.clientX - ini.x, t.clientY - ini.y) > 12) return; // arrastró: era scroll
+        e.preventDefault();
+        ultimoToque = Date.now();
+        disparar(ini.el);
+      });
       doc.addEventListener("click", (e) => {
-        const el = e.target && e.target.closest ? e.target.closest("[data-rc-action]") : null;
+        if (Date.now() - ultimoToque < 700) return;   // ya lo resolvió el toque
+        const el = blanco(e);
         if (!el) return;
         e.preventDefault();
-        onActionRef.current?.(el.getAttribute("data-rc-action"), el.getAttribute("data-rc-value"));
+        disparar(el);
       });
     }
     setReady(true);
