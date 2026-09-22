@@ -18,6 +18,10 @@ const ago = (days, hours = 0) => new Date(NOW - days * 86400000 - hours * 360000
 const src = (p) => new URL(`../../${p}`, import.meta.url).href;
 const { __store, __reads } = await import("./mock-firestore.mjs");
 const { __tokens, __users } = await import("./mock-auth.mjs");
+// Precios reales del tramo: si cambian (22-sept-2026 se duplicaron) el test sigue valiendo.
+const { TIER_BY_ID } = await import("../../shared/platform/pricing.js");
+const P_START = TIER_BY_ID.starter.usd, P_GROWTH = TIER_BY_ID.growth.usd;
+
 const fb = await import(src("api/_lib/firebase.js"));
 const admin = await import(src("api/_lib/admin.js"));
 const stats = (await import(src("api/stats.js"))).default;
@@ -135,7 +139,7 @@ put("merchants/old", { email: "old@x.com", created_at: ago(35), plan: "free" });
   ok(byId(o.by_business_type).physical === 4 && byId(o.by_business_type).service === 1, "reparto por tipo de negocio");
   const tier = Object.fromEntries(o.by_tier.map(x => [x.id, x]));
   ok(tier.beta?.count === 1 && tier.free?.count === 2 && tier.starter?.count === 1 && tier.growth?.count === 1 && tier.growth?.activated === 1, "reparto por plan del SaaS (beta 1 · free 2 · starter 1 · growth 1 pagando)", o.by_tier);
-  ok(o.saas.paying === 1 && o.saas.usd_month === 99 && o.saas.beta === 1, "pagan 1 (US$ 99/mes), beta 1", o.saas);
+  ok(o.saas.paying === 1 && o.saas.usd_month === P_GROWTH && o.saas.beta === 1, `pagan 1 (US$ ${P_GROWTH}/mes), beta 1`, o.saas);
   ok(o.needs_activation.length === 1 && o.needs_activation[0].id === "newbie" && o.needs_activation[0].tier === "starter" && o.needs_activation[0].plan_requested === "starter", "para activar: Gym Norte → Starter (lo pidió)", o.needs_activation);
   ok(o.stats_pending === 0, "todos los números calculados");
   const cache = doc("admin_cache/merchant_stats");
@@ -195,7 +199,7 @@ put("merchants/old", { email: "old@x.com", created_at: ago(35), plan: "free" });
   ok(r.body.ok && nb.plan_activated === "starter" && nb.plan_activated_at && !("plan_requested" in nb) && !("plan_requested_at" in nb), "activar Starter: plan_activated + borra el pedido", nb);
   ok(r.body.billing.needs_activation === false && r.body.plan_activated === "starter", "después de activar ya no pide activación", r.body.billing);
   const o = (await call(stats, { query: { action: "admin-overview" }, token: "t-admin" })).body;
-  ok(o.needs_activation.length === 0 && o.saas.paying === 2 && o.saas.usd_month === 148, "el resumen se actualiza al toque (cache invalidado)", o.saas);
+  ok(o.needs_activation.length === 0 && o.saas.paying === 2 && o.saas.usd_month === P_GROWTH + P_START, "el resumen se actualiza al toque (cache invalidado)", o.saas);
   r = await post("admin-set-plan", { merchant_id: "old", plan: "beta" });
   ok(doc("merchants/old").plan === "beta" && r.body.beta === true, "marcar beta → plan: \"beta\"");
   r = await post("admin-set-plan", { merchant_id: "old", plan: "none" });

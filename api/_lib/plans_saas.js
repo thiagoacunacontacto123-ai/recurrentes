@@ -5,7 +5,7 @@
 // Sin cobro automático todavía: el merchant "activa" el plan que le corresponde
 // (POST merchant?action=plan-request) y lo confirmamos a mano seteando
 // `plan_activated: "<tier>"` en merchants/{mid}. Nada se corta si no lo activa.
-import { PRICING_TIERS, TIER_BY_ID, FREE_SUBSCRIBERS, tierFor, nextTier, tierRank } from "../../shared/platform/pricing.js";
+import { PRICING_TIERS, TIER_BY_ID, FREE_SUBSCRIBERS, tierFor, nextTier, tierRank, tierPriceFor, priceFactor } from "../../shared/platform/pricing.js";
 import { enforcementFor, enforcementCopy, ENF_BLOCKED, ENF_GRACE } from "../../shared/platform/enforcement.js";
 
 // Merchants creados antes de esta fecha (o sin created_at) sin plan pago
@@ -148,11 +148,15 @@ export function buildBilling(m = {}, activeSubscribers = 0, { stripeAvailable = 
     stripe_available: !!stripeAvailable,
     plan: beta ? "beta" : tier.id,
     plan_label: beta ? "Beta" : tier.label,
-    plan_usd: beta ? 0 : tier.usd,
+    // Precio de ESTA tienda: con `legacy_pricing` paga menos (los que entraron
+    // antes del aumento del 22-sept mantienen su precio).
+    plan_usd: beta ? 0 : tierPriceFor(tier, m),
+    plan_usd_lista: beta ? 0 : tier.usd,
+    price_factor: priceFactor(m),
     tier: tier.id,
     tier_min: tier.min,
     tier_max: tier.max,
-    next_tier: next ? { id: next.id, label: next.label, usd: next.usd, min: next.min } : null,
+    next_tier: next ? { id: next.id, label: next.label, usd: tierPriceFor(next, m), min: next.min } : null,
     active_subscribers: n,
     free_subscribers: FREE_SUBSCRIBERS,
     activated_plan: activated,

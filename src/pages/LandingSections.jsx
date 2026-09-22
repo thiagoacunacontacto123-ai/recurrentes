@@ -3,7 +3,9 @@ import { BundlePreview } from "./WidgetDesigner.jsx";
 import { DS } from "../ui/theme.js";
 import { BtnSolid } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
-import { tierFor, FREE_SUBSCRIBERS } from "../../shared/platform/pricing.js";
+import { tierFor, FREE_SUBSCRIBERS, PRICING_TIERS } from "../../shared/platform/pricing.js";
+// El precio más barato, sacado de la escala real: la landing no lo repite a mano.
+const PRECIO_DESDE = PRICING_TIERS.find(t => t.usd > 0)?.usd ?? 0;
 
 // Secciones largas de la landing (Landing.jsx las ordena). Todo lo que se ve
 // como dato es un EJEMPLO ilustrativo y está marcado así: no hay testimonios,
@@ -610,7 +612,7 @@ const FAQS = [
   ["¿Funciona con Tiendanube?", "Sí, ya funciona: instalás la app desde Tiendanube en un clic y el widget de suscripción aparece solo en tus productos con plan. Con Shopify es una línea en el tema."],
   ["¿Y con WooCommerce o Empretienda?", "Están en camino. Mientras tanto, el link de suscripción sirve para cualquier negocio, tenga la tienda que tenga."],
   ["¿Puedo vender sin tienda online?", "Sí. Cada plan tiene su link: lo compartís por Instagram, WhatsApp o tu web, y el cliente se suscribe desde ahí."],
-  ["¿Cuánto cuesta Recurrentes?", `Es gratis hasta ${FREE_SUBSCRIBERS} suscriptores activos. Después pagás según cuántos clientes tenés cobrando, desde USD 49 por mes, con todo incluido.`],
+  ["¿Cuánto cuesta Recurrentes?", `Es gratis hasta ${FREE_SUBSCRIBERS} suscriptores activos. Después pagás según cuántos clientes tenés cobrando, desde USD ${PRECIO_DESDE} por mes, con todo incluido.`],
   ["¿Qué cuenta como suscriptor activo?", "Un cliente con su suscripción cobrando, o con un pago que Mercado Pago está reintentando. Los pausados y cancelados no cuentan."],
   ["¿Puedo dar descuentos?", "Sí: descuento por suscribirse, packs con mejor precio y cupones que valen para toda la suscripción."],
   ["¿Mercado Pago me cobra comisión?", "Sí, la comisión habitual de Mercado Pago por cada cobro, como en cualquier venta. Recurrentes no suma comisión por cobro: pagás un plan según tus suscriptores."],
@@ -802,7 +804,7 @@ function CompareCell({ T, v }) {
     // Celda nuestra con aclaración: el dato fuerte arriba, la letra chica abajo.
     if (note === "rec") return <span style={{display:"inline-flex",flexDirection:"column",gap:2}}>
       <span style={{color:T.accent,fontWeight:800}}>{main}</span>
-      <span style={{fontSize:11.5,color:T.textSm,lineHeight:1.4}}>Después, desde USD 49 por mes</span></span>;
+      <span style={{fontSize:11.5,color:T.textSm,lineHeight:1.4}}>Después, desde USD {PRECIO_DESDE} por mes</span></span>;
     const icon = main === "No" ? no(T.textSm) : main === "~" ? <span style={{fontSize:14,color:T.yellow}}>~</span> : null;
     return <span style={{display:"inline-flex",flexDirection:"column",gap:2}}>
       <span style={{display:"inline-flex",alignItems:"center",gap:6,color:main === "No" ? T.textSm : T.text,fontWeight:600}}>{icon}{main}</span>

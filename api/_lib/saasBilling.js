@@ -17,7 +17,7 @@
 // saas_current_period_end, plan_activated, plan_activated_at.
 import { db } from "./firebase.js";
 import { appBaseUrl } from "./config.js";
-import { PRICING_TIERS, TIER_BY_ID, tierFor } from "../../shared/platform/pricing.js";
+import { PRICING_TIERS, TIER_BY_ID, tierFor, tierPriceFor } from "../../shared/platform/pricing.js";
 import { formEncode, verifyStripeSignature } from "./providers/stripe.js";
 import { readRawBody } from "./providers/rawBody.js";
 import { notifyAdmin } from "./adminAlerts.js";
@@ -43,17 +43,23 @@ async function stripe(method, path, params) {
 }
 
 // Precio mensual por tramo, creado una vez y cacheado en system/stripe_saas_prices.
-async function ensurePrice(tierId) {
+// `merchant` entra para respetar su `legacy_pricing`: las tiendas anteriores al
+// aumento del 22-sept pagan la mitad. El precio de Stripe se cachea por monto,
+// así que conviven el de lista y el heredado sin pisarse.
+async function ensurePrice(tierId, merchant) {
   const tier = TIER_BY_ID[tierId];
   if (!tier || !tier.usd) throw new Error(`Tramo inválido: ${tierId}`);
+  const usd = tierPriceFor(tier, merchant);
+  if (!usd) throw new Error(`Precio en 0 para ${tierId}`);
   const ref = db().collection("system").doc("stripe_saas_prices");
   const snap = await ref.get();
   const cache = snap.exists ? (snap.data() || {}) : {};
   const mode = /^sk_test_/.test(String(process.env.STRIPE_SAAS_SECRET_KEY || "")) ? "test" : "live";
-  const key = `${mode}:${tierId}:${tier.usd}`;
+  const key = `${mode}:${tierId}:${usd}`;
   if (cache[key]) return cache[key];
-  const product = await stripe("POST", "/v1/products", { name: `Recurrentes · ${tier.label}`, metadata: { tier: tierId, app: "recurrentes" } });
-  const price = await stripe("POST", "/v1/prices", { product: product.id, currency: "usd", unit_amount: tier.usd * 100, recurring: { interval: "month" }, metadata: { tier: tierId } });
+  const nombre = usd === tier.usd ? `Recurrentes · ${tier.label}` : `Recurrentes · ${tier.label} (precio anterior)`;
+  const product = await stripe("POST", "/v1/products", { name: nombre, metadata: { tier: tierId, app: "recurrentes" } });
+  const price = await stripe("POST", "/v1/prices", { product: product.id, currency: "usd", unit_amount: usd * 100, recurring: { interval: "month" }, metadata: { tier: tierId, usd: String(usd) } });
   await ref.set({ [key]: price.id }, { merge: true });
   return price.id;
 }
@@ -61,7 +67,7 @@ async function ensurePrice(tierId) {
 const base = (origin) => (String(origin || "").startsWith(appBaseUrl()) ? origin : appBaseUrl()).replace(/\/$/, "");
 
 export async function createSaasCheckout({ merchantId, merchant, tierId, email, returnOrigin }) {
-  const price = await ensurePrice(tierId);
+  const price = await ensurePrice(tierId, merchant);
   const b = base(returnOrigin);
   const params = {
     mode: "subscription",
@@ -140,7 +146,7 @@ export async function createSaasSubscriptionWithCard({ merchantId, merchant, tie
   const c = await stripe("GET", `/v1/customers/${customer}`).catch(() => null);
   const pm = idOf(c?.invoice_settings?.default_payment_method) || idOf(c?.default_source);
   if (!pm) return null;
-  const price = await ensurePrice(tierId);
+  const price = await ensurePrice(tierId, merchant);
   const sub = await stripe("POST", "/v1/subscriptions", {
     customer, "items[0][price]": price, default_payment_method: pm,
     payment_behavior: "error_if_incomplete",
@@ -279,7 +285,7 @@ export async function syncSaasTiers({ countActive }) {
       const sub = await stripe("GET", `/v1/subscriptions/${subId}`);
       const item = sub.items?.data?.[0];
       if (!item) continue;
-      const price = await ensurePrice(tier.id);
+      const price = await ensurePrice(tier.id, m);
       await stripe("POST", `/v1/subscriptions/${subId}`, { "items[0][id]": item.id, "items[0][price]": price, proration_behavior: "none", cancel_at_period_end: "false", "metadata[tier]": tier.id });
       await d.ref.set({ saas_stripe_price_tier: tier.id, saas_cancel_at_period_end: false, saas_tier_synced_at: new Date().toISOString() }, { merge: true });
       out.changed++;

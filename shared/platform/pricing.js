@@ -9,7 +9,10 @@
 // Suscriptor activo = sub con status "active" o "payment_failed" (MP sigue
 // reintentando el cobro). Pausados, cancelados y los que nunca pagaron no cuentan.
 //
-// Escala del 16-sept-2026 (Thiago). Por suscriptor, piso → tope del tramo:
+// Escala del 22-sept-2026: los precios se DUPLICARON (Thiago). La escala
+// anterior (49/99/199/349/499/749/999/1999/2999) sigue valiendo para las
+// tiendas que entraron antes, vía `legacy_pricing` (ver abajo).
+// Por suscriptor, piso → tope del tramo:
 //   11–50 → 4,45 → 0,98 · 51–100 → 1,94 → 0,99 · 101–300 → 1,97 → 0,66
 //   301–1000 → 1,16 → 0,35 · 1001–2000 → 0,50 → 0,25 · 2001–5000 → 0,37 → 0,15
 //   5001–10000 → 0,20 → 0,10 · 10001–20000 → 0,20 → 0,10 · +20000 → 0,15 → ↓
@@ -23,16 +26,38 @@ export const INSTALL_USD = 0; // la instalación es gratis, siempre
 // `plan_activated` de cuentas existentes siga resolviendo.
 export const PRICING_TIERS = [
   { id: "free",       label: "Free",       usd: 0,    min: 0,     max: 10 },
-  { id: "starter",    label: "Starter",    usd: 49,   min: 11,    max: 50 },
-  { id: "growth",     label: "Growth",     usd: 99,   min: 51,    max: 100 },
-  { id: "scale",      label: "Scale",      usd: 199,  min: 101,   max: 300 },
-  { id: "pro",        label: "Pro",        usd: 349,  min: 301,   max: 1000 },
-  { id: "business",   label: "Business",   usd: 499,  min: 1001,  max: 2000 },
-  { id: "enterprise", label: "Enterprise", usd: 749,  min: 2001,  max: 5000 },
-  { id: "max",        label: "Max",        usd: 999,  min: 5001,  max: 10000 },
-  { id: "unlimited",  label: "Unlimited",  usd: 1999, min: 10001, max: 20000 },
-  { id: "ultra",      label: "Ultra",      usd: 2999, min: 20001, max: null },
+  { id: "starter",    label: "Starter",    usd: 99,   min: 11,    max: 50 },
+  { id: "growth",     label: "Growth",     usd: 199,  min: 51,    max: 100 },
+  { id: "scale",      label: "Scale",      usd: 399,  min: 101,   max: 300 },
+  { id: "pro",        label: "Pro",        usd: 699,  min: 301,   max: 1000 },
+  { id: "business",   label: "Business",   usd: 999,  min: 1001,  max: 2000 },
+  { id: "enterprise", label: "Enterprise", usd: 1499, min: 2001,  max: 5000 },
+  { id: "max",        label: "Max",        usd: 1999, min: 5001,  max: 10000 },
+  { id: "unlimited",  label: "Unlimited",  usd: 3999, min: 10001, max: 20000 },
+  { id: "ultra",      label: "Ultra",      usd: 5999, min: 20001, max: null },
 ];
+
+// ── Precio heredado (22-sept-2026, Thiago) ───────────────────────────────
+// Los precios se duplicaron. Las tiendas que ya estaban antes del aumento
+// pagan la MITAD del precio nuevo: es lo que les habíamos prometido cuando
+// entraron, y no se les cambia el trato de un día para el otro.
+//
+// Se marca con `legacy_pricing: 0.5` en el doc del merchant (o cualquier
+// factor entre 0 y 1). Sin el campo, paga el precio de lista.
+export const LEGACY_FACTOR_DEFAULT = 0.5;
+
+/** Factor de precio de una tienda: 1 = lista, 0.5 = mitad. */
+export function priceFactor(merchant) {
+  const f = Number(merchant?.legacy_pricing);
+  return Number.isFinite(f) && f > 0 && f <= 1 ? f : 1;
+}
+
+/** Lo que paga ESA tienda por un tramo, con su descuento heredado aplicado. */
+export function tierPriceFor(tier, merchant) {
+  const base = Number(tier?.usd) || 0;
+  if (!base) return 0;
+  return Math.round(base * priceFactor(merchant));
+}
 
 export const TIER_BY_ID = Object.fromEntries(PRICING_TIERS.map(t => [t.id, t]));
 export const PAID_TIER_IDS = PRICING_TIERS.filter(t => t.usd > 0).map(t => t.id);

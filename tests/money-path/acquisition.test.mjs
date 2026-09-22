@@ -6,6 +6,10 @@ import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { createWorld, loadApi } from "../helpers/world.mjs";
 import { seedDoc, rawGet } from "../helpers/fake-firestore.mjs";
+// Precio real del tramo: el test no se rompe si cambian los precios.
+const { TIER_BY_ID } = await loadApi("shared/platform/pricing.js");
+const STARTER = TIER_BY_ID.starter.usd;
+
 
 const A = await loadApi("api/_lib/acquisition.js");
 const HEX64 = /^[0-9a-f]{64}$/;
@@ -68,7 +72,7 @@ test("(q) el pago manda Purchase con el precio del tramo en USD", async () => {
   assert.equal(r.sent, true);
   const e = ev();
   assert.equal(e.event_name, "Purchase");
-  assert.equal(e.custom_data.value, 49);
+  assert.equal(e.custom_data.value, STARTER);
   assert.equal(e.custom_data.currency, "USD");
   assert.deepEqual(e.custom_data.content_ids, ["starter"]);
   assert.ok(rawGet("merchants/new_uid").acquisition.paid_at);
@@ -107,10 +111,10 @@ test("(q) resumen para el Admin: por anuncio, con % y filtro de días", () => {
     { id: "d", created_at: d(40), acquisition: { referrer: "https://instagram.com/" } },
     { id: "e", created_at: d(2) }, // directo, sin nada
   ];
-  const s30 = A.acquisitionSummary(accounts, { a: 49 }, { days: 30, nowMs: now });
+  const s30 = A.acquisitionSummary(accounts, { a: STARTER }, { days: 30, nowMs: now });
   assert.equal(s30.totals.registered, 4, "la cuenta de hace 40 días queda fuera de 30 días");
   assert.equal(s30.totals.paid, 1);
-  assert.equal(s30.totals.usd_month, 49);
+  assert.equal(s30.totals.usd_month, STARTER);
   const a1 = s30.by_ad.find(x => x.ad === "RC-A1-H2");
   assert.deepEqual({ r: a1.registered, c: a1.store_connected, p: a1.paid, pc: a1.pct_connected, pp: a1.pct_paid }, { r: 2, c: 2, p: 1, pc: 100, pp: 50 });
   assert.ok(s30.by_ad.some(x => x.ad === "(sin anuncio)" && x.registered === 1));
