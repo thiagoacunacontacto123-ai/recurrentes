@@ -216,10 +216,15 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
       {!compact && (
         <>
           <div style={{fontSize:DS.font.base,fontWeight:DS.w.bold,color:T.text,marginBottom:10,display:"flex",alignItems:"center",gap:8}}>Precios y packs <PackTip T={T}/></div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))",gap:8}}>
-            <ModeOption T={T} active={mode === "packs"} tag="Recomendado" title="Packs de Recurrentes" desc="Recurrentes arma el selector de packs en tu tienda (1·2·3 unidades, compra única o suscripción)." onClick={()=>onModeChange?.("packs")}/>
-            <ModeOption T={T} active={mode === "theme"} tag="Avanzado" title="Mi tema manda el precio" desc="El widget solo agrega el toggle de suscripción; precio, cantidad y frecuencia salen de tu tema." onClick={()=>onModeChange?.("theme")}/>
-          </div>
+          {/* "Mi tema manda el precio" solo se ofrece a quien YA lo está usando
+              (22-sept, Thiago): es el caso de Lumina y de nadie más. El que
+              necesite algo a medida lo arregla con nosotros, no acá. */}
+          {mode === "theme" && (
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))",gap:8}}>
+              <ModeOption T={T} active={false} tag="Recomendado" title="Packs de Recurrentes" desc="Recurrentes arma el selector de packs en tu tienda (1·2·3 unidades, compra única o suscripción)." onClick={()=>onModeChange?.("packs")}/>
+              <ModeOption T={T} active tag="Avanzado" title="Mi tema manda el precio" desc="El widget solo agrega el toggle de suscripción; precio, cantidad y frecuencia salen de tu tema." onClick={()=>onModeChange?.("theme")}/>
+            </div>
+          )}
         </>
       )}
 

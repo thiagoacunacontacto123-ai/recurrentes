@@ -322,18 +322,29 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
           ) : (
             <>
               <Field T={T} label={`Producto ${profile.channelInfo.label}`} required>
-                <select value={productId} onChange={e=>{setProductId(e.target.value); setVariantId("");}} style={iS}>
+                <select value={productId} onChange={e=>{
+                  const pid = e.target.value;
+                  setProductId(pid);
+                  // Una sola variante: se elige sola. Varias: la primera, que es
+                  // la que el tema muestra por defecto y de donde sale el precio.
+                  const prod = products.find(x => String(x.id) === String(pid));
+                  setVariantId(prod?.variants?.[0]?.id ? String(prod.variants[0].id) : "");
+                }} style={iS}>
                   <option value="">— Elegí —</option>
                   {products.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
                 </select>
               </Field>
-              {product && (
-                <Field T={T} label="Variante" required>
-                  <select value={variantId} onChange={e=>setVariantId(e.target.value)} style={iS}>
-                    <option value="">— Elegí —</option>
-                    {product.variants.map(v => <option key={v.id} value={v.id}>{v.title} — {fmtARS(v.price)}</option>)}
-                  </select>
-                </Field>
+              {/* El plan cubre TODAS las variantes del producto (22-sept): el
+                  cliente elige el sabor en la página y esa es la que se le
+                  factura. Con una sola variante se elige sola y no se pregunta
+                  nada; con varias, solo se avisa. La variante guardada queda
+                  como respaldo para los casos en que el tema no la informe. */}
+              {product && product.variants.length > 1 && (
+                <Hint T={T}>
+                  Este producto tiene <strong style={{ color:T.text }}>{product.variants.length} variantes</strong> y
+                  el plan las cubre todas: tu cliente elige la suya en la página y esa es la que recibe.
+                  {variant ? <> El precio de los packs sale de <strong style={{ color:T.text }}>{variant.title}</strong>.</> : null}
+                </Hint>
               )}
               {variant && <Hint T={T}>Precio normal (de {profile.channelInfo.label}): <strong style={{ color:T.text }}>{fmtARS(basePrice)}</strong>. Es la base de los packs y del descuento.</Hint>}
             </>
