@@ -19,7 +19,10 @@
 
 export const BILLABLE_STATUSES = ["active", "payment_failed"];
 export const FREE_SUBSCRIBERS = 10;
-export const INSTALL_USD = 0; // la instalación es gratis, siempre
+// La instalación (dejar el widget andando en la tienda) se cotiza aparte desde
+// el 22-sept-2026: lleva trabajo real y no se promete más como gratis. No se
+// publica precio en la landing; se habla en la llamada.
+export const INSTALL_USD = null;
 
 // max null = sin techo. Los tramos son contiguos: min del siguiente = max + 1.
 // Los ids viejos (starter/growth/scale/pro/unlimited) se conservan para que

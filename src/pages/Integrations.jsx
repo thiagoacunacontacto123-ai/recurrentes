@@ -92,17 +92,17 @@ function Row({ T, id, label, sub, connected, soon, required, error, warn, option
                 Pedir esta integración
               </a>
             : <>
-                {/* El OAuth de Shopify/Tiendanube traba a mucha gente. Al lado de
-                    Conectar va el atajo para que lo hagamos nosotros (21-sept,
-                    Thiago: "lo voy a empezar a poner yo a mano"). */}
+                {/* La instalación la hace Recurrentes a mano y se cotiza aparte
+                    (22-sept, Thiago): acá se pide una llamada, no se promete
+                    gratis. El precio se habla ahí, no se publica. */}
                 {waInstall && (
-                  <a href={`https://wa.me/${WA_CONECTAR}?text=${encodeURIComponent(`Hola! Quiero que me instalen ${label} en Recurrentes.`)}`}
+                  <a href={`https://wa.me/${WA_CONECTAR}?text=${encodeURIComponent(`Hola! Quiero que me instalen ${label} en Recurrentes. ¿Cómo seguimos?`)}`}
                     target="_blank" rel="noopener noreferrer"
                     style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"9px 15px", borderRadius:10,
                       border:"none", background:T.accentSolid, color:"#fff", fontSize:12.5,
                       fontWeight:800, textDecoration:"none", whiteSpace:"nowrap" }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M17.5 14.4c-.3-.1-1.8-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-.3-.1-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.6c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.9-2.2c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.1.2 2.1 3.2 5.1 4.5.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.4.2-.7.2-1.3.2-1.4-.1-.2-.3-.3-.6-.4zM12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2z"/></svg>
-                    Pedir instalación gratis
+                    Que lo instalen por mí
                   </a>
                 )}
                 {/* Con waInstall NO se muestra "Conectar": las tiendas las conecta
@@ -452,7 +452,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
   // Fila de Tiendanube: necesaria si es el canal elegido; opcional si solo está habilitada.
   const tnRow = (required) => (
     <Row T={T} id="tiendanube" label="Tiendanube" required={required} optional={!required} connected={tnOk} open={open === "tiendanube"} onToggle={() => toggle("tiendanube")} waInstall
-      sub={tnOk ? `${m.tiendanube_store_name || m.tiendanube_store_url || "Tienda conectada"} · lee tus productos y crea una orden con cada cobro` : "Para leer tus productos, mostrar el widget en tu tienda y crear una orden con cada cobro. ¿Se te complica? Te la instalamos gratis en menos de 48 horas."}
+      sub={tnOk ? `${m.tiendanube_store_name || m.tiendanube_store_url || "Tienda conectada"} · lee tus productos y crea una orden con cada cobro` : "Para leer tus productos, mostrar el widget en tu tienda y crear una orden con cada cobro. ¿Se te complica? La instalamos por vos: escribinos y lo vemos."}
       onConnect={openTn} onDisconnect={disconnectTiendanube}>
       <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", marginBottom:12 }}>
         <span style={{ fontSize:DS.font.md, color:T.textMd }}>Tienda: {code(m.tiendanube_store_url || m.tiendanube_store_id || "—")}</span>
@@ -537,7 +537,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
         <GroupTitle T={T}>Tienda</GroupTitle>
         {profile.channel === "shopify" ? (
           <Row T={T} id="shopify" label="Shopify" required connected={shopifyOk} open={open === "shopify"} onToggle={() => toggle("shopify")} waInstall
-            sub={shopifyOk ? `${m.shopify_shop} · lee tus productos y crea una orden con cada cobro` : "Para leer tus productos y crear una orden en tu tienda con cada cobro. ¿Se te complica? Te la instalamos gratis en menos de 48 horas."}
+            sub={shopifyOk ? `${m.shopify_shop} · lee tus productos y crea una orden con cada cobro` : "Para leer tus productos y crear una orden en tu tienda con cada cobro. ¿Se te complica? La instalamos por vos: escribinos y lo vemos."}
             onConnect={openShopify} onDisconnect={disconnectShopify}>
             <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", marginBottom:14 }}>
               <span style={{ fontSize:DS.font.md, color:T.textMd }}>Tienda: {code(m.shopify_shop || "—")}</span>

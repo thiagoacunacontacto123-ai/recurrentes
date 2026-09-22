@@ -328,7 +328,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         {/* Tres beneficios a lo ancho, debajo del hero y del panel (Thiago, 17-sept). */}
         <div style={{marginTop:34,paddingTop:26,borderTop:`1px solid ${T.borderL || T.border}`,display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:24}} className="rec-land-benefits">
           {[
-            ["Instalación gratis", "Y sencilla: la hacés vos en 10 minutos o te la dejamos lista nosotros."],
+            ["Cobrás con Mercado Pago", "La pasarela que tu cliente ya tiene: paga con la tarjeta o el dinero de su cuenta."],
             ["0% de comisión", "Por venta. Lo que te cobra tu cliente es tuyo: no nos quedamos con un peso de cada cobro."],
             [`Primeros ${FREE_SUBSCRIBERS} gratis`, "Suscriptores sin pagar nada: arrancás gratis y recién pagás cuando ya te funciona."],
           ].map(([v,d])=>(
