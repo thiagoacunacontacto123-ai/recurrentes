@@ -2,7 +2,7 @@ import { WidgetStatusCard } from "./WidgetVerify.jsx";
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { apiPatch } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
-import { Card, Field, InputStyle, Btn, DSToggle, Callout, Modal, toast } from "../ui/components.jsx";
+import { Card, Field, InputStyle, Btn, DSToggle, Callout, toast } from "../ui/components.jsx";
 import { BUNDLE_VARIANTS, renderBundle } from "../../shared/bundle/templates.js";
 import { buildBundleVM } from "../../shared/bundle/viewmodel.js";
 import { pricingModeOf } from "./PacksEditor.jsx";
@@ -10,7 +10,6 @@ import { WidgetDesignTip } from "./Onboarding.jsx";
 import { useOnb } from "../lib/onboarding.js";
 import { merchantProfile } from "../../shared/platform/profile.js";
 import { MONO } from "./_shared.jsx";
-import { Segmented } from "../ui/charts.jsx";
 
 // Diseñador del selector de packs (widget bundle) — SOLO diseño global del
 // merchant: variante, color, esquinas, textos, orden/modo del toggle e
@@ -101,14 +100,6 @@ export function devWhatsAppUrl(merchant) {
   const m = merchant || {};
   const who = m.store_name || m.shopify_shop || m.email || "una tienda";
   const text = "Hola! Soy " + who + " y quiero que me vinculen el selector de packs de Recurrentes en mi tienda.";
-  return `https://wa.me/${DEV_WHATSAPP}?text=${encodeURIComponent(text)}`;
-}
-
-// Pedido de cotización de un selector a medida (tiendas que no tienen uno).
-export function quoteWhatsAppUrl(merchant) {
-  const m = merchant || {};
-  const who = m.store_name || m.shopify_shop || m.email || "una tienda";
-  const text = "Hola! Soy " + who + " y quiero cotizar un desarrollo a medida del selector de suscripción para mi tienda.";
   return `https://wa.me/${DEV_WHATSAPP}?text=${encodeURIComponent(text)}`;
 }
 
@@ -434,7 +425,6 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
       widget_show_per_unit: !!showPerUnit,
       widget_mode_default: modeDefault,
       widget_mode_order: modeOrder,
-      widget_source: source, // prediseñados / desarrollo: se aplica al guardar, no al tocar el selector
     };
     const d = await apiPatch("merchant", payload, { action: "save-settings" });
     if (!d?.error) setSavedSource(source);
@@ -468,32 +458,6 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
 
 
   const selectedVariant = (BUNDLE_VARIANTS || []).find(v => v.id === variant);
-  // Cuenta vinculada a mano por los devs (beta legada o integración a medida) con el plan en modo tema.
-  // Origen del widget: "templates" (prediseñados) | "custom" (desarrollo a medida).
-  // Se cambia libremente y queda guardado. Sin elegir: Lumina (beta legada o
-  // custom_integration) arranca en desarrollo; el resto en prediseñados.
-  const hasCustomDev = m.billing?.plan === "beta" || m.custom_integration === true;
-  const defaultSource = m.widget_source || (hasCustomDev ? "custom" : "templates");
-  const [savedSource, setSavedSource] = useState(defaultSource);
-  const [source, setSource] = useState(defaultSource);
-  useEffect(() => { if (m.widget_source) { setSavedSource(m.widget_source); setSource(m.widget_source); } }, [m.widget_source]);
-  const [confirmSource, setConfirmSource] = useState(null); // cartel de advertencia antes de cambiar
-  const customDev = source === "custom";
-  const sourcePending = source !== savedSource;
-  const SOURCE_LABEL = { templates: "widgets prediseñados", custom: "desarrollo a medida" };
-  function pickSource(id) { if (id !== source) setConfirmSource(id); }
-  function confirmSwitch() {
-    const id = confirmSource; setConfirmSource(null); if (!id) return;
-    setSource(id);
-    if (id === "custom" && !hasCustomDev) { try { window.open(quoteWhatsAppUrl(m), "_blank", "noopener"); } catch (_) {} }
-    toast("Cambio pendiente: se aplica cuando guardes el diseño", "info", 5000);
-  }
-  async function saveSourceNow() {
-    const d = await apiPatch("merchant", { widget_source: source }, { action: "save-settings" });
-    if (d?.error) { toast("Error: " + d.error, "error", 6000); return; }
-    setSavedSource(source); onSaved?.();
-    toast(`Widget: ${SOURCE_LABEL[source]} · en tu tienda en ~5 min`, "success");
-  }
   const galleryPending = !!selectedPlan && selMode === "theme" && packPlans.length === 0;
   const sectionH = { fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, marginBottom:8, letterSpacing:-0.2 };
   const small = { fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5 };
@@ -516,31 +480,7 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
 
   return (
     <div>
-      <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap",marginBottom:14}}>
-        <Segmented T={T} ariaLabel="Origen del widget" value={customDev ? "custom" : "templates"} onChange={pickSource}
-          options={[{ id:"templates", label:"Usar widgets prediseñados" }, { id:"custom", label:"Usar desarrollo a medida" }]}/>
-        <span style={{...small}}>{customDev ? (hasCustomDev ? "Tu tienda usa un selector desarrollado a medida." : "Pedinos la cotización por WhatsApp y lo dejamos vinculado en tu tienda.") : "¿Querés un selector a medida para tu tienda? Elegí “desarrollo” y te cotizamos por WhatsApp."}</span>
-      </div>
-      <Modal T={T} open={!!confirmSource} onClose={() => setConfirmSource(null)} title="Vas a cambiar el widget de todos tus productos" width={520}
-        footer={<div style={{display:"flex",gap:8,justifyContent:"flex-end"}}><Btn T={T} variant="secondary" onClick={() => setConfirmSource(null)}>Cancelar</Btn><Btn T={T} variant="solid" onClick={confirmSwitch}>Entendido, cambiar</Btn></div>}>
-        <div style={{fontSize:DS.font.base,color:T.textMd,lineHeight:1.6}}>
-          <p style={{margin:"0 0 10px"}}>Pasás de <b style={{color:T.text}}>{SOURCE_LABEL[source]}</b> a <b style={{color:T.text}}>{SOURCE_LABEL[confirmSource] || ""}</b>. Esto cambia el selector de suscripción que ve el cliente <b style={{color:T.text}}>en cada página de producto</b> con un plan activo.</p>
-          {confirmSource === "custom"
-            ? <p style={{margin:"0 0 10px"}}>{hasCustomDev ? "Tus productos vuelven a mostrar el selector desarrollado a medida para tu tienda." : "Todavía no tenés un desarrollo a medida: te abrimos WhatsApp para cotizarlo. Hasta que lo vinculemos, tus productos siguen mostrando el widget prediseñado."}</p>
-            : <p style={{margin:"0 0 10px"}}>Tus productos pasan a mostrar el diseño prediseñado que elijas acá (colores, textos y packs de cada plan).</p>}
-          <p style={{margin:0,color:T.textSm,fontSize:DS.font.sm}}>El cambio <b>no es instantáneo</b>: se aplica cuando guardes el diseño. Hasta entonces tu tienda sigue como está.</p>
-        </div>
-      </Modal>
-      {sourcePending && (
-        <Callout T={T} tone="warning" style={{marginBottom:14}} right={<div style={{display:"flex",gap:8}}><Btn T={T} variant="secondary" size="sm" onClick={() => setSource(savedSource)}>Deshacer</Btn><Btn T={T} variant="solid" size="sm" onClick={saveSourceNow}>Guardar ahora</Btn></div>}>
-          Cambio pendiente a <b>{SOURCE_LABEL[source]}</b>: tus productos siguen con {SOURCE_LABEL[savedSource]} hasta que guardes el diseño.
-        </Callout>
-      )}
       {(m.shopify_token || m.tiendanube_token) && <WidgetStatusCard merchant={m} plans={activePlans} onVerified={onSaved}/>}
-      {customDev ? (
-        /* ── Desarrollo a medida: SOLO lo desarrollado para esta tienda ── */
-        <CustomDevView T={T} merchant={m} plans={activePlans} hasCustomDev={hasCustomDev}/>
-      ) : (<>
 
       {/* ── Vista previa + personalización ─────────────────────────── */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(300px, 1fr))",gap:16,alignItems:"start"}}>
@@ -702,59 +642,7 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
       </div>
 
       <DevHelpCard merchant={m} context="widget"/>
-      </>)}
     </div>
   );
 }
 
-// ─── Vista "Desarrollo a medida" ──────────────────────────────────
-// Nada de prediseñados acá: si la tienda tiene un desarrollo (Lumina), lo que le
-// hicimos y cómo pedir cambios; si no, solo el WhatsApp para cotizarlo.
-function CustomDevView({ T, merchant, plans = [], hasCustomDev }) {
-  const m = merchant || {};
-  const store = String(m.store_domain || m.shopify_shop || "").replace(/^https?:\/\//, "");
-  const storeUrl = store ? `https://${store}` : "";
-  const sectionH = { fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, marginBottom:6, letterSpacing:-0.2 };
-  const small = { fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5 };
-  if (!hasCustomDev) {
-    return (
-      <Card T={T} style={{borderColor:"#25D36655",background:`linear-gradient(135deg, ${T.card}, ${T.greenBg})`}}>
-        <div style={{display:"flex",gap:14,alignItems:"center",flexWrap:"wrap"}}>
-          <div style={{width:44,height:44,borderRadius:DS.r.lg,background:"#25D36622",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>🛠️</div>
-          <div style={{flex:1,minWidth:220}}>
-            <div style={sectionH}>Todavía no tenés un desarrollo a medida</div>
-            <div style={small}>Te diseñamos y vinculamos un selector de suscripción exclusivo para tu tienda, con tu marca y tus packs. Escribinos y te pasamos la cotización.</div>
-          </div>
-          <a href={quoteWhatsAppUrl(m)} target="_blank" rel="noopener noreferrer" className="gh-clickable"
-            style={{display:"inline-flex",alignItems:"center",gap:7,background:"#25D366",color:"#fff",border:"1px solid #1ebe5d",borderRadius:DS.r.md,padding:"10px 16px",fontSize:DS.font.base,fontWeight:DS.w.semibold,textDecoration:"none",whiteSpace:"nowrap",boxShadow:"0 4px 14px rgba(37,211,102,0.30)"}}>
-            {WA_ICON}Pedir cotización por WhatsApp
-          </a>
-        </div>
-      </Card>
-    );
-  }
-  return (
-    <div style={{display:"grid",gap:16}}>
-      <Callout T={T} tone="info" right={<WhatsAppBtn merchant={m} size="sm">Pedir un cambio</WhatsAppBtn>}>
-        Tu tienda usa un selector desarrollado a medida y vinculado por nuestros desarrolladores. Cualquier cambio (textos, packs, colores, comportamiento) pedilo por WhatsApp y lo hacemos nosotros.
-      </Callout>
-      <Card T={T}>
-        <div style={sectionH}>Tu desarrollo</div>
-        <div style={{...small,marginBottom:12}}>Está activo en las páginas de producto de estos planes{storeUrl ? <> · <a href={storeUrl} target="_blank" rel="noopener noreferrer" style={{color:T.accent,fontWeight:DS.w.semibold}}>ver tu tienda →</a></> : null}</div>
-        <div style={{display:"grid",gap:8}}>
-          {plans.length === 0 && <div style={small}>Todavía no hay planes activos.</div>}
-          {plans.map(p => (
-            <div key={p.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",border:`1px solid ${T.border}`,borderRadius:DS.r.md,background:T.bg}}>
-              {p.product_image ? <img src={p.product_image} alt="" style={{width:40,height:40,borderRadius:8,objectFit:"cover",flexShrink:0}}/> : <div style={{width:40,height:40,borderRadius:8,background:T.border,flexShrink:0}}/>}
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:DS.font.base,fontWeight:DS.w.semibold,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.product_title || p.item_name || "Plan"}</div>
-                <div style={small}>Cada {p.frequency_days || 30} días{Array.isArray(p.packs) && p.packs.length ? ` · ${p.packs.length} packs` : ""}</div>
-              </div>
-              <span style={{fontSize:10,fontWeight:700,color:"#fff",background:T.accentSolid,padding:"3px 8px",borderRadius:6,letterSpacing:0.3}}>A MEDIDA</span>
-            </div>
-          ))}
-        </div>
-      </Card>
-    </div>
-  );
-}

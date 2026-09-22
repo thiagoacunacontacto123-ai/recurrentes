@@ -850,7 +850,11 @@ async function saveSettings(merchantId, req, res) {
   }
   if ("store_name" in b) out.store_name = String(b.store_name || "").trim().slice(0, 60);
   if ("widget_hide_selector" in b) out.widget_hide_selector = String(b.widget_hide_selector || "").trim().slice(0, 300);
-  if ("widget_source" in b) out.widget_source = b.widget_source === "custom" ? "custom" : "templates";
+  // widget_source: el panel ya no lo elige (22-sept-2026, Thiago: la seccion de
+  // "desarrollo a medida" se borro; los widgets hechos a medida van a aparecer
+  // como un diseño mas al final de la galeria). Se sigue LEYENDO y se respeta lo
+  // que tenga cada tienda, pero ya no se escribe desde el panel: asi lo de
+  // Lumina queda como esta y solo lo tocamos nosotros a mano en Firestore.
   // "page" (nombre viejo del front) se acepta y se guarda como "redirect".
   if ("widget_checkout_flow" in b) out.widget_checkout_flow = normCheckoutFlow(b.widget_checkout_flow);
   if ("widget_checkout_page_path" in b) {
