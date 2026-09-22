@@ -98,7 +98,7 @@ function LinkCheckoutPreview({ T, title, image, price, frequency, color, kindLab
 //
 // Props: plan (null = nuevo) · products (shopify?action=products) · merchant ·
 //        onBack() · onSaved() · onGoWidget() (link a Planes → Widget)
-export default function PlanEditor({ plan, products = [], merchant, onBack, onSaved, onGoWidget }) {
+export default function PlanEditor({ plan, products = [], merchant, onBack, onSaved, onGoWidget, catalogError = null }) {
   const T = useT();
   const iS = InputStyle(T);
   const isEdit = !!plan;
@@ -330,6 +330,20 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
             </>
           ) : (
             <>
+              {/* El catalogo vino vacio por un motivo concreto (permiso sin
+                  aprobar, API caida): decirlo, en vez de un selector mudo.
+                  22-sept-2026, caso Wellfresh: Shopify contestaba "requires
+                  merchant approval for read_products". */}
+              {catalogError && (
+                <Callout T={T} tone="warning" style={{ marginBottom:12 }}
+                  right={catalogError.code === "scope_missing"
+                    ? <Btn T={T} variant="secondary" size="sm" type="button" onClick={()=>{ try { window.location.hash = "#/config/integraciones"; } catch (_) {} }}>Reconectar →</Btn>
+                    : null}>
+                  {catalogError.code === "scope_missing"
+                    ? <>No podemos leer tus productos: tu app de Shopify todavía no tiene aprobado el permiso <strong style={{ color:T.text }}>read_products</strong>. Reconectá la tienda aceptando los permisos y van a aparecer acá.</>
+                    : <>No pudimos traer tus productos de {profile.channelInfo.label}. {catalogError.error}</>}
+                </Callout>
+              )}
               <Field T={T} label={`Producto ${profile.channelInfo.label}`} required>
                 <select value={productId} onChange={e=>{
                   const pid = e.target.value;

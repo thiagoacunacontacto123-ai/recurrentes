@@ -66,6 +66,9 @@ export function PlansPage({ merchant, onMerchantChange, forceSub = null }) {
   const [sub, setSub] = useState(() => forceSub || readSub(widgetOn));
   const [plans, setPlans] = useState([]);
   const [products, setProducts] = useState([]);
+  // Por que vino vacio el catalogo (permiso sin aprobar, API caida): sin esto
+  // el selector de producto quedaba vacio y mudo. 22-sept-2026, caso Wellfresh.
+  const [catalogError, setCatalogError] = useState(null);
   const [activeSubs, setActiveSubs] = useState([]);
   const [failedSubs, setFailedSubs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -110,6 +113,7 @@ export function PlansPage({ merchant, onMerchantChange, forceSub = null }) {
     ]);
     setPlans(p?.plans || []);
     setProducts(pr?.products || []);
+    setCatalogError(pr?.error ? { error: pr.error, code: pr.code, scope: pr.scope } : null);
     setActiveSubs(act?.subscribers || []);
     setFailedSubs(fail?.subscribers || []);
     setLoading(false);
@@ -188,7 +192,7 @@ export function PlansPage({ merchant, onMerchantChange, forceSub = null }) {
   if (editor) {
     return (
       <PlanEditor
-        plan={editor.plan} products={products} merchant={merchant}
+        plan={editor.plan} products={products} merchant={merchant} catalogError={catalogError}
         onBack={()=>setEditor(null)}
         onSaved={(np)=>{
           const wasNew = !editor.plan; setEditor(null); loadAll();

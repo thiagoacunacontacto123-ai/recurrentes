@@ -208,6 +208,18 @@ async function handleProducts(req, res) {
     productsCache.set(merchantId, { products, ts: Date.now() });
     return res.json({ products });
   } catch (e) {
+    // Permiso sin aprobar (caso Wellfresh, 22-sept-2026): Shopify contesta
+    // "requires merchant approval for read_products scope". Antes salia como un
+    // 502 cualquiera y el panel mostraba un selector VACIO, sin decir nada: el
+    // comerciante creia que no tenia productos. Se marca aparte para que el
+    // panel pueda explicarlo y mandarlo a reconectar.
+    const msg = String(e.message || "");
+    if (/requires merchant approval|read_products/i.test(msg)) {
+      return res.status(403).json({
+        error: "Tu app de Shopify todavía no tiene permiso para leer los productos.",
+        code: "scope_missing", scope: "read_products", products: [],
+      });
+    }
     return res.status(502).json({ error: e.message });
   }
 }
