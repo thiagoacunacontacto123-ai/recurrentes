@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTabRefresh } from "../lib/tabs.js";
-import { apiGet, apiPost, apiDelete } from "../lib/api.js";
+import { apiGet, apiPost, apiPatch, apiDelete } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
 import { Card, Btn, InputStyle, DSEmpty, DSBadge, Modal, PageHeader, Callout, Loading, SubTabs, appConfirm, appAlert, appPrompt, toast } from "../ui/components.jsx";
 import { pricingModeOf } from "./PacksEditor.jsx";
@@ -72,7 +72,9 @@ export function PlansPage({ merchant, onMerchantChange, forceSub = null }) {
   const [activeSubs, setActiveSubs] = useState([]);
   const [failedSubs, setFailedSubs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("active");
+  // Arranca en "Todos": desde que los planes nacen apagados (22-sept-2026), con
+  // el filtro en "Activos" el que acabas de crear no aparecia en ningun lado.
+  const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState(readSort);
   // editor: null | { plan: null } (nuevo) | { plan } (edición)
@@ -150,6 +152,14 @@ export function PlansPage({ merchant, onMerchantChange, forceSub = null }) {
     if (!ok) return;
     await apiDelete("plans", { id: p.id });
     toast("Plan desactivado", "warning");
+    loadAll();
+  }
+  // Publicar: recien acá el plan aparece en la tienda. Los planes nacen
+  // apagados (22-sept-2026, Thiago) para poder revisarlos antes.
+  async function publishPlan(p) {
+    const d = await apiPatch("plans", { active: true }, { id: p.id });
+    if (d?.error) { toast("Error: " + d.error, "error", 6000); return; }
+    toast("Publicado: aparece en tu tienda en ~5 min", "success");
     loadAll();
   }
   async function hardDeletePlan(p) {
@@ -302,12 +312,13 @@ export function PlansPage({ merchant, onMerchantChange, forceSub = null }) {
                             : pricingModeOf(p) === "packs"
                               ? <span title="Recurrentes arma el selector de packs en tu tienda"><DSBadge T={T} color={T.accent} size="sm">Packs {(p.packs||[]).map(k=>k.qty).join("·") || "—"}</DSBadge></span>
                               : <span title="El precio, la cantidad y la frecuencia salen de tu tema"><DSBadge T={T} color={T.textSm} size="sm">Precio del tema</DSBadge></span>}
-                          {off && <DSBadge T={T} color={T.yellow} size="sm">Inactivo</DSBadge>}
+                          {off && <DSBadge T={T} color={T.yellow} size="sm">{p.published_at ? "Inactivo" : "Sin publicar"}</DSBadge>}
                           {st.failed > 0 && <span title="Suscripciones de este plan con el último cobro rechazado"><DSBadge T={T} color={T.red} size="sm">{st.failed} con pago fallido</DSBadge></span>}
                         </div>
                       </div>
                       <RowMenu T={T} label={`Acciones de ${p.product_title}`} items={[
                         { label:"Repreciar suscripciones", icon:"💲", onClick: () => repricePlan(p) },
+                        { label:"Publicar en mi tienda", icon:"▶", hidden: !off, onClick: () => publishPlan(p) },
                         { label:"Desactivar plan", icon:"⏸", hidden: off, onClick: () => deactivatePlan(p) },
                         { label:"Borrar definitivamente", icon:"🗑", danger:true, onClick: () => hardDeletePlan(p) },
                       ]}/>
@@ -358,20 +369,29 @@ export function PlansPage({ merchant, onMerchantChange, forceSub = null }) {
 
       {linkFor && <SubscriptionLinkModal plan={linkFor} merchant={merchant} profile={profile} onClose={()=>setLinkFor(null)}/>}
       {justCreated && (
-        <Modal T={T} title="Listo, tu plan ya está creado" onClose={()=>setJustCreated(null)} maxWidth={460}
+        <Modal T={T} title="Tu plan quedó guardado, sin publicar" onClose={()=>setJustCreated(null)} maxWidth={460}
           footer={
             <div style={{ display:"flex", gap:8, justifyContent:"flex-end", flexWrap:"wrap" }}>
               <Btn T={T} variant="secondary" onClick={()=>setJustCreated(null)}>Después lo veo</Btn>
               <Btn T={T} variant="solid" onClick={()=>{ setJustCreated(null); goSub("widget"); }}>Elegir el diseño →</Btn>
             </div>
           }>
+          {/* 22-sept-2026, Thiago: "me da miedo que ya se ponga cuando todavía
+              no estoy mirando la tienda". El plan nace apagado y se publica
+              cuando él quiere. */}
           <p style={{ margin:0, fontSize:DS.font.base, color:T.textMd, lineHeight:1.6 }}>
-            <strong style={{color:T.text}}>{justCreated.product_title || "Tu plan"}</strong> ya está activo y tus clientes lo ven en la página de ese producto.
+            <strong style={{color:T.text}}>{justCreated.product_title || "Tu plan"}</strong> todavía
+            <strong style={{color:T.text}}> no se ve en tu tienda</strong>: la página de ese producto sigue exactamente como está hoy.
           </p>
           <p style={{ margin:"10px 0 0", fontSize:DS.font.base, color:T.textMd, lineHeight:1.6 }}>
-            Los colores, el diseño y los textos de la caja se eligen en <strong style={{color:T.text}}>Widget</strong>, que es una sección aparte.
-            Ahí también podés ver cómo queda antes de publicarla.
+            Elegí el diseño y los textos en <strong style={{color:T.text}}>Widget</strong>, mirá cómo queda en la vista previa, y
+            cuando estés conforme tocá <strong style={{color:T.text}}>Publicar en mi tienda</strong> en el menú del plan.
           </p>
+          <div style={{ marginTop:14 }}>
+            <Btn T={T} variant="secondary" size="sm" onClick={()=>{ const p = justCreated; setJustCreated(null); publishPlan(p); }}>
+              Publicar ahora
+            </Btn>
+          </div>
         </Modal>
       )}
     </div>

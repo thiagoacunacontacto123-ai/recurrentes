@@ -157,7 +157,12 @@ export default async function handler(req, res) {
       max_pack_discount_pct: clampPct(max_pack_discount_pct, 35),
       mp_preapproval_plan_id: mpPlan.id,
       ...(ddRes.value ? { digital_delivery: ddRes.value } : {}),
-      active: true,
+      // Un plan nuevo NACE APAGADO (22-sept-2026, Thiago: "me da miedo que ya se
+      // ponga cuando todavia no estoy mirando la tienda"). El widget solo sirve
+      // planes con active:true, asi que hasta que el comerciante toque
+      // "Activar en mi tienda" su pagina de producto sigue exactamente igual.
+      // Los planes que ya existian no se tocan: esto es solo el alta.
+      active: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -192,7 +197,12 @@ export default async function handler(req, res) {
     if (patch.shipping_price_ars != null) out.shipping_price_ars = num(patch.shipping_price_ars);
     if (patch.free_shipping_from_ars != null) out.free_shipping_from_ars = num(patch.free_shipping_from_ars);
     if (patch.shipping_method_name != null) out.shipping_method_name = String(patch.shipping_method_name).trim().slice(0, 60) || "Envío a domicilio";
-    if (patch.active != null) out.active = !!patch.active;
+    if (patch.active != null) {
+      out.active = !!patch.active;
+      // La primera vez que se publica queda anotado, para poder distinguir
+      // "nunca salio a la tienda" de "lo apague a proposito". 22-sept-2026.
+      if (out.active && !cur.published_at) out.published_at = new Date().toISOString();
+    }
     if (patch.allow_custom_frequency != null) out.allow_custom_frequency = patch.allow_custom_frequency === true;
     if (patch.max_pack_discount_pct != null) out.max_pack_discount_pct = clampPct(patch.max_pack_discount_pct, 35);
     // Entrega digital (el envío solo sale para negocios sin envío: _lib/delivery.js).

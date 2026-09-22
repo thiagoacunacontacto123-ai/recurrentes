@@ -240,3 +240,17 @@ test("(j) los planes de siempre no cambian: sin los campos nuevos, todo igual", 
     assert.equal(r.hideOnce, false);
   }
 });
+
+// ─── Guardar un diseño nuevo no puede fallar por una lista escrita a mano ──
+// 22-sept-2026: al agregar v13 el panel tiraba "widget_variant debe ser
+// v01..v12" y no se podía guardar. La validación estaba hardcodeada en
+// api/merchant.js en vez de salir de VARIANT_IDS.
+test("(j) todos los diseños de la galería son guardables", async () => {
+  const src = await import("node:fs").then(fs => fs.readFileSync("api/merchant.js", "utf8"));
+  assert.ok(!/const WIDGET_VARIANT_RE = \/\^v\(/.test(src),
+    "la validación no puede ser un regex escrito a mano: se desactualiza");
+  assert.ok(/VARIANT_IDS/.test(src), "tiene que salir de VARIANT_IDS");
+  // Y la galería y la lista de ids no se pueden separar.
+  assert.deepEqual(BUNDLE_VARIANTS.map(v => v.id), VARIANT_IDS,
+    "la galería y VARIANT_IDS tienen que tener los mismos diseños");
+});

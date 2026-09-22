@@ -60,6 +60,7 @@ import { emailSubscriptionActivated, emailTeamInvite, emailPlanRequest, effectiv
 import { shGetShopInfo, buildShopInfoPatch, shopifyRatesForPanel } from "./_lib/shopify.js";
 import { importDiscountsAction, cleanDiscountCodes } from "./_lib/discountImport.js";
 import { widgetVerifyUrlAction, widgetVerifyStatusAction } from "./_lib/widgetVerify.js";
+import { VARIANT_IDS } from "../shared/bundle/viewmodel.js";
 import { REASON_CODE_RE, retentionFor } from "./_lib/retention.js";
 import { PLAN_BY_ID, buildBilling } from "./_lib/plans_saas.js";
 import { saasStripeAvailable, createSaasCheckout, createSaasPortal, createWaCardSetup, createSaasSubscriptionWithCard } from "./_lib/saasBilling.js";
@@ -658,7 +659,11 @@ const FROM_RE = /^[^<>]{1,60}<([^\s@<>]+@[^\s@<>]+\.[^\s@<>]+)>$/;
 const normHost = (v) => String(v || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/:\d+$/, "");
 
 // Widget de packs (bundle) — ver shared/bundle/SPEC.md.
-const WIDGET_VARIANT_RE = /^v(0[1-9]|1[0-2])$/;
+// Los ids salen de VARIANT_IDS (shared/bundle/viewmodel.js), que es la lista
+// unica. Estaba escrito a mano como /^v(0[1-9]|1[0-2])$/ y al agregar v13 el
+// panel no dejaba guardar: "widget_variant debe ser v01..v12". 22-sept-2026.
+const WIDGET_VARIANT_OK = new Set(VARIANT_IDS);
+const WIDGET_VARIANT_RE = { test: (v) => WIDGET_VARIANT_OK.has(String(v || "")) };
 // note_sub / note_once (21-sept-2026): el texto libre debajo de cada modo.
 // Son más largos que una etiqueta, por eso WIDGET_NOTE_MAX aparte.
 const WIDGET_TEXT_KEYS = ["headline", "once_label", "sub_label", "cta_once", "cta_sub", "savings_label", "per_unit_label", "freq_prefix"];
@@ -865,7 +870,7 @@ async function saveSettings(merchantId, req, res) {
   // Widget de packs (bundle)
   if ("widget_variant" in b) {
     const v = String(b.widget_variant || "").trim().toLowerCase();
-    if (!WIDGET_VARIANT_RE.test(v)) return bad("widget_variant debe ser v01..v12");
+    if (!WIDGET_VARIANT_RE.test(v)) return bad(`widget_variant debe ser uno de ${VARIANT_IDS.join(", ")}`);
     out.widget_variant = v;
   }
   // Textos legacy del widget viejo: se guardan tal cual (el widget clásico los
