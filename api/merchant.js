@@ -478,7 +478,13 @@ async function disconnect(merchantId, which, res) {
     ? { mp_access_token: FieldValue.delete(), mp_refresh_token: FieldValue.delete(), mp_token_expires_at: FieldValue.delete(), mp_public_key: FieldValue.delete(), mp_disconnected_at: now,
         mp_live_mode: FieldValue.delete(), mp_scope: FieldValue.delete(), mp_reconnect_required_at: FieldValue.delete(), mp_reconnect_reason: FieldValue.delete(),
         mp_token_invalid_at: FieldValue.delete(), mp_token_error: FieldValue.delete(), mp_token_refresh_error: FieldValue.delete(), mp_token_refresh_error_at: FieldValue.delete() }
-    : { shopify_token: FieldValue.delete(), shopify_scope: FieldValue.delete(), shopify_disconnected_at: now };
+    // Al desvincular la tienda también se suelta el `channel` (22-sept, Thiago:
+    // "desvinculo Tiendanube y no vuelve a aparecer Shopify"). El canal queda
+    // guardado y merchantProfile lo respeta, así que la pantalla seguía
+    // mostrando solo la plataforma vieja y no dejaba conectar la otra.
+    // Sin `channel`, defaultChannelFor() vuelve a elegir por lo que haya.
+    : { shopify_token: FieldValue.delete(), shopify_scope: FieldValue.delete(), shopify_disconnected_at: now,
+        channel: FieldValue.delete() };
   try {
     await db().collection("merchants").doc(merchantId).set(patch, { merge: true });
     return res.json({ ok: true });

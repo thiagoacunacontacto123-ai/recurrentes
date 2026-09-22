@@ -159,6 +159,11 @@ const DEFAULT_TYPE = "physical";
 function defaultChannelFor(typeId, m) {
   if (typeId === "service") return "none";
   if (typeId === "digital") return m?.shopify_token ? "shopify" : "none";
+  // Manda lo que está conectado de verdad. Importa desde el 22-sept: al
+  // desvincular una tienda se borra `channel`, así que este default decide, y
+  // si la otra plataforma sigue conectada hay que respetarla en vez de asumir
+  // Shopify (el histórico).
+  if (m?.tiendanube_token && !m?.shopify_token) return "tiendanube";
   return "shopify";
 }
 
@@ -192,7 +197,14 @@ export function merchantProfile(m) {
   const type = BUSINESS_TYPES[businessType];
 
   const storedChannel = CHANNELS[doc.channel];
-  const channel = storedChannel && storedChannel.types.includes(businessType) ? doc.channel : defaultChannelFor(businessType, doc);
+  // El `channel` guardado se ignora si esa plataforma ya NO está conectada y la
+  // otra sí: es el caso de la tienda que se pasa de Tiendanube a Shopify
+  // (22-sept). Las cuentas viejas quedaron con el canal pegado aunque
+  // desvincularan, así que no alcanza con borrarlo al desconectar.
+  const guardadoVale = storedChannel && storedChannel.types.includes(businessType)
+    && !(doc.channel === "tiendanube" && !doc.tiendanube_token && doc.shopify_token)
+    && !(doc.channel === "shopify" && !doc.shopify_token && doc.tiendanube_token);
+  const channel = guardadoVale ? doc.channel : defaultChannelFor(businessType, doc);
   const channelInfo = CHANNELS[channel];
 
   const paymentProvider = isAvailable(PAYMENT_PROVIDERS[doc.payment_provider]) ? doc.payment_provider : "mercadopago";

@@ -330,6 +330,10 @@ async function handleDisconnect(req, res) {
     tiendanube_scope: FieldValue.delete(),
     tiendanube_script_installed_at: FieldValue.delete(),
     tiendanube_disconnected_at: nowIso(),
+    // Se suelta el canal: si no, el perfil sigue diciendo "tiendanube" y la
+    // pantalla no deja conectar Shopify (22-sept, Thiago). Sin `channel`,
+    // defaultChannelFor() vuelve a elegir por lo que haya conectado.
+    channel: FieldValue.delete(),
   }, { merge: true });
   productsCache.delete(ctx.merchantId);
   return res.json({ ok: true });
