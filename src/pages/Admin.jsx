@@ -535,10 +535,10 @@ function MerchantPanel({ id, onClose, onChanged }) {
               </Section>
 
               <Section T={T} title="Cuenta">
-                <Row T={T} k="Login">
-                  {a?.email || m.email || "—"}{" "}
-                  {a && <DSBadge T={T} color={a.email_verified ? T.green : T.yellow} size="sm">{a.email_verified ? "verificado" : "sin verificar"}</DSBadge>}
-                </Row>
+                {/* Sin cartel de verificado: la verificacion de mail se saco el
+                    19-sept-2026 y nadie la hace, asi que "sin verificar" era un
+                    aviso amarillo permanente que no significaba nada. */}
+                <Row T={T} k="Login">{a?.email || m.email || "—"}</Row>
                 <Row T={T} k="Alta">{m.created_at ? `${fmtDateOnly(m.created_at)} (${ago(m.created_at)})` : "—"}</Row>
                 <Row T={T} k="Último login">{a?.last_login_at ? fmtDateTime(a.last_login_at) : "—"}</Row>
                 <Row T={T} k="Último acceso">{ago(a?.last_seen_at)}</Row>
