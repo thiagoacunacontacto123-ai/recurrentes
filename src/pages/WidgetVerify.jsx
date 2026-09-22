@@ -183,7 +183,10 @@ export function WidgetStatusCard({ merchant, plans = [], onVerified, style = {} 
   const body = issue
     ? <>Lo detectamos el {when(issue.at)} en <B T={T}>{issue.host}{issue.path || ""}</B>. Tocá “Activar en mi tienda” para volver a probar y ver cómo arreglarlo.</>
     : v ? <>Verificado el {when(v)} en <B T={T}>{m.widget_verified_host}{m.widget_verified_path || ""}</B>.{m.widget_verified_hidden ? <> Había otro selector de packs (<B T={T}>{m.widget_verified_hidden}</B>) y lo ocultamos: en ese producto manda el de Recurrentes.</> : null} Si cambiás el tema o instalás una app de bundles, volvé a verificar.</>
-    : <>Abrimos un producto tuyo y confirmamos que la caja de suscripción aparece de verdad (3 segundos en pantalla). Es la única forma de estar seguros de que tus clientes la ven.</>;
+    : <>Abrí un producto con plan y fijate que se vea la caja de suscripción.{" "}
+        <B T={T}>Si ves dos selectores de packs</B> —el tuyo y el nuestro— es porque tenés otra app de bundles
+        (Kaching, Pumper, Selleasy…) ocupando ese lugar: desactivá su widget en ese producto y queda solo el de Recurrentes.{" "}
+        <a href={WA_BUNDLE} target="_blank" rel="noopener" style={{ color: T.accent, fontWeight: 700 }}>Si no sabés cuál es, escribinos.</a></>;
   return (
     <Callout T={T} tone={tone} title={title} style={{ marginBottom: 14, ...style }}
       right={<WidgetVerifyButton merchant={m} plans={plans} onVerified={onVerified} variant={v && !issue ? "secondary" : "solid"} size="sm">{v && !issue ? "Verificar de nuevo" : "Activar en mi tienda"}</WidgetVerifyButton>}>

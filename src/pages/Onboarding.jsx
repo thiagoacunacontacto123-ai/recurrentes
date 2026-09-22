@@ -223,7 +223,7 @@ export default function OnboardingWizard({ T: Tp, DS: DSp, merchant, onb, onClos
             </div>
 
             {s.id === "shopify" && <StepHint T={T} DS={DS}>Los permisos exactos son {SHOPIFY_SCOPE_IDS.map(sc => <React.Fragment key={sc}><Code T={T}>{sc}</Code> </React.Fragment>)}. En Conectar Shopify los copiás con un botón.</StepHint>}
-            {s.id === "mp" && <StepHint T={T} DS={DS}>Usá el token de <strong style={{ color:T.text }}>producción</strong> (empieza con <Code T={T}>APP_USR-</Code>). Con uno <Code T={T}>TEST-</Code> podés probar, pero nadie te va a poder pagar de verdad.</StepHint>}
+            {(s.id === "mp" || s.id === "integraciones") && <StepHint T={T} DS={DS}>Usá el token de <strong style={{ color:T.text }}>producción</strong> (empieza con <Code T={T}>APP_USR-</Code>). Con uno <Code T={T}>TEST-</Code> podés probar, pero nadie te va a poder pagar de verdad.</StepHint>}
             {s.id === "plan" && <StepHint T={T} DS={DS}>Un buen arranque: pack x1 al precio normal con 10% de descuento por suscribirse, y pack x2 o x3 un poco más barato por unidad.</StepHint>}
             {s.id === "snippet" && <StepHint T={T} DS={DS}>{merchantProfile(merchant).channel === "tiendanube" ? "En Tiendanube no se pega nada: el widget se carga solo. Aparece únicamente en los productos que tienen plan activo." : "Se pega una sola vez para toda la tienda. El widget solo aparece en los productos que tienen plan activo."}</StepHint>}
 

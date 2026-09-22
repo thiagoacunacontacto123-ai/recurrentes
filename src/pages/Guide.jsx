@@ -226,7 +226,7 @@ function SecMp({ T, onb, goTab }) {
   return (
     <>
       <Sec T={T} title="Conectar Mercado Pago" sub="Necesitamos el Access Token de tu cuenta de MP (la que cobra) con el producto Suscripciones habilitado. Se obtiene creando una aplicación en el panel de developers de MP: es tuya y queda en tu cuenta."
-        right={<><StepStatus T={T} onb={onb} id="mp"/><Btn T={T} variant="primary" size="sm" onClick={() => goConfigSection(goTab, "integraciones")}>Ir a Integraciones →</Btn></>}>
+        right={<><StepStatus T={T} onb={onb} id="integraciones"/><Btn T={T} variant="primary" size="sm" onClick={() => goConfigSection(goTab, "integraciones")}>Ir a Integraciones →</Btn></>}>
         <Callout T={T} tone="warning" title="Tu Access Token es SECRETO" style={{ marginBottom:12 }}>Es como la llave de tu caja registradora. No lo compartas por redes, capturas ni con nadie que no sea Recurrentes. Si sospechás que se filtró, regeneralo desde MP y volvé a pegarlo.</Callout>
         <Steps T={T} items={[
           <>Con tu cuenta MP <B T={T}>de comercio</B> entrá a <A T={T} href="https://www.mercadopago.com.ar/developers/panel/app">mercadopago.com.ar/developers/panel/app</A>.<Crumb T={T} path="Mercado Pago › Developers › Tus integraciones"/></>,

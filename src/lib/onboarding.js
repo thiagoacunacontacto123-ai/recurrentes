@@ -24,7 +24,10 @@ import { SHOPIFY_SCOPE_IDS } from "../../shared/platform/shopify.js";
 
 export const WHATSAPP_SOPORTE = "https://wa.me/5491164117974";
 // Pasos del perfil histórico (físico + Shopify). El total real sale de computeSteps().
-export const TOTAL_PASOS = 9;
+// 22-sept: tienda + pasarela + Meta se unificaron en "integraciones", así que
+// el perfil Shopify quedó en 5 pasos (email · integraciones · plan · diseño ·
+// activar). El total real siempre sale de computeSteps(); esto es el respaldo.
+export const TOTAL_PASOS = 5;
 
 // ─── Claves de localStorage (todas por tienda) ─────────────────────────
 export const widgetKey       = (mid) => `rec_onb_widget_${mid || "default"}`;        // snippet pegado (manual)
@@ -69,6 +72,11 @@ export const STEP_ICONS = {
   link:     "M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71",
   settings: "M3 9l1-5h16l1 5M3 9h18v11H3zM9 20v-6h6v6",
   klaviyo:  "M4 4h16v16H4zM4 7l8 6 8-6",
+  // 22-sept: tienda + pasarela + Meta son UN paso. Enchufe = "conectar".
+  integraciones: "M9 2v6M15 2v6M6 8h12v5a6 6 0 01-12 0zM12 19v3",
+  tienda:   "M6 2l1.5 4h9L18 2M3 6h18l-1.5 14h-15zM9 10a3 3 0 006 0",
+  meta:     "M12 12c0-3 2-5 4-5s4 2 4 5-2 5-4 5-4-2-4-5zm0 0c0-3-2-5-4-5S4 9 4 12s2 5 4 5 4-2 4-5z",
+  activar:  "M9 12l2 2 4-4M12 3a9 9 0 100 18 9 9 0 000-18z",
 };
 
 // Ejemplo de plan según el tipo de negocio (textos del onboarding y del editor).
@@ -112,28 +120,37 @@ export function computeSteps({ merchant, user, plansCount }) {
     tab:"configuracion", configSec:"cuenta", cta:"Ver mi cuenta" });
 
 
-  // Tienda: Shopify o Tiendanube, un solo paso "Conectar tu tienda" (Thiago, 18-sept).
+  // Tienda + pasarela + Meta en UN SOLO paso (22-sept, Thiago: "total es toda
+  // la misma parte de integraciones"). Eran tres pasos que mandaban a la misma
+  // pantalla, así que el plan de acción se veía largo sin serlo.
+  // Queda listo cuando están las dos necesarias; Meta es opcional y no traba.
   const tnOk = Boolean(m.tiendanube_token || m.tiendanube_connected_at || m.tiendanube_store_id);
-  if (p.channel === "shopify" || p.channel === "tiendanube") {
-    steps.push({ id:"tienda", done: shopifyOk || tnOk, title:"Conectar tu tienda",
-      short:"Shopify o Tiendanube. Leemos tu catálogo y creamos una orden en tu tienda con cada cobro.",
-      why:"Recurrentes lee tus productos para armar los planes y crea una orden en tu tienda cada vez que Mercado Pago cobra una suscripción. Sin esto no hay envíos.",
-      needs:["Entrar con la cuenta dueña de la tienda","Tiendanube: instalás la app y listo · Shopify: te guiamos con tu app (5 min) y una línea en el tema"],
-      tab:"configuracion", configSec:"integraciones", guideSec: p.channel === "shopify" ? "shopify" : undefined, cta:"Conectar tienda" });
+  const tiendaOk = shopifyOk || tnOk;
+  const metaOk = Boolean(m.meta_connected || m.meta_pixel_id);
+  const necesitaTienda = p.channel === "shopify" || p.channel === "tiendanube";
+  {
+    const faltan = [];
+    if (necesitaTienda && !tiendaOk) faltan.push("tu tienda");
+    if (!mpOk) faltan.push("Mercado Pago");
+    const listo = !faltan.length;
+    steps.push({
+      id:"integraciones",
+      done: listo,
+      title:"Conectar tus integraciones",
+      short: listo
+        ? (metaOk ? "Tienda, Mercado Pago y Meta Ads conectados." : "Tienda y Mercado Pago conectados. Meta Ads es opcional.")
+        : `Tu tienda y Mercado Pago${necesitaTienda ? "" : ""}. Meta Ads es opcional. Falta ${faltan.join(" y ")}.`,
+      why:"Recurrentes lee tus productos para armar los planes y crea una orden en tu tienda cada vez que Mercado Pago cobra. Mercado Pago es la cuenta que cobra: la plata va directo a vos. Meta Ads solo si hacés publicidad, para que tus campañas cuenten las suscripciones como ventas.",
+      needs:[
+        necesitaTienda ? "Tu tienda: Tiendanube instalás la app y listo · Shopify te guiamos con el video (5 min)" : null,
+        "Mercado Pago: autorizás con un clic, con la cuenta que cobra",
+        "Meta Ads (opcional): Pixel ID y token de la API de Conversiones",
+      ].filter(Boolean),
+      tab:"configuracion", configSec:"integraciones",
+      guideSec: p.channel === "shopify" ? "shopify" : undefined,
+      cta: listo ? "Ver integraciones" : "Conectar",
+    });
   }
-
-  steps.push({ id:"mp", done:mpOk, title:"Conectar tu pasarela",
-    short:"Mercado Pago: es la cuenta que cobra, la plata va directo a vos.",
-    why:"Las suscripciones se crean y se cobran en TU cuenta de Mercado Pago. Recurrentes solo las da de alta y escucha los pagos.",
-    needs:["Tu cuenta de Mercado Pago de comercio (la que cobra): autorizás con un clic"],
-    tab:"configuracion", configSec:"integraciones", guideSec:"mp", cta:"Conectar pasarela" });
-
-  // Opcional: solo suma si hace publicidad en Facebook/Instagram.
-  steps.push({ id:"meta", done:Boolean(m.meta_connected || m.meta_pixel_id), optional:true, title:"Conectar Meta Ads (opcional)",
-    short:"Si hacés publicidad en Facebook o Instagram: que tus campañas cuenten las suscripciones como ventas.",
-    why:"Las suscripciones se pagan en el checkout de Recurrentes, así que tu pixel no las ve. Con el Pixel ID y el token de la API de Conversiones le mandamos a Meta el embudo completo: carrito (tocó Suscribirse), pago iniciado (dejó su mail) y compra (primer cobro confirmado). Las renovaciones no se mandan.",
-    needs:["Pixel ID (Configuración del negocio → Conjuntos de datos y píxeles) y token de la API de Conversiones (Administrador de eventos); te decimos dónde"],
-    tab:"configuracion", configSec:"integraciones", cta:"Conectar Meta Ads" });
 
   if (p.caps.catalog) {
     steps.push({ id:"plan", done:planOk, locked:!p.ready, lockedMsg, title: p.caps.packs ? "Crear tu primer plan con packs" : "Crear tu primer plan",
@@ -155,13 +172,18 @@ export function computeSteps({ merchant, user, plansCount }) {
       why:"El widget es lo que ve tu cliente en la página de producto. Elegí uno de los 10 diseños con vista previa real, ajustá el color, las esquinas y los textos.",
       needs:["El color principal de tu marca (hex)","Un plan creado para ver la vista previa con tus packs (opcional)"],
       tab:"planes", planesSub:"widget", guideSec:"diseno", cta:"Abrir el diseñador" });
-    // Verificación en vivo: abrimos un producto con plan y el widget avisa que quedó
-    // visible 3 s (merchant.widget_verified_at). Es lo que confirma que la tienda vende.
-    steps.push({ id:"activar", done: !!m.widget_verified_at, locked:!planOk, lockedMsg:"Primero creá un plan.", title:"Activar el widget en tu tienda",
-      short:"Abrimos un producto tuyo y confirmamos que la caja de suscripción se ve de verdad.",
-      why:"Conectar y crear el plan no alcanza: hay temas y apps de bundles que tapan el widget. Acá lo comprobamos en tu tienda real: si se ve 3 segundos, está activo. Si no, te decimos por qué.",
-      needs:["Un plan activo con un producto de tu tienda"],
-      tab:"planes", planesSub:"widget", cta:"Activar en mi tienda" });
+    // 22-sept (Thiago): esto era una verificación que esperaba el aviso del
+    // widget y a veces no llegaba nunca. Ahora es simple: abrís tu producto y
+    // mirás. Se marca a mano, como el resto de los pasos manuales.
+    // Lo importante es el aviso del bundle duplicado, que es lo que de verdad
+    // pasa cuando la caja no se ve.
+    steps.push({ id:"activar", done: !!m.widget_verified_at || readFlag(widgetKey(mid)),
+      manual:true, manualLabel:"Ya la vi en mi tienda", manualKey:widgetKey(mid),
+      locked:!planOk, lockedMsg:"Primero creá un plan.", title:"Ver la caja en tu tienda",
+      short:"Abrí un producto con plan y fijate que aparezca la caja de suscripción.",
+      why:"Si ves DOS selectores de packs (el tuyo y el nuestro), es porque tenés otra app de bundles ocupando ese lugar: desactivá su widget en ese producto y queda solo el de Recurrentes. Si no aparece ninguno, escribinos y lo miramos.",
+      needs:["Un plan activo con un producto de tu tienda","Si tenés otra app de bundles (Kaching, Pumper, Selleasy…), desactivá su widget"],
+      tab:"planes", planesSub:"widget", cta:"Abrir mi producto" });
   } else {
     steps.push({ id:"link", done:linkOk, manual:true, manualLabel:"Ya lo compartí", manualKey:linkKey(mid), locked:!planOk, lockedMsg:"Primero creá un plan.", title:"Compartir tu link de suscripción",
       short:"Pegalo en tu bio de Instagram, en WhatsApp, en tu web o imprimilo como QR.",
