@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { sendEmailVerification } from "firebase/auth";
-import { auth } from "../lib/firebase.js";
 import { DS as DS_, useT } from "../ui/theme.js";
 import { BtnPrimary, BtnSecondary, Btn, Card, SectionIcon, Callout, DSEmpty, Tip, toast } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
@@ -37,7 +35,6 @@ export default function OnboardingWizard({ T: Tp, DS: DSp, merchant, onb, onClos
   const SUMMARY = FIRST_STEP_PAGE + steps.length;
   const PAGES = SUMMARY + 1;
   const [paso, setPaso] = useState(0);
-  const [busy, setBusy] = useState(false);
 
   // Esc cierra; bloquear scroll del fondo mientras está abierto.
   useEffect(() => {
@@ -50,13 +47,6 @@ export default function OnboardingWizard({ T: Tp, DS: DSp, merchant, onb, onClos
   const go = (step) => { onClose?.(); onb?.goStep?.(step); };
   const goGuide = (sec) => { onClose?.(); onb?.goGuide?.(sec); };
   const pct = total ? Math.round((done / total) * 100) : 0;
-
-  async function reenviarMail() {
-    setBusy(true);
-    try { await sendEmailVerification(auth.currentUser); toast("Mail de verificación reenviado", "success"); }
-    catch (e) { toast("No se pudo reenviar: " + (e?.message || e?.code || "error"), "error", 6000); }
-    finally { setBusy(false); }
-  }
 
   // El recorrido se adapta al perfil del negocio (shared/platform/profile.js).
   const profile = merchantProfile(merchant);
@@ -228,13 +218,9 @@ export default function OnboardingWizard({ T: Tp, DS: DSp, merchant, onb, onClos
             {s.id === "snippet" && <StepHint T={T} DS={DS}>{merchantProfile(merchant).channel === "tiendanube" ? "En Tiendanube no se pega nada: el widget se carga solo. Aparece únicamente en los productos que tienen plan activo." : "Se pega una sola vez para toda la tienda. El widget solo aparece en los productos que tienen plan activo."}</StepHint>}
 
             <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", marginTop:DS.sp.md }}>
-              {s.id === "email" && !s.done ? (
-                <button onClick={reenviarMail} disabled={busy} style={{ ...BtnPrimary(T), fontSize:DS.font.base, padding:"9px 18px", opacity: busy ? 0.6 : 1 }}>Reenviar mail de verificación</button>
-              ) : (
-                <button onClick={() => go(s)} disabled={s.locked && !s.done} style={{ ...(s.done ? BtnSecondary(T) : BtnPrimary(T)), fontSize:DS.font.base, padding:"9px 18px", opacity: (s.locked && !s.done) ? 0.5 : 1 }}>
-                  {s.done ? "Volver a ver" : s.cta} →
-                </button>
-              )}
+              <button onClick={() => go(s)} disabled={s.locked && !s.done} style={{ ...(s.done ? BtnSecondary(T) : BtnPrimary(T)), fontSize:DS.font.base, padding:"9px 18px", opacity: (s.locked && !s.done) ? 0.5 : 1 }}>
+                {s.done ? "Volver a ver" : s.cta} →
+              </button>
               {s.guideSec && <button onClick={() => goGuide(s.guideSec)} style={{ ...BtnSecondary(T), fontSize:DS.font.base, padding:"9px 14px" }}>Ver guía paso a paso</button>}
               {s.manual && !s.done && (
                 <button onClick={() => { onb?.setManual?.(s, true); }} style={{ background:"transparent", border:"none", color:T.textSm, cursor:"pointer", fontSize:DS.font.md, padding:"8px 6px", fontFamily:F, textDecoration:"underline", textDecorationColor:T.border }}>{s.manualLabel}</button>

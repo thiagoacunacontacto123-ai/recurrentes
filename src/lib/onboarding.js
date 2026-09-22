@@ -4,10 +4,10 @@
 // vacíos de cada sección y la Guía.
 //
 // Los pasos se ADAPTAN al perfil del negocio (shared/platform/profile.js):
-//   · físico + Shopify (histórico): email · negocio · Shopify · MP · plan con packs ·
-//     diseño · snippet · tienda y envíos · Klaviyo.
-//   · sin tienda (servicios, digitales, link): email · negocio · MP · plan ·
-//     compartir el link · (envíos si es físico) · Klaviyo.
+//   · físico + Shopify: integraciones (tienda + MP + Meta) · plan con packs ·
+//     diseño del widget · ver la caja en la tienda.
+//   · sin tienda (servicios, digitales, link): integraciones (MP) · plan ·
+//     compartir el link.
 //
 // Estado de cada paso:
 //   - calculado desde `merchant` (business_type, shopify_token, mp_access_token,
@@ -24,10 +24,11 @@ import { SHOPIFY_SCOPE_IDS } from "../../shared/platform/shopify.js";
 
 export const WHATSAPP_SOPORTE = "https://wa.me/5491164117974";
 // Pasos del perfil histórico (físico + Shopify). El total real sale de computeSteps().
-// 22-sept: tienda + pasarela + Meta se unificaron en "integraciones", así que
-// el perfil Shopify quedó en 5 pasos (email · integraciones · plan · diseño ·
-// activar). El total real siempre sale de computeSteps(); esto es el respaldo.
-export const TOTAL_PASOS = 5;
+// 22-sept: tienda + pasarela + Meta se unificaron en "integraciones" y se fue
+// "verificar el email" (ya no se verifica desde el 19-sept), así que el perfil
+// Shopify quedó en 4 pasos: integraciones · plan · diseño · activar.
+// El total real siempre sale de computeSteps(); esto es el respaldo.
+export const TOTAL_PASOS = 4;
 
 // ─── Claves de localStorage (todas por tienda) ─────────────────────────
 export const widgetKey       = (mid) => `rec_onb_widget_${mid || "default"}`;        // snippet pegado (manual)
@@ -97,8 +98,6 @@ export function computeSteps({ merchant, user, plansCount }) {
   const shopifyOk = Boolean(m.shopify_token);
   const mpOk = Boolean(m.mp_access_token);
   const planOk = (Number(plansCount) || 0) > 0;
-  // Si el merchant cargó, el backend ya validó el mail (403 email_unverified si no).
-  const emailOk = user?.emailVerified === true || Boolean(m.id);
   // Negocio: lo eligió, o es un merchant histórico que ya conectó Shopify (físico).
   const color = String(m.widget_color || "#10b981").toLowerCase();
   const designOk = readFlag(designKey(mid))
@@ -113,11 +112,10 @@ export function computeSteps({ merchant, user, plansCount }) {
   const lockedMsg = p.missing.length ? `Primero conectá ${p.missing.join(" y ")}.` : "";
 
   const steps = [];
-  steps.push({ id:"email", done:emailOk, title:"Verificar tu email",
-    short:"Confirmá tu casilla para que podamos avisarte de cobros y fallas.",
-    why:"Te mandamos avisos de cobros fallidos, cancelaciones y novedades de tu cuenta a este mail.",
-    needs:["Acceso a la casilla con la que te registraste"],
-    tab:"configuracion", configSec:"cuenta", cta:"Ver mi cuenta" });
+  // "Verificar tu email" se fue (22-sept, Thiago). La verificación de mail ya
+  // se había sacado el 19-sept (verifyBearer no responde 403 email_unverified
+  // y el registro no manda el mail), así que este paso nacía siempre en "Listo":
+  // ocupaba un renglón, sumaba al contador y no pedía nada.
 
 
   // Tienda + pasarela + Meta en UN SOLO paso (22-sept, Thiago: "total es toda
