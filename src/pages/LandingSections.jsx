@@ -246,16 +246,22 @@ const DEMO_PLAN = {
       badge: "Descuento exclusivo", frequency_days: 360 },
   ],
 };
-// v01 "Filas", el mismo diseño que eligió Glowderm.
+// v02 "Pestañas": el diseño de Glowderm. El toggle Compra única / Suscripción
+// va ARRIBA, entre el título y los packs, y abajo de la línea de frecuencia va
+// directo el botón (v01 metía un segundo selector abajo que ellos no tienen).
 const DEMO_MERCHANT = {
-  widget_variant: "v01", widget_color: "#10b981", widget_radius: 14,
+  widget_variant: "v02", widget_color: "#10b981", widget_radius: 14,
   widget_mode_default: "sub",
+  // Compra única a la izquierda y Suscripción marcada, como en su tienda.
+  widget_mode_order: "once_first",
+  // Sin el "c/u": en su widget el renglón dice solo "cada 2 meses".
+  widget_show_per_unit: false,
   widget_texts: { headline: "Envío Gratis + 3 Cuotas Sin Interés" },
 };
 function WidgetMock({ T }) {
   return (
     <MockFrame T={T} label="Widget en tu producto">
-      <BundlePreview plan={DEMO_PLAN} merchant={DEMO_MERCHANT} footer={false} maxWidth={470} minHeight={620} style={{ margin: "0 -4px" }}/>
+      <BundlePreview plan={DEMO_PLAN} merchant={DEMO_MERCHANT} footer={false} maxWidth={470} minHeight={560} style={{ margin: "0 -4px" }}/>
       <div style={{ marginTop: 10, fontSize: 11.5, color: T.textSm, textAlign: "center" }}>
         Probalo: tocá los packs y cambiá entre <strong style={{ color: T.textMd }}>Compra única</strong> y <strong style={{ color: T.textMd }}>Suscripción</strong>.
       </div>
