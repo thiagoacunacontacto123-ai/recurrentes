@@ -51,6 +51,38 @@ function btnStyles(T) {
 // Número al que se piden las instalaciones a mano (21-sept-2026, Thiago).
 const WA_CONECTAR = "5491164117974";
 
+// Fila única "Tienda online" (22-sept, Thiago): al comerciante no le servía
+// elegir plataforma acá —se trababa igual— así que ve UNA fila con los logos de
+// todas y un botón para que se lo instalemos. Cuál usa se pregunta en el
+// formulario de la llamada.
+//
+// Los conectores de verdad (Shopify, Tiendanube) siguen existiendo: aparecen
+// cuando la tienda YA está conectada (para reconectar o ver ajustes) y para el
+// admin, que es quien entra a conectarlas a mano.
+const LOGOS_TIENDA = [
+  { id: "shopify",     label: "Shopify" },
+  { id: "tiendanube",  label: "Tiendanube" },
+  { id: "woocommerce", label: "WooCommerce" },
+  { id: "vtex",        label: "VTEX" },
+  { id: "empretienda", label: "Empretienda" },
+];
+function LogosTienda({ T }) {
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+      {LOGOS_TIENDA.map((x, i) => (
+        <span key={x.id} title={x.label} aria-hidden="true" style={{
+          width:30, height:30, borderRadius:9, background:T.card,
+          border:`1px solid ${T.border}`, display:"flex", alignItems:"center",
+          justifyContent:"center", marginLeft: i ? -12 : 0, zIndex: LOGOS_TIENDA.length - i,
+          boxShadow:"0 1px 3px rgba(0,0,0,0.18)",
+        }}>
+          <BrandIcon name={x.id} size={17}/>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 // ── Instalación a medida ───────────────────────────────────────────────────
 // El comerciante crea la cuenta solo y gratis (ahí está nuestra ventaja contra
 // los que piden demo antes de dejarte entrar). La llamada se pide RECIÉN acá,
@@ -556,7 +588,17 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
 
         {/* ── Tienda ── */}
         <GroupTitle T={T}>Tienda</GroupTitle>
-        {profile.channel === "shopify" ? (
+        {/* Sin tienda conectada y sin ser admin: UNA fila con los logos de todas
+            las plataformas y el botón para que se la instalemos (22-sept,
+            Thiago). Cuál usa se pregunta en el formulario de la llamada, no acá.
+            Los conectores de verdad siguen abajo para el admin y para cuando la
+            tienda ya está conectada. */}
+        {!storeConnected && !m.is_admin ? (
+          <Row T={T} id="tienda-online" label="Tienda online" required
+            sub={"Shopify, Tiendanube, WooCommerce, VTEX, Empretienda o tu web a medida. Te la dejamos andando nosotros por USD " + INSTALL_USD_PUBLICO + ", lista en menos de 48 horas."}
+            action={<LogosTienda T={T}/>}
+            waInstall/>
+        ) : profile.channel === "shopify" ? (
           <Row T={T} id="shopify" label="Shopify" required connected={shopifyOk} open={open === "shopify"} onToggle={() => toggle("shopify")} waInstall
             sub={shopifyOk ? `${m.shopify_shop} · lee tus productos y crea una orden con cada cobro` : "Para leer tus productos y crear una orden en tu tienda con cada cobro. ¿Se te complica? Te la dejamos andando nosotros por USD " + INSTALL_USD_PUBLICO + ", lista en menos de 48 horas."}
             onConnect={openShopify} onDisconnect={disconnectShopify}>
@@ -574,9 +616,12 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
             action={<a href="#/dashboard/planes" style={{ ...b.ghost, textDecoration:"none", display:"inline-block" }}>Ver mis links</a>}/>
         )}
         {tnOptional && tnRow(!storeConnected)}
-        {soonChannels.map(c => <Row key={c.id} T={T} id={c.id} label={c.label} soon sub={`${c.desc} Te la dejamos lista en menos de 7 días hábiles.`}/>)}
-        {/* Otras plataformas: todavía no hay conector, se hacen a mano (Thiago, 18-sept). */}
-        {!storeConnected && OTHER_PLATFORMS.map(o => <Row key={o.id} T={T} id={o.id} label={o.label} soon sub={o.desc}/>)}
+        {/* Las plataformas sueltas solo para el admin (o con tienda conectada):
+            al comerciante ya se las resume la fila "Tienda online". */}
+        {/* Las plataformas sueltas solo para el admin (o con tienda conectada):
+            al comerciante ya se las resume la fila "Tienda online". */}
+        {(storeConnected || m.is_admin) && soonChannels.map(c => <Row key={c.id} T={T} id={c.id} label={c.label} soon sub={`${c.desc} Te la dejamos lista en menos de 7 días hábiles.`}/>)}
+        {!storeConnected && m.is_admin && OTHER_PLATFORMS.map(o => <Row key={o.id} T={T} id={o.id} label={o.label} soon sub={o.desc}/>)}
 
         {/* ── Mensajes (WhatsApp Cloud API, WhatsAppIntegration.jsx) ── */}
         <GroupTitle T={T}>Mensajes</GroupTitle>

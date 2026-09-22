@@ -26,6 +26,12 @@ export function BrandIcon({ name, size = 24 }) {
     case "stripe": return mark("S", "#635BFF");
     case "whop": return mark("W", "#FA4616");
     case "impultienda": return mark("I", "#111827");
+    // Plataformas sin conector propio: se muestran en la fila "Tienda online"
+    // de Integraciones (22-sept). Inicial en el color de cada marca.
+    case "woocommerce": return mark("W", "#7F54B3");
+    case "vtex": return mark("V", "#F71963");
+    case "empretienda": return mark("E", "#2D6BE4");
+    case "custom": return mark("+", "#64748B");
     case "link": return (
       <svg {...P} fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>);
     default: return null;
