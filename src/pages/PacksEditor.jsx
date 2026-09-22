@@ -23,6 +23,16 @@ export function pricingModeOf(plan) {
   return Array.isArray(plan.packs) && plan.packs.length > 0 ? "packs" : "theme";
 }
 
+// Las dos columnas del editor (22-sept-2026, Thiago): la cantidad de bloques
+// NO tiene por que ser la misma en cada modo. Suscripcion va a la izquierda,
+// que es lo que queremos vender.
+const COLUMNAS = [
+  { id: "sub",  title: "Suscripción",  corto: "suscripción",  ve: (r) => r.hide_sub !== true,
+    vacio: "Sin bloques de suscripción: el widget no va a ofrecer suscribirse." },
+  { id: "once", title: "Compra única", corto: "compra única", ve: (r) => r.hide_once !== true,
+    vacio: "Sin bloques de compra única: solo se va a poder suscribir." },
+];
+
 export function emptyPackRow(qty = 1) {
   return { qty: String(qty), price_ars: "", compare_at_ars: "", label: "", note: "", note_once: "", badge: "", frequency_days: "", sub_price_ars: "", image: "", gifts: [], default: false, hide_once: false, hide_sub: false, sub_qty: "" };
 }
@@ -176,6 +186,8 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
   const error = mode === "packs" ? validatePacks(packs) : null;
 
   const upd = (i, k, v) => onPacksChange(packs.map((r, j) => j === i ? { ...r, [k]: v } : r));
+  // Varios campos a la vez: dos `upd` seguidos pisan el mismo estado.
+  const upd2 = (i, patch) => onPacksChange(packs.map((r, j) => j === i ? { ...r, ...patch } : r));
   const setDefault = (i) => onPacksChange(packs.map((r, j) => ({ ...r, default: j === i })));
   // Regalos de un pack (máx. 3): los muestra el diseño "Foto + regalos".
   const updGift = (i, gi, k, v) => onPacksChange(packs.map((r, j) => j === i
@@ -211,12 +223,16 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
     const t = setTimeout(() => setRecien(-1), 1200);
     return () => clearTimeout(t);
   }, [recien]);
-  const add = () => {
+  // `col` dice en que columna se agrega: "sub" (solo suscripcion), "once"
+  // (solo compra unica) o null (en las dos). 22-sept-2026, Thiago.
+  const add = (col = null) => {
     if (packs.length >= PACKS_MAX) return;
     const used = new Set(packs.map(r => int(r.qty)));
     let q = 1; while (used.has(q)) q++;
     const row = emptyPackRow(q);
     if (num(basePrice) > 0) row.price_ars = String(Math.round(num(basePrice) * q));
+    if (col === "sub") row.hide_once = true;
+    if (col === "once") row.hide_sub = true;
     onPacksChange([...packs, { ...row, default: packs.length === 0 }]);
     setRecien(packs.length);
   };
@@ -235,40 +251,9 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
     return p > 0 ? `auto (${Math.round(p * (1 - (num(discountPct) || 0) / 100)).toLocaleString("es-AR")})` : "auto";
   };
 
-  return (
-    <div style={compact ? {} : {marginTop:16,paddingTop:14,borderTop:`1px solid ${T.borderL}`}}>
-      {!compact && (
-        <>
-          <div style={{fontSize:DS.font.base,fontWeight:DS.w.bold,color:T.text,marginBottom:10,display:"flex",alignItems:"center",gap:8}}>Precios y packs <PackTip T={T}/></div>
-          {/* "Mi tema manda el precio" solo se ofrece a quien YA lo está usando
-              (22-sept, Thiago): es el caso de Lumina y de nadie más. El que
-              necesite algo a medida lo arregla con nosotros, no acá. */}
-          {mode === "theme" && (
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))",gap:8}}>
-              <ModeOption T={T} active={false} tag="Recomendado" title="Packs de Recurrentes" desc="Recurrentes arma el selector de packs en tu tienda (1·2·3 unidades, compra única o suscripción)." onClick={()=>onModeChange?.("packs")}/>
-              <ModeOption T={T} active tag="Avanzado" title="Mi tema manda el precio" desc="El widget solo agrega el toggle de suscripción; precio, cantidad y frecuencia salen de tu tema." onClick={()=>onModeChange?.("theme")}/>
-            </div>
-          )}
-        </>
-      )}
-
-      {mode === "packs" && (
-        <div style={{marginTop:compact ? 0 : 12}}>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:8}}>
-            <Btn T={T} variant="secondary" size="sm" type="button" onClick={generate} disabled={!(num(basePrice) > 0)} title={num(basePrice) > 0 ? "" : "Elegí primero el producto (necesito el precio base)"}>✨ Generar 1·2·3 automáticamente</Btn>
-            {packs.length === 0 && (
-              <Btn T={T} variant="secondary" size="sm" type="button" onClick={add}>+ Agregar pack</Btn>
-            )}
-            <span style={{fontSize:DS.font.xs,color:T.textSm,marginLeft:"auto"}}>{packs.length}/{PACKS_MAX}</span>
-          </div>
-
-          {packs.length === 0 ? (
-            <div style={{fontSize:DS.font.sm,color:T.textSm,padding:"10px 12px",background:T.surface,border:`1px solid ${T.borderL}`,borderRadius:DS.r.md,lineHeight:1.5}}>
-              Sin packs todavía. Tocá "Generar 1·2·3" (0 / 15 / 25 % off por cantidad sobre el precio base) o agregá uno a mano.
-            </div>
-          ) : (
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {packs.map((r, i) => {
+  // Una tarjeta de pack. Se dibuja igual en las dos columnas; `i` es
+  // SIEMPRE el indice real en `packs` (con el que cobra el checkout).
+  const renderCard = (r, i) => {
                 const d = derivePack(r, ctx);
                 return (
                   <div key={i} className="gh-list-item" style={{background:T.surface,border:`1px solid ${i===recien?T.accentSolid:r.default?T.accentSolid+"80":T.borderL}`,borderRadius:DS.r.lg,padding:"10px 12px",transition:"border-color .3s"}}>
@@ -291,36 +276,27 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                           onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.textSm}>✕</button>
                       </div>
                     </div>
-                    {/* Texto propio de ESTE pack (21-sept-2026, Thiago): "tratamiento
-                        bimensual" en el de 2, "tratamiento ultra" en el de 4. Antes
-                        el único texto de ese renglón era el mismo para todos. */}
-                    {/* Dos columnas (22-sept-2026, Thiago): el mismo pack puede
-                        aparecer solo en un modo, y con otra cantidad al
-                        suscribirse. Ej. Wellfresh: 1/3/5 sueltos, y en
-                        suscripción solo 3 y un pack de 2 que entrega 4. */}
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10,paddingTop:10,borderTop:`1px solid ${T.borderL}`}}>
-                      <div style={{opacity: r.hide_once ? .5 : 1, transition:"opacity .15s"}}>
-                        <CheckLine T={T} checked={!r.hide_once} onChange={v=>upd(i,"hide_once",!v)}>
-                          <strong style={{color:T.text}}>Compra única</strong>
-                        </CheckLine>
-                        <div style={{fontSize:DS.font.xs,color:T.textSm,marginTop:4,lineHeight:1.4}}>
-                          {r.hide_once ? "No aparece cuando compran suelto." : `Se muestra con ${int(r.qty)||1} ${(int(r.qty)||1)===1?"unidad":"unidades"}.`}
+                    {/* Ya no hace falta preguntar en que modo se muestra: lo
+                        dice la columna en la que esta. Lo que SI se ofrece es
+                        compartirlo con la otra, y la cantidad propia cuando el
+                        mismo pack vive en las dos. 22-sept-2026, Thiago. */}
+                    <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${T.borderL}`,display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
+                      <CheckLine T={T} checked={!r.hide_once && !r.hide_sub}
+                        onChange={v=>{
+                          // Compartido = visible en las dos columnas. Al destildarlo
+                          // vuelve a la columna desde la que se lo esta mirando.
+                          if (v) { upd2(i, { hide_once:false, hide_sub:false }); }
+                          else { upd2(i, r.hide_sub ? { hide_once:false, hide_sub:true } : { hide_once:true, hide_sub:false }); }
+                        }}>
+                        También en la otra columna
+                      </CheckLine>
+                      {!r.hide_once && !r.hide_sub && (
+                        <div style={{display:"flex",alignItems:"center",gap:6}}>
+                          <span style={{fontSize:DS.font.xs,color:T.textSm}}>Cantidad al suscribirse</span>
+                          <input type="number" min="1" max="50" value={r.sub_qty} onChange={e=>upd(i,"sub_qty",e.target.value)}
+                            style={{...inp,width:110}} placeholder={`igual (${int(r.qty)||1})`}/>
                         </div>
-                      </div>
-                      <div style={{opacity: r.hide_sub ? .5 : 1, transition:"opacity .15s"}}>
-                        <CheckLine T={T} checked={!r.hide_sub} onChange={v=>upd(i,"hide_sub",!v)}>
-                          <strong style={{color:T.text}}>Suscripción</strong>
-                        </CheckLine>
-                        {r.hide_sub ? (
-                          <div style={{fontSize:DS.font.xs,color:T.textSm,marginTop:4,lineHeight:1.4}}>No aparece al suscribirse.</div>
-                        ) : (
-                          <div style={{marginTop:6}}>
-                            <Lbl T={T}>Cantidad al suscribirse</Lbl>
-                            <input type="number" min="1" max="50" value={r.sub_qty} onChange={e=>upd(i,"sub_qty",e.target.value)}
-                              style={inp} placeholder={`igual (${int(r.qty)||1})`}/>
-                          </div>
-                        )}
-                      </div>
+                      )}
                     </div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:8}}>
                       <div>
@@ -401,15 +377,63 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                     </div>
                   </div>
                 );
+  };
+  return (
+    <div style={compact ? {} : {marginTop:16,paddingTop:14,borderTop:`1px solid ${T.borderL}`}}>
+      {!compact && (
+        <>
+          <div style={{fontSize:DS.font.base,fontWeight:DS.w.bold,color:T.text,marginBottom:10,display:"flex",alignItems:"center",gap:8}}>Precios y packs <PackTip T={T}/></div>
+          {/* "Mi tema manda el precio" solo se ofrece a quien YA lo está usando
+              (22-sept, Thiago): es el caso de Lumina y de nadie más. El que
+              necesite algo a medida lo arregla con nosotros, no acá. */}
+          {mode === "theme" && (
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))",gap:8}}>
+              <ModeOption T={T} active={false} tag="Recomendado" title="Packs de Recurrentes" desc="Recurrentes arma el selector de packs en tu tienda (1·2·3 unidades, compra única o suscripción)." onClick={()=>onModeChange?.("packs")}/>
+              <ModeOption T={T} active tag="Avanzado" title="Mi tema manda el precio" desc="El widget solo agrega el toggle de suscripción; precio, cantidad y frecuencia salen de tu tema." onClick={()=>onModeChange?.("theme")}/>
+            </div>
+          )}
+        </>
+      )}
+
+      {mode === "packs" && (
+        <div style={{marginTop:compact ? 0 : 12}}>
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:8}}>
+            <Btn T={T} variant="secondary" size="sm" type="button" onClick={generate} disabled={!(num(basePrice) > 0)} title={num(basePrice) > 0 ? "" : "Elegí primero el producto (necesito el precio base)"}>✨ Generar 1·2·3 automáticamente</Btn>
+            {packs.length === 0 && (
+              <Btn T={T} variant="secondary" size="sm" type="button" onClick={()=>add()}>+ Agregar pack</Btn>
+            )}
+            <span style={{fontSize:DS.font.xs,color:T.textSm,marginLeft:"auto"}}>{packs.length}/{PACKS_MAX}</span>
+          </div>
+
+          {packs.length === 0 ? (
+            <div style={{fontSize:DS.font.sm,color:T.textSm,padding:"10px 12px",background:T.surface,border:`1px solid ${T.borderL}`,borderRadius:DS.r.md,lineHeight:1.5}}>
+              Sin packs todavía. Tocá "Generar 1·2·3" (0 / 15 / 25 % off por cantidad sobre el precio base) o agregá uno a mano.
+            </div>
+          ) : (
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(330px, 1fr))",gap:14,alignItems:"start"}}>
+              {COLUMNAS.map(col => {
+                const visibles = packs.map((r, i) => [r, i]).filter(([r]) => col.ve(r));
+                return (
+                  <div key={col.id}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                      <span style={{fontSize:DS.font.sm,fontWeight:DS.w.bold,color:T.text}}>{col.title}</span>
+                      <span style={{fontSize:DS.font.xs,color:T.textSm}}>{visibles.length} {visibles.length===1?"bloque":"bloques"}</span>
+                    </div>
+                    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                      {visibles.length === 0 ? (
+                        <div style={{fontSize:DS.font.sm,color:T.textSm,padding:"10px 12px",background:T.surface,border:`1px dashed ${T.border}`,borderRadius:DS.r.md,lineHeight:1.5}}>
+                          {col.vacio}
+                        </div>
+                      ) : visibles.map(([r, i]) => renderCard(r, i))}
+                      {packs.length < PACKS_MAX && (
+                        <button type="button" onClick={()=>add(col.id)} style={{background:"transparent",border:`1px dashed ${T.border}`,borderRadius:DS.r.lg,color:T.textMd,fontSize:DS.font.sm,padding:"11px 12px",cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}
+                          onMouseEnter={e=>{e.currentTarget.style.borderColor=T.accentSolid;e.currentTarget.style.color=T.text;}}
+                          onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textMd;}}>+ Agregar a {col.corto}</button>
+                      )}
+                    </div>
+                  </div>
+                );
               })}
-              {/* El boton va ABAJO de la lista (22-sept, Thiago): el pack nuevo
-                  aparece justo aca, asi se ve que se esta agregando al final. */}
-              <div ref={finRef}/>
-              {packs.length < PACKS_MAX && (
-                <button type="button" onClick={add} style={{background:"transparent",border:`1px dashed ${T.border}`,borderRadius:DS.r.lg,color:T.textMd,fontSize:DS.font.sm,padding:"11px 12px",cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}
-                  onMouseEnter={e=>{e.currentTarget.style.borderColor=T.accentSolid;e.currentTarget.style.color=T.text;}}
-                  onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textMd;}}>+ Agregar pack</button>
-              )}
             </div>
           )}
 
