@@ -51,38 +51,6 @@ function btnStyles(T) {
 // Número al que se piden las instalaciones a mano (21-sept-2026, Thiago).
 const WA_CONECTAR = "5491164117974";
 
-// Fila única "Tienda online" (22-sept, Thiago): al comerciante no le servía
-// elegir plataforma acá —se trababa igual— así que ve UNA fila con los logos de
-// todas y un botón para que se lo instalemos. Cuál usa se pregunta en el
-// formulario de la llamada.
-//
-// Los conectores de verdad (Shopify, Tiendanube) siguen existiendo: aparecen
-// cuando la tienda YA está conectada (para reconectar o ver ajustes) y para el
-// admin, que es quien entra a conectarlas a mano.
-const LOGOS_TIENDA = [
-  { id: "shopify",     label: "Shopify" },
-  { id: "tiendanube",  label: "Tiendanube" },
-  { id: "woocommerce", label: "WooCommerce" },
-  { id: "vtex",        label: "VTEX" },
-  { id: "empretienda", label: "Empretienda" },
-];
-function LogosTienda({ T }) {
-  return (
-    <div style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
-      {LOGOS_TIENDA.map((x, i) => (
-        <span key={x.id} title={x.label} aria-hidden="true" style={{
-          width:30, height:30, borderRadius:9, background:T.card,
-          border:`1px solid ${T.border}`, display:"flex", alignItems:"center",
-          justifyContent:"center", marginLeft: i ? -12 : 0, zIndex: LOGOS_TIENDA.length - i,
-          boxShadow:"0 1px 3px rgba(0,0,0,0.18)",
-        }}>
-          <BrandIcon name={x.id} size={17}/>
-        </span>
-      ))}
-    </div>
-  );
-}
-
 // ── Instalación a medida ───────────────────────────────────────────────────
 // El comerciante crea la cuenta solo y gratis (ahí está nuestra ventaja contra
 // los que piden demo antes de dejarte entrar). La llamada se pide RECIÉN acá,
@@ -93,7 +61,10 @@ function LogosTienda({ T }) {
 // Ejemplo: "https://calendly.com/thiago-recurrentes/instalacion"
 // Vacío = se sigue pidiendo por WhatsApp.
 const AGENDA_URL = "";
-const INSTALL_USD_PUBLICO = 100;
+// Precio de la instalación. Hoy NO se muestra en el panel (Thiago, 22-sept:
+// el subtexto de cada plataforma dice solo para qué sirve); se habla en la
+// llamada. Queda acá para cuando se quiera mostrar junto al botón.
+export const INSTALL_USD_PUBLICO = 100;
 
 /** A dónde manda el botón de "que me lo instalen": agenda si existe, si no WhatsApp. */
 function linkInstalacion(label) {
@@ -335,6 +306,58 @@ function ReuseMpBox({ T, m, b, onChange }) {
   );
 }
 
+// Las plataformas que todavía no tienen conector, plegadas en una sola línea.
+// Abiertas muestran cada una con su botón para pedirla por WhatsApp.
+function OtrasPlataformas({ T, canales = [], otras = [] }) {
+  const [abierto, setAbierto] = useState(false);
+  const items = [
+    ...canales.map(c => ({ id: c.id, label: c.label, desc: c.desc })),
+    ...otras.map(o => ({ id: o.id, label: o.label, desc: o.desc })),
+  ];
+  if (!items.length) return null;
+  const b = btnStyles(T);
+  return (
+    <div style={{ borderBottom:`1px solid ${T.borderL}` }}>
+      <button type="button" onClick={() => setAbierto(v => !v)}
+        style={{ display:"flex", alignItems:"center", gap:10, width:"100%", padding:"13px 4px",
+          background:"none", border:"none", cursor:"pointer", textAlign:"left", font:"inherit", color:T.textSm }}>
+        <span style={{ display:"flex", alignItems:"center" }}>
+          {items.slice(0, 4).map((x, i) => (
+            <span key={x.id} aria-hidden="true" style={{
+              width:24, height:24, borderRadius:7, background:T.card, border:`1px solid ${T.border}`,
+              display:"flex", alignItems:"center", justifyContent:"center", marginLeft: i ? -10 : 0,
+              zIndex: 4 - i }}>
+              <BrandIcon name={x.id} size={13}/>
+            </span>
+          ))}
+        </span>
+        <span style={{ flex:1, fontSize:12.5 }}>
+          Otras plataformas <span style={{ opacity:0.7 }}>({items.length})</span> · próximamente
+        </span>
+        <span style={{ fontSize:11 }}>{abierto ? "▴" : "▾"}</span>
+      </button>
+      {abierto && (
+        <div style={{ paddingBottom:8 }}>
+          {items.map(x => (
+            <div key={x.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"9px 4px 9px 14px", flexWrap:"wrap" }}>
+              <BrandIcon name={x.id} size={20}/>
+              <div style={{ flex:"1 1 180px", minWidth:0 }}>
+                <div style={{ fontSize:12.5, fontWeight:700, color:T.text }}>{x.label}</div>
+                <div style={{ fontSize:11.5, color:T.textSm, lineHeight:1.4 }}>{x.desc}</div>
+              </div>
+              <a href={`https://wa.me/${WA_CONECTAR}?text=${encodeURIComponent(`Hola! Quiero que sumen ${x.label} a Recurrentes.`)}`}
+                target="_blank" rel="noopener noreferrer"
+                style={{ ...b.ghost, textDecoration:"none", fontSize:11.5, whiteSpace:"nowrap" }}>
+                Pedir esta integración
+              </a>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function IntegrationsTab({ merchant, onChange, embedded = false }) {
   const T = useT();
   const iS = InputStyle(T);
@@ -505,7 +528,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
   // Fila de Tiendanube: necesaria si es el canal elegido; opcional si solo está habilitada.
   const tnRow = (required) => (
     <Row T={T} id="tiendanube" label="Tiendanube" required={required} optional={!required} connected={tnOk} open={open === "tiendanube"} onToggle={() => toggle("tiendanube")} waInstall
-      sub={tnOk ? `${m.tiendanube_store_name || m.tiendanube_store_url || "Tienda conectada"} · lee tus productos y crea una orden con cada cobro` : "Para leer tus productos, mostrar el widget en tu tienda y crear una orden con cada cobro. ¿Se te complica? Te la dejamos andando nosotros por USD " + INSTALL_USD_PUBLICO + ", lista en menos de 48 horas."}
+      sub={tnOk ? `${m.tiendanube_store_name || m.tiendanube_store_url || "Tienda conectada"} · lee tus productos y crea una orden con cada cobro` : "Para leer tus productos, mostrar el widget en tu tienda y crear una orden con cada cobro."}
       onConnect={openTn} onDisconnect={disconnectTiendanube}>
       <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", marginBottom:12 }}>
         <span style={{ fontSize:DS.font.md, color:T.textMd }}>Tienda: {code(m.tiendanube_store_url || m.tiendanube_store_id || "—")}</span>
@@ -588,19 +611,9 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
 
         {/* ── Tienda ── */}
         <GroupTitle T={T}>Tienda</GroupTitle>
-        {/* Sin tienda conectada y sin ser admin: UNA fila con los logos de todas
-            las plataformas y el botón para que se la instalemos (22-sept,
-            Thiago). Cuál usa se pregunta en el formulario de la llamada, no acá.
-            Los conectores de verdad siguen abajo para el admin y para cuando la
-            tienda ya está conectada. */}
-        {!storeConnected && !m.is_admin ? (
-          <Row T={T} id="tienda-online" label="Tienda online" required
-            sub={"Shopify, Tiendanube, WooCommerce, VTEX, Empretienda o tu web a medida. Te la dejamos andando nosotros por USD " + INSTALL_USD_PUBLICO + ", lista en menos de 48 horas."}
-            action={<LogosTienda T={T}/>}
-            waInstall/>
-        ) : profile.channel === "shopify" ? (
+        {profile.channel === "shopify" ? (
           <Row T={T} id="shopify" label="Shopify" required connected={shopifyOk} open={open === "shopify"} onToggle={() => toggle("shopify")} waInstall
-            sub={shopifyOk ? `${m.shopify_shop} · lee tus productos y crea una orden con cada cobro` : "Para leer tus productos y crear una orden en tu tienda con cada cobro. ¿Se te complica? Te la dejamos andando nosotros por USD " + INSTALL_USD_PUBLICO + ", lista en menos de 48 horas."}
+            sub={shopifyOk ? `${m.shopify_shop} · lee tus productos y crea una orden con cada cobro` : "Para leer tus productos y crear una orden en tu tienda con cada cobro."}
             onConnect={openShopify} onDisconnect={disconnectShopify}>
             <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", marginBottom:14 }}>
               <span style={{ fontSize:DS.font.md, color:T.textMd }}>Tienda: {code(m.shopify_shop || "—")}</span>
@@ -616,12 +629,10 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
             action={<a href="#/dashboard/planes" style={{ ...b.ghost, textDecoration:"none", display:"inline-block" }}>Ver mis links</a>}/>
         )}
         {tnOptional && tnRow(!storeConnected)}
-        {/* Las plataformas sueltas solo para el admin (o con tienda conectada):
-            al comerciante ya se las resume la fila "Tienda online". */}
-        {/* Las plataformas sueltas solo para el admin (o con tienda conectada):
-            al comerciante ya se las resume la fila "Tienda online". */}
-        {(storeConnected || m.is_admin) && soonChannels.map(c => <Row key={c.id} T={T} id={c.id} label={c.label} soon sub={`${c.desc} Te la dejamos lista en menos de 7 días hábiles.`}/>)}
-        {!storeConnected && m.is_admin && OTHER_PLATFORMS.map(o => <Row key={o.id} T={T} id={o.id} label={o.label} soon sub={o.desc}/>)}
+        {/* Las plataformas sin conector van PLEGADAS en una línea (22-sept,
+            Thiago): ocupaban cuatro filas y solo sirven para saber que vienen.
+            Se abren si el comerciante quiere pedir la suya. */}
+        <OtrasPlataformas T={T} canales={soonChannels} otras={storeConnected ? [] : OTHER_PLATFORMS}/>
 
         {/* ── Mensajes (WhatsApp Cloud API, WhatsAppIntegration.jsx) ── */}
         <GroupTitle T={T}>Mensajes</GroupTitle>
