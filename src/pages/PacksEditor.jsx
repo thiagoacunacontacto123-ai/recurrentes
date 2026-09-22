@@ -188,6 +188,16 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
       : r));
   };
   const remove = (i) => onPacksChange(packs.filter((_, j) => j !== i));
+  // El pack recien agregado se trae a la vista: como el boton quedo abajo de la
+  // lista, sin esto en una lista larga no se nota que se sumo uno.
+  const finRef = React.useRef(null);
+  const [recien, setRecien] = React.useState(-1);
+  React.useEffect(() => {
+    if (recien < 0) return;
+    finRef.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+    const t = setTimeout(() => setRecien(-1), 1200);
+    return () => clearTimeout(t);
+  }, [recien]);
   const add = () => {
     if (packs.length >= PACKS_MAX) return;
     const used = new Set(packs.map(r => int(r.qty)));
@@ -195,6 +205,7 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
     const row = emptyPackRow(q);
     if (num(basePrice) > 0) row.price_ars = String(Math.round(num(basePrice) * q));
     onPacksChange([...packs, { ...row, default: packs.length === 0 }]);
+    setRecien(packs.length);
   };
   const generate = () => {
     if (!(num(basePrice) > 0)) return;
@@ -232,7 +243,9 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
         <div style={{marginTop:compact ? 0 : 12}}>
           <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",marginBottom:8}}>
             <Btn T={T} variant="secondary" size="sm" type="button" onClick={generate} disabled={!(num(basePrice) > 0)} title={num(basePrice) > 0 ? "" : "Elegí primero el producto (necesito el precio base)"}>✨ Generar 1·2·3 automáticamente</Btn>
-            <Btn T={T} variant="secondary" size="sm" type="button" onClick={add} disabled={packs.length >= PACKS_MAX}>+ Agregar pack</Btn>
+            {packs.length === 0 && (
+              <Btn T={T} variant="secondary" size="sm" type="button" onClick={add}>+ Agregar pack</Btn>
+            )}
             <span style={{fontSize:DS.font.xs,color:T.textSm,marginLeft:"auto"}}>{packs.length}/{PACKS_MAX}</span>
           </div>
 
@@ -245,7 +258,7 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
               {packs.map((r, i) => {
                 const d = derivePack(r, ctx);
                 return (
-                  <div key={i} className="gh-list-item" style={{background:T.surface,border:`1px solid ${r.default?T.accentSolid+"80":T.borderL}`,borderRadius:DS.r.lg,padding:"10px 12px"}}>
+                  <div key={i} className="gh-list-item" style={{background:T.surface,border:`1px solid ${i===recien?T.accentSolid:r.default?T.accentSolid+"80":T.borderL}`,borderRadius:DS.r.lg,padding:"10px 12px",transition:"border-color .3s"}}>
                     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(105px, 1fr))",gap:8}}>
                       <div><Lbl T={T}>Cantidad</Lbl><input type="number" min="1" max="99" value={r.qty} onChange={e=>upd(i,"qty",e.target.value)} style={inp}/></div>
                       <div><Lbl T={T}>Precio del pack ($)</Lbl><input type="number" min="0" value={r.price_ars} onChange={e=>upd(i,"price_ars",e.target.value)} style={inp} placeholder="compra única"/></div>
@@ -338,6 +351,14 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                   </div>
                 );
               })}
+              {/* El boton va ABAJO de la lista (22-sept, Thiago): el pack nuevo
+                  aparece justo aca, asi se ve que se esta agregando al final. */}
+              <div ref={finRef}/>
+              {packs.length < PACKS_MAX && (
+                <button type="button" onClick={add} style={{background:"transparent",border:`1px dashed ${T.border}`,borderRadius:DS.r.lg,color:T.textMd,fontSize:DS.font.sm,padding:"11px 12px",cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor=T.accentSolid;e.currentTarget.style.color=T.text;}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textMd;}}>+ Agregar pack</button>
+              )}
             </div>
           )}
 

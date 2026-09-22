@@ -549,6 +549,13 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
             <div>
               <div style={sectionH}>Vista previa</div>
               <div style={small}>{selectedVariant ? `${selectedVariant.name} · ${selectedVariant.id}` : variant}</div>
+              {/* 22-sept (Thiago): mas de uno entra aca creyendo que esta viendo
+                  su tienda y que desde aca se tocan los precios. Se aclara al
+                  lado del titulo: esto es una maqueta y solo cambia el aspecto. */}
+              <div style={{...small,marginTop:4,maxWidth:340,lineHeight:1.45}}>
+                No es tu tienda: es una maqueta para elegir <strong style={{color:T.textMd}}>colores, formato y textos</strong>.
+                Los precios, los packs y la frecuencia salen de cada plan.
+              </div>
             </div>
             {activePlans.length > 0 && (
               <select value={selectedPlan ? selectedPlan.id : "sample"} onChange={e=>setPlanId(e.target.value)} style={{...inputS,width:"auto",maxWidth:240,padding:"7px 10px",fontSize:12,marginBottom:0}}>
