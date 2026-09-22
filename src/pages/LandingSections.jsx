@@ -23,6 +23,17 @@ export function SectionsStyle({ T }) {
       .ls-wrap{max-width:1100px;margin:0 auto;padding:0 24px;}
       .ls-sec{padding:72px 0;}
       .ls-sec-alt{padding:72px 0;background:${T.surface};border-top:1px solid ${T.border};border-bottom:1px solid ${T.border};}
+      /* Bloque oscuro de ancla (22-sept): las landings que se ven caras alternan
+         claro → oscuro → claro. Sin esto la página es un plano largo. */
+      .ls-sec-dark{padding:84px 0;background:#0C1A18;color:#EAF3EF;position:relative;overflow:hidden;}
+      .ls-sec-dark h2,.ls-sec-dark h3{color:#fff;}
+      .ls-sec-dark::before{content:"";position:absolute;inset:0;pointer-events:none;
+        background:radial-gradient(760px 420px at 18% 0%, ${T.accentSolid}22 0%, transparent 62%);}
+      .ls-sec-dark > *{position:relative;}
+      /* Aparecer al entrar en pantalla: barato y sube mucho la calidad percibida. */
+      .ls-rise{opacity:0;transform:translateY(14px);transition:opacity .5s ease,transform .5s ease;}
+      .ls-rise.is-in{opacity:1;transform:none;}
+      @media (prefers-reduced-motion: reduce){ .ls-rise{opacity:1;transform:none;transition:none;} }
       .ls-two{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
       .ls-dd{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:48px;align-items:center;}
       .ls-dd + .ls-dd{margin-top:72px;}
@@ -71,11 +82,20 @@ export function SectionsStyle({ T }) {
 }
 
 function SectionHead({ T, eyebrow, title, sub, align = "center" }) {
+  // 22-sept-2026: títulos más grandes y de peso LIVIANO, con el eyebrow en
+  // monoespaciada y espaciado. Es el recurso que hace que Reval se lea cara:
+  // pesa menos y ocupa más. Un título puede traer *una palabra* entre
+  // asteriscos y sale en serif itálica, de contrapunto.
+  const partes = String(title).split(/\*([^*]+)\*/);
   return (
-    <div style={{textAlign:align,maxWidth:align === "center" ? 680 : "none",margin:align === "center" ? "0 auto 36px" : "0 0 18px"}}>
-      {eyebrow && <div style={{fontSize:11,fontWeight:800,color:T.accent,letterSpacing:0.8,textTransform:"uppercase",marginBottom:10}}>{eyebrow}</div>}
-      <h2 style={{fontSize:32,fontWeight:800,letterSpacing:-0.9,lineHeight:1.12,margin:"0 0 12px",color:T.text,textWrap:"balance"}}>{title}</h2>
-      {sub && <p style={{fontSize:15,color:T.textSm,lineHeight:1.65,margin:0,textWrap:"pretty"}}>{sub}</p>}
+    <div style={{textAlign:align,maxWidth:align === "center" ? 700 : "none",margin:align === "center" ? "0 auto 40px" : "0 0 20px"}}>
+      {eyebrow && <div style={{fontFamily:"IBM Plex Mono, ui-monospace, monospace",fontSize:12,fontWeight:500,color:T.accent,letterSpacing:2.2,textTransform:"uppercase",marginBottom:14}}>{eyebrow}</div>}
+      <h2 style={{fontSize:38,fontWeight:400,letterSpacing:-1.1,lineHeight:1.12,margin:"0 0 14px",color:T.text,textWrap:"balance"}}>
+        {partes.map((t, i) => i % 2
+          ? <em key={i} style={{fontStyle:"italic",fontFamily:"Georgia, 'Times New Roman', serif",fontWeight:400}}>{t}</em>
+          : t)}
+      </h2>
+      {sub && <p style={{fontSize:16,color:T.textSm,lineHeight:1.65,margin:0,textWrap:"pretty"}}>{sub}</p>}
     </div>
   );
 }
@@ -134,7 +154,7 @@ export function ProblemSection({ T }) {
   return (
     <section className="ls-sec">
       <div className="ls-wrap">
-        <SectionHead T={T} eyebrow="Por qué suscripción" title="Cada venta te cuesta como la primera"
+        <SectionHead T={T} eyebrow="Por qué suscripción" title="Cada venta te cuesta *como la primera*"
           sub="Si tu cliente te compra una y otra vez, venderle cada vez es trabajo y publicidad repetidos. Con una suscripción, la venta se hace una sola vez y se repite sola."/>
         <div className="ls-two">
           <Col title="Vendiendo a mano" items={hoy}/>
@@ -166,7 +186,7 @@ export function UseCasesSection({ T }) {
   return (
     <section className="ls-sec-alt" id="rec-casos">
       <div className="ls-wrap">
-        <SectionHead T={T} eyebrow="Para tu rubro" title="Si tu cliente vuelve, puede suscribirse"
+        <SectionHead T={T} eyebrow="Para tu rubro" title="Si tu cliente vuelve, *puede suscribirse*"
           sub="Productos que se reponen, contenido que se renueva, cuotas que se pagan todos los meses. Elegí tu rubro y mirá cómo funciona."/>
         <div className="ls-tabs" role="tablist" aria-label="Rubros" style={{marginBottom:28}}>
           {CASES.map(x => {
@@ -205,21 +225,31 @@ export function UseCasesSection({ T }) {
 // El widget REAL (mismas plantillas que la tienda: shared/bundle), interactivo:
 // toggle Compra única / Suscripción y clic en los packs. Nada dibujado a mano,
 // así la landing nunca promete algo que el producto no tiene.
+// Mismo bundle que le armamos a Glowderm (22-sept, Thiago): packs por meses,
+// badges, texto propio por pack y el ahorro a la derecha. Cambia solo el color,
+// que acá es el verde de Recurrentes.
 const DEMO_PLAN = {
-  id: "demo", product_title: "Bálsamo Natural", frequency_days: 30, frequency_scales_with_qty: false,
-  discount_pct: 15, base_price_ars: 45000,
+  id: "demo", product_title: "Bálsamo Natural", frequency_days: 60,
+  frequency_scales_with_qty: false, discount_pct: 15, base_price_ars: 59990,
+  // Precios con descuento real por cantidad (como los usa Glowderm): cuantas
+  // más unidades, más barata la unidad. Así el "ahorrás" cambia por pack en vez
+  // de repetir el mismo 15% tres veces.
   packs: [
-    { qty: 1, price_ars: 45000 },
-    { qty: 2, price_ars: 90000, badge: "Más elegido", default: true },
-    { qty: 3, price_ars: 135000, badge: "Mejor precio" },
+    { qty: 1, price_ars: 59990, label: "Pack 2 meses", note: "1 envase · te dura 2 meses" },
+    { qty: 2, price_ars: 101980, label: "Pack 4 meses", badge: "Más elegido",
+      note: "2 envases juntos · te duran 4 meses", frequency_days: 120, default: true },
+    { qty: 3, price_ars: 134970, label: "Pack 6 meses", badge: "Mejor precio",
+      note: "3 envases juntos · te duran 6 meses", frequency_days: 180 },
   ],
 };
-// v03 "Compacto": el que menos alto ocupa, para que entre al lado del texto (v01 medía 1244 px).
-const DEMO_MERCHANT = { widget_variant: "v03", widget_color: "#10b981", widget_radius: 14, widget_mode_default: "sub" };
+// v01 "Filas": el mismo diseño que eligió Glowderm. Ocupa más alto que el
+// compacto pero es el que de verdad usan los clientes, así que es el que hay
+// que mostrar.
+const DEMO_MERCHANT = { widget_variant: "v01", widget_color: "#10b981", widget_radius: 14, widget_mode_default: "sub" };
 function WidgetMock({ T }) {
   return (
     <MockFrame T={T} label="Widget en tu producto">
-      <BundlePreview plan={DEMO_PLAN} merchant={DEMO_MERCHANT} footer={false} maxWidth={460} minHeight={260} style={{ margin: "0 -4px" }}/>
+      <BundlePreview plan={DEMO_PLAN} merchant={DEMO_MERCHANT} footer={false} maxWidth={470} minHeight={520} style={{ margin: "0 -4px" }}/>
       <div style={{ marginTop: 10, fontSize: 11.5, color: T.textSm, textAlign: "center" }}>
         Probalo: tocá los packs y cambiá entre <strong style={{ color: T.textMd }}>Compra única</strong> y <strong style={{ color: T.textMd }}>Suscripción</strong>.
       </div>
@@ -364,7 +394,7 @@ export function DeepDivesSection({ T }) {
   return (
     <section className="ls-sec" id="rec-funciones">
       <div className="ls-wrap">
-        <SectionHead T={T} eyebrow="Funciones" title="Todo lo que hace Recurrentes por vos" sub="Del botón de suscribirse al pedido listo para despachar, y todo lo que pasa en el medio."/>
+        <SectionHead T={T} eyebrow="Funciones" title="Todo lo que hace Recurrentes *por vos*" sub="Del botón de suscribirse al pedido listo para despachar, y todo lo que pasa en el medio."/>
         {rows.map((r, i) => (
           <div key={r.title} className={`ls-dd${i % 2 ? " flip" : ""}`}>
             <div>
@@ -582,18 +612,27 @@ export function TrustSection({ T }) {
     ["Tus clientes son tuyos", "Exportás tu base de suscriptores cuando quieras y usás tus propias herramientas."],
     ["Sin permanencia", "Pagás según tus suscriptores activos y cancelás cuando quieras, sin contrato."],
   ];
+  // Bloque OSCURO (22-sept): va justo antes de precios y es el ancla visual de
+  // la página. Las dos landings que miramos usan un bloque así para cortar el
+  // scroll y que lo de al lado se vea más caro.
   return (
-    <section className="ls-sec-alt">
+    <section className="ls-sec-dark">
       <div className="ls-wrap">
-        <SectionHead T={T} eyebrow="Confianza" title="Tu plata, tus clientes, tus reglas"/>
+        <p style={{fontFamily:"IBM Plex Mono, ui-monospace, monospace",fontSize:12,letterSpacing:2.2,textTransform:"uppercase",color:T.accentSolid,textAlign:"center",margin:"0 0 12px"}}>Confianza</p>
+        <h2 style={{fontSize:38,fontWeight:400,letterSpacing:-1,textAlign:"center",margin:"0 0 10px",color:"#fff",textWrap:"balance"}}>
+          Tu plata, tus clientes, <em style={{fontStyle:"italic",fontFamily:"Georgia, 'Times New Roman', serif",fontWeight:400}}>tus reglas</em>
+        </h2>
+        <p style={{fontSize:15,color:"#A9C3B9",textAlign:"center",maxWidth:560,margin:"0 auto 40px",lineHeight:1.6}}>
+          No tocamos tu dinero ni los datos de tus clientes. Somos la pieza que conecta, nada más.
+        </p>
         <div className="ls-grid4">
           {items.map(([t, d]) => (
-            <div key={t} style={{padding:"4px 2px"}}>
-              <div style={{width:36,height:36,borderRadius:99,background:T.accentSolid,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:12}}>
+            <div key={t} style={{padding:"22px 20px",borderRadius:22,border:"1px solid rgba(255,255,255,0.13)",background:"rgba(255,255,255,0.04)"}}>
+              <div style={{width:36,height:36,borderRadius:99,background:T.accentSolid,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:14}}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
               </div>
-              <div style={{fontSize:15,fontWeight:800,color:T.text,marginBottom:6}}>{t}</div>
-              <div style={{fontSize:13.5,color:T.textSm,lineHeight:1.6}}>{d}</div>
+              <div style={{fontSize:15,fontWeight:700,color:"#fff",marginBottom:6}}>{t}</div>
+              <div style={{fontSize:13.5,color:"#A9C3B9",lineHeight:1.6}}>{d}</div>
             </div>
           ))}
         </div>
@@ -620,7 +659,7 @@ const FAQS = [
 ];
 export function FaqSection({ T }) {
   return (
-    <section className="ls-sec-alt" id="rec-faq">
+    <section className="ls-sec" id="rec-faq" style={{background:T.card}}>
       <div className="ls-wrap" style={{maxWidth:820}}>
         <SectionHead T={T} eyebrow="Preguntas frecuentes" title="Lo que todos preguntan antes de empezar"/>
         <div className="ls-faq" style={{display:"flex",flexDirection:"column",gap:8}}>

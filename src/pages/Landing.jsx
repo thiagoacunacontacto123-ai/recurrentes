@@ -340,14 +340,15 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         </div>
       </section>
 
-      {/* Interés: el video (panel por dentro, en la tienda, precios). */}
+      {/* Orden 22-sept-2026 (Thiago, sobre la estructura de Reval y Puentify):
+          dolor → cómo funciona → qué incluye → prueba → precios → objeciones.
+          La comparativa baja: antes iba segunda y se comparaba sin saber qué
+          hacemos. Los precios suben: son nuestra ventaja (los otros no publican
+          o arrancan en USD 99 + comisión). */}
       <SectionsStyle T={T}/>
-      <VideoSection T={T} videos={LANDING_VIDEOS}/>
 
-      {/* Comparativa justo debajo del video (Thiago, 17-sept). */}
-      <ComparisonSection T={T}/>
-
-      {/* Deseo: dolor → solución. (Rubros, mes de ejemplo, calculadora y extras
+      {/* 1 · El dolor: cada venta cuesta como la primera. */}
+      {/* (rubros, mes de ejemplo y calculadora siguen fuera de la home) (Rubros, mes de ejemplo, calculadora y extras
           siguen en LandingSections.jsx, fuera de la home para que sea más corta.) */}
       <ProblemSection T={T}/>
       <DeepDivesSection T={T}/>
@@ -371,6 +372,10 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         </div>
       </section>
 
+      {/* Interés: el video (panel por dentro, en la tienda, precios). */}
+      <SectionsStyle T={T}/>
+      <VideoSection T={T} videos={LANDING_VIDEOS}/>
+
       <TrustSection T={T}/>
 
       {/* Precios */}
@@ -389,6 +394,10 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
 
       {/* Reseñas: entre precios y preguntas (Thiago, 17-sept). */}
       <ReviewsSection T={T}/>
+
+      {/* La comparativa, DESPUÉS de precios: cierra objeciones de quien ya
+          entendió qué hacemos y cuánto sale. */}
+      <ComparisonSection T={T}/>
 
       <FaqSection T={T}/>
 
