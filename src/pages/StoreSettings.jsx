@@ -158,6 +158,7 @@ function ShippingRatesCard({ T, m, isOwner, onChange, profile }) {
   const norm = (rs) => JSON.stringify(rs.map(r => [String(r.name || "").trim(), parseInt(r.price, 10) || 0, r.code || ""]));
   const dirty = norm(rates) !== norm(savedRates);
   const liveQuotes = m.shipping_live_quotes === true;
+  const esTiendanube = profile?.channel === "tiendanube" && Boolean(m.tiendanube_token);
 
   async function toggleLiveQuotes(on) {
     setBusy("live");
@@ -235,6 +236,23 @@ function ShippingRatesCard({ T, m, isOwner, onChange, profile }) {
         </div>
       )}
 
+      {/* Tiendanube (22-sept-2026, Thiago): su API devuelve los medios activos
+          pero NO cotiza por codigo postal, asi que un HOP/sucursal que se
+          define por CP llega sin precio y no se puede ofrecer. Conviene
+          decirlo acá, que es donde lo puede resolver, en vez de que lo
+          descubra cuando un cliente elige un envio en $0. */}
+      {esTiendanube && (
+        <Callout T={T} tone="info" style={{ marginBottom:14 }}>
+          <strong style={{ color:T.text }}>Todos los envíos salen de tu tienda</strong>, pero con Tiendanube
+          hoy solo podemos traer las <strong style={{ color:T.text }}>tarifas planas</strong> (retiro en local,
+          envío propio, precio fijo). Los que Tiendanube cotiza por código postal —Correo Argentino, OCA,
+          sucursales— llegan sin precio, así que no se los ofrecemos a tu cliente: en su lugar ve
+          “Envío a domicilio” y lo coordinás al despachar.
+          <br/><br/>
+          Si querés que elija esos, agregalos acá abajo con el precio que quieras cobrar.
+        </Callout>
+      )}
+
       {imported && (
         <div className="gh-accordion" style={{ marginBottom:14, background:T.surface, border:`1px solid ${T.accentSolid}55`, borderRadius:DS.r.lg, padding:"12px 14px" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, flexWrap:"wrap", marginBottom:8 }}>
@@ -262,7 +280,7 @@ function ShippingRatesCard({ T, m, isOwner, onChange, profile }) {
       )}
 
       {rates.length === 0 && !imported && (
-        <SurfaceBox T={T} style={{ marginBottom:12 }}><div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5 }}>Sin envíos del checkout: cada plan usa su envío por defecto. {fromShopify ? "Importalos de Shopify (recomendado) o agregalos a mano." : "Agregalos a mano."}</div></SurfaceBox>
+        <SurfaceBox T={T} style={{ marginBottom:12 }}><div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5 }}>Sin envíos del checkout: cada plan usa su envío por defecto. {fromShopify ? "Importalos de Shopify (recomendado) o agregalos a mano." : esTiendanube ? "Agregá acá los que quieras que pueda elegir, con su precio." : "Agregalos a mano."}</div></SurfaceBox>
       )}
       {rates.map((r, i) => (
         <div key={i} style={{ display:"grid", gridTemplateColumns:"minmax(0,2fr) minmax(0,1fr) minmax(0,1fr) auto", gap:6, alignItems:"center", marginBottom:6 }}>
