@@ -514,12 +514,12 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
   // Lo que viene (visible, no elegible).
   // Una tienda a la vez: con una plataforma conectada, las otras no se muestran.
   const storeConnected = shopifyOk || tnOk;
-  const soonChannels = storeConnected ? [] : Object.values(CHANNELS).filter(c => c.status !== "retired" && !channelAvailable(c.id, m) && c.id !== profile.channel && c.types.includes(profile.businessType));
+  const soonChannels = storeConnected ? [] : Object.values(CHANNELS).filter(c => c.status !== "retired" && !channelAvailable(c.id, m) && c.id !== profile.channelPicker && c.types.includes(profile.businessType));
   // Tiendanube habilitada pero no es el canal elegido: fila opcional para conectarla.
   // Sin tienda conectada las dos filas dicen "Necesaria": el comerciante conecta UNA de las dos (Thiago, 18-sept).
-  const tnOptional = tnEnabled && !shopifyOk && profile.channel !== "tiendanube" && CHANNELS.tiendanube.types.includes(profile.businessType);
+  const tnOptional = tnEnabled && !shopifyOk && profile.channelPicker !== "tiendanube" && CHANNELS.tiendanube.types.includes(profile.businessType);
   const soonProviders = Object.values(PAYMENT_PROVIDERS).filter(p => p.status === "soon");
-  const storeRequired = profile.channel === "shopify" || profile.channel === "tiendanube";
+  const storeRequired = profile.channelPicker === "shopify" || profile.channelPicker === "tiendanube";
   const reqTotal = storeRequired ? 2 : 1;
   const reqOk = (storeRequired ? Number(profile.connected.channel) : 0) + Number(mpOk);
   const code = (t) => <code style={{ fontFamily:MONO, fontSize:DS.font.sm, color:T.text }}>{t}</code>;
@@ -540,7 +540,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
               {m.tiendanube_script_error ? `Tiendanube respondió: ${m.tiendanube_script_error}` : "Tocá Instalar widget para que aparezca en tus páginas de producto."}
             </Callout>
           : <Hint T={T} style={{ marginBottom:0 }}>Muy pronto el widget se va a instalar solo en tus páginas de producto.</Hint>}
-      {profile.channel !== "tiendanube" && (
+      {profile.channelPicker !== "tiendanube" && (
         <Callout T={T} tone="info" style={{ marginTop:12, marginBottom:0 }}
           right={<button type="button" style={b.solid} onClick={switchToTiendanube} disabled={busy === "tn-channel"}>{busy === "tn-channel" ? "Cambiando…" : "Usar Tiendanube como mi tienda"}</button>}>
           Hoy tus cobros {profile.channelInfo.orders ? `crean órdenes en ${profile.channelInfo.label}` : "quedan registrados en Recurrentes"}. Si vendés con Tiendanube, cambiala acá: cada cobro va a crear una orden en tu tienda.
@@ -551,7 +551,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
 
   return (
     <div>
-      {!embedded && <PageHeader T={T} title="Integraciones" subtitle={profile.channel === "shopify"
+      {!embedded && <PageHeader T={T} title="Integraciones" subtitle={profile.channelPicker === "shopify"
         ? "Conectá tu tienda y tu pasarela (necesarias) y, si te sirven, Meta Ads y WhatsApp."
         : `Conectá ${profile.providerInfo.label} para cobrar. Sin tienda online: vendés con links de suscripción.`}/>}
 
@@ -609,7 +609,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
 
         {/* ── Tienda ── */}
         <GroupTitle T={T}>Tienda</GroupTitle>
-        {profile.channel === "shopify" ? (
+        {profile.channelPicker === "shopify" ? (
           <Row T={T} id="shopify" label="Shopify" required connected={shopifyOk} open={open === "shopify"} onToggle={() => toggle("shopify")} waInstall
             sub={shopifyOk ? `${m.shopify_shop} · lee tus productos y crea una orden con cada cobro` : "Para leer tus productos y crear una orden en tu tienda con cada cobro."}
             onConnect={openShopify} onDisconnect={disconnectShopify}>
@@ -621,7 +621,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
             <div style={{ height:1, background:T.borderL, margin:"0 0 14px" }}/>
             <WidgetThemeCard merchant={m} onChange={onChange} bare/>
           </Row>
-        ) : profile.channel === "tiendanube" ? tnRow(true) : (
+        ) : profile.channelPicker === "tiendanube" ? tnRow(true) : (
           <Row T={T} id="link" label={profile.channelInfo.label} ready
             sub="Vendés con links de suscripción a un checkout de Recurrentes. No hace falta conectar ninguna tienda."
             action={<a href="#/dashboard/planes" style={{ ...b.ghost, textDecoration:"none", display:"inline-block" }}>Ver mis links</a>}/>

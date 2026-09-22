@@ -201,9 +201,7 @@ export function merchantProfile(m) {
   // otra sí: es el caso de la tienda que se pasa de Tiendanube a Shopify
   // (22-sept). Las cuentas viejas quedaron con el canal pegado aunque
   // desvincularan, así que no alcanza con borrarlo al desconectar.
-  const guardadoVale = storedChannel && storedChannel.types.includes(businessType)
-    && !(doc.channel === "tiendanube" && !doc.tiendanube_token && doc.shopify_token)
-    && !(doc.channel === "shopify" && !doc.shopify_token && doc.tiendanube_token);
+  const guardadoVale = storedChannel && storedChannel.types.includes(businessType);
   const channel = guardadoVale ? doc.channel : defaultChannelFor(businessType, doc);
   const channelInfo = CHANNELS[channel];
 
@@ -211,6 +209,16 @@ export function merchantProfile(m) {
   const providerInfo = PAYMENT_PROVIDERS[paymentProvider];
 
   const channelConnected = channel === "none" ? true : channel === "shopify" ? !!doc.shopify_token : channel === "tiendanube" ? !!doc.tiendanube_token : false;
+  // Canal para ELEGIR en la pantalla de Integraciones (22-sept, Thiago:
+  // "desvinculo Tiendanube y no vuelve a aparecer Shopify"). Cuando el canal
+  // guardado no está conectado, la UI deja elegir de nuevo.
+  //
+  // OJO: es distinto de `channel`. El efectivo NO se toca porque fulfillCharge
+  // lo usa para saber en qué tienda crear la orden: si a una tienda de
+  // Tiendanube se le vence el token, el cobro tiene que seguir fallando por la
+  // rama Tiendanube y no irse a Shopify.
+  const channelPicker = channelConnected ? channel
+    : (doc.shopify_token ? "shopify" : doc.tiendanube_token ? "tiendanube" : defaultChannelFor(businessType, { ...doc, channel: undefined }));
   const paymentConnected = paymentProvider === "mercadopago" ? !!doc.mp_access_token : false;
 
   const missing = [];
@@ -222,6 +230,8 @@ export function merchantProfile(m) {
   return {
     businessType,
     channel,
+    channelPicker,          // el que usa la UI para dejar elegir plataforma
+    channelPickerInfo: CHANNELS[channelPicker] || CHANNELS[channel],
     paymentProvider,
     explicit,            // el comerciante eligió su tipo de negocio (no es el default histórico)
     type,
