@@ -108,17 +108,25 @@ async function handleShippingRates(req, res) {
         })
       : [];
 
-    // 2) Tarifas propias del comerciante (zonas de Shopify: precio/peso).
+    // 2) Si la cotización en vivo ANDUVO, eso es exactamente lo que Shopify le
+    //    muestra al comprador en el checkout de la tienda: ni una opción más.
+    //    Antes le sumábamos encima las zonas manuales (`shipping_zones.json`),
+    //    y ahí aparecían sucursales que el comerciante ya había sacado de su
+    //    app de envíos: él limitaba las sucursales y en Recurrentes salían
+    //    todas igual (22-sept-2026, Thiago). Las manuales quedan SOLO como
+    //    respaldo para cuando no se pudo cotizar.
+    if (carrier.length) {
+      res.setHeader("Cache-Control", "no-store");
+      return res.json({ rates: carrier });
+    }
+
+    // 3) Sin cotización (sin CP todavía, app caída, permiso faltante): las
+    //    zonas propias del comerciante, que es lo que había antes de todo esto.
     const manuales = await shGetShippingRates(m.shopify_shop, m.shopify_token, {
       province: req.query.province || "",
       subtotal: Number(req.query.subtotal || 0),
     });
-
-    // 3) Las dos juntas, sin repetir: si una manual tiene el mismo nombre que una
-    //    del carrier, gana la del carrier (es la que sabe despachar). Primero las
-    //    del proveedor, que son las que el comprador espera ver.
-    const vistos = new Set(carrier.map(r => String(r.name || "").trim().toLowerCase()));
-    const rates = [...carrier, ...manuales.filter(r => !vistos.has(String(r.name || "").trim().toLowerCase()))];
+    const rates = manuales;
     res.setHeader("Cache-Control", "no-store");
     return res.json({ rates });
   } catch (e) {

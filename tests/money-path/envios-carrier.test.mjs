@@ -200,3 +200,43 @@ test("(e) sin tienda conectada, el envío del plan sigue siendo el que manda", a
   const sub = rawGet(`merchants/${MID}/subscribers/${res.body.subscriber_id}`);
   assert.equal(sub.plan_snapshot.shipping_price_ars, 1500, "sin tienda, el envío del plan es lo único que hay");
 });
+
+// ─── Lo que cotiza la tienda es LO QUE VE EL COMPRADOR ────────────────────
+// 22-sept-2026, Thiago: "si yo sacaba la sucursal en Shopify, o le ponía a mi
+// empresa de envíos que muestre menos sucursales, salían todas igual en
+// Recurrentes". Pasaba porque a la cotización en vivo le sumábamos encima las
+// zonas manuales de shipping_zones.json. Si la cotización anduvo, mandamos eso
+// solo: ni una opción más que las de su checkout.
+const { default: shopifyApi } = await loadApi("api/shopify.js");
+
+const getRates = (query = {}) => invoke(shopifyApi, {
+  method: "GET",
+  query: { action: "shipping-rates", merchant: MID, variant: VARIANT_ID, qty: "1", zip: "1043", city: "CABA", province: "Buenos Aires", ...query },
+  headers: { "x-forwarded-for": "190.1.2.9" },
+});
+
+test("(e) si la cotización en vivo anduvo, NO se suman las zonas manuales", async () => {
+  stubQuote([DOMICILIO]);            // el comerciante dejó UNA sola opción
+  W.router.on("GET", /\.myshopify\.com$/, /\/shipping_zones\.json$/, () => ({
+    status: 200,
+    json: { shipping_zones: [{ countries: [{ code: "AR", name: "Argentina", provinces: [] }],
+      price_based_shipping_rates: [{ name: "Sucursal vieja", price: "0.00" }] }] },
+  }));
+  const res = await getRates();
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  const nombres = res.body.rates.map(r => r.name);
+  assert.equal(res.body.rates.length, 1, JSON.stringify(nombres));
+  assert.ok(!nombres.some(n => /sucursal vieja/i.test(n)), "no se cuela una opción que él ya sacó");
+  assert.equal(W.router.find({ path: /shipping_zones/ }).length, 0, "ni siquiera se piden las zonas");
+});
+
+test("(e) sin cotización (sin CP), siguen las zonas manuales como respaldo", async () => {
+  W.router.on("GET", /\.myshopify\.com$/, /\/shipping_zones\.json$/, () => ({
+    status: 200,
+    json: { shipping_zones: [{ countries: [{ code: "AR", name: "Argentina", provinces: [] }],
+      price_based_shipping_rates: [{ name: "Envío estándar", price: "2500.00" }] }] },
+  }));
+  const res = await getRates({ zip: "", city: "" });   // sin destino no hay cotización
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.deepEqual(res.body.rates.map(r => r.name), ["Envío estándar"]);
+});

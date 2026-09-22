@@ -150,6 +150,26 @@ test("(e) Tiendanube: una opción apagada de un carrier prendido no se ofrece", 
   assert.ok(!nombres.includes("A sucursal"), "la opción apagada no se ofrece");
 });
 
+test("(e) Tiendanube: lo que se cotiza por CP no sale en $0, sale marcado", async () => {
+  // TN no cotiza por destino en esta API: Correo Argentino / sucursales vienen
+  // SIN precio y antes salían como $0 = envío gratis regalado. Ahora van con
+  // `unpriced` y el checkout los descarta. 22-sept-2026, Thiago.
+  stubCarriers([
+    { id: 1, name: "Correo Argentino", code: "correo", active: true,
+      options: [{ name: "A sucursal", code: "ca-suc" }] },          // sin price
+    { id: 2, name: "Retiro en local", code: "pickup", active: true,
+      options: [{ name: "Retiro en local", code: "pickup", price: 0 }] },  // price 0 REAL
+    { id: 3, name: "Moto", code: "moto", active: true,
+      options: [{ name: "Moto CABA", code: "moto", price: 3500 }] },
+  ]);
+  const rates = await tnShippingRates(TN_STORE, TN_TOKEN);
+  const byName = Object.fromEntries(rates.map(r => [r.name, r]));
+  assert.equal(byName["A sucursal"].unpriced, true, "sin precio => marcada");
+  assert.ok(!("unpriced" in byName["Retiro en local"]), "gratis de verdad NO se marca");
+  assert.ok(!("unpriced" in byName["Moto CABA"]), "con precio propio NO se marca");
+  assert.equal(byName["Moto CABA"].price, 3500);
+});
+
 test("(e) Tiendanube: si la API falla devuelve [] y no rompe el checkout", async () => {
   W.router.on("GET", "api.tiendanube.com", /\/shipping_carriers$/, () => ({ status: 403, json: { description: "sin scope" } }));
   assert.deepEqual(await tnShippingRates(TN_STORE, TN_TOKEN), []);

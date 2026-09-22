@@ -483,11 +483,20 @@ export async function tnShippingRates(storeId, token) {
       const key = name.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
+      // OJO con el precio: Tiendanube NO cotiza por destino en esta API. Los
+      // medios con precio propio (retiro, envío propio) vienen con el suyo; los
+      // que se cotizan por CP (Correo Argentino, OCA, sucursales) vienen SIN
+      // precio, y antes salían como $0 = envío gratis regalado. Ahora se
+      // marcan `unpriced` para que el checkout no los ofrezca a $0.
+      // 22-sept-2026, Thiago.
+      const crudo = o?.price ?? o?.cost;
+      const tienePrecio = crudo !== undefined && crudo !== null && crudo !== "" && Number.isFinite(Number(crudo));
       out.push({
         name,
-        price: Math.max(0, Math.round(Number(o?.price ?? o?.cost ?? 0) || 0)),
+        price: tienePrecio ? Math.max(0, Math.round(Number(crudo))) : 0,
         code: String(o?.code || c?.code || "").trim().slice(0, 50),
         source: "tiendanube",
+        ...(tienePrecio ? {} : { unpriced: true }),
       });
     }
   }

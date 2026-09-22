@@ -222,7 +222,13 @@ export default function Checkout() {
         // pudo matchear una tarifa real— y el comerciante lo coordina al
         // despachar. Antes acá se pintaba el envío del plan, que le mostraba al
         // comprador un precio que la tienda no cobra (caso Glowtherm, 21-sept).
-        setRates(list.length ? list : [FALLBACK_RATE]);
+        // Tiendanube marca `unpriced` los medios que cotiza por código postal
+        // (Correo Argentino, sucursales): llegan sin precio y mostrarlos sería
+        // ofrecer envío gratis. Se caen, y si no queda ninguno con precio va el
+        // envío a domicilio estándar, que el comercio coordina al despachar.
+        // 22-sept-2026, Thiago.
+        const conPrecio = list.filter(r => !r.unpriced);
+        setRates(conPrecio.length ? conPrecio : [FALLBACK_RATE]);
         setRateIdx(0);
       } catch (_) { setRates([FALLBACK_RATE]); setRateIdx(0); }
       finally { setRatesLoading(false); }
