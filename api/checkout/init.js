@@ -364,9 +364,13 @@ export default async function handler(req, res) {
     }
     pack = resolvePack(plan, idx);
     if (!pack) return res.status(400).json({ error: "Pack inválido" });
+    // Este endpoint SOLO crea suscripciones (la compra unica va por el carrito
+    // del tema). Si el comerciante escondio este pack en suscripcion, no se
+    // puede suscribir a el ni mandando el indice a mano. 22-sept-2026.
+    if (pack.hideSub) return res.status(400).json({ error: "Ese pack no está disponible para suscripción" });
     // Campos del modelo "theme" que puedan venir en el body: se IGNORAN.
     const ignored = {};
-    if (quantity != null && quantity !== "" && (parseInt(quantity) || 0) !== pack.qty) ignored.quantity = quantity;
+    if (quantity != null && quantity !== "" && (parseInt(quantity) || 0) !== pack.subQty) ignored.quantity = quantity;
     if (base_price != null && base_price !== "" && Math.round(parseFloat(base_price) || 0) !== pack.price) ignored.base_price = base_price;
     if (sub_discount != null && sub_discount !== "") ignored.sub_discount = sub_discount;
     if (frequency_days != null && frequency_days !== "" && (parseInt(frequency_days) || 0) !== pack.freq) ignored.frequency_days = frequency_days;
@@ -387,7 +391,9 @@ export default async function handler(req, res) {
     : { merchant_id: merchantId, freq_days: freqDays, base: pr.basePrice, sub_off: pr.subOff };
   const packSnapshot = pack ? { pricing_mode: "packs", pack_index: pack.idx, pack_label: pack.label || null } : {};
 
-  const finalQty = pack ? pack.qty : (qtyReq || parseInt(plan.units_per_shipment) || 1);
+  // pack.subQty = la cantidad de suscripcion (por defecto, la misma que la de
+  // compra unica). Como acá solo se crean suscripciones, es la que manda.
+  const finalQty = pack ? pack.subQty : (qtyReq || parseInt(plan.units_per_shipment) || 1);
   const freqDays = pack ? pack.freq : resolveFrequency(plan, frequency_days);
   // La variante que se factura es la que ELIGIÓ el cliente en la página del
   // producto (22-sept-2026, Thiago: "no tenemos ningún plan si tiene muchos

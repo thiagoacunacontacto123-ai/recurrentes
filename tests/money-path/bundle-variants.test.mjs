@@ -157,3 +157,86 @@ test("(j) sin foto, los 12 diseños siguen andando y no dejan una imagen vacía"
     assert.ok(!html.includes("<img"), `${v} no deja un <img> sin src`);
   }
 });
+
+// ─── Packs distintos en cada modo (22-sept-2026, Thiago) ──────────────────
+// Wellfresh vende 1/3/5 sueltos, pero por suscripción solo quiere ofrecer
+// algunos, y con otra cantidad. Al tocar el toggle se repinta con la otra
+// lista. Lo que NO puede pasar: que esconder un pack corra los índices y el
+// cliente termine pagando otro pack (el checkout cobra por `pack_index`).
+const PLAN_MIXTO = plan([
+  { qty: 1, price_ars: 10000, label: "1u", hide_sub: true },
+  { qty: 3, price_ars: 27000, label: "3u", default: true },
+  { qty: 5, price_ars: 42000, label: "5u", hide_sub: true },
+  { qty: 2, price_ars: 19000, label: "2u sub", hide_once: true, sub_qty: 4 },
+]);
+const indices = (html) => [...html.matchAll(/data-rc-action="pack" data-rc-value="(\d+)"/g)].map(m => Number(m[1]));
+
+test("(j) cada modo muestra sus propios packs", () => {
+  const vm = buildBundleVM({ plan: PLAN_MIXTO, merchant: { widget_variant: "v01" } });
+  // normalizePacks ordena por qty, así que los índices salen de esa lista.
+  const once = indices(renderBundle(vm, { mode: "once" }).html);
+  const sub = indices(renderBundle(vm, { mode: "sub" }).html);
+  assert.equal(once.length, 3, "compra única: 1u, 3u y 5u");
+  assert.equal(sub.length, 2, "suscripción: solo 2 de los 4");
+  for (const i of sub) assert.ok(!vm.packs.find(p => p.idx === i)?.hideSub);
+  for (const i of once) assert.ok(!vm.packs.find(p => p.idx === i)?.hideOnce);
+});
+
+test("(j) esconder un pack NO corre el índice con el que se cobra", () => {
+  const vm = buildBundleVM({ plan: PLAN_MIXTO, merchant: { widget_variant: "v01" } });
+  const sub = indices(renderBundle(vm, { mode: "sub" }).html);
+  // El índice que manda el widget tiene que resolver al MISMO pack en el server.
+  for (const i of sub) {
+    const p = resolvePack(PLAN_MIXTO, i);
+    assert.ok(p, `idx ${i} tiene que existir en el server`);
+    assert.equal(p.hideSub, false, `idx ${i} no puede estar escondido en sub`);
+    const vmPack = vm.packs.find(x => x.idx === i);
+    assert.equal(p.price, vmPack.priceOnce, `idx ${i}: el precio del server y el del widget son el mismo`);
+  }
+});
+
+test("(j) la cantidad de suscripción puede diferir de la de compra única", () => {
+  const packs = normalizePacks(PLAN_MIXTO.packs).packs;
+  const dosSub = packs.findIndex(p => p.sub_qty === 4);
+  assert.ok(dosSub >= 0, "se guardó sub_qty");
+  const r = resolvePack({ ...PLAN_MIXTO, packs }, dosSub);
+  assert.equal(r.qty, 2, "suelto: 2 unidades");
+  assert.equal(r.subQty, 4, "suscripto: entrega 4");
+  // Sin sub_qty, las dos cantidades son la misma (planes de siempre).
+  const tres = packs.findIndex(p => p.qty === 3);
+  assert.equal(resolvePack({ ...PLAN_MIXTO, packs }, tres).subQty, 3);
+});
+
+test("(j) un pack no puede quedar escondido en los dos modos", () => {
+  const r = normalizePacks([{ qty: 1, price_ars: 100, hide_once: true, hide_sub: true }]);
+  assert.ok(r.error, "tiene que rechazarlo");
+});
+
+test("(j) regalo ficticio: se guarda, se muestra y aclara que no es un producto", () => {
+  const r = normalizePacks([{ qty: 1, price_ars: 10000, gifts: [
+    { title: "Ebook de recetas", virtual: true, note: "Te llega por mail" },
+  ] }]);
+  assert.equal(r.error, undefined);
+  assert.equal(r.packs[0].gifts[0].virtual, true);
+  assert.equal(r.packs[0].gifts[0].note, "Te llega por mail");
+  const vm = buildBundleVM({ plan: plan(r.packs), merchant: { widget_variant: "v12" } });
+  const { html } = renderBundle(vm, { mode: "sub" });
+  assert.ok(html.includes("Ebook de recetas"), "el regalo se pinta");
+  assert.ok(html.includes("Te llega por mail"), "y su aclaración");
+});
+
+test("(j) los planes de siempre no cambian: sin los campos nuevos, todo igual", () => {
+  const viejo = plan([
+    { qty: 1, price_ars: 27500, label: "1", default: true },
+    { qty: 2, price_ars: 50000, label: "2" },
+  ]);
+  const vm = buildBundleVM({ plan: viejo, merchant: { widget_variant: "v02" } });
+  assert.equal(indices(renderBundle(vm, { mode: "once" }).html).length, 2);
+  assert.equal(indices(renderBundle(vm, { mode: "sub" }).html).length, 2);
+  for (let i = 0; i < 2; i++) {
+    const r = resolvePack(viejo, i);
+    assert.equal(r.subQty, r.qty, "la cantidad de suscripción es la de siempre");
+    assert.equal(r.hideSub, false);
+    assert.equal(r.hideOnce, false);
+  }
+});

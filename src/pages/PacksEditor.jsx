@@ -24,7 +24,7 @@ export function pricingModeOf(plan) {
 }
 
 export function emptyPackRow(qty = 1) {
-  return { qty: String(qty), price_ars: "", compare_at_ars: "", label: "", note: "", note_once: "", badge: "", frequency_days: "", sub_price_ars: "", image: "", gifts: [], default: false };
+  return { qty: String(qty), price_ars: "", compare_at_ars: "", label: "", note: "", note_once: "", badge: "", frequency_days: "", sub_price_ars: "", image: "", gifts: [], default: false, hide_once: false, hide_sub: false, sub_qty: "" };
 }
 
 // Plan guardado → filas del editor.
@@ -45,8 +45,13 @@ export function packsFromPlan(plan) {
       title: g?.title || "",
       image: g?.image || "",
       compare_at_ars: g?.compare_at_ars != null ? String(g.compare_at_ars) : "",
+      virtual: g?.virtual === true,
+      note: g?.note || "",
     })) : [],
     default: p.default === true,
+    hide_once: p.hide_once === true,
+    hide_sub: p.hide_sub === true,
+    sub_qty: p.sub_qty != null ? String(p.sub_qty) : "",
   }));
 }
 
@@ -57,7 +62,7 @@ export function autoPacks(basePrice) {
     qty: String(qty),
     price_ars: String(Math.round(b * qty * (1 - off / 100))),
     compare_at_ars: "",
-    label, note: "", note_once: "", badge, frequency_days: "", sub_price_ars: "", image: "", gifts: [], default: def,
+    label, note: "", note_once: "", badge, frequency_days: "", sub_price_ars: "", image: "", gifts: [], default: def, hide_once: false, hide_sub: false, sub_qty: "",
   });
   return [
     mk(1, 0, "1 unidad", "", false),
@@ -124,8 +129,16 @@ export function serializePacks(rows) {
           title: (g.title || "").trim(),
           image: (g.image || "").trim() || null,
           compare_at_ars: g.compare_at_ars !== "" && num(g.compare_at_ars) > 0 ? Math.round(num(g.compare_at_ars)) : null,
+          // Regalo que no es un producto de la tienda (ebook, sorteo): se
+          // muestra en el widget y NO viaja en la caja. 22-sept-2026.
+          virtual: g.virtual === true,
+          note: (g.note || "").trim(),
         })),
       default: r.default === true,
+      // En qué modo se muestra este pack, y la cantidad propia de suscripción.
+      hide_once: r.hide_once === true,
+      hide_sub: r.hide_sub === true,
+      sub_qty: r.sub_qty !== "" && int(r.sub_qty) >= 1 ? int(r.sub_qty) : null,
     }))
     .sort((a, b) => a.qty - b.qty);
   if (out.length && !out.some(p => p.default)) out[0].default = true;
@@ -281,6 +294,34 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                     {/* Texto propio de ESTE pack (21-sept-2026, Thiago): "tratamiento
                         bimensual" en el de 2, "tratamiento ultra" en el de 4. Antes
                         el único texto de ese renglón era el mismo para todos. */}
+                    {/* Dos columnas (22-sept-2026, Thiago): el mismo pack puede
+                        aparecer solo en un modo, y con otra cantidad al
+                        suscribirse. Ej. Wellfresh: 1/3/5 sueltos, y en
+                        suscripción solo 3 y un pack de 2 que entrega 4. */}
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:10,paddingTop:10,borderTop:`1px solid ${T.borderL}`}}>
+                      <div style={{opacity: r.hide_once ? .5 : 1, transition:"opacity .15s"}}>
+                        <CheckLine T={T} checked={!r.hide_once} onChange={v=>upd(i,"hide_once",!v)}>
+                          <strong style={{color:T.text}}>Compra única</strong>
+                        </CheckLine>
+                        <div style={{fontSize:DS.font.xs,color:T.textSm,marginTop:4,lineHeight:1.4}}>
+                          {r.hide_once ? "No aparece cuando compran suelto." : `Se muestra con ${int(r.qty)||1} ${(int(r.qty)||1)===1?"unidad":"unidades"}.`}
+                        </div>
+                      </div>
+                      <div style={{opacity: r.hide_sub ? .5 : 1, transition:"opacity .15s"}}>
+                        <CheckLine T={T} checked={!r.hide_sub} onChange={v=>upd(i,"hide_sub",!v)}>
+                          <strong style={{color:T.text}}>Suscripción</strong>
+                        </CheckLine>
+                        {r.hide_sub ? (
+                          <div style={{fontSize:DS.font.xs,color:T.textSm,marginTop:4,lineHeight:1.4}}>No aparece al suscribirse.</div>
+                        ) : (
+                          <div style={{marginTop:6}}>
+                            <Lbl T={T}>Cantidad al suscribirse</Lbl>
+                            <input type="number" min="1" max="50" value={r.sub_qty} onChange={e=>upd(i,"sub_qty",e.target.value)}
+                              style={inp} placeholder={`igual (${int(r.qty)||1})`}/>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:8}}>
                       <div>
                         <Lbl T={T}>Texto en suscripción</Lbl>
@@ -322,8 +363,18 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                             <input type="number" min="0" value={g.compare_at_ars} onChange={e=>updGift(i,gi,"compare_at_ars",e.target.value)} style={{...inp,width:92,flex:"none"}} placeholder="valor $"/>
                             <button type="button" onClick={()=>rmGift(i,gi)} title="Quitar regalo" style={{background:"transparent",border:"none",color:T.textSm,cursor:"pointer",fontSize:14,fontFamily:"inherit",flex:"none"}}>✕</button>
                           </div>
+                          {/* Regalo que NO es un producto de la tienda: un ebook
+                              que se manda por fuera, un sorteo. 22-sept-2026. */}
+                          <CheckLine T={T} checked={g.virtual === true} onChange={v=>updGift(i,gi,"virtual",v)} style={{marginBottom:6}}>
+                            No es un producto de mi tienda <span style={{color:T.textSm}}>(ebook, sorteo, acceso…)</span>
+                          </CheckLine>
+                          {g.virtual && (
+                            <input type="text" value={g.note || ""} onChange={e=>updGift(i,gi,"note",e.target.value)}
+                              style={{...inp,marginBottom:6}} maxLength={120}
+                              placeholder="Aclaración para tu cliente (ej: te llega por mail)"/>
+                          )}
                           <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-                            {products.length > 0 && (
+                            {products.length > 0 && !g.virtual && (
                               <select value="" onChange={e=>regaloDesdeProducto(i,gi,e.target.value)} style={{...inp,maxWidth:220}}>
                                 <option value="">Elegir de mi tienda…</option>
                                 {products.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}

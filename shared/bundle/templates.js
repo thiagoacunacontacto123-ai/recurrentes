@@ -91,12 +91,24 @@ var SVG_REPEAT = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" st
 
 // ─── contexto compartido por variante ────────────────────────────────
 function buildCtx(vm, state) {
-  var packs = Array.isArray(vm.packs) ? vm.packs : [];
+  var todos = Array.isArray(vm.packs) ? vm.packs : [];
   var mode = state && state.mode === "once" ? "once" : "sub";
+  // Packs visibles EN ESTE MODO (22-sept-2026, Thiago): 3 bloques en compra
+  // unica y 2 en suscripcion, por ejemplo. Al tocar el toggle se vuelve a
+  // pintar con la otra lista. Se filtra aca, asi lo heredan las 13 variantes.
+  var packs = todos.filter(function (p) { return mode === "once" ? !p.hideOnce : !p.hideSub; });
+  if (!packs.length) packs = todos;   // nunca dejar el widget sin packs
+  // `idx` es el indice REAL en plan.packs (con el que cobra el checkout), no la
+  // posicion en la lista visible. Si el pack elegido no existe en este modo, se
+  // cae al primero visible.
   var idx = state && Number.isInteger(state.selectedIdx) ? state.selectedIdx : (vm.defaultIdx || 0);
-  if (idx < 0 || idx >= packs.length) idx = 0;
+  var visible = false;
+  for (var vi = 0; vi < packs.length; vi++) if (packs[vi].idx === idx) { visible = true; break; }
+  if (!visible) idx = packs.length ? packs[0].idx : 0;
   var t = vm.texts || {};
-  var sel = packs[idx] || null;
+  var sel = null;
+  for (var si = 0; si < packs.length; si++) if (packs[si].idx === idx) { sel = packs[si]; break; }
+  if (!sel) sel = packs[0] || null;
   var view = sel ? sel[mode] : { price: 0, compare: 0, savingsArs: 0, savingsPct: 0, perUnit: 0 };
   var S = '.rc-bundle[data-variant="' + vm.variant + '"]';
   var modes = vm.modeOrder === "once_first" ? ["once", "sub"] : ["sub", "once"];
@@ -157,9 +169,13 @@ function buildCtx(vm, state) {
     var lbl = mode === "sub" ? (t.cta_sub || "Suscribirme") : (t.cta_once || "Agregar al carrito");
     return esc(lbl) + ' <span class="rc-cta-price">· ' + esc(fmtARS(view.price)) + "</span>";
   };
-  ctx.radioAttrs = function (i) {
-    var on = i === idx;
-    return ' role="radio" aria-checked="' + (on ? "true" : "false") + '" tabindex="' + (on ? "0" : "-1") + '" data-rc-action="pack" data-rc-value="' + i + '"';
+  // Acepta el pack o la posicion. Con el pack usa su indice REAL en plan.packs,
+  // que es lo que el checkout necesita para cobrar el correcto cuando hay packs
+  // escondidos en este modo.
+  ctx.radioAttrs = function (p) {
+    var real = (p && typeof p === "object" && Number.isInteger(p.idx)) ? p.idx : p;
+    var on = real === idx;
+    return ' role="radio" aria-checked="' + (on ? "true" : "false") + '" tabindex="' + (on ? "0" : "-1") + '" data-rc-action="pack" data-rc-value="' + real + '"';
   };
   ctx.modeAttrs = function (m) {
     var on = m === mode;
@@ -256,8 +272,8 @@ function baseCss(S, vm) {
 function v01(c) {
   var S = c.S, t = c.t;
   var packs = c.packs.map(function (p, i) {
-    var v = c.v(p), on = i === c.idx;
-    return '<div class="rc-pack' + c.on(on) + c.on(!!p.badge, "has-badge") + '"' + c.radioAttrs(i) + ">" +
+    var v = c.v(p), on = p.idx === c.idx;
+    return '<div class="rc-pack' + c.on(on) + c.on(!!p.badge, "has-badge") + '"' + c.radioAttrs(p) + ">" +
       (p.badge ? '<span class="rc-ribbon">' + esc(p.badge) + "</span>" : "") +
       '<span class="rc-radio" aria-hidden="true"><i></i></span>' +
       (p.image
@@ -356,9 +372,9 @@ function v02(c) {
     return '<button class="rc-tab' + c.on(m === c.mode) + '"' + c.modeAttrs(m) + ">" + c.modeLabel(m, true) + "</button>";
   }).join("");
   var rows = c.packs.map(function (p, i) {
-    var v = c.v(p), on = i === c.idx;
+    var v = c.v(p), on = p.idx === c.idx;
     var meta = [c.perUnit(p), c.mode === "sub" ? "cada " + p.freqLabel : ""].filter(Boolean).join(" · ");
-    return '<div class="rc-row' + c.on(on) + '"' + c.radioAttrs(i) + ">" +
+    return '<div class="rc-row' + c.on(on) + '"' + c.radioAttrs(p) + ">" +
       '<span class="rc-dot" aria-hidden="true"></span>' +
       '<span class="rc-row-main"><span class="rc-row-top"><b>' + esc(p.label) + "</b>" + (p.badge ? '<span class="rc-tag">' + esc(p.badge) + "</span>" : "") + "</span>" + c.packNote(p) +
         (meta ? "<small>" + esc(meta) + "</small>" : "") + "</span>" +
@@ -411,7 +427,7 @@ function v03(c) {
   var S = c.S, t = c.t;
   var pills = c.packs.map(function (p, i) {
     var v = c.v(p);
-    return '<div class="rc-pill' + c.on(i === c.idx) + '"' + c.radioAttrs(i) + ">" +
+    return '<div class="rc-pill' + c.on(p.idx === c.idx) + '"' + c.radioAttrs(p) + ">" +
       (p.image ? '<img class="rc-pill-img" src="' + esc(p.image) + '" alt="" loading="lazy">' : "") +
       "<b>" + p.qty + "</b>" +
       (v.savingsPct ? "<small>−" + v.savingsPct + "%</small>" : "<small>&nbsp;</small>") +
@@ -477,8 +493,8 @@ function v04(c) {
     return '<th scope="col"><button class="rc-th' + c.on(m === c.mode) + '"' + c.modeAttrs(m) + ">" + c.modeLabel(m, true) + "</button></th>";
   }).join("") + "</tr>";
   var tbody = c.packs.map(function (p, i) {
-    var on = i === c.idx;
-    return '<tr class="rc-tr' + c.on(on) + '"' + c.radioAttrs(i) + '><th scope="row" class="rc-td-pack"><span class="rc-dot" aria-hidden="true"></span><span><b>' + esc(p.label) + "</b>" + c.packNote(p) +
+    var on = p.idx === c.idx;
+    return '<tr class="rc-tr' + c.on(on) + '"' + c.radioAttrs(p) + '><th scope="row" class="rc-td-pack"><span class="rc-dot" aria-hidden="true"></span><span><b>' + esc(p.label) + "</b>" + c.packNote(p) +
       (p.badge ? '<small class="rc-badge">' + esc(p.badge) + "</small>" : "") + "</span></th>" +
       cols.map(function (m) {
         var v = p[m], cur = on && m === c.mode;
@@ -542,9 +558,9 @@ function v05(c) {
     return '<button class="rc-seg' + c.on(m === c.mode) + '"' + c.modeAttrs(m) + ">" + c.modeLabel(m, true) + "</button>";
   }).join("");
   var cards = c.packs.map(function (p, i) {
-    var v = c.v(p), on = i === c.idx;
+    var v = c.v(p), on = p.idx === c.idx;
     var meta = [c.perUnit(p), c.mode === "sub" ? c.freqPrefix(p) + " " + p.freqLabel : ""].filter(Boolean).join(" · ");
-    return '<div class="rc-card' + c.on(on) + '"' + c.radioAttrs(i) + ">" +
+    return '<div class="rc-card' + c.on(on) + '"' + c.radioAttrs(p) + ">" +
       '<div class="rc-side' + c.on(!v.savingsPct || !c.savings(p), "is-empty") + '">' + (v.savingsPct && c.savings(p) ? "<span>Ahorrás</span><b>" + v.savingsPct + "%</b>" : "<b>×" + p.qty + "</b>") + "</div>" +
       (p.image ? '<img class="rc-card-img" src="' + esc(p.image) + '" alt="" loading="lazy">' : "") +
       '<div class="rc-body"><div class="rc-card-top"><b class="rc-card-name">' + esc(p.label) + "</b>" + (p.badge ? '<span class="rc-badge">' + esc(p.badge) + "</span>" : "") + "</div>" + c.packNote(p) +
@@ -604,8 +620,8 @@ function v06(c) {
     return '<button class="rc-link' + c.on(m === c.mode) + '"' + c.modeAttrs(m) + ">" + c.modeLabel(m, true) + "</button>";
   }).join('<span class="rc-sep" aria-hidden="true">/</span>');
   var rows = c.packs.map(function (p, i) {
-    var v = c.v(p), on = i === c.idx;
-    return '<div class="rc-mrow' + c.on(on) + '"' + c.radioAttrs(i) + '><span class="rc-mark" aria-hidden="true"></span>' +
+    var v = c.v(p), on = p.idx === c.idx;
+    return '<div class="rc-mrow' + c.on(on) + '"' + c.radioAttrs(p) + '><span class="rc-mark" aria-hidden="true"></span>' +
       '<span class="rc-mname"><b>' + esc(p.label) + "</b>" + (p.badge ? "<em>" + esc(p.badge) + "</em>" : "") + c.packNote(p) + "</span>" +
       '<span class="rc-mprice">' + c.compareHtml(p) + "<b>" + esc(fmtARS(v.price)) + "</b></span></div>";
   }).join("");
@@ -655,7 +671,7 @@ function v07(c) {
   var S = c.S, t = c.t;
   var segs = c.packs.map(function (p, i) {
     var v = c.v(p);
-    return '<div class="rc-seg' + c.on(i === c.idx) + '"' + c.radioAttrs(i) + "><b>" + p.qty + "</b><small>" + esc(p.qty === 1 ? "unidad" : "unidades") + "</small>" +
+    return '<div class="rc-seg' + c.on(p.idx === c.idx) + '"' + c.radioAttrs(p) + "><b>" + p.qty + "</b><small>" + esc(p.qty === 1 ? "unidad" : "unidades") + "</small>" +
       (v.savingsPct ? "<em>−" + v.savingsPct + "%</em>" : "") + (p.badge ? '<span class="rc-flag">' + esc(p.badge) + "</span>" : "") + "</div>";
   }).join("");
   var chips = c.modes.map(function (m) {
@@ -708,8 +724,8 @@ function v08(c) {
     return '<button class="rc-mp' + c.on(m === c.mode) + '"' + c.modeAttrs(m) + ">" + c.modeLabel(m, true) + "</button>";
   }).join("");
   var cards = c.packs.map(function (p, i) {
-    var v = c.v(p), on = i === c.idx;
-    return '<div class="rc-dc' + c.on(on) + '"' + c.radioAttrs(i) + ">" +
+    var v = c.v(p), on = p.idx === c.idx;
+    return '<div class="rc-dc' + c.on(on) + '"' + c.radioAttrs(p) + ">" +
       (p.badge ? '<span class="rc-dbadge">' + esc(p.badge) + "</span>" : "") +
       '<span class="rc-dring" aria-hidden="true"><i></i></span>' +
       '<span class="rc-dinfo"><b>' + esc(p.label) + "</b><small>" + esc([p.qty === 1 ? "1 unidad" : p.qty + " unidades", c.perUnit(p)].filter(Boolean).join(" · ")) + "</small>" + c.packNote(p) + "</span>" +
@@ -768,8 +784,8 @@ function v09(c) {
     return '<button class="rc-pt' + c.on(m === c.mode) + '"' + c.modeAttrs(m) + ">" + c.modeLabel(m, true) + "</button>";
   }).join("");
   var tiles = c.packs.map(function (p, i) {
-    var v = c.v(p), on = i === c.idx;
-    return '<div class="rc-tile' + c.on(on) + '"' + c.radioAttrs(i) + ">" +
+    var v = c.v(p), on = p.idx === c.idx;
+    return '<div class="rc-tile' + c.on(on) + '"' + c.radioAttrs(p) + ">" +
       (v.savingsPct ? '<span class="rc-bubble">−' + v.savingsPct + "%</span>" : "") +
       (p.image
         ? '<span class="rc-tqty rc-tqty-img"><img src="' + esc(p.image) + '" alt="" loading="lazy"><b>' + p.qty + "</b></span>"
@@ -828,8 +844,8 @@ function v10(c) {
     return '<button class="rc-etab' + c.on(m === c.mode) + '"' + c.modeAttrs(m) + ">" + c.modeLabel(m, true) + "</button>";
   }).join("");
   var rows = c.packs.map(function (p, i) {
-    var v = c.v(p), on = i === c.idx;
-    return '<div class="rc-erow' + c.on(on) + '"' + c.radioAttrs(i) + '><span class="rc-edot" aria-hidden="true"></span>' +
+    var v = c.v(p), on = p.idx === c.idx;
+    return '<div class="rc-erow' + c.on(on) + '"' + c.radioAttrs(p) + '><span class="rc-edot" aria-hidden="true"></span>' +
       '<span class="rc-ename"><b>' + esc(p.label) + "</b>" + (p.badge ? "<em>" + esc(p.badge) + "</em>" : "") + (c.showPerUnit ? "<small>" + esc(c.perUnit(p)) + "</small>" : "") + c.packNote(p) + "</span>" +
       '<span class="rc-eprice"><b>' + esc(fmtARS(v.price)) + "</b>" + c.compareHtml(p) + "</span></div>";
   }).join("");
@@ -920,14 +936,14 @@ function v11(c) {
   var S = c.S, t = c.t;
 
   var packs = c.packs.map(function (p, i) {
-    var v = c.v(p), on = i === c.idx;
+    var v = c.v(p), on = p.idx === c.idx;
     var img = p.image
       ? '<span class="rc-ph"><img src="' + esc(p.image) + '" alt="" loading="lazy"></span>'
       : phFallback(p.qty);
     var freq = c.mode === "sub" && p.freqLabel
       ? '<span class="rc-fq">' + esc(c.freqPrefix(p) + " " + p.freqLabel) + "</span>"
       : "";
-    return '<div class="rc-fp' + c.on(on) + '"' + c.radioAttrs(i) + ">" +
+    return '<div class="rc-fp' + c.on(on) + '"' + c.radioAttrs(p) + ">" +
       (p.badge ? '<span class="rc-ribbon">' + esc(p.badge) + "</span>" : "") +
       '<span class="rc-fp-row">' + img +
         '<span class="rc-fp-mid"><b class="rc-fp-name">' + esc(p.label) + "</b>" + c.packNote(p) +
@@ -976,6 +992,7 @@ function v11(c) {
     S + " .rc-pill{background:#f3f3f3;font-size:13px;padding:5px 11px;border-radius:20px;font-weight:600}" +
     S + " .rc-fq{background:var(--rc-a-l1);color:var(--rc-a-t);border:1px solid var(--rc-a-l2);font-size:12.5px;font-weight:700;padding:5px 11px;border-radius:20px}" +
     S + " .rc-fp-save{font-size:13px;font-weight:800;color:var(--rc-ok);margin-top:7px}" +
+    S + " .rc-gn{display:block;font-size:11px;color:#6b6b6b;font-weight:600;line-height:1.3;margin-top:1px}" +
     S + " .rc-fp-price{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:2px}" +
     S + " .rc-fp-price b{font-size:22px;font-weight:800;white-space:nowrap}" +
     S + " .rc-fp-price .rc-old{font-size:13px}" +
@@ -1008,14 +1025,14 @@ function v13(c) {
   var S = c.S, t = c.t;
 
   var packs = c.packs.map(function (p, i) {
-    var v = c.v(p), on = i === c.idx;
+    var v = c.v(p), on = p.idx === c.idx;
     var img = p.image
       ? '<span class="rc-ph"><img src="' + esc(p.image) + '" alt="" loading="lazy"></span>'
       : phFallback(p.qty);
     var freq = c.mode === "sub" && p.freqLabel
       ? '<span class="rc-fq">' + esc(c.freqPrefix(p) + " " + p.freqLabel) + "</span>"
       : "";
-    return '<div class="rc-fp' + c.on(on) + '"' + c.radioAttrs(i) + ">" +
+    return '<div class="rc-fp' + c.on(on) + '"' + c.radioAttrs(p) + ">" +
       (p.badge ? '<span class="rc-ribbon">' + esc(p.badge) + "</span>" : "") +
       '<span class="rc-fp-row">' + img +
         '<span class="rc-fp-mid"><b class="rc-fp-name">' + esc(p.label) + "</b>" + c.packNote(p) +
@@ -1098,7 +1115,7 @@ function v12(c) {
   var S = c.S, t = c.t;
 
   var packs = c.packs.map(function (p, i) {
-    var v = c.v(p), on = i === c.idx;
+    var v = c.v(p), on = p.idx === c.idx;
     var img = p.image
       ? '<span class="rc-ph"><img src="' + esc(p.image) + '" alt="" loading="lazy"></span>'
       : phFallback(p.qty);
@@ -1110,9 +1127,13 @@ function v12(c) {
         ? '<img src="' + esc(g.image) + '" alt="" loading="lazy">'
         : '<span class="rc-gi-x" aria-hidden="true">🎁</span>';
       var old = g && g.compareAt ? '<s class="rc-gold">' + esc(fmtARS(g.compareAt)) + "</s>" : "";
-      return '<span class="rc-gift">' + gi + '<span class="rc-gt">' + esc(g && g.title ? g.title : "Regalo") + "</span>" + old + "</span>";
+      // Regalo ficticio (ebook, sorteo): no es un producto que viaje en la caja,
+      // asi que se aclara debajo para no prometer un envio que no existe.
+      var nota = g && g.note ? '<small class="rc-gn">' + esc(g.note) + "</small>" : "";
+      return '<span class="rc-gift' + (g && g.virtual ? " is-virtual" : "") + '">' + gi +
+        '<span class="rc-gt">' + esc(g && g.title ? g.title : "Regalo") + nota + "</span>" + old + "</span>";
     }).join("");
-    return '<div class="rc-fp' + c.on(on) + '"' + c.radioAttrs(i) + ">" +
+    return '<div class="rc-fp' + c.on(on) + '"' + c.radioAttrs(p) + ">" +
       (p.badge ? '<span class="rc-ribbon">' + esc(p.badge) + "</span>" : "") +
       '<span class="rc-fp-row">' + img +
         '<span class="rc-fp-mid"><b class="rc-fp-name">' + esc(p.label) + "</b>" + c.packNote(p) +

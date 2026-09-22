@@ -104,8 +104,15 @@ export function resolvePack(plan, idx) {
   const ref = compareAt && compareAt > 0 ? compareAt : price;
   const savingsPct = ref > 0 && subPrice < ref ? Math.round(((ref - subPrice) / ref) * 100) : 0;
 
+  // Cantidad que se manda en cada modo. subQty distinto = el pack de 3 sueltos
+  // entrega 4 cuando se suscribe. Sin el campo, la misma de siempre.
+  const subQtyRaw = toInt(pack.sub_qty);
+  const subQty = subQtyRaw != null && subQtyRaw >= 1 && subQtyRaw <= 50 ? subQtyRaw : qty;
+
   return {
-    idx: i, qty, price, subPrice, compareAt, freq, savingsPct,
+    idx: i, qty, price, subPrice, compareAt, freq, savingsPct, subQty,
+    hideOnce: pack.hide_once === true,
+    hideSub: pack.hide_sub === true,
     label: typeof pack.label === "string" ? pack.label : "",
     note: typeof pack.note === "string" ? pack.note : "",
     note_once: typeof pack.note_once === "string" ? pack.note_once : "",
@@ -196,13 +203,34 @@ export function normalizePacks(input) {
           gcmp = toInt(g.compare_at_ars);
           if (gcmp == null || gcmp < 1) return { error: `${at}: el valor del regalo debe ser un entero ≥ 1 (o vacío)` };
         }
-        gifts.push({ title, image: gimg, compare_at_ars: gcmp });
+        // Regalo ficticio (22-sept-2026, Thiago): un ebook que se manda por
+        // fuera, un sorteo, algo que NO es un producto de la tienda. Como los
+        // regalos ya eran solo de marketing (no entran como linea en la orden),
+        // alcanza con marcarlo para poder decirlo en el widget.
+        const virtual = g.virtual === true;
+        const note = String(g.note ?? "").trim().slice(0, 120);
+        gifts.push({ title, image: gimg, compare_at_ars: gcmp, virtual, note });
       }
+    }
+    // En que modo se muestra este pack (22-sept-2026, Thiago): el comerciante
+    // quiere 3 bloques en compra unica y solo 2 en suscripcion. Se guarda como
+    // "se esconde en X" y no "se muestra en X" a proposito: asi un pack viejo,
+    // que no tiene ninguno de los dos campos, sigue apareciendo en los dos
+    // modos igual que siempre.
+    const hide_once = p.hide_once === true;
+    const hide_sub = p.hide_sub === true;
+    if (hide_once && hide_sub) return { error: `${at}: tiene que mostrarse al menos en un modo` };
+    // Cantidad propia para suscripcion: el pack de 3 sueltos puede mandar 4
+    // cuando se suscribe. Vacio = la misma que en compra unica.
+    let sub_qty = null;
+    if (p.sub_qty != null && p.sub_qty !== "") {
+      sub_qty = toInt(p.sub_qty);
+      if (sub_qty == null || sub_qty < 1 || sub_qty > 50) return { error: `${at}: la cantidad en suscripción debe ser un entero entre 1 y 50` };
     }
     const isDefault = p.default === true;
     if (isDefault) defaults++;
     if (defaults > 1) return { error: "Solo un pack puede ser el default" };
-    out.push({ qty, price_ars, compare_at_ars, label, note, note_once, badge, frequency_days, sub_price_ars, image, gifts, default: isDefault });
+    out.push({ qty, price_ars, compare_at_ars, label, note, note_once, badge, frequency_days, sub_price_ars, image, gifts, default: isDefault, hide_once, hide_sub, sub_qty });
   }
   out.sort((a, b) => a.qty - b.qty);
   return { packs: out };

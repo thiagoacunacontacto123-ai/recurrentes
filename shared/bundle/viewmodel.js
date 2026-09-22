@@ -126,15 +126,28 @@ export function resolvePack(plan, idx) {
   var noteOnce = typeof raw.note_once === "string" ? raw.note_once.replace(/\s+/g, " ").trim().slice(0, 120) : "";
   // Foto del pack (la usan v11/v12). Solo https: evita contenido mixto y javascript:.
   var image = typeof raw.image === "string" && /^(https:\/\/|data:image\/)/i.test(raw.image) ? raw.image : null;
+  // Cantidad propia para suscripcion (22-sept-2026): el pack de 3 sueltos puede
+  // entregar 4 al suscribirse. Vacio = la misma cantidad.
+  var subQtyRaw = toInt(raw.sub_qty);
+  var subQty = subQtyRaw != null && subQtyRaw >= 1 && subQtyRaw <= 50 ? subQtyRaw : qty;
+
   return {
     idx: idx, qty: qty, label: label || (qty === 1 ? "1 unidad" : qty + " unidades"), badge: badge, note: note, noteOnce: noteOnce,
     priceOnce: priceOnce, priceSub: priceSub, compareAt: compareAt, freqDays: freqDays,
     image: image,
+    // En que modo se muestra. Un pack viejo no tiene ninguno de los dos: sale
+    // en los dos modos, como siempre.
+    hideOnce: raw.hide_once === true,
+    hideSub: raw.hide_sub === true,
+    subQty: subQty,
     gifts: Array.isArray(raw.gifts) ? raw.gifts.slice(0, 3).map(function (g) {
       return {
         title: String(g && g.title || "").slice(0, 80),
         image: g && typeof g.image === "string" && /^(https:\/\/|data:image\/)/i.test(g.image) ? g.image : null,
         compareAt: Number(g && g.compare_at_ars) > 0 ? Number(g.compare_at_ars) : null,
+        // Regalo que no es un producto de la tienda (ebook, sorteo).
+        virtual: g && g.virtual === true,
+        note: String(g && g.note || "").slice(0, 120),
       };
     }).filter(function (g) { return g.title; }) : [],
     isDefault: raw.default === true,
@@ -217,7 +230,13 @@ export function buildBundleVM({ plan, merchant } = {}) {
     const once = modeView(r, "once");
     const sub = modeView(r, "sub");
     packs.push({
-      idx: packs.length,
+      // OJO: idx es el indice REAL en plan.packs, no la posicion en la lista
+      // visible. El checkout cobra por ese indice, asi que esconder un pack en
+      // un modo no puede correr los demas. 22-sept-2026.
+      idx: i,
+      hideOnce: r.hideOnce,
+      hideSub: r.hideSub,
+      subQty: r.subQty,
       qty: r.qty,
       label: r.label,
       note: r.note,
