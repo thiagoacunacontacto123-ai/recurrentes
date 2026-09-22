@@ -38,7 +38,11 @@ export function WidgetVerifyModal({ merchant, plans = [], onClose, onVerified })
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
 
-  const MAX_S = 75;
+  // 30 s, no 75 (22-sept, Thiago: "queda como 40 segundos"). El widget avisa a
+  // los 3 s de estar visible (watchVisible en api/widget.js), así que con la
+  // carga de la página todo lo que va a pasar pasa en los primeros 15-20 s.
+  // Esperar más solo dejaba al comerciante mirando un spinner.
+  const MAX_S = 30;
   async function start() {
     if (phase === "opening" || phase === "waiting") return;
     setResult(null); setUrl(null); setElapsed(0); setPhase("opening");
@@ -102,7 +106,12 @@ export function WidgetVerifyModal({ merchant, plans = [], onClose, onVerified })
         {busy && (
           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10 }}>
             <span aria-hidden="true" style={{ width: 18, height: 18, border: `2px solid ${T.border}`, borderTopColor: T.accent, borderRadius: "50%", flexShrink: 0, animation: "rc-verify-spin .8s linear infinite" }}/>
-            <div style={{ fontSize: DS.font.sm, color: T.textMd }}><B T={T}>{phase === "opening" ? "Abriendo tu producto…" : `Mirando tu tienda… ${elapsed}s`}</B> El widget tiene que quedar 3 segundos visible en la página. No cierres la otra pestaña todavía.</div>
+            <div style={{ fontSize: DS.font.sm, color: T.textMd }}>
+              <B T={T}>{phase === "opening" ? "Abriendo tu producto…" : `Mirando tu tienda… ${elapsed}s`}</B>{" "}
+              {elapsed < 12
+                ? "Pasate a la otra pestaña y dejá la página del producto abierta unos segundos."
+                : "Si ya ves la caja de suscripción en tu producto, esperá un toque más. Si no aparece, cerrá esto y te decimos qué pasó."}
+            </div>
             <style>{`@keyframes rc-verify-spin{to{transform:rotate(360deg)}}`}</style>
           </div>
         )}
@@ -133,7 +142,12 @@ export function WidgetVerifyModal({ merchant, plans = [], onClose, onVerified })
         ); })()}
         {phase === "timeout" && (
           result?.loaded
-            ? <Callout T={T} tone="warning" title="El widget cargó, pero no llegamos a verlo en pantalla">Puede que hayas cerrado la pestaña antes de los 3 segundos, o que la página tardara en armarse. Tocá <B T={T}>Probar de nuevo</B> y dejá la pestaña del producto abierta hasta que acá aparezca el tilde.</Callout>
+            ? <Callout T={T} tone="warning" title="El widget cargó, pero no llegamos a verlo en pantalla">
+                Dos motivos, en orden de probabilidad:{" "}
+                <B T={T}>tenés otra app de bundles</B> (Kaching, Pumper, Selleasy…) que ocupa ese lugar y esconde el nuestro —
+                desactivala en el producto y probá de nuevo —, o cerraste la pestaña antes de los 3 segundos.{" "}
+                <a href={WA_BUNDLE} target="_blank" rel="noopener" style={{ color: T.accent, fontWeight: 700 }}>Si no sabés cuál es, escribinos</a> y lo miramos juntos.
+              </Callout>
             : <Callout T={T} tone="danger" title="No vimos el widget en tu tienda">
                 {tn
                   ? <>Fijate que la app <B T={T}>Recurrentes</B> figure instalada en tu Tiendanube (Mi Tiendanube → Aplicaciones). Si está y sigue sin verse, <a href={WA} target="_blank" rel="noopener" style={{ color: T.accent }}>escribinos por WhatsApp</a>.</>

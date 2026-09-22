@@ -114,25 +114,23 @@ function Row({ T, id, label, sub, connected, soon, required, error, warn, option
                 Pedir esta integración
               </a>
             : <>
-                {/* La instalación la hace Recurrentes a mano y se cotiza aparte
-                    (22-sept, Thiago): acá se pide una llamada, no se promete
-                    gratis. El precio se habla ahí, no se publica. */}
+                {/* Conectar es el camino principal: la conexión quedó sencilla
+                    (22-sept, Thiago). Al lado, en secundario, la ayuda por
+                    WhatsApp para el que se traba —casi siempre porque tiene
+                    otra app de bundles que hay que desactivar. */}
                 {waInstall && (
                   <a href={linkInstalacion(label)}
                     target="_blank" rel="noopener noreferrer"
-                    style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"9px 15px", borderRadius:10,
-                      border:"none", background:T.accentSolid, color:"#fff", fontSize:12.5,
-                      fontWeight:800, textDecoration:"none", whiteSpace:"nowrap" }}>
+                    style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"9px 14px", borderRadius:10,
+                      border:`1px solid ${T.border}`, background:T.card, color:T.text, fontSize:12,
+                      fontWeight:700, textDecoration:"none", whiteSpace:"nowrap" }}>
                     {AGENDA_URL
-                      ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>
-                      : <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M17.5 14.4c-.3-.1-1.8-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-.3-.1-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.6c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.9-2.2c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.1.2 2.1 3.2 5.1 4.5.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.4.2-.7.2-1.3.2-1.4-.1-.2-.3-.3-.6-.4zM12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2z"/></svg>}
-                    {AGENDA_URL ? "Agendar la instalación" : "Que lo instalen por mí"}
+                      ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>
+                      : <svg width="14" height="14" viewBox="0 0 24 24" fill="#25D366" aria-hidden="true"><path d="M17.5 14.4c-.3-.1-1.8-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-.3-.1-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.6c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.9-2.2c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.1.2 2.1 3.2 5.1 4.5.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.4.2-.7.2-1.3.2-1.4-.1-.2-.3-.3-.6-.4zM12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2z"/></svg>}
+                    {AGENDA_URL ? "Agendar ayuda" : "Ayuda por WhatsApp"}
                   </a>
                 )}
-                {/* Con waInstall NO se muestra "Conectar": las tiendas las conecta
-                    Recurrentes a mano (21-sept-2026, Thiago: "quiero que sea
-                    oficialmente 100% yo"). Mercado Pago sigue self-service. */}
-                {onConnect && !waInstall && <button type="button" style={b.solid} onClick={onConnect}>{connectLabel}</button>}
+                {onConnect && <button type="button" style={b.solid} onClick={onConnect}>{connectLabel}</button>}
               </>}
         </div>
       </div>
