@@ -303,18 +303,27 @@ export function BundlePreview({ plan, merchant, minHeight = 200, maxWidth = 440,
     else if (action === "pack") setPv(s => ({ ...s, selectedIdx: Math.max(0, parseInt(value, 10) || 0) }));
     else if (action === "cta") toast(pv.mode === "sub" ? "En la tienda: va al checkout de suscripción" : "En la tienda: agrega al carrito", "success");
   }, [pv.mode]);
-  const safe = useMemo(() => ({ ...pv, selectedIdx: Math.min(pv.selectedIdx, Math.max(0, (vm?.packs?.length || 1) - 1)) }), [pv, vm]);
+  // `selectedIdx` es el indice REAL del pack en plan.packs, no la posicion en la
+  // lista visible: desde que un pack puede estar escondido en un modo, capearlo
+  // con packs.length elegia otro bloque. Se valida contra los ids que existen.
+  const safe = useMemo(() => {
+    const ids = (vm?.packs || []).map(p => p.idx);
+    return { ...pv, selectedIdx: ids.includes(pv.selectedIdx) ? pv.selectedIdx : (ids[0] ?? 0) };
+  }, [pv, vm]);
   const out = useMemo(() => safeRender(vm, safe), [vm, safe]);
   const texts = vm?.texts || DEFAULT_WIDGET_TEXTS;
   return (
     <div style={style}>
       {vm?._error && <Callout T={T} tone="danger" style={{marginBottom:10}}>No se pudo armar la vista previa: {vm._error}</Callout>}
-      <div style={{background:"#fff",borderRadius:12,border:`1px solid ${T.border}`,padding:10,maxWidth,margin:"0 auto"}}>
+      {/* minWidth: por debajo de ~300px el bundle corta el texto palabra por
+          palabra y no se entiende como va a quedar. Si la columna es mas
+          angosta, que scrollee horizontal antes que deformarse. 22-sept-2026. */}
+      <div style={{background:"#fff",borderRadius:12,border:`1px solid ${T.border}`,padding:10,maxWidth,minWidth:300,margin:"0 auto"}}>
         <BundleFrame html={out.html} css={out.css} interactive onAction={onAction} minHeight={minHeight}/>
       </div>
       {footer && (
         <div style={{fontSize:DS.font.sm,color:T.textSm,marginTop:8,textAlign:"center"}}>
-          Modo: <strong>{safe.mode === "sub" ? texts.sub_label : texts.once_label}</strong> · pack #{safe.selectedIdx + 1} · tocá los packs y el toggle
+          Modo: <strong>{safe.mode === "sub" ? texts.sub_label : texts.once_label}</strong> · pack #{((vm?.packs || []).findIndex(p => p.idx === safe.selectedIdx) + 1) || 1} · tocá los packs y el toggle
         </div>
       )}
     </div>
