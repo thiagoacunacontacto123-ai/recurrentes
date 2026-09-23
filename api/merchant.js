@@ -1849,7 +1849,18 @@ async function saveOwner(ctx, req, res) {
       const { isAdminEmail } = await import("./_lib/adminAuth.js");
       if (!isAdminEmail(ctx.email)) {
         const { notifyAdmin } = await import("./_lib/adminAlerts.js");
-        await notifyAdmin("signup", { merchantId: ctx.uid, store: `${name} (${prev.store_name || prev.shopify_shop || email})`, detail: `WhatsApp ${wa} · ${email}`, key: "first" });
+        // El aviso lleva lo que respondio al registrarse (23-sept-2026,
+        // Thiago): al tocar el link ya sabes con quien estas hablando, cuanto
+        // vende y si pidio la instalacion paga. La INSTALACION va primero
+        // porque es la que define si hay que llamarlo ya.
+        const VOL = { sin_ventas: "no vende todavia", "1_50": "hasta 50 pedidos/mes", "50_200": "50-200 pedidos/mes", "200_1000": "200-1.000 pedidos/mes", "1000_mas": "+1.000 pedidos/mes" };
+        const OBJ = { recompra: "quiere recompra automatica", ingreso_fijo: "quiere ingreso fijo", ticket: "quiere vender packs mas grandes", dejar_manual: "quiere dejar de perseguir la recompra", mirando: "todavia mirando" };
+        const partes = [];
+        if (lead.lead_instalacion === "asistida") partes.push("PIDE INSTALACION USD 100");
+        if (lead.lead_volumen) partes.push(VOL[lead.lead_volumen]);
+        if (lead.lead_objetivo) partes.push(OBJ[lead.lead_objetivo]);
+        partes.push(`WhatsApp ${wa}`, email);
+        await notifyAdmin("signup", { merchantId: ctx.uid, store: `${name} (${prev.store_name || prev.shopify_shop || email})`, detail: partes.join(" · "), key: "first" });
       }
       // Y al comercio nuevo, un WhatsApp de bienvenida con el link a su panel (una sola vez).
       const { sendWelcomeWhatsApp } = await import("./_lib/adminAlerts.js");
