@@ -10,7 +10,7 @@
 // Si vienen packs sin pricing_mode → "packs". Sin packs → "theme" (Lumina: el
 // tema manda base/sub_off/freq_days por URL; ese flujo no cambia).
 import { db, requireMerchant } from "./_lib/firebase.js";
-import { mpCreatePreapprovalPlan } from "./_lib/mp.js";
+import { mpCreatePreapprovalPlan, mpReason } from "./_lib/mp.js";
 import { appBaseUrl } from "./_lib/config.js";
 import { normalizePacks, resolvePack, defaultPackIndex, withPackDefaults, planPricingMode } from "./_lib/packs.js";
 import { merchantProfile } from "../shared/platform/profile.js";
@@ -91,7 +91,9 @@ export default async function handler(req, res) {
     if (!/^https:\/\//.test(baseUrl)) return res.status(500).json({ error: "APP_BASE_URL debe ser https para crear planes en MP" });
     const backUrl = `${baseUrl}/#/checkout-success`;
     const planBody = {
-      reason: `${product_title} — cada ${frequency_days} días`,
+      // MP corta el reason en 60 chars: mas largo = HTTP 400 y no se crea el
+      // plan. Se recorta el titulo, nunca el "cada N dias". 22-sept-2026.
+      reason: mpReason(product_title, ` — cada ${frequency_days} días`),
       auto_recurring: {
         frequency: parseInt(frequency_days),
         frequency_type: "days",

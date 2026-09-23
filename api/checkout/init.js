@@ -33,7 +33,7 @@
 // distintos). Sin pack_index → 400 "Elegí un pack". Planes "theme" (Lumina, el
 // tema manda base/sub_off/freq_days por URL) siguen el flujo de computeSubtotal.
 import { db } from "../_lib/firebase.js";
-import { mpCreatePreapprovalPlan } from "../_lib/mp.js";
+import { mpCreatePreapprovalPlan, mpReason } from "../_lib/mp.js";
 import { generatePortalToken, verifyPortalToken, merchantStoreUrl } from "../public.js";
 import { syncSubscriber } from "../_lib/sync.js";
 import { verifyToken } from "../_lib/token.js";
@@ -856,9 +856,11 @@ export default async function handler(req, res) {
   // emails), NO viaja a MP. El monto ya viene multiplicado por qty → un plan ad-hoc
   // por sub escala bien.
   const planBodyBase = {
+    // Idem: 60 chars. Con un titulo largo esto tiraba 400 y NADIE se podia
+    // suscribir (89 chars en el caso Wellfresh). 22-sept-2026.
     reason: pack && pack.label
-      ? `${plan.product_title} — ${pack.label} (×${finalQty}) — cada ${freqDays} días`
-      : `${plan.product_title} × ${finalQty} — cada ${freqDays} días`,
+      ? mpReason(plan.product_title, ` — ${pack.label} (×${finalQty}) — cada ${freqDays} días`)
+      : mpReason(plan.product_title, ` × ${finalQty} — cada ${freqDays} días`),
     auto_recurring: {
       frequency: freqDays,
       frequency_type: "days",

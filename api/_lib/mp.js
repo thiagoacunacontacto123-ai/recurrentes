@@ -33,6 +33,27 @@ async function call(method, path, accessToken, body = null) {
 }
 
 // ¿El error es de credenciales (token vencido/revocado)? 401/403.
+// El `reason` del plan es lo que el cliente ve en su resumen de Mercado Pago, y
+// MP lo corta en 60 caracteres: mas largo = HTTP 400 "Reason has more than 60
+// characters" y no se puede crear el plan NI suscribir a nadie.
+// Caso Wellfresh (22-sept-2026): "Well Fresh™ | Gotas naturales para el mal
+// aliento" son 49 chars y con el sufijo se iba a 64 (y a 89 en el checkout).
+// Se recorta el TITULO, nunca el sufijo: el "cada 30 dias" es lo que le dice al
+// cliente que es recurrente y tiene que quedar si o si.
+export const MP_REASON_MAX = 60;
+export function mpReason(titulo, sufijo = "") {
+  // `sufijo` se toma TAL CUAL (con su espacio inicial si lo trae): es parte del
+  // formato final, no un texto del comerciante.
+  const suf = String(sufijo || "");
+  const t = String(titulo || "").trim().replace(/\s+/g, " ");
+  if (!suf) return t.slice(0, MP_REASON_MAX);
+  const libre = MP_REASON_MAX - suf.length;
+  // Si el sufijo solo ya no entra, mandamos lo que entre de el.
+  if (libre <= 1) return suf.trim().slice(0, MP_REASON_MAX);
+  const corto = t.length <= libre ? t : t.slice(0, libre - 1).trimEnd() + "\u2026";
+  return (corto + suf).slice(0, MP_REASON_MAX);
+}
+
 export const isMpAuthError = (e) => !!e && (e.status === 401 || e.status === 403);
 
 // GET genérico (path con query ya armada). Lanza en !ok.
