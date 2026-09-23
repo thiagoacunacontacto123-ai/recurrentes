@@ -232,15 +232,9 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
         <label style={label}>¿Querés que dejemos la conexión y el widget hechos por nosotros?</label>
         <select style={iS} value={instala} onChange={e=>setInstala(e.target.value)}>
           <option value="">Elegí una opción</option>
-          <option value="solo">No, lo hago yo con los tutoriales, los diseños ya hechos y ayuda por WhatsApp</option>
+          <option value="solo">No, lo hago yo con los tutoriales y ayuda por WhatsApp</option>
           <option value="asistida">Sí, quiero instalación con widget a medida y llamada (USD 100, se paga una vez esté integrado y funcional)</option>
         </select>
-        {instala === "solo" && (
-          <div style={{fontSize:12,color:T.textSm,marginTop:6,lineHeight:1.45}}>
-            Elegís entre <strong style={{color:T.textMd}}>13 diseños ya hechos</strong> y le ponés los colores y textos de tu marca.
-            Los tutoriales están en la app y te ayudamos por WhatsApp si te trabás.
-          </div>
-        )}
         {instala === "asistida" && (
           <div style={{fontSize:12,color:T.textSm,marginTop:6,lineHeight:1.45}}>
             Widget 100% personalizado para tu tienda, llamada explicativa y los cambios que necesites.
