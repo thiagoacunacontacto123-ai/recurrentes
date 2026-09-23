@@ -254,3 +254,29 @@ test("(j) todos los diseños de la galería son guardables", async () => {
   assert.deepEqual(BUNDLE_VARIANTS.map(v => v.id), VARIANT_IDS,
     "la galería y VARIANT_IDS tienen que tener los mismos diseños");
 });
+
+// ─── La misma cantidad puede estar en las dos listas ──────────────────────
+// 22-sept-2026: con las listas separadas, un bloque de 2 en compra única y
+// otro de 2 en suscripción (a otro precio) son bloques DISTINTOS. La
+// validación los contaba juntos y tiraba "ya hay otro pack con cantidad 2".
+test("(j) un bloque de 2 en cada lista es válido", () => {
+  const r = normalizePacks([
+    { qty: 2, price_ars: 54900, hide_sub: true },    // 2 suelto
+    { qty: 2, price_ars: 93330, hide_once: true },   // 2 suscripto, otro precio
+  ]);
+  assert.equal(r.error, undefined, r.error);
+  assert.equal(r.packs.length, 2);
+  // Y cada índice conserva SU precio (es lo que cobra el checkout).
+  const plan2 = plan(r.packs);
+  const precios = r.packs.map((_, i) => resolvePack(plan2, i).price).sort((a, b) => a - b);
+  assert.deepEqual(precios, [54900, 93330]);
+});
+
+test("(j) pero dos bloques de 2 en la MISMA lista se rechazan", () => {
+  const r = normalizePacks([
+    { qty: 2, price_ars: 100, hide_sub: true },
+    { qty: 2, price_ars: 200, hide_sub: true },
+  ]);
+  assert.ok(r.error, "tiene que rechazarlo");
+  assert.match(r.error, /compra única/);
+});

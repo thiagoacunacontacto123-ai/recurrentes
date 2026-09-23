@@ -133,7 +133,9 @@ export function normalizePacks(input) {
   if (!Array.isArray(input)) return { error: "packs debe ser un array" };
   if (input.length > MAX_PACKS) return { error: `Máximo ${MAX_PACKS} packs` };
   const out = [];
-  const seenQty = new Set();
+  // Una cantidad puede repetirse entre listas (un bloque de 2 en compra única y
+  // otro de 2 en suscripción), pero no DENTRO de la misma. 22-sept-2026.
+  const seenOnce = new Set(), seenSub = new Set();
   let defaults = 0;
   for (let n = 0; n < input.length; n++) {
     const p = input[n];
@@ -141,8 +143,15 @@ export function normalizePacks(input) {
     if (!p || typeof p !== "object") return { error: `${at}: inválido` };
     const qty = toInt(p.qty);
     if (qty == null || qty < 1 || qty > 50) return { error: `${at}: qty debe ser un entero entre 1 y 50` };
-    if (seenQty.has(qty)) return { error: `${at}: ya hay un pack de ${qty} unidad${qty === 1 ? "" : "es"}` };
-    seenQty.add(qty);
+    const ocultoOnce = p.hide_once === true, ocultoSub = p.hide_sub === true;
+    if (!ocultoOnce) {
+      if (seenOnce.has(qty)) return { error: `${at}: ya hay un bloque de compra única de ${qty} unidad${qty === 1 ? "" : "es"}` };
+      seenOnce.add(qty);
+    }
+    if (!ocultoSub) {
+      if (seenSub.has(qty)) return { error: `${at}: ya hay un bloque de suscripción de ${qty} unidad${qty === 1 ? "" : "es"}` };
+      seenSub.add(qty);
+    }
     const price_ars = toInt(p.price_ars);
     if (price_ars == null || price_ars < 1) return { error: `${at}: price_ars debe ser un entero ≥ 1` };
     let compare_at_ars = null;

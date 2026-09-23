@@ -27,10 +27,10 @@ export function pricingModeOf(plan) {
 // NO tiene por que ser la misma en cada modo. Suscripcion va a la izquierda,
 // que es lo que queremos vender.
 const COLUMNAS = [
+  { id: "once", title: "Compra única", corto: "compra única", ve: (r) => r.hide_once !== true,
+    vacio: "Sin bloques de compra única: tu cliente solo va a poder suscribirse." },
   { id: "sub",  title: "Suscripción",  corto: "suscripción",  ve: (r) => r.hide_sub !== true,
     vacio: "Sin bloques de suscripción: el widget no va a ofrecer suscribirse." },
-  { id: "once", title: "Compra única", corto: "compra única", ve: (r) => r.hide_once !== true,
-    vacio: "Sin bloques de compra única: solo se va a poder suscribir." },
 ];
 
 export function emptyPackRow(qty = 1) {
@@ -100,13 +100,22 @@ export function derivePack(row, ctx) {
 export function validatePacks(rows) {
   if (!rows.length) return "Agregá al menos un pack (o pasá a modo \"Mi tema manda el precio\").";
   if (rows.length > PACKS_MAX) return `Máximo ${PACKS_MAX} packs.`;
-  const seen = new Set();
+  // La cantidad no se repite DENTRO de cada lista, pero sí puede estar en las
+  // dos: un bloque de 2 en compra única y otro de 2 en suscripción son bloques
+  // distintos. Antes se chequeaba contra todos juntos y no dejaba. 22-sept-2026.
+  const vistoOnce = new Set(), vistoSub = new Set();
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i]; const n = i + 1;
     const qty = int(r.qty);
     if (!(qty >= 1)) return `Pack ${n}: la cantidad tiene que ser 1 o más.`;
-    if (seen.has(qty)) return `Pack ${n}: ya hay otro pack con cantidad ${qty}.`;
-    seen.add(qty);
+    if (r.hide_once !== true) {
+      if (vistoOnce.has(qty)) return `Pack ${n}: ya hay otro bloque de compra única con cantidad ${qty}.`;
+      vistoOnce.add(qty);
+    }
+    if (r.hide_sub !== true) {
+      if (vistoSub.has(qty)) return `Pack ${n}: ya hay otro bloque de suscripción con cantidad ${qty}.`;
+      vistoSub.add(qty);
+    }
     const price = num(r.price_ars);
     if (!(price > 0)) return `Pack ${n}: el precio del pack tiene que ser mayor a 0.`;
     if (r.compare_at_ars !== "" && num(r.compare_at_ars) < price) return `Pack ${n}: el precio tachado no puede ser menor al precio del pack.`;
@@ -276,39 +285,13 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                           onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.textSm}>✕</button>
                       </div>
                     </div>
-                    {/* Ya no hace falta preguntar en que modo se muestra: lo
-                        dice la columna en la que esta. Lo que SI se ofrece es
-                        compartirlo con la otra, y la cantidad propia cuando el
-                        mismo pack vive en las dos. 22-sept-2026, Thiago. */}
-                    <div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${T.borderL}`,display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
-                      <CheckLine T={T} checked={!r.hide_once && !r.hide_sub}
-                        onChange={v=>{
-                          // Compartido = visible en las dos columnas. Al destildarlo
-                          // vuelve a la columna desde la que se lo esta mirando.
-                          if (v) { upd2(i, { hide_once:false, hide_sub:false }); }
-                          else { upd2(i, r.hide_sub ? { hide_once:false, hide_sub:true } : { hide_once:true, hide_sub:false }); }
-                        }}>
-                        También en la otra columna
-                      </CheckLine>
-                      {!r.hide_once && !r.hide_sub && (
-                        <div style={{display:"flex",alignItems:"center",gap:6}}>
-                          <span style={{fontSize:DS.font.xs,color:T.textSm}}>Cantidad al suscribirse</span>
-                          <input type="number" min="1" max="50" value={r.sub_qty} onChange={e=>upd(i,"sub_qty",e.target.value)}
-                            style={{...inp,width:110}} placeholder={`igual (${int(r.qty)||1})`}/>
-                        </div>
-                      )}
-                    </div>
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:8}}>
-                      <div>
-                        <Lbl T={T}>Texto en suscripción</Lbl>
-                        <input type="text" value={r.note} onChange={e=>upd(i,"note",e.target.value)} style={inp}
-                          placeholder="Ej: tratamiento 4 meses" maxLength={120}/>
-                      </div>
-                      <div>
-                        <Lbl T={T}>Texto en compra única</Lbl>
-                        <input type="text" value={r.note_once} onChange={e=>upd(i,"note_once",e.target.value)} style={inp}
-                          placeholder={r.note ? `Vacío = "${r.note}"` : "Ej: 4 potes"} maxLength={120}/>
-                      </div>
+                    {/* Un campo solo: este bloque vive en UNA lista, asi que no
+                        hay dos textos que separar. 22-sept-2026, Thiago. */}
+                    <div style={{marginTop:8}}>
+                      <Lbl T={T}>Texto de este bloque</Lbl>
+                      <input type="text" value={r.hide_sub ? r.note_once : r.note}
+                        onChange={e=>upd(i, r.hide_sub ? "note_once" : "note", e.target.value)} style={inp}
+                        placeholder={r.hide_sub ? "Ej: 4 potes" : "Ej: tratamiento 4 meses"} maxLength={120}/>
                     </div>
                     {/* Foto del pack y regalos: los dibujan los diseños Foto y Foto + regalos. */}
                     <div style={{marginTop:8}}>
@@ -410,14 +393,20 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
               Sin packs todavía. Tocá "Generar 1·2·3" (0 / 15 / 25 % off por cantidad sobre el precio base) o agregá uno a mano.
             </div>
           ) : (
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(330px, 1fr))",gap:14,alignItems:"start"}}>
+            <div style={{display:"flex",flexDirection:"column",gap:18}}>
               {COLUMNAS.map(col => {
                 const visibles = packs.map((r, i) => [r, i]).filter(([r]) => col.ve(r));
                 return (
                   <div key={col.id}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                      <span style={{fontSize:DS.font.sm,fontWeight:DS.w.bold,color:T.text}}>{col.title}</span>
+                    {/* Titulo de la seccion: los bloques de compra unica arriba
+                        y los de suscripcion abajo, cada uno a ancho completo.
+                        22-sept-2026, Thiago. */}
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8,paddingBottom:6,borderBottom:`1px solid ${T.borderL}`}}>
+                      <span style={{fontSize:DS.font.base,fontWeight:DS.w.bold,color:T.text}}>{col.title}</span>
                       <span style={{fontSize:DS.font.xs,color:T.textSm}}>{visibles.length} {visibles.length===1?"bloque":"bloques"}</span>
+                      <span style={{fontSize:DS.font.xs,color:T.textSm,marginLeft:"auto"}}>
+                        {col.id === "once" ? "Lo que ve cuando compra suelto" : "Lo que ve cuando se suscribe"}
+                      </span>
                     </div>
                     <div style={{display:"flex",flexDirection:"column",gap:8}}>
                       {visibles.length === 0 ? (
@@ -428,7 +417,7 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                       {packs.length < PACKS_MAX && (
                         <button type="button" onClick={()=>add(col.id)} style={{background:"transparent",border:`1px dashed ${T.border}`,borderRadius:DS.r.lg,color:T.textMd,fontSize:DS.font.sm,padding:"11px 12px",cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}
                           onMouseEnter={e=>{e.currentTarget.style.borderColor=T.accentSolid;e.currentTarget.style.color=T.text;}}
-                          onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textMd;}}>+ Agregar a {col.corto}</button>
+                          onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textMd;}}>+ Agregar bloque de {col.corto}</button>
                       )}
                     </div>
                   </div>
