@@ -232,7 +232,7 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
         <label style={label}>¿Querés que dejemos la conexión y el widget hechos por nosotros?</label>
         <select style={iS} value={instala} onChange={e=>setInstala(e.target.value)}>
           <option value="">Elegí una opción</option>
-          <option value="solo">No, lo hago yo con los tutoriales y ayuda por WhatsApp</option>
+          <option value="solo">No, lo hago yo con los tutoriales</option>
           <option value="asistida">Sí, quiero instalación con widget a medida y llamada (USD 100, se paga una vez esté integrado y funcional)</option>
         </select>
         {instala === "asistida" && (
