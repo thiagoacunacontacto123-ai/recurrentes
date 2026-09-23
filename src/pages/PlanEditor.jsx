@@ -294,8 +294,11 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
           : `Convertí un producto de ${profile.channelInfo.label} en suscripción recurrente. Lo que cargás se ve a la derecha al instante.`}
         right={<><Btn T={T} variant="secondary" onClick={onBack}>Cancelar</Btn>{saveBtn}</>}/>
 
-      <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"minmax(0, 2.4fr) minmax(330px, 0.9fr)", gap:DS.sp.lg, alignItems:"start" }}>
-        {/* ── Columna izquierda: formulario ─────────────────────────── */}
+      {/* La vista previa ya no va al costado: a media pantalla se veia achicada
+          y el bundle no se leia como en la tienda. Ahora el formulario usa todo
+          el ancho y la preview va abajo de todo. 22-sept-2026, Thiago. */}
+      <div style={{ display:"grid", gap:DS.sp.lg, alignItems:"start" }}>
+        {/* ── Formulario ─────────────────────────────────────────────── */}
         <Card T={T}>
           {manual ? (
             <>
@@ -542,8 +545,8 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
           </div>
         </Card>
 
-        {/* ── Columna derecha: vista previa en vivo ─────────────────── */}
-        <Card T={T} style={{ position:"sticky", top:12 }}>
+        {/* ── Vista previa en vivo (abajo de todo, a lo ancho) ──────── */}
+        <Card T={T}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:10, flexWrap:"wrap", marginBottom:10 }}>
             <div>
               <div style={{ fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, letterSpacing:-0.2 }}>Vista previa en vivo</div>
@@ -570,7 +573,7 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
             <>
               {!basePrice && !isEdit && <div style={{ ...small, marginBottom:8 }}>Elegí un producto para ver tus precios. Mientras tanto, datos de ejemplo.</div>}
               {draftPlan._samplePacks && basePrice > 0 && <div style={{ ...small, marginBottom:8 }}>Todavía no hay packs: mostramos 3 de ejemplo. Tocá "Generar 1·2·3".</div>}
-              <BundlePreview plan={draftPlan} merchant={m} minHeight={200}/>
+              <BundlePreview plan={draftPlan} merchant={m} minHeight={200} maxWidth={520}/>
             </>
           )}
         </Card>

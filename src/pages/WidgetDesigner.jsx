@@ -375,7 +375,17 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
   }, [m.id]);
 
   // ── plan de la vista previa (solo lectura: los packs se editan en el plan) ──
-  const activePlans = useMemo(() => (Array.isArray(plans) ? plans : []).filter(p => p && p.active !== false), [plans]);
+  // Los planes SIN PUBLICAR tambien valen para la vista previa (22-sept-2026,
+  // Thiago): desde que nacen apagados, filtrar por activos dejaba al comerciante
+  // mirando datos de ejemplo mientras elige el diseno de SU plan. Primero los
+  // publicados, y entre ellos el mas viejo (el primero que creo).
+  const activePlans = useMemo(() => {
+    const todos = (Array.isArray(plans) ? plans : []).filter(Boolean);
+    const orden = (p) => String(p.created_at || "");
+    const pub = todos.filter(p => p.active !== false).sort((a, b) => orden(a).localeCompare(orden(b)));
+    const sin = todos.filter(p => p.active === false).sort((a, b) => orden(a).localeCompare(orden(b)));
+    return [...pub, ...sin];
+  }, [plans]);
   const packPlans = useMemo(() => activePlans.filter(p => pricingModeOf(p) === "packs" && Array.isArray(p.packs) && p.packs.length > 0), [activePlans]);
   const [planId, setPlanId] = useState(null);
   useEffect(() => {
@@ -508,7 +518,7 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
             </div>
             {activePlans.length > 0 && (
               <select value={selectedPlan ? selectedPlan.id : "sample"} onChange={e=>setPlanId(e.target.value)} style={{...inputS,width:"auto",maxWidth:240,padding:"7px 10px",fontSize:12,marginBottom:0}}>
-                {activePlans.map(p => <option key={p.id} value={p.id}>{p.product_title}{pricingModeOf(p) === "theme" ? " · precio del tema" : ""}</option>)}
+                {activePlans.map(p => <option key={p.id} value={p.id}>{p.product_title}{p.active === false ? " · sin publicar" : ""}{pricingModeOf(p) === "theme" ? " · precio del tema" : ""}</option>)}
                 <option value="sample">Datos de ejemplo</option>
               </select>
             )}
