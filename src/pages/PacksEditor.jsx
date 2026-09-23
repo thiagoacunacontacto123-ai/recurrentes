@@ -262,20 +262,23 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
 
   // Una tarjeta de pack. Se dibuja igual en las dos columnas; `i` es
   // SIEMPRE el indice real en `packs` (con el que cobra el checkout).
-  const renderCard = (r, i) => {
+  const renderCard = (r, i, col) => {
+    // `col` = "sub" | "once": cada seccion muestra SOLO su precio. Antes las dos
+    // mostraban "Precio del pack" y "Precio suscripcion" y se repetian.
+    const esSub = col === "sub";
                 const d = derivePack(r, ctx);
                 return (
                   <div key={i} className="gh-list-item" style={{background:T.surface,border:`1px solid ${i===recien?T.accentSolid:r.default?T.accentSolid+"80":T.borderL}`,borderRadius:DS.r.lg,padding:"10px 12px",transition:"border-color .3s"}}>
                     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(105px, 1fr))",gap:8}}>
                       <div><Lbl T={T}>Cantidad</Lbl><input type="number" min="1" max="99" value={r.qty} onChange={e=>upd(i,"qty",e.target.value)} style={inp}/></div>
-                      <div><Lbl T={T}>Precio del pack ($)</Lbl><input type="number" min="0" value={r.price_ars} onChange={e=>upd(i,"price_ars",e.target.value)} style={inp} placeholder="compra única"/></div>
+                      <div><Lbl T={T}>{esSub ? "Precio suscripción ($)" : "Precio del pack ($)"}</Lbl><input type="number" min="0" value={esSub ? (r.sub_price_ars || "") : r.price_ars} onChange={e=>upd(i, esSub ? "sub_price_ars" : "price_ars", e.target.value)} style={inp} placeholder={esSub ? subAutoPh(r) : "lo que paga"}/></div>
                       <div><Lbl T={T}>Precio tachado ($)</Lbl><input type="number" min="0" value={r.compare_at_ars} onChange={e=>upd(i,"compare_at_ars",e.target.value)} style={inp} placeholder={`auto (${d.compareAt.toLocaleString("es-AR")})`}/></div>
                       <div><Lbl T={T}>Frecuencia (días)</Lbl><input type="number" min="1" value={r.frequency_days} onChange={e=>upd(i,"frequency_days",e.target.value)} style={inp} placeholder={freqAutoPh(r)}/></div>
                     </div>
                     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(105px, 1fr))",gap:8,marginTop:8}}>
                       <div><Lbl T={T}>Etiqueta</Lbl><input type="text" value={r.label} onChange={e=>upd(i,"label",e.target.value)} style={inp} placeholder={`${d.qty} ${d.qty===1?"pote":"potes"}`} maxLength={40}/></div>
                       <div><Lbl T={T}>Badge</Lbl><input type="text" value={r.badge} onChange={e=>upd(i,"badge",e.target.value)} style={inp} placeholder="Más elegido" maxLength={24}/></div>
-                      <div><Lbl T={T}>Precio suscripción ($)</Lbl><input type="number" min="0" value={r.sub_price_ars} onChange={e=>upd(i,"sub_price_ars",e.target.value)} style={inp} placeholder={subAutoPh(r)}/></div>
+                      {esSub && <div><Lbl T={T}>Precio sin descuento ($)</Lbl><input type="number" min="0" value={r.price_ars} onChange={e=>upd(i,"price_ars",e.target.value)} style={inp} placeholder="para calcular el ahorro"/></div>}
                       <div style={{display:"flex",alignItems:"flex-end",gap:8}}>
                         <label style={{display:"flex",alignItems:"center",gap:6,fontSize:DS.font.sm,color:T.textMd,cursor:"pointer",whiteSpace:"nowrap",paddingBottom:8}}>
                           <input type="radio" name={radioName} checked={r.default === true} onChange={()=>setDefault(i)} style={{accentColor:T.accentSolid}}/>
@@ -408,14 +411,17 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                         {col.id === "once" ? "Lo que ve cuando compra suelto" : "Lo que ve cuando se suscribe"}
                       </span>
                     </div>
-                    <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {/* Dos columnas por seccion (22-sept-2026, Thiago): "si no
+                        te vas a estar scrolleando un monton". Se apilan solas
+                        cuando no entran. */}
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(320px, 1fr))",gap:10,alignItems:"start"}}>
                       {visibles.length === 0 ? (
-                        <div style={{fontSize:DS.font.sm,color:T.textSm,padding:"10px 12px",background:T.surface,border:`1px dashed ${T.border}`,borderRadius:DS.r.md,lineHeight:1.5}}>
+                        <div style={{fontSize:DS.font.sm,color:T.textSm,padding:"10px 12px",background:T.surface,border:`1px dashed ${T.border}`,borderRadius:DS.r.md,lineHeight:1.5,gridColumn:"1 / -1"}}>
                           {col.vacio}
                         </div>
-                      ) : visibles.map(([r, i]) => renderCard(r, i))}
+                      ) : visibles.map(([r, i]) => renderCard(r, i, col.id))}
                       {packs.length < PACKS_MAX && (
-                        <button type="button" onClick={()=>add(col.id)} style={{background:"transparent",border:`1px dashed ${T.border}`,borderRadius:DS.r.lg,color:T.textMd,fontSize:DS.font.sm,padding:"11px 12px",cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}
+                        <button type="button" onClick={()=>add(col.id)} style={{background:"transparent",border:`1px dashed ${T.border}`,borderRadius:DS.r.lg,color:T.textMd,fontSize:DS.font.sm,padding:"11px 12px",cursor:"pointer",fontFamily:"inherit",textAlign:"center",gridColumn:"1 / -1"}}
                           onMouseEnter={e=>{e.currentTarget.style.borderColor=T.accentSolid;e.currentTarget.style.color=T.text;}}
                           onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textMd;}}>+ Agregar bloque de {col.corto}</button>
                       )}

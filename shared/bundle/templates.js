@@ -182,6 +182,24 @@ function buildCtx(vm, state) {
     return ' type="button" role="radio" aria-checked="' + (on ? "true" : "false") + '" data-rc-action="mode" data-rc-value="' + m + '"';
   };
   ctx.on = function (cond, cls) { return cond ? " " + (cls || "is-on") : ""; };
+  // Franja de regalos del pack (22-sept-2026, Thiago: "siempre se deben agregar
+  // al bloque de ese pack tal cual en los widgets"). Antes solo la dibujaba v12
+  // y en el resto el regalo cargado no aparecia en ningun lado.
+  ctx.giftsHtml = function (p) {
+    var gs = (p && Array.isArray(p.gifts)) ? p.gifts : [];
+    if (!gs.length) return "";
+    return gs.map(function (g) {
+      var gi = g && g.image
+        ? '<img src="' + esc(g.image) + '" alt="" loading="lazy">'
+        : '<span class="rc-gi-x" aria-hidden="true">\uD83C\uDF81</span>';
+      var old = g && g.compareAt ? '<s class="rc-gold">' + esc(fmtARS(g.compareAt)) + "</s>" : "";
+      // Regalo ficticio (ebook, sorteo): no viaja en la caja, se aclara.
+      var nota = g && g.note ? '<small class="rc-gn">' + esc(g.note) + "</small>" : "";
+      return '<span class="rc-gift' + (g && g.virtual ? " is-virtual" : "") + '">' + gi +
+        '<span class="rc-gt">' + esc(g && g.title ? g.title : "Regalo") + nota + "</span>" + old + "</span>";
+    }).join("");
+  };
+
   ctx.trust = function (cls) {
     // Cada modo tiene SUS líneas (21-sept-2026, Thiago). Las de suscripción
     // ("Cancelás cuando quieras") no aplican a una compra suelta y confundían.
@@ -237,6 +255,16 @@ function baseCss(S, vm) {
   return (
     S + "{" + vars + ";font-family:inherit;color:#161616;line-height:1.35;margin:14px 0;text-align:left;position:relative;container-type:inline-size;-webkit-font-smoothing:antialiased}" +
     S + "," + S + " *," + S + " *::before," + S + " *::after{box-sizing:border-box !important}" +
+    // Franja de regalos del pack: fondo del color del widget, pegada abajo del
+    // bloque (22-sept-2026). Compartida: antes vivia solo dentro de v12.
+    S + " .rc-gift{display:flex;align-items:center;gap:11px;background:var(--rc-a-l1);border-top:1px solid var(--rc-a-l2);padding:10px 16px}" +
+    S + " .rc-gift img{width:44px;height:44px;border-radius:6px;object-fit:cover;flex:none;background:#fff}" +
+    S + " .rc-gi-x{width:44px;height:44px;border-radius:6px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;flex:none}" +
+    S + " .rc-gt{flex:1;font-size:14px;font-weight:600;line-height:1.3}" +
+    S + " .rc-gn{display:block;font-size:11px;color:#6b6b6b;font-weight:600;line-height:1.3;margin-top:1px}" +
+    S + " .rc-gold{font-size:13px;color:#8a8a8a;white-space:nowrap}" +
+    S + " .rc-mrow .rc-gift," + S + " .rc-erow .rc-gift{flex:0 0 100%;margin:8px -14px -10px;border-radius:0 0 var(--rc-r) var(--rc-r)}" +
+    S + " .rc-trg td{padding:0}" +
     S + " button{font-family:inherit;margin:0 !important;-webkit-appearance:none;appearance:none;line-height:inherit;letter-spacing:inherit;text-transform:none;font-size:inherit;color:inherit;background:none;border:0;padding:0;min-height:0;min-width:0;width:auto;box-shadow:none}" +
     S + " [data-rc-action]{cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}" +
     S + " [data-rc-action]:focus{outline:none}" +
@@ -284,7 +312,7 @@ function v01(c) {
         (c.savings(p) ? '<span class="rc-save">' + esc(c.savings(p)) + "</span>" : "") +
       "</span>" +
       '<span class="rc-price"><b>' + esc(fmtARS(v.price)) + "</b>" + c.compareHtml(p) + "</span>" +
-      "</div>";
+      c.giftsHtml(p) + "</div>";
   }).join("");
 
   var modes = c.modes.map(function (m) {
@@ -379,7 +407,7 @@ function v02(c) {
       '<span class="rc-row-main"><span class="rc-row-top"><b>' + esc(p.label) + "</b>" + (p.badge ? '<span class="rc-tag">' + esc(p.badge) + "</span>" : "") + "</span>" + c.packNote(p) +
         (meta ? "<small>" + esc(meta) + "</small>" : "") + "</span>" +
       '<span class="rc-row-price"><b>' + esc(fmtARS(v.price)) + "</b>" + c.compareHtml(p) + (c.savings(p) ? "<em>" + esc(c.savings(p)) + "</em>" : "") + "</span>" +
-      "</div>";
+      c.giftsHtml(p) + "</div>";
   }).join("");
   var html = c.wrap(
     '<div class="rc-top">' + (t.headline ? "<h3>" + esc(t.headline) + "</h3>" : "") +
@@ -431,7 +459,7 @@ function v03(c) {
       (p.image ? '<img class="rc-pill-img" src="' + esc(p.image) + '" alt="" loading="lazy">' : "") +
       "<b>" + p.qty + "</b>" +
       (v.savingsPct ? "<small>−" + v.savingsPct + "%</small>" : "<small>&nbsp;</small>") +
-      (p.badge ? '<span class="rc-pill-badge">' + esc(p.badge) + "</span>" : "") + "</div>";
+      (p.badge ? '<span class="rc-pill-badge">' + esc(p.badge) + "</span>" : "") + c.giftsHtml(p) + "</div>";
   }).join("");
   var other = c.mode === "sub" ? "once" : "sub";
   var switchHtml =
@@ -501,7 +529,8 @@ function v04(c) {
         return '<td class="rc-td' + c.on(cur, "is-cur") + c.on(m === c.mode, "is-col") + '" data-rc-action="mode" data-rc-value="' + m + '"><b>' + esc(fmtARS(v.price)) + "</b>" +
           (v.savingsPct ? "<em>−" + v.savingsPct + "%</em>" : "") +
           (m === "sub" ? "<small>cada " + esc(p.freqLabel) + "</small>" : (c.showPerUnit ? "<small>" + esc(c.perUnit(p, m)) + "</small>" : "")) + "</td>";
-      }).join("") + "</tr>";
+      }).join("") + "</tr>" +
+      (c.giftsHtml(p) ? '<tr class="rc-trg"' + c.radioAttrs(p) + '><td colspan="' + (cols.length + 1) + '">' + c.giftsHtml(p) + "</td></tr>" : "");
   }).join("");
   var summary = c.sel
     ? '<div class="rc-sum"><span><b>' + esc(c.sel.label) + "</b> · " + c.modeLabel(c.mode) + "</span><span class=\"rc-sum-price\">" + c.compareHtml(c.sel) + "<b>" + esc(fmtARS(c.view.price)) + "</b></span></div>"
@@ -567,7 +596,7 @@ function v05(c) {
         '<div class="rc-card-price"><b>' + esc(fmtARS(v.price)) + "</b>" + c.compareHtml(p) + "</div>" +
         (meta ? "<small>" + esc(meta) + "</small>" : "") + "</div>" +
       '<span class="rc-tick2" aria-hidden="true">' + SVG_CHECK + "</span>" +
-      "</div>";
+      c.giftsHtml(p) + "</div>";
   }).join("");
   var html = c.wrap(
     '<div class="rc-top">' + (t.headline ? "<h3>" + esc(t.headline) + "</h3>" : "") +
@@ -623,7 +652,7 @@ function v06(c) {
     var v = c.v(p), on = p.idx === c.idx;
     return '<div class="rc-mrow' + c.on(on) + '"' + c.radioAttrs(p) + '><span class="rc-mark" aria-hidden="true"></span>' +
       '<span class="rc-mname"><b>' + esc(p.label) + "</b>" + (p.badge ? "<em>" + esc(p.badge) + "</em>" : "") + c.packNote(p) + "</span>" +
-      '<span class="rc-mprice">' + c.compareHtml(p) + "<b>" + esc(fmtARS(v.price)) + "</b></span></div>";
+      '<span class="rc-mprice">' + c.compareHtml(p) + "<b>" + esc(fmtARS(v.price)) + "</b></span>" + c.giftsHtml(p) + "</div>";
   }).join("");
   var detail = c.sel ? [c.perUnit(c.sel), c.savings(c.sel)].filter(Boolean).join(" · ") : "";
   var html = c.wrap(
@@ -672,7 +701,7 @@ function v07(c) {
   var segs = c.packs.map(function (p, i) {
     var v = c.v(p);
     return '<div class="rc-seg' + c.on(p.idx === c.idx) + '"' + c.radioAttrs(p) + "><b>" + p.qty + "</b><small>" + esc(p.qty === 1 ? "unidad" : "unidades") + "</small>" +
-      (v.savingsPct ? "<em>−" + v.savingsPct + "%</em>" : "") + (p.badge ? '<span class="rc-flag">' + esc(p.badge) + "</span>" : "") + "</div>";
+      (v.savingsPct ? "<em>−" + v.savingsPct + "%</em>" : "") + (p.badge ? '<span class="rc-flag">' + esc(p.badge) + "</span>" : "") + c.giftsHtml(p) + "</div>";
   }).join("");
   var chips = c.modes.map(function (m) {
     return '<button class="rc-chip' + c.on(m === c.mode) + '"' + c.modeAttrs(m) + ">" + c.modeLabel(m, true) + "</button>";
@@ -730,7 +759,7 @@ function v08(c) {
       '<span class="rc-dring" aria-hidden="true"><i></i></span>' +
       '<span class="rc-dinfo"><b>' + esc(p.label) + "</b><small>" + esc([p.qty === 1 ? "1 unidad" : p.qty + " unidades", c.perUnit(p)].filter(Boolean).join(" · ")) + "</small>" + c.packNote(p) + "</span>" +
       '<span class="rc-dprice"><b>' + esc(fmtARS(v.price)) + "</b>" + c.compareHtml(p) + (v.savingsPct ? "<em>−" + v.savingsPct + "%</em>" : "") + "</span>" +
-      "</div>";
+      c.giftsHtml(p) + "</div>";
   }).join("");
   var html = c.wrap(
     '<div class="rc-dtop">' + (t.headline ? "<h3>" + esc(t.headline) + "</h3>" : "") + '<div class="rc-mps" role="radiogroup" aria-label="Modo de compra">' + pills + "</div></div>" +
@@ -793,7 +822,7 @@ function v09(c) {
       '<span class="rc-tlbl">' + esc(p.label) + c.packNote(p) + "</span>" +
       '<span class="rc-tprice">' + esc(fmtARS(v.price)) + "</span>" + c.compareHtml(p, null, "rc-told") +
       (p.badge ? '<span class="rc-tbadge">' + esc(p.badge) + "</span>" : "") +
-      "</div>";
+      c.giftsHtml(p) + "</div>";
   }).join("");
   var detail = c.sel ? [c.perUnit(c.sel), c.savings(c.sel)].filter(Boolean).join(" · ") : "";
   var html = c.wrap(
@@ -847,7 +876,7 @@ function v10(c) {
     var v = c.v(p), on = p.idx === c.idx;
     return '<div class="rc-erow' + c.on(on) + '"' + c.radioAttrs(p) + '><span class="rc-edot" aria-hidden="true"></span>' +
       '<span class="rc-ename"><b>' + esc(p.label) + "</b>" + (p.badge ? "<em>" + esc(p.badge) + "</em>" : "") + (c.showPerUnit ? "<small>" + esc(c.perUnit(p)) + "</small>" : "") + c.packNote(p) + "</span>" +
-      '<span class="rc-eprice"><b>' + esc(fmtARS(v.price)) + "</b>" + c.compareHtml(p) + "</span></div>";
+      '<span class="rc-eprice"><b>' + esc(fmtARS(v.price)) + "</b>" + c.compareHtml(p) + "</span>" + c.giftsHtml(p) + "</div>";
   }).join("");
   var lines = "";
   if (sel) {
@@ -953,7 +982,7 @@ function v11(c) {
           (c.savings(p) ? '<span class="rc-fp-save">' + esc(c.savings(p)) + "</span>" : "") +
         "</span>" +
         '<span class="rc-fp-price">' + c.compareHtml(p) + "<b>" + esc(fmtARS(v.price)) + "</b></span>" +
-      "</span></div>";
+      "</span>" + c.giftsHtml(p) + "</div>";
   }).join("");
 
   var other = c.mode === "sub" ? "once" : "sub";
@@ -1042,7 +1071,7 @@ function v13(c) {
           (c.savings(p) ? '<span class="rc-fp-save">' + esc(c.savings(p)) + "</span>" : "") +
         "</span>" +
         '<span class="rc-fp-price">' + c.compareHtml(p) + "<b>" + esc(fmtARS(v.price)) + "</b></span>" +
-      "</span></div>";
+      "</span>" + c.giftsHtml(p) + "</div>";
   }).join("");
 
   // El cuadrado de tilde: mismo gesto que v01, pero cuadrado y punteado.

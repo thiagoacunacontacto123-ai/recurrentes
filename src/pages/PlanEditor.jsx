@@ -294,7 +294,7 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
           : `Convertí un producto de ${profile.channelInfo.label} en suscripción recurrente. Lo que cargás se ve a la derecha al instante.`}
         right={<><Btn T={T} variant="secondary" onClick={onBack}>Cancelar</Btn>{saveBtn}</>}/>
 
-      <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"minmax(0, 1.25fr) minmax(300px, 1fr)", gap:DS.sp.lg, alignItems:"start" }}>
+      <div className="stack-mobile" style={{ display:"grid", gridTemplateColumns:"minmax(0, 2fr) minmax(290px, 0.85fr)", gap:DS.sp.lg, alignItems:"start" }}>
         {/* ── Columna izquierda: formulario ─────────────────────────── */}
         <Card T={T}>
           {manual ? (
