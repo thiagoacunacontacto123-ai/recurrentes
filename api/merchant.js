@@ -1819,7 +1819,20 @@ async function saveOwner(ctx, req, res) {
   if (!EMAIL_RE.test(email)) return res.status(400).json({ error: "Ingresá un email de contacto válido" });
   await getOrCreateMerchant(ctx.uid, ctx.email || null);
   const prev = (await db().collection("merchants").doc(ctx.uid).get()).data() || {};
-  await db().collection("merchants").doc(ctx.uid).set({ owner_name: name, owner_whatsapp: wa, contact_email: email, owner_info_at: new Date().toISOString() }, { merge: true });
+  // Calificación del alta (23-sept-2026): volumen, objetivo y si quiere la
+  // instalación asistida. Se guarda en una lista cerrada para poder filtrar
+  // desde el Admin; cualquier otra cosa se ignora.
+  const OPC = {
+    lead_volumen: ["sin_ventas", "1_50", "50_200", "200_1000", "1000_mas"],
+    lead_objetivo: ["recompra", "ingreso_fijo", "ticket", "dejar_manual", "mirando"],
+    lead_instalacion: ["solo", "asistida"],
+  };
+  const lead = {};
+  for (const [k, ok] of Object.entries(OPC)) {
+    const v = String(b[k] || "").trim();
+    if (ok.includes(v)) lead[k] = v;
+  }
+  await db().collection("merchants").doc(ctx.uid).set({ owner_name: name, owner_whatsapp: wa, contact_email: email, ...lead, owner_info_at: new Date().toISOString() }, { merge: true });
   // Adquisición: de qué anuncio vino (UTM/fbclid/fbp que guardó la landing) + el evento
   // CompleteRegistration a NUESTRO pixel por servidor (_lib/acquisition.js). Nunca lanza.
   try {

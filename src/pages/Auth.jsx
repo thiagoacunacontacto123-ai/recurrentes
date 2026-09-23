@@ -97,6 +97,13 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
   // Vuelta de signInWithRedirect (cuando el navegador bloqueó la ventana): si falló, mostramos el error.
   useEffect(() => { getRedirectResult(auth).catch(e => setError(errMsg(e))); }, []);
 
+  // Calificación en el alta (23-sept-2026, Thiago): saber con qué volumen
+  // viene, qué busca y si quiere que se lo instalemos. Sirve para priorizar a
+  // quién llamar y para no perder tiempo con curiosos.
+  const [volumen, setVolumen] = useState("");
+  const [objetivo, setObjetivo] = useState("");
+  const [instala, setInstala] = useState("");
+
   const changeMode = (m) => { if (setMode) setMode(m); };
 
   // Paso 1 → 2: los datos quedan en el navegador y el panel los guarda apenas hay sesión
@@ -106,8 +113,14 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
     if (!nombre.trim()) return setError("Ingresá tu nombre.");
     if (!wa) return setError("Ingresá tu WhatsApp con código de área (ej: 11 6411 7974).");
     if (!EMAIL_RE.test(email.trim())) return setError("Ingresá un email de contacto válido.");
+    if (!volumen) return setError("Contanos cuánto vende tu tienda hoy.");
+    if (!objetivo) return setError("Contanos qué buscás con las suscripciones.");
+    if (!instala) return setError("Elegí cómo querés hacer la instalación.");
     if (!acepta) return setError("Tenés que aceptar los Términos y la Política de privacidad.");
-    savePendingSignup({ owner_name: nombre.trim(), owner_whatsapp: wa, contact_email: email.trim().toLowerCase() });
+    savePendingSignup({
+      owner_name: nombre.trim(), owner_whatsapp: wa, contact_email: email.trim().toLowerCase(),
+      lead_volumen: volumen, lead_objetivo: objetivo, lead_instalacion: instala,
+    });
     setError(""); setStep("acceso");
   }
 
@@ -152,7 +165,7 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
         try {
           const pend = readPendingSignup();
           let ref = null; try { ref = localStorage.getItem("rec_ref"); } catch (_) {}
-          if (pend) await apiPost("merchant", { owner_name: pend.owner_name, owner_whatsapp: pend.owner_whatsapp, contact_email: pend.contact_email, ...(ref ? { ref_code: ref } : {}), attribution: readAttribution() }, { action: "save-owner" });
+          if (pend) await apiPost("merchant", { owner_name: pend.owner_name, owner_whatsapp: pend.owner_whatsapp, contact_email: pend.contact_email, lead_volumen: pend.lead_volumen, lead_objetivo: pend.lead_objetivo, lead_instalacion: pend.lead_instalacion, ...(ref ? { ref_code: ref } : {}), attribution: readAttribution() }, { action: "save-owner" });
           // El mismo evento desde el navegador con el MISMO event_id que el servidor: Meta deduplica.
           pixelTrack("CompleteRegistration", { content_name: "registro" }, `acq_registered_${cred.user.uid}`);
         } catch (_) {}
@@ -190,6 +203,44 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
       <div style={{marginBottom:16}}>
         <label style={label}>Email de contacto</label>
         <input style={iS} type="email" placeholder="vos@tunegocio.com" value={email} onChange={e=>setEmail(e.target.value)} onFocus={onFocus} onBlur={onBlur} autoComplete="email" onKeyDown={e=>e.key==="Enter"&&goAcceso()}/>
+      </div>
+      <div style={{marginBottom:12}}>
+        <label style={label}>¿Cuánto vende tu tienda hoy?</label>
+        <select style={iS} value={volumen} onChange={e=>setVolumen(e.target.value)}>
+          <option value="">Elegí una opción</option>
+          <option value="sin_ventas">Todavía no vendo / recién arranco</option>
+          <option value="1_50">Hasta 50 pedidos por mes</option>
+          <option value="50_200">Entre 50 y 200 pedidos por mes</option>
+          <option value="200_1000">Entre 200 y 1.000 pedidos por mes</option>
+          <option value="1000_mas">Más de 1.000 pedidos por mes</option>
+        </select>
+      </div>
+      <div style={{marginBottom:12}}>
+        <label style={label}>¿Qué buscás con las suscripciones?</label>
+        <select style={iS} value={objetivo} onChange={e=>setObjetivo(e.target.value)}>
+          <option value="">Elegí una opción</option>
+          <option value="recompra">Que mis clientes vuelvan a comprar solos</option>
+          <option value="ingreso_fijo">Tener un ingreso fijo todos los meses</option>
+          <option value="ticket">Vender packs más grandes (más plata por venta)</option>
+          <option value="dejar_manual">Dejar de perseguir la recompra a mano</option>
+          <option value="mirando">Todavía estoy viendo si me sirve</option>
+        </select>
+      </div>
+      {/* La instalación asistida (23-sept-2026, Thiago): además de ser un
+          servicio que se cobra, marca quién tiene intención real de arrancar. */}
+      <div style={{marginBottom:16}}>
+        <label style={label}>¿Querés que dejemos la conexión y el widget hechos por nosotros?</label>
+        <select style={iS} value={instala} onChange={e=>setInstala(e.target.value)}>
+          <option value="">Elegí una opción</option>
+          <option value="solo">No, lo hago yo con los tutoriales y ayuda por WhatsApp</option>
+          <option value="asistida">Sí, quiero instalación con widget a medida y llamada (USD 100, se paga recién cuando funciona)</option>
+        </select>
+        {instala === "asistida" && (
+          <div style={{fontSize:12,color:T.textSm,marginTop:6,lineHeight:1.45}}>
+            Widget 100% personalizado para tu tienda, llamada explicativa y los cambios que necesites.
+            Los <strong style={{color:T.textMd}}>USD 100 se pagan una sola vez</strong>, cuando ya está integrado y funcionando.
+          </div>
+        )}
       </div>
       {termsBox}
       {error && <div style={{background:T.redBg,border:`1.5px solid ${T.red}55`,borderRadius:8,padding:"10px 14px",fontSize:13,color:T.red,marginBottom:14,lineHeight:1.45}}>{error}</div>}

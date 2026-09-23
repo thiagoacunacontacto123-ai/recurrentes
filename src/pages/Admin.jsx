@@ -281,6 +281,16 @@ export function AdminPage() {
   );
 }
 
+// Etiquetas de lo que responde el comerciante al registrarse.
+const LEAD_VOL = {
+  sin_ventas: "Todavía no vende", "1_50": "Hasta 50 pedidos/mes", "50_200": "50 a 200 pedidos/mes",
+  "200_1000": "200 a 1.000 pedidos/mes", "1000_mas": "Más de 1.000 pedidos/mes",
+};
+const LEAD_OBJ = {
+  recompra: "Que vuelvan a comprar solos", ingreso_fijo: "Ingreso fijo mensual",
+  ticket: "Vender packs más grandes", dejar_manual: "Dejar de perseguir la recompra", mirando: "Todavía mirando",
+};
+
 // ─── Adquisición: registros → conectaron → plan → pagan, por anuncio (Meta Ads propio) ───
 // Lo que Meta no puede ver: el pago llega 1 a 3 meses después del clic. Sale de
 // merchants/{uid}.acquisition (_lib/acquisition.js); el anuncio es el utm_content del link.
@@ -532,6 +542,17 @@ function MerchantPanel({ id, onClose, onChanged }) {
                 <Row T={T} k="Dueño">{m.owner_name || "—"}</Row>
                 <Row T={T} k="WhatsApp">{m.owner_whatsapp || "—"}</Row>
                 <Row T={T} k="Email de contacto">{m.contact_email || "—"}</Row>
+                {/* Lo que respondió al registrarse (23-sept-2026): sirve para
+                    priorizar a quién llamar y con qué argumento. */}
+                {m.lead_volumen && <Row T={T} k="Vende hoy">{LEAD_VOL[m.lead_volumen] || m.lead_volumen}</Row>}
+                {m.lead_objetivo && <Row T={T} k="Busca">{LEAD_OBJ[m.lead_objetivo] || m.lead_objetivo}</Row>}
+                {m.lead_instalacion && (
+                  <Row T={T} k="Instalación">
+                    {m.lead_instalacion === "asistida"
+                      ? <span style={{ color:T.green, fontWeight:700 }}>Quiere asistida · USD 100</span>
+                      : "La hace solo"}
+                  </Row>
+                )}
               </Section>
 
               <Section T={T} title="Cuenta">

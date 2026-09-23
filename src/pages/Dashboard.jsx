@@ -220,7 +220,7 @@ export default function Dashboard({ user, onLogout }) {
     if (!merchant) return;
     const pending = readPendingSignup();
     if (pending && merchant.owner_info_missing) {
-      apiPost("merchant", { owner_name: pending.owner_name, owner_whatsapp: pending.owner_whatsapp, contact_email: pending.contact_email, attribution: readAttribution() }, { action: "save-owner" })
+      apiPost("merchant", { owner_name: pending.owner_name, owner_whatsapp: pending.owner_whatsapp, contact_email: pending.contact_email, lead_volumen: pending.lead_volumen, lead_objetivo: pending.lead_objetivo, lead_instalacion: pending.lead_instalacion, attribution: readAttribution() }, { action: "save-owner" })
         .then(d => { if (d?.ok) { clearPendingSignup(); setMerchant(m => m ? { ...m, owner_info_missing: false, owner_name: d.owner_name, owner_whatsapp: d.owner_whatsapp, contact_email: d.contact_email } : m); } })
         .catch(() => {});   // con datos pendientes nunca se vuelven a pedir: se reintenta en la próxima carga
     } else {
