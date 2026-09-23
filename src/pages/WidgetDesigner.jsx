@@ -38,6 +38,7 @@ const DEFAULT_WIDGET_TEXTS = {
   trust_lines_once: [],
   note_sub: "",
   note_once: "",
+  sub_hint: "",
 };
 
 // Los textos, separados por dónde se ven (21-sept-2026, Thiago): lo común, lo
@@ -51,6 +52,9 @@ const TEXT_FIELDS_SUB = [
   ["sub_label", "Etiqueta del modo"],
   ["cta_sub", "Botón"],
   ["freq_prefix", "Prefijo de frecuencia (vacío = automático)"],
+  // El renglón chico del cuadro de suscripción cuando está apagado, en los
+  // diseños que lo tienen (Foto, Foto + check…). 22-sept-2026, Thiago.
+  ["sub_hint", "Renglón del cuadro apagado (vacío = automático)"],
 ];
 const TEXT_FIELDS_ONCE = [
   ["once_label", "Etiqueta del modo"],

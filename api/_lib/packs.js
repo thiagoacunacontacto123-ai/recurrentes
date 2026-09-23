@@ -10,7 +10,9 @@
 //   plan.packs: [{ qty, price_ars, compare_at_ars, label, badge, frequency_days, sub_price_ars, default }]
 //   plan.frequency_scales_with_qty: bool (default true) → freq = plan.frequency_days × qty
 
-export const MAX_PACKS = 6;
+// 12 = 6 por columna (22-sept-2026): los packs de compra unica y los de
+// suscripcion son bloques distintos y conviven en la misma lista.
+export const MAX_PACKS = 12;
 // Regalos por pack (v12): lo que se anuncia como "+ GRATIS ...".
 export const MAX_GIFTS = 3;
 

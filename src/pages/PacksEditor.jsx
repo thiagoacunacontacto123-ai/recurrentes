@@ -11,7 +11,9 @@ import { PackTip } from "./Onboarding.jsx";
 //   { qty, price_ars, compare_at_ars, label, badge, frequency_days, sub_price_ars, default }
 // serializePacks() las convierte al formato del backend.
 
-export const PACKS_MAX = 6;
+// 12 = 6 por columna (22-sept-2026): los packs de compra unica y los de
+// suscripcion son bloques distintos y conviven en la misma lista.
+export const PACKS_MAX = 12;
 
 const fmt = (n) => "$" + Math.round(Number(n) || 0).toLocaleString("es-AR");
 const num = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
@@ -40,7 +42,21 @@ export function emptyPackRow(qty = 1) {
 // Plan guardado → filas del editor.
 export function packsFromPlan(plan) {
   const arr = Array.isArray(plan?.packs) ? plan.packs : [];
-  return arr.slice(0, PACKS_MAX).map(p => ({
+  // Un pack visible en LAS DOS columnas es un solo dato mostrado dos veces: al
+  // editarle el badge (o cualquier campo) cambiaban los dos a la vez. Al abrir
+  // el plan se parte en dos bloques independientes, uno por columna, para que
+  // cada uno se edite por su cuenta. 22-sept-2026, Thiago.
+  const separados = [];
+  for (const p of arr) {
+    const enOnce = p.hide_once !== true, enSub = p.hide_sub !== true;
+    if (enOnce && enSub) {
+      separados.push({ ...p, hide_sub: true, hide_once: false });
+      separados.push({ ...p, hide_once: true, hide_sub: false, default: false });
+    } else {
+      separados.push(p);
+    }
+  }
+  return separados.slice(0, PACKS_MAX).map(p => ({
     qty: String(p.qty ?? 1),
     price_ars: p.price_ars != null ? String(p.price_ars) : "",
     compare_at_ars: p.compare_at_ars != null ? String(p.compare_at_ars) : "",
@@ -68,16 +84,25 @@ export function packsFromPlan(plan) {
 // 1·2·3 automáticos a partir del precio base: 0 / 15 / 25 % off por cantidad.
 export function autoPacks(basePrice) {
   const b = Math.round(num(basePrice));
-  const mk = (qty, off, label, badge, def) => ({
+  // Cada bloque pertenece a UNA sola columna (22-sept-2026, Thiago): si el
+  // mismo pack se muestra en las dos, editar el badge de uno cambia el del
+  // otro, porque es el mismo dato. Se generan dos juegos independientes.
+  const mk = (qty, off, label, badge, def, col) => ({
     qty: String(qty),
     price_ars: String(Math.round(b * qty * (1 - off / 100))),
     compare_at_ars: "",
-    label, note: "", note_once: "", badge, frequency_days: "", sub_price_ars: "", image: "", gifts: [], default: def, hide_once: false, hide_sub: false, sub_qty: "",
+    label, note: "", note_once: "", badge, frequency_days: "", sub_price_ars: "", image: "", gifts: [], default: def,
+    hide_once: col === "sub", hide_sub: col === "once", sub_qty: "",
   });
   return [
-    mk(1, 0, "1 unidad", "", false),
-    mk(2, 15, "2 unidades", "Más elegido", true),
-    mk(3, 25, "3 unidades", "Mejor precio", false),
+    // Compra única
+    mk(1, 0, "1 unidad", "", false, "once"),
+    mk(2, 15, "2 unidades", "Más elegido", true, "once"),
+    mk(3, 25, "3 unidades", "Mejor precio", false, "once"),
+    // Suscripción (las mismas cantidades, pero su propio bloque)
+    mk(1, 0, "1 unidad", "", false, "sub"),
+    mk(2, 15, "2 unidades", "Más elegido", false, "sub"),
+    mk(3, 25, "3 unidades", "Mejor precio", false, "sub"),
   ];
 }
 

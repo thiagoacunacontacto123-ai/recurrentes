@@ -185,6 +185,16 @@ function buildCtx(vm, state) {
   // Franja de regalos del pack (22-sept-2026, Thiago: "siempre se deben agregar
   // al bloque de ese pack tal cual en los widgets"). Antes solo la dibujaba v12
   // y en el resto el regalo cargado no aparecia en ningun lado.
+  // Renglon del cuadro de suscripcion. Con `sub_hint` cargado manda ese texto;
+  // vacio, se arma solo como siempre. 22-sept-2026, Thiago.
+  ctx.subHint = function () {
+    if (mode === "sub") return ctx.freqText();
+    if (t.sub_hint) return t.sub_hint;
+    return "Activalo y te llega solo" +
+      (sel && sel.freqLabel ? ", cada " + sel.freqLabel : "") +
+      (ctx.disc > 0 ? ", con " + ctx.disc + "% off" : "");
+  };
+
   ctx.giftsHtml = function (p) {
     var gs = (p && Array.isArray(p.gifts)) ? p.gifts : [];
     if (!gs.length) return "";
@@ -466,7 +476,7 @@ function v03(c) {
     '<div class="rc-sw-row">' +
       '<button type="button" class="rc-sw' + c.on(c.mode === "sub") + '" role="switch" aria-checked="' + (c.mode === "sub" ? "true" : "false") + '" aria-label="' + esc(t.sub_label) + '" data-rc-action="mode" data-rc-value="' + other + '"><i></i></button>' +
       '<span class="rc-sw-txt"><b>' + c.modeLabel("sub", true) + (c.disc > 0 ? " extra" : "") + "</b><small>" +
-        esc(c.mode === "sub" ? c.freqText() : "Activalo y te llega solo, " + (c.sel ? "cada " + c.sel.freqLabel : "") + (c.disc > 0 ? " con " + c.disc + "% off" : "")) +
+        esc(c.subHint()) +
       "</small></span></div>";
   var meta = [c.perUnit(c.sel || { sub: {}, once: {} }), c.savings(c.sel || {})].filter(Boolean);
   var html = c.wrap(
@@ -991,7 +1001,7 @@ function v11(c) {
       (c.mode === "sub" ? "true" : "false") + '" data-rc-action="mode" data-rc-value="' + other + '">' +
       '<span class="rc-sw" aria-hidden="true"><i></i></span>' +
       '<span class="rc-sw-txt"><b>' + c.modeLabel("sub", true) + "</b><small>" +
-        esc(c.mode === "sub" ? c.freqText() : "Activalo y te llega solo" + (c.sel && c.sel.freqLabel ? ", cada " + c.sel.freqLabel : "") + (c.disc > 0 ? ", con " + c.disc + "% off" : "")) +
+        esc(c.subHint()) +
       "</small></span></button>";
 
   var html = c.wrap(
@@ -1081,7 +1091,7 @@ function v13(c) {
       (c.mode === "sub" ? "true" : "false") + '" data-rc-action="mode" data-rc-value="' + other + '">' +
       '<span class="rc-sqr" aria-hidden="true">' + SVG_CHECK + "</span>" +
       '<span class="rc-sub-txt"><b>' + c.modeLabel("sub", true) + "</b><small>" +
-        esc(c.mode === "sub" ? c.freqText() : "Activalo y te llega solo" + (c.sel && c.sel.freqLabel ? ", cada " + c.sel.freqLabel : "") + (c.disc > 0 ? ", con " + c.disc + "% off" : "")) +
+        esc(c.subHint()) +
       "</small></span></button>";
 
   var html = c.wrap(
@@ -1181,7 +1191,7 @@ function v12(c) {
       (c.mode === "sub" ? "true" : "false") + '" data-rc-action="mode" data-rc-value="' + other + '">' +
       '<span class="rc-sw" aria-hidden="true"><i></i></span>' +
       '<span class="rc-sw-txt"><b>' + c.modeLabel("sub", true) + "</b><small>" +
-        esc(c.mode === "sub" ? c.freqText() : "Activalo y te llega solo" + (c.sel && c.sel.freqLabel ? ", cada " + c.sel.freqLabel : "") + (c.disc > 0 ? ", con " + c.disc + "% off" : "")) +
+        esc(c.subHint()) +
       "</small></span></button>";
 
   var html = c.wrap(

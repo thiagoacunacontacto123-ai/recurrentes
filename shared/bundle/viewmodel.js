@@ -36,9 +36,15 @@ export const TEXT_DEFAULTS = Object.freeze({
   // Nota libre debajo de cada modo. "" = no se pinta nada (sin cambio visual).
   note_sub: "",
   note_once: "",
+  // Renglon chico del cuadro de suscripcion, cuando esta APAGADO (22-sept-2026,
+  // Thiago). "" = el widget lo arma solo: "Activalo y te llega solo, cada 45
+  // dias, con 15% off". Si escribe algo, manda lo suyo.
+  sub_hint: "",
 });
 
-export const MAX_PACKS = 6;
+// 12 = 6 por columna (22-sept-2026): los packs de compra unica y los de
+// suscripcion son bloques distintos y conviven en la misma lista.
+export const MAX_PACKS = 12;
 const MAX_STR = 60;
 const MAX_TRUST = 6;
 
@@ -67,14 +73,14 @@ export function fmtARS(n) {
 
 // Etiqueta humana de la frecuencia (sin el "cada"): se usa como
 // "Te llega cada " + freqLabel(d).
+// SIEMPRE en dias (22-sept-2026, Thiago): antes 30 decia "mes" y 45 "45 dias",
+// asi que en el mismo widget convivian "te llegan 2 cada mes" y "te llegan 3
+// cada 45 dias". Queda mejor dicho —y comparable— con la misma unidad en todos
+// los packs. Se mantiene "dia" en singular para el caso de 1.
 export function freqLabel(days) {
   var d = Math.round(Number(days) || 0);
   if (d <= 0) return "";
   if (d === 1) return "día";
-  if (d === 7) return "semana";
-  if (d === 14) return "2 semanas";
-  if (d === 30) return "mes";
-  if (d % 30 === 0) return (d / 30) + " meses";
   return d + " días";
 }
 
