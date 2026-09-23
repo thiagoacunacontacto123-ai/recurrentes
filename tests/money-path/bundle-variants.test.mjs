@@ -309,3 +309,23 @@ test("(j) el «−15%» se puede cambiar y apagar", () => {
   assert.match(html({ disc_label: "{pct}% OFF" }), /15% OFF/);
   assert.ok(!/rc-disc/.test(html({ disc_label: "x" })), "una x la apaga");
 });
+
+// ─── Grosor de los bordes (22-sept-2026, Thiago) ──────────────────────────
+// Los 43 bordes del CSS están escritos a mano con grosores distintos (1, 1.5,
+// 2, 2.5, 5, 6 px). En vez de enumerarlos, se multiplican por --rc-bw en el
+// post-procesador, igual que el tamaño de letra.
+test("(j) en 100 el CSS es idéntico: ninguna tienda cambia sola", () => {
+  const p = plan([{ qty: 1, price_ars: 27500, default: true }]);
+  const base = renderBundle(buildBundleVM({ plan: p, merchant: { widget_variant: "v13" } }), { mode: "sub" }).css;
+  const cien = renderBundle(buildBundleVM({ plan: p, merchant: { widget_variant: "v13", widget_border_scale: 100 } }), { mode: "sub" }).css;
+  assert.equal(cien, base);
+});
+
+test("(j) subiendo el grosor, los bordes se multiplican en las 13 variantes", () => {
+  const p = plan([{ qty: 1, price_ars: 27500, default: true }]);
+  for (const v of VARIANT_IDS) {
+    const { css } = renderBundle(buildBundleVM({ plan: p, merchant: { widget_variant: v, widget_border_scale: 200 } }), { mode: "sub" });
+    assert.match(css, /--rc-bw:2/, `${v}: la variable tiene que valer 2`);
+    assert.ok(!/border:\s*[0-9.]+px\s+solid/.test(css), `${v}: no puede quedar un borde sin escalar`);
+  }
+});

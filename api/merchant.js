@@ -216,6 +216,7 @@ export default async function handler(req, res) {
         widget_radius: Number.isInteger(merchant.widget_radius) ? Math.max(0, Math.min(32, merchant.widget_radius)) : 14,
         widget_scale: Number.isInteger(merchant.widget_scale) ? Math.max(80, Math.min(120, merchant.widget_scale)) : 100,
         widget_box_scale: Number.isInteger(merchant.widget_box_scale) ? Math.max(80, Math.min(120, merchant.widget_box_scale)) : 100,
+        widget_border_scale: Number.isInteger(merchant.widget_border_scale) ? Math.max(100, Math.min(300, merchant.widget_border_scale)) : 100,
         widget_edge_to_edge: merchant.widget_edge_to_edge === true,
         // Códigos de descuento del merchant (para el checkout de suscripción)
         discount_codes: Array.isArray(merchant.discount_codes) ? merchant.discount_codes : [],
@@ -943,6 +944,13 @@ async function saveSettings(merchantId, req, res) {
       if (!Number.isInteger(n) || n < 80 || n > 120) return bad(`${label} tiene que ser un número entre 80 y 120`);
       out[campo] = n;
     }
+  }
+  // Grosor del borde de las tarjetas (22-sept-2026): 100 = el de siempre, 300 =
+  // el triple. No baja de 100 porque por debajo el borde desaparece.
+  if ("widget_border_scale" in b) {
+    const n = Number(b.widget_border_scale);
+    if (!Number.isInteger(n) || n < 100 || n > 300) return bad("el grosor de los bordes tiene que ser un número entre 100 y 300");
+    out.widget_border_scale = n;
   }
   if ("widget_edge_to_edge" in b) out.widget_edge_to_edge = b.widget_edge_to_edge === true;
 

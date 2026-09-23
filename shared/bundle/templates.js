@@ -266,7 +266,8 @@ function baseCss(S, vm) {
   //  · --rc-mx  el aire a los costados: 0 = pegado a los bordes.
   var fs = Math.max(80, Math.min(120, Number(vm.scale) || 100)) / 100;
   var bs = Math.max(80, Math.min(120, Number(vm.boxes) || 100)) / 100;
-  vars += ";--rc-fs:" + fs + ";--rc-bs:" + bs;
+  var bw = Math.max(100, Math.min(300, Number(vm.borders) || 100)) / 100;
+  vars += ";--rc-fs:" + fs + ";--rc-bs:" + bs + ";--rc-bw:" + bw;
   return (
     S + "{" + vars + ";font-family:inherit;color:#161616;line-height:1.35;margin:14px 0;text-align:left;position:relative;container-type:inline-size;-webkit-font-smoothing:antialiased}" +
     S + "," + S + " *," + S + " *::before," + S + " *::after{box-sizing:border-box !important}" +
@@ -1269,9 +1270,18 @@ var RENDERERS = { v01: v01, v02: v02, v03: v03, v04: v04, v05: v05, v06: v06, v0
 // queda idéntico byte a byte: ninguna tienda cambia de aspecto sola.
 var RX_FS = /font-size:\s*([0-9.]+)px/g;
 var RX_PAD = /padding:\s*([0-9.]+)px\s+([0-9.]+)px/g;
+// Grosor del borde de las tarjetas (22-sept-2026, Thiago). Cubre `border:` y
+// `border-top/right/bottom/left:` con la forma "Npx solid ...". Se multiplica
+// por --rc-bw, que vale 1 cuando el comerciante no lo toca.
+var RX_BW = /border(-top|-right|-bottom|-left)?:\s*([0-9.]+)px\s+solid/g;
 
-function escalarCss(css, fs, bs) {
+function escalarCss(css, fs, bs, bw) {
   var out = css;
+  if (bw !== 1) {
+    out = out.replace(RX_BW, function (_, lado, px) {
+      return "border" + (lado || "") + ":calc(" + px + "px * var(--rc-bw)) solid";
+    });
+  }
   if (fs !== 1) out = out.replace(RX_FS, function (_, px) { return "font-size:calc(" + px + "px * var(--rc-fs))"; });
   if (bs !== 1) {
     // Solo el padding de dos valores (vertical horizontal): el vertical escala,
@@ -1292,11 +1302,13 @@ export function renderBundle(vm, state) {
   var c = buildCtx(vm, state || {});
   var fs = Math.max(80, Math.min(120, Number(vm.scale) || 100)) / 100;
   var bs = Math.max(80, Math.min(120, Number(vm.boxes) || 100)) / 100;
+  // 100 = el grosor de siempre, asi que ninguna tienda cambia sola.
+  var bw = Math.max(100, Math.min(300, Number(vm.borders) || 100)) / 100;
   if (!c.packs.length) {
-    return { html: c.wrap(""), css: escalarCss(baseCss(c.S, vm), fs, bs) + edgeCss(c.S, vm) };
+    return { html: c.wrap(""), css: escalarCss(baseCss(c.S, vm), fs, bs, bw) + edgeCss(c.S, vm) };
   }
   var out = RENDERERS[vm.variant](c);
-  return { html: out.html, css: escalarCss(baseCss(c.S, vm) + out.css, fs, bs) + edgeCss(c.S, vm) };
+  return { html: out.html, css: escalarCss(baseCss(c.S, vm) + out.css, fs, bs, bw) + edgeCss(c.S, vm) };
 }
 
 export default renderBundle;

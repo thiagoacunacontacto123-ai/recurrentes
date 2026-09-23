@@ -223,6 +223,8 @@ export function buildBundleVM({ plan, merchant } = {}) {
   //  · edge   pegado a los bordes del contenedor (true) o con aire a los costados
   const scale = Math.max(80, Math.min(120, int(merchant.widget_scale, 100)));
   const boxes = Math.max(80, Math.min(120, int(merchant.widget_box_scale, 100)));
+  //  · borders 100…300 → grosor del borde de las tarjetas (100 = como siempre)
+  const borders = Math.max(100, Math.min(300, int(merchant.widget_border_scale, 100)));
   const edge = bool(merchant.widget_edge_to_edge, false);
   const texts = sanitizeTexts(merchant.widget_texts);
   const showCompare = bool(merchant.widget_show_compare, true);
@@ -279,6 +281,7 @@ export function buildBundleVM({ plan, merchant } = {}) {
     accent,
     radius,
     scale,
+    borders,
     boxes,
     edge,
     texts,

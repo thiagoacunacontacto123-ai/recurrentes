@@ -357,6 +357,8 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
   // Tamaño: 100 = como se ve hoy. 80…120 (± 20 %).
   const [scale, setScale] = useState(Number.isFinite(+m.widget_scale) ? +m.widget_scale : 100);
   const [boxScale, setBoxScale] = useState(Number.isFinite(+m.widget_box_scale) ? +m.widget_box_scale : 100);
+  // Grosor del borde de las tarjetas: 100 = el de siempre, hasta 300. 22-sept-2026.
+  const [borderScale, setBorderScale] = useState(Number.isFinite(+m.widget_border_scale) ? +m.widget_border_scale : 100);
   const [edgeToEdge, setEdgeToEdge] = useState(m.widget_edge_to_edge === true);
   const [texts, setTexts] = useState(() => normTexts(m.widget_texts));
   const [showCompare, setShowCompare] = useState(m.widget_show_compare !== false);
@@ -371,6 +373,7 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
     setRadius(Number.isFinite(+m.widget_radius) ? +m.widget_radius : 14);
     setScale(Number.isFinite(+m.widget_scale) ? +m.widget_scale : 100);
     setBoxScale(Number.isFinite(+m.widget_box_scale) ? +m.widget_box_scale : 100);
+    setBorderScale(Number.isFinite(+m.widget_border_scale) ? +m.widget_border_scale : 100);
     setEdgeToEdge(m.widget_edge_to_edge === true);
     setTexts(normTexts(m.widget_texts));
     setShowCompare(m.widget_show_compare !== false);
@@ -416,6 +419,7 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
     widget_radius: radius,
     widget_scale: scale,
     widget_box_scale: boxScale,
+    widget_border_scale: borderScale,
     widget_edge_to_edge: edgeToEdge,
     widget_texts: texts,
     widget_show_compare: showCompare,
@@ -440,6 +444,7 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
       widget_radius: Math.max(0, Math.min(32, Math.round(radius))),
       widget_scale: Math.max(80, Math.min(120, Math.round(scale))),
       widget_box_scale: Math.max(80, Math.min(120, Math.round(boxScale))),
+      widget_border_scale: Math.max(100, Math.min(300, Math.round(borderScale))),
       widget_edge_to_edge: edgeToEdge,
       widget_texts: {
         ...texts,
@@ -560,6 +565,10 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
 
           <Field T={T} label={`Alto de los recuadros · ${boxScale === 100 ? "normal" : (boxScale > 100 ? "+" : "") + (boxScale - 100) + "%"}`}>
             <input type="range" min="80" max="120" step="5" value={boxScale} onChange={e=>setBoxScale(parseInt(e.target.value,10)||100)} style={{width:"100%",accentColor:T.accentSolid}}/>
+          </Field>
+
+          <Field T={T} label={`Grosor de los bordes · ${borderScale === 100 ? "normal" : "×" + (borderScale / 100).toFixed(1).replace(/\.0$/, "")}`}>
+            <input type="range" min="100" max="300" step="25" value={borderScale} onChange={e=>setBorderScale(parseInt(e.target.value,10)||100)} style={{width:"100%",accentColor:T.accentSolid}}/>
           </Field>
 
           <label style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer",padding:"2px 0 10px"}}>
