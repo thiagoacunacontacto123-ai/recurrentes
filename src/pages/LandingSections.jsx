@@ -232,31 +232,34 @@ export function UseCasesSection({ T }) {
 // Los precios de suscripción van explícitos (sub_price_ars) para que den los
 // mismos números que en su tienda; si se calcularan con el descuento del plan
 // saldrían otros.
+// El bundle de Lumina, que es el que mejor muestra de qué se trata: tres packs
+// con su foto y la suscripción como un tilde aparte, a un clic. 23-sept-2026.
 const DEMO_PLAN = {
-  id: "demo", product_title: "Glow Derm", frequency_days: 60,
-  frequency_scales_with_qty: false, discount_pct: 15, base_price_ars: 59990,
+  id: "demo", product_title: "Cápsulas LuminaLabs", frequency_days: 30,
+  frequency_scales_with_qty: false, discount_pct: 10, base_price_ars: 44990,
+  // Escalera coherente: el precio por mes BAJA en cada pack (39.995 → 37.497 →
+  // 34.998) y la suscripción descuenta 10% sobre el de lista. Con precios
+  // inventados a ojo salían ahorros raros ("Ahorrás 22%" en el pack chico).
   packs: [
-    { qty: 1, price_ars: 59990, sub_price_ars: 50992, label: "Pack 2x1",
-      frequency_days: 60, default: true },
-    { qty: 2, price_ars: 119980, sub_price_ars: 59492, label: "Pack 4 Meses",
-      badge: "Más elegido", frequency_days: 120 },
-    { qty: 3, price_ars: 179970, sub_price_ars: 76492, label: "Pack 6 Meses",
-      badge: "Mejor precio", frequency_days: 180 },
-    { qty: 6, price_ars: 359940, sub_price_ars: 101992, label: "Pack Anual",
-      badge: "Descuento exclusivo", frequency_days: 360 },
+    { qty: 2, price_ars: 79990, sub_price_ars: 71990, label: "Pack 2 meses",
+      note: "60 cápsulas", frequency_days: 60, default: true },
+    { qty: 4, price_ars: 149990, sub_price_ars: 134990, label: "Pack 4 meses",
+      note: "120 cápsulas", badge: "Más pedido", frequency_days: 120 },
+    { qty: 6, price_ars: 209990, sub_price_ars: 188990, label: "Pack 6 meses",
+      note: "180 cápsulas", badge: "Mejor precio", frequency_days: 180 },
   ],
 };
-// v02 "Pestañas": el diseño de Glowderm. El toggle Compra única / Suscripción
-// va ARRIBA, entre el título y los packs, y abajo de la línea de frecuencia va
-// directo el botón (v01 metía un segundo selector abajo que ellos no tienen).
+// v13 "Foto + check": los packs con su foto y, debajo, el recuadro punteado con
+// el tilde de suscripción. Es el formato de Lumina y el que explica el producto
+// de un vistazo: el cliente elige el pack y suma la suscripción con un clic.
 const DEMO_MERCHANT = {
-  widget_variant: "v02", widget_color: "#10b981", widget_radius: 14,
-  widget_mode_default: "sub",
-  // Compra única a la izquierda y Suscripción marcada, como en su tienda.
+  widget_variant: "v13", widget_color: "#10b981", widget_radius: 14,
+  // Arranca en compra única para que se vea el tilde apagado: el gesto que
+  // queremos mostrar es justamente activarlo.
+  widget_mode_default: "once",
   widget_mode_order: "once_first",
-  // Sin el "c/u": en su widget el renglón dice solo "cada 2 meses".
   widget_show_per_unit: false,
-  widget_texts: { headline: "Envío Gratis + 3 Cuotas Sin Interés" },
+  widget_texts: { headline: "Elegí tu pack", sub_hint: "Tildá esta opción y te llega solo, sin frenar el tratamiento" },
 };
 function WidgetMock({ T }) {
   return (

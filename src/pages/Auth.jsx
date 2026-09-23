@@ -186,7 +186,6 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
       <div style={{marginBottom:12}}>
         <label style={label}>WhatsApp</label>
         <input style={iS} placeholder="11 6411 7974" value={whatsapp} onChange={e=>setWhatsapp(e.target.value)} onFocus={onFocus} onBlur={onBlur} autoComplete="tel" inputMode="tel"/>
-        <div style={{fontSize:11,color:T.textSm,marginTop:5,lineHeight:1.45}}>Con código de área, sin el 0 ni el 15. Te escribimos solo si algo falla con tus cobros.</div>
       </div>
       <div style={{marginBottom:16}}>
         <label style={label}>Email de contacto</label>
