@@ -280,3 +280,32 @@ test("(j) pero dos bloques de 2 en la MISMA lista se rechazan", () => {
   assert.ok(r.error, "tiene que rechazarlo");
   assert.match(r.error, /compra única/);
 });
+
+// ─── Un bloque de SOLO suscripción no se puede perder al guardar ──────────
+// 22-sept-2026, Thiago: "sigo poniendo envío gratis de un lado y se va
+// copiando al otro". No se copiaba: el bloque de suscripción se descartaba al
+// guardar (su precio vive en sub_price_ars y el filtro exigía price_ars), así
+// que al recargar volvía UN pack compartido, visible en las dos columnas —y
+// editar su badge cambiaba los dos, porque era el mismo dato.
+test("(j) un pack de solo suscripción sobrevive al guardado", () => {
+  const r = normalizePacks([
+    { qty: 2, price_ars: 54900, badge: "Envío Gratis", hide_sub: true },
+    { qty: 2, price_ars: 46665, sub_price_ars: 46665, badge: "Solo suscripción", hide_once: true },
+  ]);
+  assert.equal(r.error, undefined, r.error);
+  assert.equal(r.packs.length, 2, "los dos bloques tienen que quedar");
+  const once = r.packs.find(p => p.hide_sub === true);
+  const sub = r.packs.find(p => p.hide_once === true);
+  assert.equal(once.badge, "Envío Gratis");
+  assert.equal(sub.badge, "Solo suscripción", "cada bloque con SU badge, no el del otro");
+  assert.ok(sub.price_ars >= 1, "el backend exige price_ars >= 1 incluso en los de solo suscripción");
+});
+
+// ─── La píldora de descuento es texto del comerciante ─────────────────────
+test("(j) el «−15%» se puede cambiar y apagar", () => {
+  const p = plan([{ qty: 1, price_ars: 27500, default: true }]);
+  const html = (texts) => renderBundle(buildBundleVM({ plan: p, merchant: { widget_variant: "v13", widget_texts: texts } }), { mode: "once" }).html;
+  assert.match(html(undefined), /−15%/, "por defecto, como siempre");
+  assert.match(html({ disc_label: "{pct}% OFF" }), /15% OFF/);
+  assert.ok(!/rc-disc/.test(html({ disc_label: "x" })), "una x la apaga");
+});

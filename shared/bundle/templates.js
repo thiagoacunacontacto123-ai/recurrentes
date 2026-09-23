@@ -146,7 +146,12 @@ function buildCtx(vm, state) {
   };
   ctx.modeLabel = function (m, withDisc) {
     var base = m === "sub" ? (t.sub_label || "Suscripción") : (t.once_label || "Compra única");
-    if (m === "sub" && withDisc && ctx.disc > 0) return esc(base) + ' <em class="rc-disc">−' + ctx.disc + "%</em>";
+    // La pildora sale de `disc_label` ({pct} = el %). Vacia = no se pinta.
+    if (m === "sub" && withDisc && ctx.disc > 0) {
+      var lbl = t.disc_label === undefined ? "\u2212{pct}%" : t.disc_label;
+      if (!lbl) return esc(base);
+      return esc(base) + ' <em class="rc-disc">' + esc(String(lbl).replace(/\{pct\}/g, ctx.disc)) + "</em>";
+    }
     return esc(base);
   };
   // Prefijo de la línea de frecuencia para UN pack. Si el comerciante escribió

@@ -40,6 +40,9 @@ export const TEXT_DEFAULTS = Object.freeze({
   // Thiago). "" = el widget lo arma solo: "Activalo y te llega solo, cada 45
   // dias, con 15% off". Si escribe algo, manda lo suyo.
   sub_hint: "",
+  // La pildora de descuento al lado de "Suscripcion". {pct} = el % del plan.
+  // Una "x" la apaga (esApagado), como el resto de los textos.
+  disc_label: "−{pct}%",
 });
 
 // 12 = 6 por columna (22-sept-2026): los packs de compra unica y los de

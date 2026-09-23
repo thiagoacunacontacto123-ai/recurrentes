@@ -141,8 +141,11 @@ export function validatePacks(rows) {
       if (vistoSub.has(qty)) return `Pack ${n}: ya hay otro bloque de suscripción con cantidad ${qty}.`;
       vistoSub.add(qty);
     }
-    const price = num(r.price_ars);
-    if (!(price > 0)) return `Pack ${n}: el precio del pack tiene que ser mayor a 0.`;
+    // En un bloque de SOLO suscripcion el precio vive en sub_price_ars: exigir
+    // price_ars ahi no dejaba guardar. 22-sept-2026.
+    const soloSub = r.hide_once === true;
+    const price = num(soloSub && !(num(r.price_ars) > 0) ? r.sub_price_ars : r.price_ars);
+    if (!(price > 0)) return `Pack ${n}: ${soloSub ? "el precio de suscripción" : "el precio del pack"} tiene que ser mayor a 0.`;
     if (r.compare_at_ars !== "" && num(r.compare_at_ars) < price) return `Pack ${n}: el precio tachado no puede ser menor al precio del pack.`;
     if (r.sub_price_ars !== "" && !(num(r.sub_price_ars) > 0)) return `Pack ${n}: el precio de suscripción tiene que ser mayor a 0.`;
     if (r.frequency_days !== "" && !(int(r.frequency_days) >= 1)) return `Pack ${n}: la frecuencia tiene que ser 1 día o más.`;
@@ -153,10 +156,16 @@ export function validatePacks(rows) {
 // Filas → formato del backend (SPEC). Ordena por cantidad y garantiza un solo default.
 export function serializePacks(rows) {
   const out = rows
-    .filter(r => int(r.qty) >= 1 && num(r.price_ars) > 0)
+    // Un bloque de suscripcion guarda su precio en sub_price_ars y deja
+    // price_ars vacio: filtrar por price_ars lo descartaba en silencio y al
+    // recargar volvia el pack compartido (parecia que el badge "se copiaba").
+    // 22-sept-2026, Thiago.
+    .filter(r => int(r.qty) >= 1 && (num(r.price_ars) > 0 || num(r.sub_price_ars) > 0))
     .map(r => ({
       qty: int(r.qty),
-      price_ars: Math.round(num(r.price_ars)),
+      // El backend exige price_ars >= 1. En un bloque de solo suscripcion, si
+      // no hay precio de lista se usa el de suscripcion como base.
+      price_ars: Math.round(num(r.price_ars) > 0 ? num(r.price_ars) : num(r.sub_price_ars)),
       compare_at_ars: r.compare_at_ars !== "" && num(r.compare_at_ars) > 0 ? Math.round(num(r.compare_at_ars)) : null,
       label: (r.label || "").trim() || `${int(r.qty)} ${int(r.qty) === 1 ? "unidad" : "unidades"}`,
       note: (r.note || "").trim(),
