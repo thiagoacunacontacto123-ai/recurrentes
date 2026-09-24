@@ -219,22 +219,25 @@ async function adminViewAs(req, res, decoded, merchantId) {
     res.status(403).json({ error: "No tenés permiso para ver otras cuentas.", code: "admin_forbidden" });
     return null;
   }
+  // 24-sept-2026 (Thiago): el admin SI puede escribir en "ver como" —hacia
+  // falta para dejarle el widget listo a un cliente sin pedirle la clave—.
+  // Sigue quedando auditado en admin_audit, y el panel avisa en cada guardado
+  // sobre que tienda esta escribiendo.
   const method = String(req.method || "GET").toUpperCase();
-  if (method !== "GET" && method !== "HEAD") {
-    res.status(403).json({ error: "Estás en modo \"ver como\": es solo lectura. Salí para hacer cambios.", code: "admin_read_only" });
-    return null;
-  }
+  const escribe = method !== "GET" && method !== "HEAD";
   const meta = await merchantMeta(merchantId);
   if (!meta.exists) {
     res.status(404).json({ error: "Ese comercio no existe.", code: "admin_forbidden" });
     return null;
   }
   const key = `${decoded.uid}:${merchantId}`;
-  if (Date.now() - (_viewAsLogged.get(key) || 0) > 10 * 60000) {
+  // Las ESCRITURAS se registran siempre, uno por uno: es lo que despues
+  // permite saber quien le cambio que a un comercio.
+  if (escribe || Date.now() - (_viewAsLogged.get(key) || 0) > 10 * 60000) {
     _viewAsLogged.set(key, Date.now());
     if (_viewAsLogged.size > 500) _viewAsLogged.clear();
     db().collection("admin_audit").add({
-      action: "view_as_request", merchant_id: merchantId, admin_uid: decoded.uid, admin_email: decoded.email || null,
+      action: escribe ? "view_as_write" : "view_as_request", merchant_id: merchantId, admin_uid: decoded.uid, admin_email: decoded.email || null,
       detail: { path: String(req.url || "").slice(0, 200) }, at: new Date().toISOString(),
     }).catch(e => console.warn("[admin] audit:", e.message));
   }

@@ -241,15 +241,21 @@ function ShippingRatesCard({ T, m, isOwner, onChange, profile }) {
           define por CP llega sin precio y no se puede ofrecer. Conviene
           decirlo acá, que es donde lo puede resolver, en vez de que lo
           descubra cuando un cliente elige un envio en $0. */}
+      {/* Tiendanube (24-sept-2026, Thiago): no traemos sus medios de envío.
+          La orden entra como `shipping:"table"`, o sea que NO queda vinculada
+          al correo y la etiqueta no sale sola: ofrecer "Andreani a sucursal"
+          para después despacharlo a mano es peor que no ofrecerlo. Hasta tener
+          contrato con cada correo, el comerciante carga sus tarifas planas. */}
       {esTiendanube && (
-        <Callout T={T} tone="info" style={{ marginBottom:14 }}>
-          <strong style={{ color:T.text }}>Todos los envíos salen de tu tienda</strong>, pero con Tiendanube
-          hoy solo podemos traer las <strong style={{ color:T.text }}>tarifas planas</strong> (retiro en local,
-          envío propio, precio fijo). Los que Tiendanube cotiza por código postal —Correo Argentino, OCA,
-          sucursales— llegan sin precio, así que no se los ofrecemos a tu cliente: en su lugar ve
-          “Envío a domicilio” y lo coordinás al despachar.
+        <Callout T={T} tone={rates.length ? "info" : "warning"} style={{ marginBottom:14 }}>
+          <strong style={{ color:T.text }}>Con Tiendanube tenés que cargar tus envíos acá.</strong> A diferencia de
+          Shopify, todavía no tenemos contrato con los correos para Tiendanube: no podemos cotizar por código postal
+          ni generar la etiqueta, así que no te mostramos Andreani, OCA ni las sucursales.
           <br/><br/>
-          Si querés que elija esos, agregalos acá abajo con el precio que quieras cobrar.
+          Cargá una <strong style={{ color:T.text }}>tarifa plana</strong> —por ejemplo “Envío gratis” en 0, o
+          “Envío a domicilio” con un precio fijo— y es lo que va a elegir tu cliente al suscribirse.
+          {!rates.length && <><br/><br/><strong style={{ color:T.text }}>Todavía no cargaste ninguna:</strong> hasta
+          que lo hagas, tus suscripciones salen con el envío por defecto del plan.</>}
         </Callout>
       )}
 

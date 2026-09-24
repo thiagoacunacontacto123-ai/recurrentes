@@ -25,7 +25,8 @@ export function setActiveMerchantId(uid, mid) {
 
 // "Ver como" del super-admin (#/admin → ficha → "Ver como este comercio").
 // sessionStorage: dura solo en esta pestaña. El backend acepta X-Admin-As SOLO
-// si el login está en ADMIN_EMAILS con email verificado, y solo para lecturas.
+// si el login está en ADMIN_EMAILS con email verificado. Desde el 24-sept-2026
+// también permite escribir: cada guardado pide confirmación (ver apiSend).
 const ADMIN_AS_KEY = "rec_admin_as";
 export function getAdminAs() {
   try { const v = JSON.parse(sessionStorage.getItem(ADMIN_AS_KEY) || "null"); return v && v.id ? v : null; } catch (_) { return null; }
@@ -96,6 +97,15 @@ export async function apiGet(path, params = {}) {
 export async function apiSend(path, method, body = null, params = {}) {
   const qs = new URLSearchParams(params).toString();
   const url = `/api/${path}${qs ? `?${qs}` : ""}`;
+  // En "ver como", CADA escritura pide confirmación diciendo en qué tienda va
+  // a quedar. El admin ya puede guardar (24-sept-2026), pero el error caro es
+  // creer que estás en la tuya: esto lo hace imposible de pasar por alto.
+  const as = getAdminAs();
+  if (as && method !== "GET" && method !== "HEAD") {
+    const ok = typeof window !== "undefined" && window.confirm(
+      `Estás como admin en la tienda de ${as.name || as.id}.\n\nEste cambio se guarda en SU tienda, no en la tuya.\n\n¿Guardar igual?`);
+    if (!ok) return { error: "Cancelado: no se guardó nada.", code: "admin_write_cancelled" };
+  }
   try {
     const h = await authHeaders();
     const r = await fetch(url, {

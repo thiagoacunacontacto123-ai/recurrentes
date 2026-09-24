@@ -231,7 +231,9 @@ put("merchants/old", { email: "old@x.com", created_at: ago(35), plan: "free" });
   await new Promise(res => setImmediate(res));
   ok(docsOf("admin_audit").filter(a => a.action === "view_as_request" && a.merchant_id === "newbie").length === before + 1, "queda registrado en admin_audit");
   r = await rm("t-admin", { "x-admin-as": "newbie" }, "POST");
-  ok(r.ctx === null && r.status === 403 && r.body.code === "admin_read_only", "admin con X-Admin-As no puede escribir (solo lectura)", r.body);
+  ok(r.ctx?.merchantId === "newbie" && r.ctx.admin_view === true, "admin con X-Admin-As SÍ puede escribir (24-sept-2026)", r.ctx);
+  await new Promise(res => setImmediate(res));
+  ok(docsOf("admin_audit").some(a => a.action === "view_as_write" && a.merchant_id === "newbie"), "y cada escritura se audita una por una");
   r = await rm("t-admin", { "x-admin-as": "nope" });
   ok(r.ctx === null && r.status === 404, "X-Admin-As a un comercio inexistente → 404");
   r = await rm("t-lumina");
@@ -248,9 +250,13 @@ put("merchants/old", { email: "old@x.com", created_at: ago(35), plan: "free" });
   ok(r.status === 200 && r.body.merchant?.id === "newbie" && r.body.merchant.is_admin === true && r.body.merchant.admin_view === true, "GET merchant con ver-como: datos del comercio + is_admin + admin_view", r.body?.merchant && { id: r.body.merchant.id, is_admin: r.body.merchant.is_admin });
   r = await call(merchantApi, { token: "t-lumina" });
   ok(r.status === 200 && r.body.merchant?.is_admin === false && r.body.merchant.admin_view === false, "GET merchant de un comercio: is_admin false");
-  const nbBefore = JSON.stringify(doc("merchants/newbie"));
-  r = await call(merchantApi, { method: "PATCH", query: { action: "save-settings" }, body: { email_brand: "HACK" }, token: "t-admin", headers: { "x-admin-as": "newbie" } });
-  ok(r.status === 403 && r.body.code === "admin_read_only" && JSON.stringify(doc("merchants/newbie")) === nbBefore, "PATCH en modo ver-como → 403 y no cambia nada");
+  // 24-sept-2026 (Thiago): el admin SI puede escribir en "ver como" —lo pidió
+  // para dejarle el widget listo a un cliente sin pedirle la clave—. El panel
+  // confirma cada guardado diciendo en qué tienda va, y acá se verifica que la
+  // escritura QUEDE AUDITADA: es lo que permite saber después quién tocó qué.
+  r = await call(merchantApi, { method: "PATCH", query: { action: "save-settings" }, body: { email_brand: "Marca Nueva" }, token: "t-admin", headers: { "x-admin-as": "newbie" } });
+  ok(r.status === 200 && doc("merchants/newbie")?.email_brand === "Marca Nueva", "PATCH en modo ver-como: el admin puede guardar", { status: r.status, brand: doc("merchants/newbie")?.email_brand });
+  ok(docsOf("admin_audit").some(a => a.action === "view_as_write" && a.merchant_id === "newbie"), "y la escritura queda en admin_audit");
   r = await call(merchantApi, { token: "t-lumina", headers: { "x-admin-as": "newbie" } });
   ok(r.status === 403, "GET merchant de no-admin con X-Admin-As → 403");
   r = await call(stats, { method: "POST", query: { action: "admin-view-as" }, body: { merchant_id: "newbie" }, token: "t-admin" });

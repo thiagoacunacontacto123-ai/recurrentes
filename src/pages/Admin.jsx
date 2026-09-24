@@ -477,7 +477,7 @@ function MerchantPanel({ id, onClose, onChanged }) {
     finally { setBusy(""); }
   }
   async function viewAs() {
-    if (!await appConfirm(`Vas a ver el panel de ${m.name} tal como lo ve el comercio. Es solo lectura: no se puede guardar ni cambiar nada. Para volver, tocá "Salir" en la barra amarilla de arriba.`, { title:"Ver como este comercio", okLabel:"Ver como" })) return;
+    if (!await appConfirm(`Vas a entrar al panel de ${m.name} como admin.\n\nOJO: lo que guardes SE GUARDA EN SU TIENDA, no en la tuya. Queda registrado en la auditoría.\n\nPara volver, tocá "Salir" en la barra amarilla de arriba.`, { title:`Entrar como ${m.name}`, okLabel:"Entrar" })) return;
     const r = await apiPost("stats", { merchant_id: id }, { action: "admin-view-as" });
     if (!r || r.error) { toast(r?.error || "No se pudo entrar", "error"); return; }
     setAdminAs({ id, name: r.merchant?.name || m.name });
@@ -635,7 +635,7 @@ export function AdminViewBanner({ T, merchant }) {
   return (
     <div role="status" style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap", padding:"9px 24px", background:T.yellow + "1f", borderBottom:`1px solid ${T.yellow}55`, color:T.text, fontSize:12.5, fontFamily:F }}>
       <span style={{ width:8, height:8, borderRadius:99, background:T.yellow, flexShrink:0 }}/>
-      <span style={{ flex:1, minWidth:200 }}>Estás viendo el panel de <b>{name}</b> como admin. Es solo lectura: nada de lo que toques se guarda.</span>
+      <span style={{ flex:1, minWidth:200 }}>Estás en el panel de <b>{name}</b> como admin. <b>Lo que guardes se guarda en SU tienda.</b></span>
       <Btn T={T} variant="secondary" size="sm" onClick={salir}>Salir de "ver como"</Btn>
     </div>
   );

@@ -257,8 +257,11 @@ async function handlePlan(req, res) {
         ask_address: p.caps.requireAddress,
         require_phone: p.caps.requirePhone,
         require_tax_id: p.caps.requireTaxId,
-        // Los envíos salen de la tienda en las dos plataformas (21-sept, Thiago).
-        shipping_from_store: p.channel === "shopify" || p.channel === "tiendanube",
+        // Solo Shopify: ahí cotizamos en vivo con el proveedor del comerciante y
+        // la orden queda lista para despachar. En Tiendanube no podemos emitir
+        // la etiqueta (la orden entra como `shipping:"table"`), así que el
+        // envío sale de las tarifas planas que cargó él. 24-sept-2026, Thiago.
+        shipping_from_store: p.channel === "shopify",
         provider: p.paymentProvider,
         provider_label: p.providerInfo.label,
         currency: p.currency,

@@ -72,11 +72,16 @@ async function handleShippingRates(req, res) {
     // Tiendanube: sus medios de envío activos (Correo Argentino, OCA, retiro…).
     // No cotiza por CP como Shopify, pero el comprador ve los mismos métodos que
     // vería comprando normal, en vez del envío inventado del plan.
+    // TIENDANUBE (24-sept-2026, Thiago): sus medios de envío NO se ofrecen.
+    // Traerlos no alcanzaba: la orden entra como `shipping:"table"`, o sea que
+    // NO queda vinculada al correo y la etiqueta no sale sola. Ofrecer un
+    // "Andreani a sucursal" que después hay que despachar a mano —y encima sin
+    // precio real, porque la API de TN no cotiza por CP— es peor que no
+    // ofrecerlo. Hasta tener contrato con cada correo, en TN el comerciante
+    // carga sus propias tarifas planas en Configuración → Envíos.
     if (!m?.shopify_token && m?.tiendanube_store_id && m?.tiendanube_token) {
-      const { tnShippingRates } = await import("./_lib/tiendanube.js");
-      const rates = await tnShippingRates(m.tiendanube_store_id, m.tiendanube_token);
       res.setHeader("Cache-Control", "no-store");
-      return res.json({ rates });
+      return res.json({ rates: [] });
     }
     if (!m?.shopify_token || !m?.shopify_shop) return res.json({ rates: [] });
     // El comprador tiene que ver TODO lo que vería en el checkout de la tienda:

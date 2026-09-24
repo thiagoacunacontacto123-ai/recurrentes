@@ -322,14 +322,31 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                           onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.textSm}>✕</button>
                       </div>
                     </div>
-                    {/* Un campo solo: este bloque vive en UNA lista, asi que no
-                        hay dos textos que separar. 22-sept-2026, Thiago. */}
-                    <div style={{marginTop:8}}>
-                      <Lbl T={T}>Texto de este bloque</Lbl>
-                      <input type="text" value={r.hide_sub ? r.note_once : r.note}
-                        onChange={e=>upd(i, r.hide_sub ? "note_once" : "note", e.target.value)} style={inp}
-                        placeholder={r.hide_sub ? "Ej: 4 potes" : "Ej: tratamiento 4 meses"} maxLength={120}/>
-                    </div>
+                    {/* El renglón chico debajo del título del pack ("Máximo
+                        Ahorro", "60 cápsulas"). Un bloque de una sola columna
+                        lleva un texto; el compartido lleva uno por modo, porque
+                        el cliente ve cosas distintas. 24-sept-2026, Thiago. */}
+                    {r.hide_once || r.hide_sub ? (
+                      <div style={{marginTop:8}}>
+                        <Lbl T={T}>Texto debajo del título</Lbl>
+                        <input type="text" value={r.hide_sub ? r.note_once : r.note}
+                          onChange={e=>upd(i, r.hide_sub ? "note_once" : "note", e.target.value)} style={inp}
+                          placeholder={r.hide_sub ? "Ej: 4 potes · Máximo ahorro" : "Ej: tratamiento 4 meses"} maxLength={120}/>
+                      </div>
+                    ) : (
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:8}}>
+                        <div>
+                          <Lbl T={T}>Texto en compra única</Lbl>
+                          <input type="text" value={r.note_once} onChange={e=>upd(i,"note_once",e.target.value)} style={inp}
+                            placeholder="Ej: 4 potes" maxLength={120}/>
+                        </div>
+                        <div>
+                          <Lbl T={T}>Texto en suscripción</Lbl>
+                          <input type="text" value={r.note} onChange={e=>upd(i,"note",e.target.value)} style={inp}
+                            placeholder="Ej: tratamiento 4 meses" maxLength={120}/>
+                        </div>
+                      </div>
+                    )}
                     {/* Foto del pack y regalos: los dibujan los diseños Foto y Foto + regalos. */}
                     <div style={{marginTop:8}}>
                       <Lbl T={T}>Foto del pack</Lbl>
