@@ -238,10 +238,13 @@ export function normalizePacks(input) {
       sub_qty = toInt(p.sub_qty);
       if (sub_qty == null || sub_qty < 1 || sub_qty > 50) return { error: `${at}: la cantidad en suscripción debe ser un entero entre 1 y 50` };
     }
+    // Unidad de la frecuencia de ESTE bloque (24-sept-2026, Thiago): Wellfresh
+    // la quiere en días y Lumina en meses. Default "dias".
+    const freq_unit = p.freq_unit === "meses" ? "meses" : "dias";
     const isDefault = p.default === true;
     if (isDefault) defaults++;
     if (defaults > 1) return { error: "Solo un pack puede ser el default" };
-    out.push({ qty, price_ars, compare_at_ars, label, note, note_once, badge, frequency_days, sub_price_ars, image, gifts, default: isDefault, hide_once, hide_sub, sub_qty });
+    out.push({ qty, price_ars, compare_at_ars, label, note, note_once, badge, frequency_days, sub_price_ars, image, gifts, default: isDefault, hide_once, hide_sub, sub_qty, freq_unit });
   }
   out.sort((a, b) => a.qty - b.qty);
   return { packs: out };

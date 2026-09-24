@@ -241,8 +241,11 @@ function buildCtx(vm, state) {
   // Vacío = no se pinta nada y el pack queda como antes.
   ctx.packNote = function (p, cls) {
     if (!p) return "";
-    // En compra única manda su propio texto; si no lo cargó, el de suscripción.
-    var txt = (mode === "once" && p.noteOnce) ? p.noteOnce : p.note;
+    // Cada modo muestra SOLO su texto (24-sept-2026, Thiago). Antes, en compra
+    // única sin `note_once` se caía al de suscripción, así que un texto como
+    // "Prueba inicial" —escrito para el bloque de suscripción— aparecía también
+    // en compra única. Vacío ahora es vacío: no se pinta nada.
+    var txt = mode === "once" ? p.noteOnce : p.note;
     if (!txt) return "";
     return '<small class="' + (cls || "rc-pnote") + '">' + esc(txt) + "</small>";
   };

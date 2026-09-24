@@ -278,9 +278,12 @@ test("(w) cada pack tiene un texto para suscripción y otro para compra única",
   assert.ok(!sub.includes("4 potes sueltos"), "y no el de compra única");
   assert.ok(once.includes("4 potes sueltos"), "en compra única va el suyo");
   assert.ok(!once.includes("Tratamiento 4 meses"));
-  // Sin cargar el de compra única se usa el de suscripción: los packs que ya
-  // tenían texto no cambian de golpe.
-  assert.ok(once.includes("Solo tiene el de sub"), "sin note_once cae al de suscripción");
+  // 24-sept-2026 (Thiago, caso Wellfresh): cada modo muestra SOLO su texto.
+  // Antes, sin `note_once` se caía al de suscripción, así que algo escrito
+  // para el bloque de suscripción ("Prueba inicial") aparecía también en
+  // compra única. Vacío es vacío: no se pinta nada.
+  assert.ok(!once.includes("Solo tiene el de sub"), "sin note_once NO se pinta el de suscripción");
+  assert.ok(sub.includes("Solo tiene el de sub"), "pero sí se muestra en suscripción");
 });
 
 test("(w) el server guarda los dos textos del pack", async () => {
@@ -292,4 +295,25 @@ test("(w) el server guarda los dos textos del pack", async () => {
   // Sin el segundo queda vacío (no undefined), que es lo que el widget lee para
   // decidir si cae al de suscripción.
   assert.equal(normalizePacks([{ qty: 1, price_ars: 100, note: "x" }]).packs[0].note_once, "");
+});
+
+// ─── Días o meses, por bloque (24-sept-2026, Thiago) ─────────────────────
+// Wellfresh necesita "cada 60 días" y Lumina "cada 2 meses". Default: días.
+test("(w) cada bloque elige si la frecuencia se muestra en días o en meses", async () => {
+  const { freqLabel } = await import("../../shared/bundle/viewmodel.js");
+  assert.equal(freqLabel(60), "60 días", "sin unidad, días");
+  assert.equal(freqLabel(60, "meses"), "2 meses");
+  assert.equal(freqLabel(30, "meses"), "mes", "singular");
+  assert.equal(freqLabel(7, "meses"), "7 días", "menos de un mes cae a días");
+
+  const { normalizePacks } = await loadApi("api/_lib/packs.js");
+  const r = normalizePacks([
+    { qty: 2, price_ars: 54900, freq_unit: "meses" },
+    { qty: 3, price_ars: 65990 },
+    { qty: 4, price_ars: 70000, freq_unit: "basura" },
+  ]);
+  assert.equal(r.error, undefined, r.error);
+  assert.equal(r.packs.find(p => p.qty === 2).freq_unit, "meses");
+  assert.equal(r.packs.find(p => p.qty === 3).freq_unit, "dias", "sin el campo: días");
+  assert.equal(r.packs.find(p => p.qty === 4).freq_unit, "dias", "un valor inválido cae a días");
 });

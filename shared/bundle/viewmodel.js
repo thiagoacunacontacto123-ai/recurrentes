@@ -80,9 +80,15 @@ export function fmtARS(n) {
 // asi que en el mismo widget convivian "te llegan 2 cada mes" y "te llegan 3
 // cada 45 dias". Queda mejor dicho —y comparable— con la misma unidad en todos
 // los packs. Se mantiene "dia" en singular para el caso de 1.
-export function freqLabel(days) {
+// `unidad`: "dias" (default) o "meses". Thiago, 24-sept-2026: Wellfresh lo
+// necesita en días y Lumina en meses, así que cada bloque lo elige.
+export function freqLabel(days, unidad) {
   var d = Math.round(Number(days) || 0);
   if (d <= 0) return "";
+  if (unidad === "meses") {
+    var m = Math.round(d / 30);
+    if (m >= 1) return m === 1 ? "mes" : m + " meses";
+  }
   if (d === 1) return "día";
   return d + " días";
 }
@@ -149,6 +155,8 @@ export function resolvePack(plan, idx) {
     hideOnce: raw.hide_once === true,
     hideSub: raw.hide_sub === true,
     subQty: subQty,
+    // "meses" muestra "cada 2 meses"; vacío o "dias" = "cada 60 días".
+    freqUnit: raw.freq_unit === "meses" ? "meses" : "dias",
     gifts: Array.isArray(raw.gifts) ? raw.gifts.slice(0, 3).map(function (g) {
       return {
         title: String(g && g.title || "").slice(0, 80),
@@ -263,7 +271,8 @@ export function buildBundleVM({ plan, merchant } = {}) {
       perUnitSub: sub.perUnit,
       perUnitOnce: once.perUnit,
       freqDays: r.freqDays,
-      freqLabel: freqLabel(r.freqDays),
+      freqLabel: freqLabel(r.freqDays, r.freqUnit),
+      freqUnit: r.freqUnit,
       isDefault: r.isDefault,
       once,                               // { price, compare, savingsArs, savingsPct, perUnit }
       sub,

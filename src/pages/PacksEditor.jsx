@@ -36,7 +36,7 @@ const COLUMNAS = [
 ];
 
 export function emptyPackRow(qty = 1) {
-  return { qty: String(qty), price_ars: "", compare_at_ars: "", label: "", note: "", note_once: "", badge: "", frequency_days: "", sub_price_ars: "", image: "", gifts: [], default: false, hide_once: false, hide_sub: false, sub_qty: "" };
+  return { qty: String(qty), price_ars: "", compare_at_ars: "", label: "", note: "", note_once: "", badge: "", frequency_days: "", sub_price_ars: "", image: "", gifts: [], default: false, hide_once: false, hide_sub: false, sub_qty: "", freq_unit: "dias" };
 }
 
 // Plan guardado → filas del editor.
@@ -78,6 +78,7 @@ export function packsFromPlan(plan) {
     hide_once: p.hide_once === true,
     hide_sub: p.hide_sub === true,
     sub_qty: p.sub_qty != null ? String(p.sub_qty) : "",
+    freq_unit: p.freq_unit === "meses" ? "meses" : "dias",
   }));
 }
 
@@ -92,7 +93,7 @@ export function autoPacks(basePrice) {
     price_ars: String(Math.round(b * qty * (1 - off / 100))),
     compare_at_ars: "",
     label, note: "", note_once: "", badge, frequency_days: "", sub_price_ars: "", image: "", gifts: [], default: def,
-    hide_once: col === "sub", hide_sub: col === "once", sub_qty: "",
+    hide_once: col === "sub", hide_sub: col === "once", sub_qty: "", freq_unit: "dias",
   });
   return [
     // Compra única
@@ -192,6 +193,7 @@ export function serializePacks(rows) {
       hide_once: r.hide_once === true,
       hide_sub: r.hide_sub === true,
       sub_qty: r.sub_qty !== "" && int(r.sub_qty) >= 1 ? int(r.sub_qty) : null,
+      freq_unit: r.freq_unit === "meses" ? "meses" : "dias",
     }))
     .sort((a, b) => a.qty - b.qty);
   if (out.length && !out.some(p => p.default)) out[0].default = true;
@@ -308,6 +310,17 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                       <div><Lbl T={T}>{esSub ? "Precio suscripción ($)" : "Precio del pack ($)"}</Lbl><input type="number" min="0" value={esSub ? (r.sub_price_ars || "") : r.price_ars} onChange={e=>upd(i, esSub ? "sub_price_ars" : "price_ars", e.target.value)} style={inp} placeholder={esSub ? subAutoPh(r) : "lo que paga"}/></div>
                       <div><Lbl T={T}>Precio tachado ($)</Lbl><input type="number" min="0" value={r.compare_at_ars} onChange={e=>upd(i,"compare_at_ars",e.target.value)} style={inp} placeholder={`auto (${d.compareAt.toLocaleString("es-AR")})`}/></div>
                       <div><Lbl T={T}>Frecuencia (días)</Lbl><input type="number" min="1" value={r.frequency_days} onChange={e=>upd(i,"frequency_days",e.target.value)} style={inp} placeholder={freqAutoPh(r)}/></div>
+                      {/* Cómo se le muestra al cliente esa frecuencia: "cada 60
+                          días" o "cada 2 meses". Solo aplica a los bloques que
+                          se ven en suscripción. 24-sept-2026, Thiago. */}
+                      {r.hide_sub !== true && (
+                        <div><Lbl T={T}>Mostrar como</Lbl>
+                          <select value={r.freq_unit || "dias"} onChange={e=>upd(i,"freq_unit",e.target.value)} style={inp}>
+                            <option value="dias">Días</option>
+                            <option value="meses">Meses</option>
+                          </select>
+                        </div>
+                      )}
                     </div>
                     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(96px, 1fr))",gap:8,marginTop:8}}>
                       <div><Lbl T={T}>Etiqueta</Lbl><input type="text" value={r.label} onChange={e=>upd(i,"label",e.target.value)} style={inp} placeholder={`${d.qty} ${d.qty===1?"pote":"potes"}`} maxLength={40}/></div>
