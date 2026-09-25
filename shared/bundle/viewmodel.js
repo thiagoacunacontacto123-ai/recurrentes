@@ -132,8 +132,12 @@ export function resolvePack(plan, idx) {
   for (var i = 0; i < packs.length; i++) { if (packs[i] && toInt(packs[i].qty) === 1) { unitPack = packs[i]; break; } }
   var unitRef = basePrice > 0 ? basePrice : (unitPack ? (Number(unitPack.price_ars) || 0) : 0);
   var compareOverride = toInt(raw.compare_at_ars);
-  // 0 = sin tachado (el backend devuelve null; acá usamos 0 para operar como número)
-  var compareAt = (compareOverride != null && compareOverride >= priceOnce) ? compareOverride
+  // 0 = sin tachado (el backend devuelve null; acá usamos 0 para operar como número).
+  // Guardado como 0 a propósito = una "x" en el editor: este pack NO muestra
+  // tachado, ni siquiera el de compra única en suscripción. 25-sept-2026.
+  var compareOff = compareOverride === 0;
+  var compareAt = compareOff ? 0
+    : (compareOverride != null && compareOverride >= priceOnce) ? compareOverride
     : (unitRef > 0 ? Math.round(unitRef * qty) : 0);
   var planFreq = Math.max(1, parseInt(plan.frequency_days, 10) || 30);
   var freqOverride = toInt(raw.frequency_days);
@@ -157,7 +161,7 @@ export function resolvePack(plan, idx) {
 
   return {
     idx: idx, qty: qty, label: label || (qty === 1 ? "1 unidad" : qty + " unidades"), badge: badge, note: note, noteOnce: noteOnce,
-    priceOnce: priceOnce, priceSub: priceSub, compareAt: compareAt, freqDays: freqDays,
+    priceOnce: priceOnce, priceSub: priceSub, compareAt: compareAt, compareOff: compareOff, freqDays: freqDays,
     image: image,
     // En que modo se muestra. Un pack viejo no tiene ninguno de los dos: sale
     // en los dos modos, como siempre.
@@ -187,11 +191,15 @@ export function resolvePack(plan, idx) {
 
 // Vista de un pack para un modo: precio a mostrar, tachado, ahorro, por unidad.
 // El tachado siempre es el ancla más alta disponible (compare_at); si en
-// suscripción no hay compare_at, se tacha el precio de compra única.
+// suscripción no hay compare_at, se tacha el precio de compra única. Salvo que
+// el pack lo tenga apagado con una "x" (compareOff): ahí no se tacha nada.
 function modeView(p, mode) {
   var price = mode === "sub" ? p.priceSub : p.priceOnce;
   var compare = 0;
-  if (p.compareAt > price) compare = p.compareAt;
+  // compareOff = el comerciante puso una "x": ni tachado propio ni el de compra
+  // única. Si no, el ancla más alta que haya.
+  if (p.compareOff) compare = 0;
+  else if (p.compareAt > price) compare = p.compareAt;
   else if (mode === "sub" && p.priceOnce > price) compare = p.priceOnce;
   var savingsArs = compare ? compare - price : 0;
   var savingsPct = compare ? Math.round((1 - price / compare) * 100) : 0;

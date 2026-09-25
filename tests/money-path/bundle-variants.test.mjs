@@ -348,3 +348,43 @@ test("(j) el regalo elige si va en todos los envíos o solo en el primero", () =
   assert.match(renderBundle(vm, { mode: "sub" }).html, /Solo en tu primer envío/);
   assert.ok(!/Solo en tu primer envío/.test(renderBundle(vm, { mode: "once" }).html));
 });
+
+// ─── El precio tachado es opcional ────────────────────────────────────────
+// 25-sept-2026, Wellfresh: "¿me harías el favor de poner lo del precio tachado
+// como opcional?". Dejar el campo vacío NO alcanzaba: vacío significa
+// "calculalo solo" (base × cantidad) y el tachado volvía a aparecer. Una "x"
+// (que viaja como 0) lo apaga, igual que en los textos del widget.
+test("(j) una x en el precio tachado saca el tachado de ESE pack, en los dos modos", () => {
+  const r = normalizePacks([
+    { qty: 2, price_ars: 54990, compare_at_ars: "x" },
+    { qty: 3, price_ars: 74990 },
+  ]);
+  assert.equal(r.error, undefined, r.error);
+  assert.equal(r.packs[0].compare_at_ars, 0, 'la "x" se guarda como 0');
+  assert.equal(r.packs[1].compare_at_ars, null, "sin tocar: sigue en automático");
+
+  const p = plan(r.packs);
+  assert.equal(resolvePack(p, 0).compareAt, null, "el backend no inventa un ancla");
+  // savingsPct del backend es informativo y mide la sub contra el precio de
+  // lista (15% del plan), no contra el tachado: no cambia al apagarlo.
+  assert.equal(resolvePack(p, 0).savingsPct, 15);
+  assert.ok(resolvePack(p, 1).compareAt > 0, "el otro pack lo sigue teniendo");
+
+  // Widget: ni tachado propio ni el de compra única cuando se suscribe.
+  const vm = buildBundleVM({ plan: p, merchant: { widget_variant: "v13" } });
+  assert.equal(vm.packs[0].once.compare, 0);
+  assert.equal(vm.packs[0].sub.compare, 0);
+  // Sin ancla no se anuncia "ahorrás X%" (la píldora −15% al lado de
+  // "Suscripción" sale del descuento del plan y sigue estando).
+  assert.equal(vm.packs[0].sub.savingsPct, 0);
+  assert.ok(vm.packs[1].once.compare > 0, "el otro pack sigue tachando");
+  for (const v of VARIANT_IDS) {
+    const html = renderBundle(buildBundleVM({ plan: plan([r.packs[0]]), merchant: { widget_variant: v } }), { mode: "sub" }).html;
+    assert.ok(!/<s /.test(html), `${v}: no puede quedar ningún precio tachado`);
+  }
+});
+
+test("(j) un precio tachado menor al del pack sigue siendo un error", () => {
+  const r = normalizePacks([{ qty: 2, price_ars: 54990, compare_at_ars: 1000 }]);
+  assert.match(r.error || "", /compare_at_ars/);
+});

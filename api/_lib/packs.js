@@ -40,6 +40,12 @@ const toInt = (v) => {
   return Number.isInteger(n) ? n : null;
 };
 
+// Una "x" sola (o un 0) en un campo numerico = APAGAR eso. Misma convencion que
+// los textos del widget (21-sept-2026). Hoy la usa el precio tachado: dejarlo
+// vacio NO alcanza, porque vacio significa "calculalo solo" y el tachado vuelve
+// a aparecer. 25-sept-2026, pedido de Wellfresh.
+const esApagado = (v) => v === 0 || (typeof v === "string" && /^\s*(?:[xX]|0)\s*$/.test(v));
+
 export function planPacks(plan) {
   return Array.isArray(plan?.packs) ? plan.packs : [];
 }
@@ -92,8 +98,12 @@ export function resolvePack(plan, idx) {
   const basePrice = Number(plan?.base_price_ars) || 0;
   const unitPack = packs.find(p => toInt(p?.qty) === 1);
   const unitRef = basePrice > 0 ? basePrice : (unitPack ? (Number(unitPack.price_ars) || 0) : 0);
+  // compare_at_ars: 0 = este pack no muestra tachado ("x" en el editor);
+  // null/"" = se calcula solo; un numero = ese.
   const compareOverride = toInt(pack.compare_at_ars);
-  const compareAt = compareOverride != null && compareOverride >= price ? compareOverride
+  const compareOff = compareOverride === 0;
+  const compareAt = compareOff ? null
+    : compareOverride != null && compareOverride >= price ? compareOverride
     : (unitRef > 0 ? Math.round(unitRef * qty) : null);
 
   const planFreq = Math.max(1, parseInt(plan?.frequency_days, 10) || 30);
@@ -112,7 +122,7 @@ export function resolvePack(plan, idx) {
   const subQty = subQtyRaw != null && subQtyRaw >= 1 && subQtyRaw <= 50 ? subQtyRaw : qty;
 
   return {
-    idx: i, qty, price, subPrice, compareAt, freq, savingsPct, subQty,
+    idx: i, qty, price, subPrice, compareAt, compareOff, freq, savingsPct, subQty,
     hideOnce: pack.hide_once === true,
     hideSub: pack.hide_sub === true,
     label: typeof pack.label === "string" ? pack.label : "",
@@ -158,8 +168,13 @@ export function normalizePacks(input) {
     if (price_ars == null || price_ars < 1) return { error: `${at}: price_ars debe ser un entero ≥ 1` };
     let compare_at_ars = null;
     if (p.compare_at_ars != null && p.compare_at_ars !== "") {
-      compare_at_ars = toInt(p.compare_at_ars);
-      if (compare_at_ars == null || compare_at_ars < price_ars) return { error: `${at}: compare_at_ars debe ser un entero ≥ price_ars (o null)` };
+      // "x" (o 0) = este pack no muestra precio tachado. Se guarda como 0 para
+      // distinguirlo de null, que sigue siendo "calculalo solo".
+      if (esApagado(p.compare_at_ars)) compare_at_ars = 0;
+      else {
+        compare_at_ars = toInt(p.compare_at_ars);
+        if (compare_at_ars == null || compare_at_ars < price_ars) return { error: `${at}: compare_at_ars debe ser un entero ≥ price_ars, 0 o "x" para no mostrarlo, o null` };
+      }
     }
     const label = String(p.label ?? "").trim().slice(0, 40);
     // Texto propio del pack (21-sept-2026, Thiago): "tratamiento bimensual",

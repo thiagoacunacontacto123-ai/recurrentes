@@ -19,6 +19,11 @@ export const PACKS_MAX = 12;
 const fmt = (n) => "$" + Math.round(Number(n) || 0).toLocaleString("es-AR");
 const num = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
 const int = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : 0; };
+// Una "x" sola en el precio tachado = este pack no muestra tachado (25-sept-2026,
+// pedido de Wellfresh). Dejarlo vacío NO alcanza: vacío significa "calculalo
+// solo" y el tachado vuelve. Viaja al backend como 0. Misma convención que los
+// textos del widget.
+export const sinTachado = (v) => typeof v === "string" && /^\s*[xX]\s*$/.test(v);
 
 export function pricingModeOf(plan) {
   if (!plan) return "theme";
@@ -60,7 +65,7 @@ export function packsFromPlan(plan) {
   return separados.slice(0, PACKS_MAX).map(p => ({
     qty: String(p.qty ?? 1),
     price_ars: p.price_ars != null ? String(p.price_ars) : "",
-    compare_at_ars: p.compare_at_ars != null ? String(p.compare_at_ars) : "",
+    compare_at_ars: p.compare_at_ars === 0 ? "x" : (p.compare_at_ars != null ? String(p.compare_at_ars) : ""),
     label: p.label || "",
     note: p.note || "",
     note_once: p.note_once || "",
@@ -120,7 +125,8 @@ export function derivePack(row, ctx) {
   const price = num(row.price_ars);
   const unit1 = rows?.find(r => int(r.qty) === 1 && num(r.price_ars) > 0);
   const baseUnit = num(basePrice) > 0 ? num(basePrice) : (unit1 ? num(unit1.price_ars) : price / qty);
-  const compareAt = num(row.compare_at_ars) > 0 ? num(row.compare_at_ars) : Math.round(baseUnit * qty);
+  const compareAt = sinTachado(row.compare_at_ars) ? 0
+    : (num(row.compare_at_ars) > 0 ? num(row.compare_at_ars) : Math.round(baseUnit * qty));
   const subPrice = num(row.sub_price_ars) > 0 ? Math.round(num(row.sub_price_ars)) : Math.round(price * (1 - (num(discountPct) || 0) / 100));
   const freqDays = int(row.frequency_days) > 0 ? int(row.frequency_days) : (freqScales ? Math.max(1, int(frequencyDays)) * qty : Math.max(1, int(frequencyDays)));
   const savingsPct = compareAt > 0 && subPrice > 0 ? Math.max(0, Math.round((1 - subPrice / compareAt) * 100)) : 0;
@@ -153,7 +159,7 @@ export function validatePacks(rows) {
     const soloSub = r.hide_once === true;
     const price = num(soloSub && !(num(r.price_ars) > 0) ? r.sub_price_ars : r.price_ars);
     if (!(price > 0)) return `Pack ${n}: ${soloSub ? "el precio de suscripción" : "el precio del pack"} tiene que ser mayor a 0.`;
-    if (r.compare_at_ars !== "" && num(r.compare_at_ars) < price) return `Pack ${n}: el precio tachado no puede ser menor al precio del pack.`;
+    if (r.compare_at_ars !== "" && !sinTachado(r.compare_at_ars) && num(r.compare_at_ars) < price) return `Pack ${n}: el precio tachado no puede ser menor al precio del pack (o poné una "x" para no mostrarlo).`;
     if (r.sub_price_ars !== "" && !(num(r.sub_price_ars) > 0)) return `Pack ${n}: el precio de suscripción tiene que ser mayor a 0.`;
     if (r.frequency_days !== "" && !(int(r.frequency_days) >= 1)) return `Pack ${n}: la frecuencia tiene que ser 1 día o más.`;
   }
@@ -173,7 +179,9 @@ export function serializePacks(rows) {
       // El backend exige price_ars >= 1. En un bloque de solo suscripcion, si
       // no hay precio de lista se usa el de suscripcion como base.
       price_ars: Math.round(num(r.price_ars) > 0 ? num(r.price_ars) : num(r.sub_price_ars)),
-      compare_at_ars: r.compare_at_ars !== "" && num(r.compare_at_ars) > 0 ? Math.round(num(r.compare_at_ars)) : null,
+      // 0 = apagado con una "x" (no muestra tachado); null = calculalo solo.
+      compare_at_ars: sinTachado(r.compare_at_ars) ? 0
+        : (r.compare_at_ars !== "" && num(r.compare_at_ars) > 0 ? Math.round(num(r.compare_at_ars)) : null),
       label: (r.label || "").trim() || `${int(r.qty)} ${int(r.qty) === 1 ? "unidad" : "unidades"}`,
       note: (r.note || "").trim(),
       note_once: (r.note_once || "").trim(),
@@ -335,7 +343,8 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(96px, 1fr))",gap:8}}>
                       <div><Lbl T={T}>Cantidad</Lbl><input type="number" min="1" max="99" value={r.qty} onChange={e=>upd(i,"qty",e.target.value)} style={inp}/></div>
                       <div><Lbl T={T}>{esSub ? "Precio suscripción ($)" : "Precio del pack ($)"}</Lbl><input type="number" min="0" value={esSub ? (r.sub_price_ars || "") : r.price_ars} onChange={e=>upd(i, esSub ? "sub_price_ars" : "price_ars", e.target.value)} style={inp} placeholder={esSub ? subAutoPh(r) : "lo que paga"}/></div>
-                      <div><Lbl T={T}>Precio tachado ($)</Lbl><input type="number" min="0" value={r.compare_at_ars} onChange={e=>upd(i,"compare_at_ars",e.target.value)} style={inp} placeholder={`auto (${d.compareAt.toLocaleString("es-AR")})`}/></div>
+                      {/* type="text": tiene que aceptar la "x" que lo apaga. */}
+                      <div><Lbl T={T}>Precio tachado ($)</Lbl><input type="text" inputMode="decimal" value={r.compare_at_ars} onChange={e=>upd(i,"compare_at_ars",e.target.value)} style={inp} title={'Vacío = se calcula solo. Una "x" = este pack no muestra precio tachado.'} placeholder={d.compareAt > 0 ? `auto (${d.compareAt.toLocaleString("es-AR")})` : 'auto · "x" = sin'}/></div>
                       <div><Lbl T={T}>Frecuencia (días)</Lbl><input type="number" min="1" value={r.frequency_days} onChange={e=>upd(i,"frequency_days",e.target.value)} style={inp} placeholder={freqAutoPh(r)}/></div>
                       {/* Cómo se le muestra al cliente esa frecuencia: "cada 60
                           días" o "cada 2 meses". Solo aplica a los bloques que
@@ -486,7 +495,7 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                       <span style={{color:T.textSm}}>·</span>
                       <span>ahorrás {d.savingsPct}%</span>
                       <span style={{color:T.textSm}}>·</span>
-                      <span style={{color:T.textSm}}>{fmt(d.perUnitSub)} c/u · tachado {fmt(d.compareAt)}</span>
+                      <span style={{color:T.textSm}}>{fmt(d.perUnitSub)} c/u · {d.compareAt > 0 ? `tachado ${fmt(d.compareAt)}` : "sin tachado"}</span>
                     </div>
                   </div>
                 );
@@ -517,6 +526,14 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
             )}
             <span style={{fontSize:DS.font.xs,color:T.textSm,marginLeft:"auto"}}>{packs.length}/{PACKS_MAX}</span>
           </div>
+          {/* El tachado es opcional (25-sept-2026, Wellfresh): vacío lo calcula
+              solo, así que hacía falta una forma de sacarlo. Misma "x" que apaga
+              los textos del widget. */}
+          {packs.length > 0 && (
+            <p style={{margin:"0 0 8px",fontSize:DS.font.xs,color:T.textSm,lineHeight:1.5}}>
+              ¿No querés precio tachado en un pack? Poné una <strong style={{color:T.text}}>x</strong> en "Precio tachado" y ese pack no lo muestra.
+            </p>
+          )}
 
           {packs.length === 0 ? (
             <div style={{fontSize:DS.font.sm,color:T.textSm,padding:"10px 12px",background:T.surface,border:`1px solid ${T.borderL}`,borderRadius:DS.r.md,lineHeight:1.5}}>
