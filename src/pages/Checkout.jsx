@@ -16,6 +16,29 @@ import { resolveCheckoutTheme, ctaText } from "../../shared/platform/checkoutThe
 // muestra envíos; teléfono y DNI obligatorios solo si el perfil lo exige. Sin
 // `checkout` en la respuesta (backend viejo) se comporta como antes (físico).
 
+// Provincia a partir del código postal (4 dígitos, rangos oficiales del Correo). Sirve para
+// que los envíos empiecen a cotizar apenas se escribe el CP, sin esperar la provincia; se
+// precarga en el selector y el comprador la puede cambiar (25-sept-2026, Thiago).
+const CP_RANGOS = [
+  [1000, 1499, "Ciudad Autónoma de Buenos Aires"], [1500, 2999, "Buenos Aires"],
+  [2000, 2999, "Santa Fe"], [3000, 3099, "Santa Fe"], [3100, 3299, "Entre Ríos"], [3300, 3399, "Misiones"],
+  [3400, 3499, "Corrientes"], [3500, 3599, "Chaco"], [3600, 3699, "Formosa"], [3700, 3799, "Chaco"],
+  [4000, 4199, "Tucumán"], [4200, 4399, "Santiago del Estero"], [4400, 4599, "Salta"], [4600, 4699, "Jujuy"],
+  [4700, 4799, "Catamarca"], [5000, 5299, "Córdoba"], [5300, 5399, "La Rioja"], [5400, 5499, "San Juan"],
+  [5500, 5699, "Mendoza"], [5700, 5799, "San Luis"], [5800, 5999, "Córdoba"], [6000, 6299, "Buenos Aires"],
+  [6300, 6399, "La Pampa"], [6400, 8199, "Buenos Aires"], [8200, 8299, "Río Negro"], [8300, 8399, "Neuquén"],
+  [8400, 8599, "Río Negro"], [9000, 9299, "Chubut"], [9300, 9409, "Santa Cruz"], [9410, 9499, "Tierra del Fuego"],
+];
+function provinciaPorCP(cp) {
+  const m = String(cp || "").match(/(\d{4})/);
+  if (!m) return "";
+  const n = Number(m[1]);
+  // El rango 1500–2999 de Buenos Aires pisa al de Santa Fe (2000–2999): Santa Fe gana ahí.
+  if (n >= 2000 && n <= 2999) return "Santa Fe";
+  const r = CP_RANGOS.find(([a, b]) => n >= a && n <= b);
+  return r ? r[2] : "";
+}
+
 const PROVINCIAS = [
   "Buenos Aires", "Ciudad Autónoma de Buenos Aires", "Catamarca", "Chaco", "Chubut",
   "Córdoba", "Corrientes", "Entre Ríos", "Formosa", "Jujuy", "La Pampa", "La Rioja",
@@ -172,6 +195,20 @@ export default function Checkout() {
   const [ratesLoading, setRatesLoading] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
+  const redirected = useRef(false);
+  // Si el comprador se va a Mercado Pago y vuelve con "atrás", el navegador restaura la
+  // página tal cual quedó (bfcache) con el botón en "Redirigiendo…". Al volver a mostrarse,
+  // el botón vuelve a decir Pagar por si se arrepiente de arrepentirse (25-sept-2026, Thiago).
+  useEffect(() => {
+    const back = () => { setSubmitting(false); redirected.current = false; };
+    const onShow = (e) => { if (e.persisted) back(); };
+    // Solo después de haber mandado al comprador a MP: si cambia de pestaña mientras el pedido
+    // todavía se está creando, el botón sigue bloqueado (evita dos pedidos).
+    const onVis = () => { if (document.visibilityState === "visible" && redirected.current) back(); };
+    window.addEventListener("pageshow", onShow);
+    document.addEventListener("visibilitychange", onVis);
+    return () => { window.removeEventListener("pageshow", onShow); document.removeEventListener("visibilitychange", onVis); };
+  }, []);
   const [formErr, setFormErr] = useState("");
   const [errs, setErrs] = useState({}); // por campo: { email: "Ingresá un email válido", ... }
   const fix = (k) => () => setErrs(e => (e[k] ? Object.fromEntries(Object.entries(e).filter(([kk]) => kk !== k)) : e));
@@ -241,6 +278,17 @@ export default function Checkout() {
   const FALLBACK_RATE = { name: "Envío a domicilio", price: 0, _fallback: true };
   // Métodos de envío: de Shopify (tienda conectada) o los del checkout del merchant.
   const rateTimer = useRef(null);
+  // Provincia sugerida por el CP: se aplica si el comprador no eligió una a mano.
+  const provinceAuto = useRef(false);
+  useEffect(() => {
+    const sug = provinciaPorCP(zip);
+    if (!sug) return;
+    if (!province || provinceAuto.current) { if (province !== sug) setProvince(sug); provinceAuto.current = true; }
+    // eslint-disable-next-line
+  }, [zip]);
+  const onProvince = (v) => { provinceAuto.current = false; setProvince(v); };
+  // Calle y localidad viajan en la cotización pero no la disparan (antes recotizaba a cada tecla).
+  const addrRef = useRef({ city, address1 }); addrRef.current = { city, address1 };
   useEffect(() => {
     if (!plan || !askAddress) return;
     const fromStore = cfg ? cfg.shipping_from_store === true : true;
@@ -264,8 +312,8 @@ export default function Checkout() {
         });
         if (plan?.shopify_variant_id) q.set("variant", String(plan.shopify_variant_id));
         if (zip) q.set("zip", zip);
-        if (city) q.set("city", city);
-        if (address1) q.set("address1", address1);
+        if (addrRef.current.city) q.set("city", addrRef.current.city);
+        if (addrRef.current.address1) q.set("address1", addrRef.current.address1);
         const r = await fetch(`/api/shopify?${q.toString()}`);
         const d = await r.json();
         const list = Array.isArray(d.rates) ? d.rates : [];
@@ -288,7 +336,7 @@ export default function Checkout() {
     }, 350);
     return () => clearTimeout(rateTimer.current);
     // eslint-disable-next-line
-  }, [plan, cfg, province, subtotal, askAddress, zip, city, address1, qty]);
+  }, [plan, cfg, province, subtotal, askAddress, zip, qty]);
 
   const shippingSel = askAddress ? (rates[rateIdx] || planShipping) : null;
   const shippingPrice = shippingSel && rates.length ? (Number(shippingSel.price) || 0) : 0;
@@ -368,6 +416,7 @@ export default function Checkout() {
       const r = await fetch("/api/checkout/init", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const d = await r.json();
       if (d.error) { setFormErr(d.error); setSubmitting(false); return; }
+      redirected.current = true;
       window.location.href = d.init_point;
     } catch (e) {
       setFormErr(`No pudimos conectar con ${providerLabel}. Revisá tu conexión y reintentá.`);
@@ -603,7 +652,7 @@ export default function Checkout() {
                   <Field label="C.P." error={errs.zip} onFix={fix("zip")}><input autoComplete="postal-code" inputMode="numeric" placeholder=" " value={zip} onChange={e => setZip(e.target.value)}/></Field>
                   <Field label="Localidad" error={errs.city} onFix={fix("city")}><input autoComplete="address-level2" placeholder=" " value={city} onChange={e => setCity(e.target.value)}/></Field>
                   <div className={"rc-f" + (errs.province ? " is-err" : "")} onChange={errs.province ? fix("province") : undefined}>
-                    <select value={province} onChange={e => setProvince(e.target.value)} aria-label="Provincia">
+                    <select value={province} onChange={e => onProvince(e.target.value)} aria-label="Provincia">
                       <option value=""></option>
                       {PROVINCIAS.map(pv => <option key={pv} value={pv}>{pv}</option>)}
                     </select>
