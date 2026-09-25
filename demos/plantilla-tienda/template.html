@@ -430,7 +430,7 @@ const $ = (s) => document.querySelector(s);
 const money = (n) => "$" + Math.round(n).toLocaleString("es-AR");
 const SUB_OFF = 0.15;
 const PACKS = [{ n: 1, label: "1 pack" }, { n: 4, label: "4 pack", badge: "" }, { n: 8, label: "8 pack", badge: "Más elegido" }];
-const FREQS = [{ id: 15, l: "Cada 15 días", s: "para los que no paran" }, { id: 30, l: "Cada mes", s: "la más elegida" }, { id: 60, l: "Cada 2 meses", s: "se congela perfecto" }];
+const FREQS = [{ id: 15, l: "Cada 15 días", s: "" }, { id: 30, l: "Cada mes", s: "" }, { id: 60, l: "Cada 2 meses", s: "" }];
 const BASE_UNIT = 11800; // pan de molde
 const ITEMS = A.items.filter(i => i.h !== "semana-keto" && !/^pack|-pack$/.test(i.h));
 const S = { pack: 1, freq: 30, slots: [], view: "prod", ship: null, pickSlot: null, packQty: 1, extras: {} }; // slots: handle por casillero (null = vacío)
@@ -487,7 +487,7 @@ function openPick() {
 function closePick() { $("#pkBg").style.display = "none"; }
 $("#pkX").addEventListener("click", closePick); $("#pkBg").addEventListener("click", e => { if (e.target === $("#pkBg")) closePick(); });
 $("#pkList").addEventListener("click", e => { const b = e.target.closest(".sel"); if (!b) return; if (S.pickSlot != null) S.slots[S.pickSlot] = b.dataset.h; closePick(); renderAll(); });
-function renderFreq() { $("#freq").innerHTML = FREQS.map(f => `<button class="${S.freq === f.id ? "on" : ""}" data-f="${f.id}">${f.l}<small>${f.s}</small></button>`).join(""); }
+function renderFreq() { $("#freq").innerHTML = FREQS.map(f => `<button class="${S.freq === f.id ? "on" : ""}" data-f="${f.id}">${f.l}${f.s ? `<small>${f.s}</small>` : ""}</button>`).join(""); }
 $("#freq").addEventListener("click", e => { const b = e.target.closest("button"); if (b) { S.freq = +b.dataset.f; renderAll(); } });
 function renderCta() {
   const t = totals(), left = S.pack - selCount(), ok = left === 0;
