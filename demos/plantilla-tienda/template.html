@@ -575,7 +575,10 @@ const SUB_OFF = 0.15;
 const PACKS = [{ n: 1, label: "1 pack" }, { n: 4, label: "4 pack", badge: "" }, { n: 8, label: "8 pack", badge: "Más elegido" }];
 const FREQS = [{ id: 15, l: "Cada 15 días", s: "" }, { id: 30, l: "Cada mes", s: "" }, { id: 60, l: "Cada 2 meses", s: "" }];
 const BASE_UNIT = 11800; // pan de molde
-const ITEMS = A.items.filter(i => i.h !== "semana-keto" && !/^pack|-pack$/.test(i.h));
+// El producto de la página (pan de molde) va PRIMERO en el modal de armá-tu-pack, como en la
+// app de bundles de G4U (Thiago, 25-sept-2026). `A.main` lo define el assets.json; si falta, pan de molde.
+const MAIN_H = A.main || "pan-de-molde-proteico";
+const ITEMS = A.items.filter(i => i.h !== "semana-keto" && !/^pack|-pack$/.test(i.h)).sort((a, b) => (a.h === MAIN_H ? -1 : 0) - (b.h === MAIN_H ? -1 : 0));
 const S = { pack: 1, freq: 30, slots: [], view: "prod", ship: null, pickSlot: null, packQty: 1, extras: {} }; // slots: handle por casillero (null = vacío)
 // Como en su tienda: el primer casillero ya trae el pan de molde (el producto de esta página).
 function initSlots() { S.slots = Array.from({ length: S.pack }, (_, i) => S.slots[i] || null); if (!S.slots[0]) S.slots[0] = "pan-de-molde-proteico"; }

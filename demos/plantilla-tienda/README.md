@@ -52,3 +52,5 @@ van por URL al CDN de la tienda), pensado primero para **celular** (el 95% compr
 - Sin fotos embebidas en base64 (pesan 1 MB y los artefactos de claude.ai quedaban en blanco): se
   publica en nuestro dominio, `public/demos/`.
 - Envíos en la demo = los que la tienda ya muestra (tarifa plana, sin sucursales).
+
+- `main` (opcional) en el assets.json: handle del producto de la página; en el modal de armá-tu-pack va primero, como en la app de bundles de la tienda.
