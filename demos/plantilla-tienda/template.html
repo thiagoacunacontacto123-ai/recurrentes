@@ -187,6 +187,38 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 .ibar b{display:block;font-size:16px;margin-bottom:6px}
 .ibar span{font-size:14px;color:var(--muted);line-height:1.5}
 .testi{padding:40px 28px 60px}
+.tcar{max-width:780px;margin:0 auto 26px;text-align:left}
+.tq{font-size:20px;font-style:italic;line-height:1.5;color:var(--ink)}
+.tmeta{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-style:italic;color:var(--muted);font-size:15px}
+.tst{color:#f2b705;letter-spacing:2px;font-style:normal;font-size:18px}
+.tnav{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:14px;border-bottom:1px solid #dccfd2;padding-bottom:16px}
+.tnav button{background:none;border:none;font-size:22px;cursor:pointer;color:var(--ink);line-height:1;padding:0 6px}
+.tnav i{display:inline-block;width:8px;height:8px;border-radius:50%;border:1.5px solid var(--ink);margin:0 4px;vertical-align:middle}
+.tnav i.on{background:var(--ink)}
+/* Bloque de reseñas: mismo formato que el de Revie en su tienda */
+.rv{max-width:780px;margin:0 auto;font-family:Poppins,system-ui,sans-serif;color:#111}
+.rv-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.rv-head h3{margin:0;font-size:24px;font-weight:800;letter-spacing:.5px;color:#111;text-align:left}
+.rv-head span{font-size:12px;color:#555;letter-spacing:.06em}
+.rv-score{display:flex;align-items:center;gap:12px}
+.rv-score b{background:#e9e9e9;font-size:22px;padding:8px 14px;border-radius:4px}
+.rv-stars{--r:5;display:inline-block;font-size:26px;line-height:1;letter-spacing:2px;font-style:normal;background:linear-gradient(90deg,#000 calc(var(--r)/5*100%),#ccc 0);-webkit-background-clip:text;background-clip:text;color:transparent}
+.rv-stars:before{content:"★★★★★"}
+.rv hr{border:0;border-top:1px solid #ddd;margin:16px 0}
+.rv-by{text-align:right;font-size:14px;color:#333;display:flex;justify-content:flex-end;align-items:center;gap:6px;margin-bottom:6px}
+.rv-by img{height:24px;width:auto;display:inline-block;vertical-align:middle}
+.rv-item{display:flex;justify-content:space-between;gap:16px;padding:22px 0;border-bottom:1px solid #ddd}
+.rv-item .rv-stars{font-size:22px}
+.rv-item label{display:block;font-size:14px;color:#333;margin-top:6px}
+.rv-name{display:flex;align-items:center;gap:6px;font-weight:700;font-size:17px;margin:10px 0 8px}
+.rv-name svg{width:16px;height:16px}
+.rv-txt{font-size:17px;line-height:1.5;white-space:pre-line}
+.rv-img{width:120px;height:120px;object-fit:cover;border-radius:4px;flex:none}
+.rv-pag{display:flex;justify-content:center;gap:10px;padding:18px 0 0;font-size:14px}
+.rv-pag a{color:#111;text-decoration:none;padding:4px 8px;border-radius:4px}
+.rv-pag a.on{background:#111;color:#fff}
+.rv-pag a.dis{opacity:.35;pointer-events:none}
+@media(max-width:600px){.rv-item{flex-direction:column}.rv-img{width:100%;height:auto;max-width:260px}.tq{font-size:17px}.rv-head h3{font-size:22px}}
 .testi h3{font-size:30px;text-align:center;margin:0 0 30px;font-weight:800;color:var(--wine)}
 .testi .g{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
 .testi .c{background:#fff;border-radius:18px;padding:26px 24px;border:1px solid #e6dadd}
@@ -400,11 +432,16 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
     <div><h3>El pan de siempre, con beneficios reales.</h3><p>Pan de molde proteico, low-carb y sin azúcar. Con la suscripción te llega recién hecho cada vez que lo necesitás, con 15% de descuento en cada envío y sin volver a hacer el pedido.</p><button class="btn-rose" id="iwtCta">Suscribirme</button></div>
   </div></section>
   <section class="wrap ibar"><h3>Alimentación Low-Carb</h3><div class="g" id="ibar"></div></section>
-  <section class="wrap testi"><h3>Comentario de nuestros clientes</h3><div class="g">
-    <div class="c"><div class="st">★★★★★</div><p>“Por fin un pan que no se siente ‘un cartón’. Es suave, esponjoso y tiene sabor a pan real. No siento que me estoy privando de algo.”</p><small>— Mariana G., 33 años</small></div>
-    <div class="c"><div class="st">★★★★★</div><p>“Desde que lo incorporé al desayuno, me siento más saciado y con energía todo el día. Lo tuesto y sigue perfecto, incluso después de freezarlo.”</p><small>— Juan ., 40 años</small></div>
-    <div class="c"><div class="st">★★★★★</div><p>“Lo probé por curiosidad y me sorprendió. No solo tiene buen gusto, sino que no me infla ni me da sueño después de comer. Se nota la diferencia.”</p><small>— Sofi ., 29 años</small></div>
-  </div><div class="rev">★★★★★ <b>4.8/5</b> · 121 reseñas verificadas</div></section>
+  <section class="wrap testi">
+    <div class="tcar"><div class="tq" id="tq"></div><div class="tmeta"><span id="ta"></span><span class="tst">★★★★★</span></div>
+      <div class="tnav"><button type="button" data-t="-1" aria-label="Anterior">‹</button><span id="tdots"></span><button type="button" data-t="1" aria-label="Siguiente">›</button></div></div>
+    <div class="rv" id="rv">
+      <div class="rv-head"><div><h3>RESEÑAS</h3><span>121 OPINIONES</span></div><div class="rv-score"><b>4.97</b><i class="rv-stars" style="--r:4.97"></i></div></div>
+      <hr><div class="rv-by">&nbsp;Reviews por Whatsapp by <a href="https://revie.lat/" target="_blank" rel="noopener"><img src="https://revie-wwwstatic.b-cdn.net/image/revie.png" width="85" height="24" alt="Revie"></a></div>
+      <div id="rvList"></div>
+      <div class="rv-pag" id="rvPag"></div>
+    </div>
+  </section>
   <footer class="foot2"><div class="wrap">
     <div class="g">
       <div><img id="logoFt" alt="G4U" style="height:48px;width:auto;margin-bottom:12px"><div>Pan proteico, low-carb y sin azúcar. El pan de siempre, con beneficios reales.</div></div>
@@ -505,7 +542,6 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
     <p>Tu primer pack sale en las próximas 24/48 h. Te mandamos por mail y WhatsApp el seguimiento y el link a tu portal, donde pausás, cambiás la dirección o cancelás cuando quieras.</p>
     <div class="ok-card" id="okCard"></div>
     <p style="margin-top:22px"><a href="#portal" class="btn-rose" style="display:inline-block">Ir a mi portal de suscripción</a></p>
-    <p style="margin-top:16px"><a href="#" id="again" style="color:var(--wine);font-weight:600">Volver al inicio de la demo</a></p>
   </div>
 </div>
 
@@ -584,6 +620,22 @@ function renderCta() {
 function renderAll() { renderPacks(); renderFreq(); renderCta(); }
 renderAll();
 
+// ── testimonios (carrusel) + reseñas de Revie tal cual ──
+let ti = 0; const TESTI = A.testimonials || [];
+function renderTesti() { if (!TESTI.length) return; $("#tq").textContent = TESTI[ti][0]; $("#ta").textContent = TESTI[ti][1]; $("#tdots").innerHTML = TESTI.map((_, i) => `<i class="${i === ti ? "on" : ""}"></i>`).join(""); }
+$(".tnav").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; ti = (ti + (+b.dataset.t) + TESTI.length) % TESTI.length; renderTesti(); });
+setInterval(() => { ti = (ti + 1) % Math.max(1, TESTI.length); renderTesti(); }, 6000); renderTesti();
+const RV = A.reviews || [], RV_PER = 3; let rvPage = 0;
+const CHECK = '<svg viewBox="0 0 90 90" aria-hidden="true"><circle cx="45" cy="45" r="45" fill="rgb(40,201,55)"/><path d="M38.478 64.5c-1.3-.009-2.533-.579-3.381-1.563L21.59 47.284c-1.622-1.883-1.41-4.725.474-6.347 1.884-1.621 4.725-1.409 6.347.474l10.112 11.744L61.629 27.02c1.645-1.862 4.489-2.037 6.352-.391 1.862 1.646 2.037 4.49.391 6.352l-26.521 30c-.856.966-2.084 1.519-3.373 1.519z" fill="#fff"/></svg>';
+function renderRv() {
+  const pages = Math.ceil(RV.length / RV_PER), items = RV.slice(rvPage * RV_PER, rvPage * RV_PER + RV_PER);
+  $("#rvList").innerHTML = items.map(r => `<div class="rv-item"><div style="flex:1;min-width:0"><i class="rv-stars" style="--r:${r[1]}"></i><label>${r[3]}</label><div class="rv-name">${r[0]} ${CHECK}</div><div class="rv-txt">${r[2].replace(/</g, "&lt;")}</div></div>${r[4] ? `<img class="rv-img" src="${r[4].replace("media.revie.lat", "revie-media.b-cdn.net")}?height=200&quality=90" alt="" loading="lazy">` : ""}</div>`).join("");
+  const around = [rvPage - 1, rvPage, rvPage + 1].filter(p => p >= 0 && p < pages);
+  $("#rvPag").innerHTML = `<a href="#rv" data-p="${rvPage - 1}" class="${rvPage === 0 ? "dis" : ""}">◄</a>${around.map(p => `<a href="#rv" data-p="${p}" class="${p === rvPage ? "on" : ""}">${p + 1}</a>`).join("")}<a href="#rv" data-p="${rvPage + 1}" class="${rvPage >= pages - 1 ? "dis" : ""}">►</a>`;
+}
+$("#rvPag").addEventListener("click", e => { const a = e.target.closest("a[data-p]"); if (!a) return; e.preventDefault(); rvPage = Math.max(0, Math.min(Math.ceil(RV.length / RV_PER) - 1, +a.dataset.p)); renderRv(); $("#rv").scrollIntoView({ block: "start", behavior: "smooth" }); });
+renderRv();
+
 // ── checkout ──
 function show(v) { S.view = v; $("#v-prod").hidden = v !== "prod"; $("#v-ck").hidden = v !== "ck"; $("#v-ok").hidden = v !== "ok"; $("#v-portal").hidden = v !== "portal"; if (v === "portal") renderPortal(); window.scrollTo(0, 0); }
 // ── Portal del suscriptor (demo): lo que ve el cliente después de suscribirse ──
@@ -644,7 +696,6 @@ $("#goCk").addEventListener("click", openCart);
 $("#cartX").addEventListener("click", closeCart); $("#cartBg").addEventListener("click", closeCart); $("#cartMore").addEventListener("click", e => { e.preventDefault(); closeCart(); });
 $("#cartGo").addEventListener("click", () => { closeCart(); $("#ld").style.display = "flex"; setTimeout(() => { $("#ld").style.display = "none"; S.ship = null; renderCk(); show("ck"); }, 900); });
 $("#backProd").addEventListener("click", e => { e.preventDefault(); show("prod"); });
-$("#again").addEventListener("click", e => { e.preventDefault(); show("prod"); });
 // Como en su tienda hoy (shipnow): dos tarifas a domicilio. Gratis desde $85.000.
 const SHIP = () => { const t = totals(); const free = t.sub >= 85000; return [{ n: "A domicilio · shipnow Estándar", s: "Llega en 2 a 4 días hábiles, de 8 a 18 h", p: free ? 0 : 7239 }, { n: "A domicilio · shipnow Express 🚀", s: "Llega hoy o mañana, de 8 a 21 h", p: free ? 0 : 8864 }]; };
 function shipPrice() { return S.ship == null ? 0 : SHIP()[S.ship].p; }
@@ -679,7 +730,7 @@ $("#payBtn").addEventListener("click", () => {
   const e = $("#ckErr"); if (miss.length) { e.hidden = false; e.textContent = "Completá: " + miss.join(", ") + "."; return; } e.hidden = true;
   const b = $("#payBtn"); b.disabled = true; b.textContent = "Redirigiendo a Mercado Pago…";
   setTimeout(() => { b.disabled = false; const t = totals(); const next = new Date(Date.now() + S.freq * 864e5).toLocaleDateString("es-AR", { day: "numeric", month: "long" });
-    $("#okCard").innerHTML = `<div><span>Pack</span><b>${S.packQty > 1 ? S.packQty + " × " : ""}${S.pack} productos · armado por vos${extrasList().length ? " + " + extrasList().reduce((a, i) => a + i.q, 0) + " extra" : ""}</b></div><div><span>Cobrado hoy</span><b>${money(t.sub + shipPrice())}</b></div><div><span>Frecuencia</span><b>${freqTxt()}</b></div><div><span>Próximo envío y cobro</span><b>${next}</b></div><div><span>Ahorro por envío</span><b style="color:#1f7a3e">${money(t.saving)}</b></div>`;
+    $("#okCard").innerHTML = `<div><span>Pack</span><b>${S.packQty > 1 ? S.packQty + " × " : ""}${S.pack} producto${S.pack === 1 ? "" : "s"} · armado por vos${extrasList().length ? " + " + extrasList().reduce((a, i) => a + i.q, 0) + " extra" : ""}</b></div><div><span>Cobrado hoy</span><b>${money(t.sub + shipPrice())}</b></div><div><span>Frecuencia</span><b>${freqTxt()}</b></div><div><span>Próximo envío y cobro</span><b>${next}</b></div><div><span>Ahorro por envío</span><b style="color:#1f7a3e">${money(t.saving)}</b></div>`;
     show("ok"); }, 1400);
 });
 </script>
