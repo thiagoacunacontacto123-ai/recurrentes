@@ -1593,7 +1593,8 @@ export default async function handler(req, res) {
           ".rc-cart-go{width:100%;background:" + A + ";color:" + ON + ";border:none;border-radius:" + RAD + ";padding:15px 12px;font-family:inherit;font-size:15.5px;font-weight:800;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent}" +
           ".rc-cart-go:active{filter:brightness(.92)}.rc-cart-go:disabled{opacity:.7;cursor:default}" +
           ".rc-cart-more{display:block;width:100%;margin-top:8px;background:none;border:none;color:" + MU + ";font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:3px}" +
-          "@media (max-width:520px){.rc-cart{top:auto;width:100%;max-height:92vh;border-radius:18px 18px 0 0;transform:translateY(100%)}}";
+          // En celular también entra desde la derecha (como el carrito de la demo G4U y el de Shopify), a todo alto.
+          "@media (max-width:520px){.rc-cart{width:min(420px,92%)}}";
         document.head.appendChild(st);
         var ov = document.createElement("div");
         ov.className = "rc-cart-ov"; ov.setAttribute("data-rec-root", "1");
