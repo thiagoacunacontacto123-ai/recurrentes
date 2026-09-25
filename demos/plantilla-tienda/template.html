@@ -264,6 +264,20 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 .pt-foot .rec b{color:var(--ink)}
 .pt-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1d1416;color:#fff;font-size:13px;padding:10px 16px;border-radius:99px;z-index:80}
 @media(max-width:600px){.pt-row3{grid-template-columns:1fr 1fr}.pt-row3 div:first-child{grid-column:1/-1}.pt-lbl{display:none}#v-portal .hdr .wrap{grid-template-columns:1fr;padding:12px 16px}#v-portal .hdr img{height:44px}}
+/* modal del portal */
+.md-bg{position:fixed;inset:0;background:rgba(29,20,22,.55);z-index:90;display:none;align-items:center;justify-content:center;padding:18px}
+.md{background:#fff;border-radius:16px;width:min(460px,100%);padding:22px 22px 18px;box-shadow:0 30px 80px rgba(0,0,0,.35);max-height:90vh;overflow:auto}
+.md-t{font-size:18px;font-weight:700;margin-bottom:8px}
+.md-b{font-size:14px;line-height:1.55;color:#444}
+.md-b .f{position:relative;margin-bottom:10px}.md-b .f input{width:100%;height:50px;padding:20px 12px 6px;font-size:15px;border:1px solid #dedede;border-radius:10px;font-family:inherit;outline:none}.md-b .f label{position:absolute;left:13px;top:15px;font-size:14px;color:#6b6b6b;pointer-events:none;transition:.12s}.md-b .f input:focus+label,.md-b .f input:not(:placeholder-shown)+label{top:6px;font-size:11px}.md-b .f input:focus{border-color:var(--wine);box-shadow:0 0 0 1px var(--wine)}.md-b .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.md-b .note{background:var(--cream-2);border-radius:10px;padding:10px 12px;font-size:12.5px;color:var(--muted);margin-top:8px}
+.md-b .rz{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1.5px solid #e6dadd;border-radius:10px;margin-top:8px;cursor:pointer;font-size:14px}
+.md-b .rz.on{border-color:var(--wine);background:#fbf1f3}
+.md-b .rz input{accent-color:var(--wine)}
+.md-a{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+.md-a button{border-radius:10px;padding:11px 16px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;border:1.5px solid #e3d3d8;background:#fff;color:var(--ink)}
+.md-a button.pri{background:var(--wine);border-color:var(--wine);color:#fff}
+.md-a button.dng{background:#b42318;border-color:#b42318;color:#fff}
 /* ─── checkout (estilo Recurrentes) ─── */
 .ck{background:#fff;color:#1a1a1a;min-height:100vh}
 .ck-shell{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);min-height:100vh}
@@ -473,7 +487,6 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
       <div class="pt-addr"><span style="display:inline-flex;align-items:center;gap:8px"><img src="https://www.recurrentesapp.com/brand/mercadopago.png" alt="" style="width:22px;height:22px;object-fit:contain"> Mercado Pago · Visa terminada en 4421</span><span style="color:var(--muted);font-size:12px">Se cobra solo</span></div>
       <div class="pt-actions">
         <button type="button" class="pt-btn" id="ptPause">⏸ Pausar</button>
-        <button type="button" class="pt-btn" id="ptSkip">⏭ Saltar el próximo envío</button>
         <button type="button" class="pt-btn danger" id="ptCancel">✕ Cancelar</button>
       </div>
     </div>
@@ -485,6 +498,9 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
   </div>
   <div id="ptToast" class="pt-toast" hidden></div>
 </div>
+
+<!-- ════════ MODAL DEL PORTAL ════════ -->
+<div id="mdBg" class="md-bg"><div class="md" role="dialog" aria-modal="true"><div class="md-t" id="mdT"></div><div class="md-b" id="mdB"></div><div class="md-a" id="mdA"></div></div></div>
 
 <!-- ════════ ELEGÍ UN PRODUCTO ════════ -->
 <div id="pkBg"><div id="pk" role="dialog" aria-label="Elegí un producto"><div class="h"><span>Elegí un producto</span><button type="button" id="pkX" aria-label="Cerrar">✕</button></div><div class="list" id="pkList"></div></div></div>
@@ -640,7 +656,7 @@ renderRv();
 function show(v) { S.view = v; $("#v-prod").hidden = v !== "prod"; $("#v-ck").hidden = v !== "ck"; $("#v-ok").hidden = v !== "ok"; $("#v-portal").hidden = v !== "portal"; if (v === "portal") renderPortal(); window.scrollTo(0, 0); }
 // ── Portal del suscriptor (demo): lo que ve el cliente después de suscribirse ──
 $("#logoPt").src = A.logo;
-const P = { paused: false, skipped: false, extras: null, items: null };
+const P = { paused: false, cancelled: false, extras: null, items: null };
 function ptToast(t) { const e = $("#ptToast"); e.textContent = t; e.hidden = false; clearTimeout(ptToast.t); ptToast.t = setTimeout(() => { e.hidden = true; }, 2600); }
 function renderPortal() {
   // Si entró directo a #portal sin armar nada, mostramos una suscripción de ejemplo.
@@ -648,22 +664,48 @@ function renderPortal() {
   if (!P.extras) { const ex = extrasList(); P.extras = ex.length ? ex : [{ ...ITEMS.find(i => /tostaditas-semillas/.test(i.h)), q: 1 }]; }
   const list = P.items.reduce((a, i) => a + i.price * i.q, 0) * S.packQty, exT = P.extras.reduce((a, i) => a + i.price * i.q, 0);
   const total = Math.round((list + exT) * (1 - SUB_OFF));
-  const days = S.freq + (P.skipped ? S.freq : 0);
+  const days = S.freq;
   $("#ptNext").textContent = P.paused ? "En pausa" : new Date(Date.now() + days * 864e5).toLocaleDateString("es-AR", { day: "numeric", month: "long" });
   $("#ptFreq").textContent = freqTxt().replace("cada ", "");
   $("#ptTotal").textContent = money(total);
-  $(".pt-status").textContent = P.paused ? "Pausada" : "Activa"; $(".pt-status").style.background = P.paused ? "#fdf0d5" : "#dff5e7"; $(".pt-status").style.color = P.paused ? "#8a5a00" : "#1f7a3e";
+  const st = P.cancelled ? ["Cancelada", "#fde8e8", "#b42318"] : P.paused ? ["Pausada", "#fdf0d5", "#8a5a00"] : ["Activa", "#dff5e7", "#1f7a3e"];
+  $(".pt-status").textContent = st[0]; $(".pt-status").style.background = st[1]; $(".pt-status").style.color = st[2];
+  if (P.cancelled) $("#ptNext").textContent = "—";
+  $(".pt-actions").innerHTML = P.cancelled ? `<div style="font-size:13px;color:var(--muted);line-height:1.5">Tu suscripción fue cancelada. Si querés volver a suscribirte, andá al producto en la tienda y elegí Suscripción de nuevo.</div>` : `<button type="button" class="pt-btn" id="ptPause">${P.paused ? "▶ Reactivar" : "⏸ Pausar"}</button><button type="button" class="pt-btn danger" id="ptCancel">✕ Cancelar</button>`;
+  bindPortalActions();
   $("#ptItems").innerHTML = P.items.map(i => `<div class="pt-it"><img src="${i.img}" alt=""><span class="n">${i.q * S.packQty} × ${i.title}<small>${money(i.price * i.q * S.packQty)} · −15% en suscripción</small></span></div>`).join("");
   $("#ptExtrasWrap").hidden = !P.extras.length;
   $("#ptExtras").innerHTML = P.extras.map(i => `<div class="pt-it"><img src="${i.img}" alt=""><span class="n">${i.q} × ${i.title}<small>${money(i.price * i.q)} por cobro</small></span></div>`).join("");
-  $("#ptPause").textContent = P.paused ? "▶ Reactivar" : "⏸ Pausar";
   const hist = [[0, total], [S.freq, total], [S.freq * 2, total]].map(([d, m], k) => `<div><span>${new Date(Date.now() - d * 864e5).toLocaleDateString("es-AR", { day: "numeric", month: "short" })} · Pack ${S.pack}${k ? "" : " · hoy"}</span><span class="ok">${money(m)} · pagado</span></div>`);
   $("#ptHist").innerHTML = hist.join("");
 }
-$("#ptPause").addEventListener("click", () => { P.paused = !P.paused; renderPortal(); ptToast(P.paused ? "Suscripción pausada. No se cobra hasta que la reactives." : "Suscripción reactivada."); });
-$("#ptSkip").addEventListener("click", () => { P.skipped = true; renderPortal(); ptToast("Saltamos el próximo envío. El siguiente sigue igual."); });
-$("#ptCancel").addEventListener("click", () => { if (confirm("¿Cancelar la suscripción? No se hacen más cobros ni envíos.")) ptToast("En la demo no cancelamos nada 😉 En el portal real, acá pasa por la retención de la tienda."); });
-$("#ptAddrBtn").addEventListener("click", () => { const v = prompt("Nueva dirección de envío", $("#ptAddr").textContent); if (v) { $("#ptAddr").textContent = v; ptToast("Dirección actualizada para el próximo envío."); } });
+// Modales como los del portal real (nada de prompt/confirm del navegador).
+function modal({ title, body, actions }) {
+  $("#mdT").textContent = title; $("#mdB").innerHTML = body;
+  $("#mdA").innerHTML = actions.map((a, i) => `<button type="button" data-i="${i}" class="${a.cls || ""}">${a.label}</button>`).join("");
+  $("#mdA").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; const a = actions[+b.dataset.i]; if (a.keep !== true) closeModal(); if (a.run) a.run(); };
+  $("#mdBg").style.display = "flex";
+}
+function closeModal() { $("#mdBg").style.display = "none"; }
+$("#mdBg").addEventListener("click", e => { if (e.target === $("#mdBg")) closeModal(); });
+const REASONS = [["precio", "Me resulta caro"], ["stock", "Todavía tengo producto"], ["no_uso", "Ya no lo uso"], ["calidad", "No me convenció"], ["otro", "Otro motivo"]];
+// Los botones se re-crean en cada render del portal → se enganchan acá.
+function bindPortalActions() {
+  const pp = $("#ptPause"), pc = $("#ptCancel");
+  if (pp) pp.onclick = () => {
+    if (P.paused) return modal({ title: "Reactivar suscripción", body: "Reactivamos tu suscripción y volvés a recibir tus envíos. ¿Confirmás?", actions: [{ label: "Cancelar" }, { label: "Sí, reactivar", cls: "pri", run: () => { P.paused = false; renderPortal(); ptToast("Suscripción reactivada."); } }] });
+    modal({ title: "Pausar suscripción", body: "Pausamos tu suscripción. No se hacen más cobros ni envíos hasta que la reactives. ¿Confirmás?", actions: [{ label: "Cancelar" }, { label: "Sí, pausar", cls: "pri", run: () => { P.paused = true; renderPortal(); ptToast("Suscripción pausada. No se cobra hasta que la reactives."); } }] });
+  };
+  if (pc) pc.onclick = () => {
+    modal({ title: "¿Por qué querés cancelar?", body: `<div style="color:#666;font-size:13px">Nos ayuda a mejorar. Elegí un motivo:</div>${REASONS.map((r, i) => `<label class="rz ${i === 0 ? "on" : ""}"><input type="radio" name="rz" value="${r[0]}" ${i === 0 ? "checked" : ""}> ${r[1]}</label>`).join("")}<div class="note">💡 Si todavía tenés producto, podés <b>pausar</b> en vez de cancelar: no se cobra nada y lo retomás cuando quieras.</div>`,
+      actions: [{ label: "Volver" }, { label: "Prefiero pausar", run: () => { P.paused = true; renderPortal(); ptToast("Suscripción pausada. La reactivás cuando quieras."); } }, { label: "Cancelar suscripción", cls: "dng", run: () => { P.cancelled = true; renderPortal(); ptToast("Suscripción cancelada. No se hacen más cobros."); } }] });
+    $("#mdB").onchange = () => { [...$("#mdB").querySelectorAll(".rz")].forEach(l => l.classList.toggle("on", l.querySelector("input").checked)); };
+  };
+}
+$("#ptAddrBtn").addEventListener("click", () => {
+  modal({ title: "Cambiar la dirección de envío", body: `<div class="f"><input id="mAddr" value="Av. Corrientes 1234" placeholder=" "><label>Calle y número</label></div><div class="f"><input id="mApt" value="" placeholder=" "><label>Piso, depto o referencia (opcional)</label></div><div class="g2"><div class="f"><input id="mZip" value="1043" placeholder=" "><label>C.P.</label></div><div class="f"><input id="mCity" value="CABA" placeholder=" "><label>Localidad</label></div></div><div class="f"><input id="mPhone" value="11 4444 0000" placeholder=" "><label>Teléfono</label></div><div class="note">Se usa desde tu próximo envío. Los que ya salieron no cambian.</div>`,
+    actions: [{ label: "Cancelar" }, { label: "Guardar dirección", cls: "pri", run: () => { const a = $("#mAddr").value.trim(), c = $("#mCity").value.trim(), z = $("#mZip").value.trim(), ap = $("#mApt").value.trim(); if (a && c) $("#ptAddr").textContent = `${a}${ap ? ", " + ap : ""}, ${c} (${z})`; ptToast("Dirección actualizada para el próximo envío."); } }] });
+});
 $("#ptBack").addEventListener("click", e => { e.preventDefault(); location.hash = ""; show("prod"); });
 function route() { if (location.hash === "#portal") show("portal"); }
 window.addEventListener("hashchange", route); route();
