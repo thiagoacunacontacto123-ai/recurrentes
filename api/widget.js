@@ -1679,6 +1679,9 @@ export default async function handler(req, res) {
           ".rc-sticky button{display:block;width:100%;max-width:640px;margin:0 auto;background:" + A + ";color:" + ON + ";border:none;border-radius:12px;padding:13px 12px;font-family:inherit;font-size:15px;font-weight:800;letter-spacing:.2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;-webkit-tap-highlight-color:transparent}" +
           ".rc-sticky button:active{filter:brightness(.92)}";
         document.head.appendChild(st);
+        // Si quedó pegado en el tema el bloque de Liquid "STICKY ADD TO CART" (Wellfresh,
+        // 25-sept: foto + precio + COMPRAR), lo escondemos: ya está el nuestro.
+        st.textContent += ".wf-sticky{display:none !important}";
         var bar = document.createElement("div");
         bar.className = "rc-sticky"; bar.setAttribute("data-rec-root", "1");
         bar.innerHTML = '<button type="button"></button>';
