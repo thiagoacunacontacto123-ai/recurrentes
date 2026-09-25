@@ -43,7 +43,8 @@ button{font-family:inherit}
 .thumbs img.on{border-color:var(--wine)}
 .stars{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--brown);font-weight:600}
 .stars svg{width:15px;height:15px;fill:#f2b705}
-h2.ttl{font-size:30px;line-height:1.15;margin:8px 0 6px;font-weight:700;letter-spacing:-.3px}
+h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-spacing:-.3px}
+.ttl-sub{display:block;font-size:40px;font-weight:800;color:var(--wine);letter-spacing:-.6px;margin-top:2px}
 .sub{font-size:15px;color:var(--muted);margin:0 0 18px}
 .bul{margin:0 0 6px;padding:0;list-style:none;font-size:15px;line-height:1.6}
 .bul li{margin:6px 0}
@@ -51,7 +52,30 @@ h2.ttl{font-size:30px;line-height:1.15;margin:8px 0 6px;font-weight:700;letter-s
 .sep{display:flex;align-items:center;gap:14px;margin:26px 0 14px;color:var(--wine);font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;text-align:center}
 .sep:before,.sep:after{content:"";flex:1;height:2px;background:var(--wine);opacity:.5}
 .packs{display:grid;gap:12px}
-.pack{display:flex;align-items:center;gap:14px;padding:20px 22px;border-radius:14px;background:#d9b3b8;border:2px solid transparent;cursor:pointer;position:relative;transition:.15s}
+.pack{display:flex;flex-wrap:wrap;align-items:center;gap:14px;padding:20px 22px;border-radius:14px;background:#d9b3b8;border:2px solid transparent;cursor:pointer;position:relative;transition:.15s}
+.slots{flex-basis:100%;display:grid;gap:8px;margin-top:8px;padding-top:14px;border-top:1px solid rgba(80,3,34,.2)}
+.slot{display:flex;align-items:center;gap:12px;min-height:44px}
+.slot .ic{width:40px;height:40px;border-radius:8px;background:#fff;display:grid;place-items:center;font-size:22px;flex:none;overflow:hidden}
+.slot .ic img{width:100%;height:100%;object-fit:cover;display:block}
+.slot .add{background:var(--wine);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.slot .nm{flex:1;min-width:0;font-size:14px;line-height:1.3}
+.slot .nm small{display:block;color:#6a4a52;font-size:12px}
+.slot .rm{background:none;border:none;color:#6a4a52;font-size:18px;cursor:pointer;padding:4px 8px}
+.slot .rm:hover{color:var(--wine)}
+/* modal "Elegí un producto" (como el de su app de bundles) */
+#pkBg{position:fixed;inset:0;background:rgba(29,20,22,.55);z-index:70;display:none;align-items:center;justify-content:center;padding:20px}
+#pk{background:#fff;border-radius:16px;width:min(760px,100%);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,.35)}
+#pk .h{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;font-weight:700;font-size:17px;border-bottom:1px solid #eee}
+#pk .h button{background:none;border:none;font-size:22px;cursor:pointer;color:#555}
+#pk .list{overflow:auto;padding:8px 22px 18px}
+.pr-row{display:flex;align-items:center;gap:16px;padding:12px 0;border-bottom:1px solid #f0e6e9}
+.pr-row img{width:104px;height:104px;border-radius:10px;object-fit:cover;background:#fff;flex:none}
+.pr-row .t{flex:1;min-width:0;font-size:14px;line-height:1.35}
+.pr-row .t b{font-weight:700}
+.pr-row .t .p{margin-top:4px;font-weight:700}
+.pr-row .t .p s{color:#8a8a8a;font-weight:400;margin-left:6px}
+.pr-row .sel{background:var(--wine);color:#fff;border:none;border-radius:8px;padding:12px 18px;font-weight:700;font-size:14px;cursor:pointer;flex:none}
+@media(max-width:600px){.pr-row img{width:72px;height:72px}.pr-row .sel{padding:10px 12px;font-size:13px}}
 .pack .rad{width:22px;height:22px;border-radius:50%;border:2px solid #fff;background:#fff;flex:none;display:grid;place-items:center}
 .pack .rad:after{content:"";width:12px;height:12px;border-radius:50%;background:var(--wine);transform:scale(0);transition:.15s}
 .pack.on{background:#efe0e3;border-color:var(--wine)}
@@ -256,7 +280,7 @@ h2.ttl{font-size:30px;line-height:1.15;margin:8px 0 6px;font-weight:700;letter-s
     </div>
     <div>
       <div class="stars"><span id="starRow"></span> 4.8/5 (1890+ clientes contentos)</div>
-      <h2 class="ttl">PAN DE MOLDE | Proteico · Low-Carb · sin azúcar · Apto Keto</h2>
+      <h2 class="ttl">PAN DE MOLDE | Proteico ; Low-Carb ; sin azúcar ; Apto Keto <span class="ttl-sub">· Suscripción</span></h2>
       <p class="sub">Versión suscripción · el mismo pan, con 15% OFF y entrega automática</p>
       <ul class="bul">
         <li>🍞 <b>Ideal si seguís planes</b> keto, low-carb o de control glucémico.</li>
@@ -269,11 +293,6 @@ h2.ttl{font-size:30px;line-height:1.15;margin:8px 0 6px;font-weight:700;letter-s
       <div class="sep">¡Ahorrá suscribiéndote a más packs!</div>
       <div class="packs" id="packs"></div>
 
-      <div class="build" id="build">
-        <div class="h"><b>Armá tu pack</b><span class="cnt"><b id="cntSel">0</b> de <span id="cntTot">8</span> elegidos</span></div>
-        <div class="prog"><i id="prog"></i></div>
-        <div class="items" id="items"></div>
-      </div>
 
       <div class="sep" style="margin-top:22px">¿Cada cuánto lo querés?</div>
       <div class="freq" id="freq"></div>
@@ -282,10 +301,10 @@ h2.ttl{font-size:30px;line-height:1.15;margin:8px 0 6px;font-weight:700;letter-s
       <div class="trust"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Pago seguro con Mercado Pago · Pausás o cancelás cuando quieras</div>
 
       <div class="acc">
-        <details><summary>Se pueden congelar</summary><p>25 días frescos, 45 días refrigerados o hasta 3 meses en el freezer. Con la suscripción recibís siempre pan recién hecho, así que no hace falta stockear.</p></details>
-        <details><summary>Entregas Buenos Aires · Córdoba · Santa Fe</summary><p>Enviamos a todo el país con Correo Argentino y Andreani. En cada envío de tu suscripción te llega el seguimiento por mail y WhatsApp.</p></details>
-        <details><summary>Entrega directa en 24/48h en AMBA</summary><p>En AMBA lo lleva nuestra logística propia. Podés cambiar la dirección de tu suscripción antes de cada envío desde tu portal.</p></details>
-        <details><summary>¿Cómo pauso o cancelo?</summary><p>Desde el link que te llega por mail después de cada cobro: pausar, cambiar la fecha, cambiar el pack o cancelar. Sin llamadas ni formularios.</p></details>
+        <details><summary>🍞 ¿Qué son los panificados G4U?</summary><p>G4U es un <b>panificado alto en proteína, bajo en carbohidratos y alto en fibra</b>, creado para quienes quieren cuidarse sin renunciar al sabor de siempre. Elaborado por <b>chefs y técnicos en alimentos</b>, combina <b>proteínas de calidad, fibra funcional y almidón resistente</b> que aportan saciedad, energía estable y bienestar digestivo. Tiene la <b>textura, aroma y sabor del pan artesanal</b>, pero con una formulación inteligente que se adapta a estilos de vida <b>keto, low-carb y saludables</b>.</p></details>
+        <details><summary>🔬 Ingredientes y tecnología G4U</summary><p><b>INGREDIENTES:</b> Almidón resistente de trigo, gluten de trigo, concentrado de suero de leche, huevo en polvo, aceite de girasol, eritritol, levadura, inulina, lecitina de soja, psyllium, harina de malta, goma xántica, goma guar, mejoradores (INS 300, INS 1101).</p><p>Somos <b>G4U</b>, y reinventamos el pan combinando <b>ciencia, nutrición y sabor</b>. Desarrollamos una fórmula única con <b>almidones resistentes tipo RS4</b>, que reducen los carbohidratos netos, mejoran la digestión y aumentan la saciedad. Usamos <b>proteínas funcionales de alta calidad</b>, como aislado proteico y gluten vital, para lograr la estructura, suavidad y elasticidad de un pan artesanal. Sumamos <b>fibras solubles y gomas vegetales</b> que retienen la humedad y conservan la frescura sin conservantes.</p></details>
+        <details><summary>🚚 Envío</summary><p>Entrega en 24/48 h en AMBA. Entregas en Buenos Aires, Córdoba y Santa Fe. En cada envío de tu suscripción te llega el seguimiento por mail y WhatsApp.</p><p><b>Durabilidad:</b> 25 días frescos / 45 días refrigerados / 3 meses congelados.</p></details>
+        <details><summary>⏸ ¿Cómo pauso o cancelo?</summary><p>Desde el link que te llega por mail después de cada cobro: pausar, cambiar la fecha, cambiar el pack o cancelar. Sin llamadas ni formularios.</p></details>
       </div>
     </div>
   </main>
@@ -317,6 +336,9 @@ h2.ttl{font-size:30px;line-height:1.15;margin:8px 0 6px;font-weight:700;letter-s
     <div class="b"><span>© G4U · Buenos Aires, Argentina</span><a class="rec" href="https://www.recurrentesapp.com" target="_blank" rel="noopener">Suscripciones con <svg width="16" height="16" viewBox="0 0 32 32"><defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#34d399"/><stop offset="1" stop-color="#059669"/></linearGradient></defs><circle cx="16" cy="16" r="16" fill="url(#rg)"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><b>Recurrentes</b></a></div>
   </div></footer>
 </div>
+
+<!-- ════════ ELEGÍ UN PRODUCTO ════════ -->
+<div id="pkBg"><div id="pk" role="dialog" aria-label="Elegí un producto"><div class="h"><span>Elegí un producto</span><button type="button" id="pkX" aria-label="Cerrar">✕</button></div><div class="list" id="pkList"></div></div></div>
 
 <!-- ════════ CARRITO ════════ -->
 <div id="cartBg"></div>
@@ -383,9 +405,10 @@ const PACKS = [{ n: 1, label: "1 pack" }, { n: 4, label: "4 pack", badge: "" }, 
 const FREQS = [{ id: 15, l: "Cada 15 días", s: "para los que no paran" }, { id: 30, l: "Cada mes", s: "la más elegida" }, { id: 60, l: "Cada 2 meses", s: "se congela perfecto" }];
 const BASE_UNIT = 11800; // pan de molde
 const ITEMS = A.items.filter(i => i.h !== "semana-keto" && !/^pack|-pack$/.test(i.h));
-const S = { pack: 8, freq: 30, qty: {}, view: "prod", ship: null };
-// El pack arranca con el pan de molde (el producto de esta página) ya cargado.
-const molde = ITEMS.find(i => i.h === "pan-de-molde-proteico"); if (molde) S.qty[molde.h] = 1;
+const S = { pack: 8, freq: 30, slots: [], view: "prod", ship: null, pickSlot: null }; // slots: handle por casillero (null = vacío)
+// Como en su tienda: el primer casillero ya trae el pan de molde (el producto de esta página).
+function initSlots() { S.slots = Array.from({ length: S.pack }, (_, i) => S.slots[i] || null); if (!S.slots[0]) S.slots[0] = "pan-de-molde-proteico"; }
+initSlots();
 
 // logos / galería
 ["logo", "logoCk", "logoOk", "logoFt"].forEach(id => { $("#" + id).src = A.logo; });
@@ -399,9 +422,9 @@ function renderGal() { $("#galMain").src = A.gallery[gi]; $("#thumbs").innerHTML
 $("#thumbs").addEventListener("click", e => { const t = e.target.closest("img"); if (t) { gi = +t.dataset.i; renderGal(); } });
 renderGal();
 
-const selCount = () => Object.values(S.qty).reduce((a, b) => a + b, 0);
+const selCount = () => S.slots.filter(Boolean).length;
 const freqTxt = () => ({ 15: "cada 15 días", 30: "cada mes", 60: "cada 2 meses" })[S.freq];
-function chosen() { return ITEMS.filter(i => S.qty[i.h] > 0).map(i => ({ ...i, q: S.qty[i.h] })); }
+function chosen() { const q = {}; S.slots.forEach(h => { if (h) q[h] = (q[h] || 0) + 1; }); return ITEMS.filter(i => q[i.h]).map(i => ({ ...i, q: q[i.h] })); }
 function totals() {
   const list = chosen(); const listTotal = list.reduce((a, i) => a + i.price * i.q, 0);
   // Estimación mientras el pack no está completo: los que faltan al precio del pan de molde.
@@ -411,24 +434,36 @@ function totals() {
 function renderPacks() {
   $("#packs").innerHTML = PACKS.map(p => {
     const list = p.n * BASE_UNIT, sub = Math.round(list * (1 - SUB_OFF));
-    return `<div class="pack ${S.pack === p.n ? "on" : ""}" data-n="${p.n}">${p.badge ? `<span class="bd rose">${p.badge}</span>` : ""}<span class="rad"></span><span class="nm">${p.label}</span><span class="pr"><b>${money(sub)}</b><s>${money(list)}</s><small>−15% · desde ${money(sub / p.n)} c/u</small></span></div>`;
+    const on = S.pack === p.n;
+    const slots = on ? `<div class="slots">${S.slots.map((h, i) => { const it = h && ITEMS.find(x => x.h === h); return it
+      ? `<div class="slot"><span class="ic"><img src="${it.img}" alt=""></span><span class="nm">${it.title}<small>${money(it.price)} · ${it.sub.split(";")[0]}</small></span><button type="button" class="rm" data-slot="${i}" title="Sacar">✕</button></div>`
+      : `<div class="slot"><span class="ic">🍞</span><button type="button" class="add" data-slot="${i}">Suma otro producto</button></div>`; }).join("")}</div>` : "";
+    return `<div class="pack ${on ? "on" : ""}" data-n="${p.n}">${p.badge ? `<span class="bd rose">${p.badge}</span>` : ""}<span class="rad"></span><span class="nm">${p.label}</span><span class="pr"><b>${money(sub)}</b><s>${money(list)}</s><small>−15% · desde ${money(sub / p.n)} c/u</small></span>${slots}</div>`;
   }).join("");
 }
-$("#packs").addEventListener("click", e => { const t = e.target.closest(".pack"); if (!t) return; S.pack = +t.dataset.n; while (selCount() > S.pack) { const k = Object.keys(S.qty).find(k => S.qty[k] > 0); S.qty[k]--; } renderAll(); });
-function renderItems() {
-  const full = selCount() >= S.pack;
-  $("#items").innerHTML = ITEMS.map(i => { const q = S.qty[i.h] || 0; return `<div class="it ${q ? "on" : ""}"><img src="${i.img}" alt=""><div class="t"><b>${i.title}</b><span>${money(i.price)} · ${i.sub.split(";").slice(0, 2).join(" ·")}</span></div><div class="q"><button data-h="${i.h}" data-d="-1" ${q ? "" : "disabled"}>−</button><b>${q}</b><button data-h="${i.h}" data-d="1" ${full ? "disabled" : ""}>+</button></div></div>`; }).join("");
-  $("#cntSel").textContent = selCount(); $("#cntTot").textContent = S.pack; $("#prog").style.width = (100 * selCount() / S.pack) + "%";
+$("#packs").addEventListener("click", e => {
+  const add = e.target.closest(".add"), rm = e.target.closest(".rm");
+  if (add) { S.pickSlot = +add.dataset.slot; openPick(); return; }
+  if (rm) { S.slots[+rm.dataset.slot] = null; renderAll(); return; }
+  const t = e.target.closest(".pack"); if (!t) return;
+  S.pack = +t.dataset.n; S.slots = S.slots.slice(0, S.pack); initSlots(); renderAll();
+});
+// Modal "Elegí un producto" (misma lista que su tienda: foto, nombre, precio con el tachado)
+function openPick() {
+  $("#pkList").innerHTML = ITEMS.map(i => `<div class="pr-row"><img src="${i.img}" alt=""><div class="t"><b>${i.title} | ${i.sub}</b><div class="p">${money(i.price * (1 - SUB_OFF))}<s>${money(i.price)}</s></div></div><button type="button" class="sel" data-h="${i.h}">Selecciona</button></div>`).join("");
+  $("#pkBg").style.display = "flex";
 }
-$("#items").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; S.qty[b.dataset.h] = Math.max(0, (S.qty[b.dataset.h] || 0) + (+b.dataset.d)); renderAll(); });
+function closePick() { $("#pkBg").style.display = "none"; }
+$("#pkX").addEventListener("click", closePick); $("#pkBg").addEventListener("click", e => { if (e.target === $("#pkBg")) closePick(); });
+$("#pkList").addEventListener("click", e => { const b = e.target.closest(".sel"); if (!b) return; if (S.pickSlot != null) S.slots[S.pickSlot] = b.dataset.h; closePick(); renderAll(); });
 function renderFreq() { $("#freq").innerHTML = FREQS.map(f => `<button class="${S.freq === f.id ? "on" : ""}" data-f="${f.id}">${f.l}<small>${f.s}</small></button>`).join(""); }
 $("#freq").addEventListener("click", e => { const b = e.target.closest("button"); if (b) { S.freq = +b.dataset.f; renderAll(); } });
 function renderCta() {
   const t = totals(), left = S.pack - selCount(), ok = left === 0;
   $("#goCk").disabled = !ok;
-  $("#goCk").innerHTML = ok ? `Suscribirme · ${money(t.sub)} ${freqTxt()}<small>Ahorrás ${money(t.saving)} en cada envío · envío ${t.sub >= 85000 ? "gratis" : "a cotizar"}</small>` : `Suscribirme<small>Te falta${left === 1 ? "" : "n"} ${left} producto${left === 1 ? "" : "s"} para completar tu pack de ${S.pack}</small>`;
+  $("#goCk").innerHTML = ok ? `Suscribirme · ${money(t.sub)} ${freqTxt()}<small>Ahorrás ${money(t.saving)} en cada envío · envío ${t.sub >= 85000 ? "gratis" : "a cotizar"}</small>` : `Suscribirme<small>Sumá ${left} producto${left === 1 ? "" : "s"} más para completar tu pack de ${S.pack}</small>`;
 }
-function renderAll() { renderPacks(); renderItems(); renderFreq(); renderCta(); }
+function renderAll() { renderPacks(); renderFreq(); renderCta(); }
 renderAll();
 
 // ── checkout ──
@@ -464,7 +499,7 @@ function summaryHtml() {
 function renderCk() {
   $("#sumSide").innerHTML = summaryHtml(); $("#msBody").innerHTML = summaryHtml();
   const t = totals(); $("#msTot").textContent = money(t.sub + shipPrice());
-  $("#payBtn").textContent = `Pagar suscripción · ${money(t.sub + shipPrice())}`;
+  $("#payBtn").textContent = `Suscribirme y pagar ${money(t.sub + shipPrice())}`;
   $("#payFreq").textContent = `Se cobra ${freqTxt()}, sin que hagas nada.`;
   $("#trFreq").textContent = `Envío automático ${freqTxt()} · Pago seguro con Mercado Pago`;
   const has = $("#ckZip").value.trim() || $("#ckProv").value;
