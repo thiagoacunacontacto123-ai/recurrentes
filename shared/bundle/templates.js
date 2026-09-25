@@ -299,7 +299,7 @@ function baseCss(S, vm) {
     S + " .rc-tick svg{display:inline-block;vertical-align:middle}" +
     S + " .rc-cta{display:block;width:100%;padding:15px 16px;font-size:16px;font-weight:800;letter-spacing:.2px;color:var(--rc-on-a);background:var(--rc-a);border-radius:var(--rc-r);text-align:center;transition:background .18s,transform .12s,box-shadow .18s;box-shadow:0 6px 18px var(--rc-a-25)}" +
     S + " .rc-cta:hover{background:var(--rc-a-h)}" +
-    S + " .rc-cta:active{transform:scale(.985)}" +
+    S + " .rc-cta:active{filter:brightness(.92)}" +
     S + " .rc-cta[disabled]{opacity:.7;cursor:wait}" +
     S + " .rc-cta-price{font-weight:600;opacity:.92}" +
     S + " .rc-cta-sub{display:block;font-size:12px;font-weight:500;opacity:.85;margin-top:3px;letter-spacing:0}" +

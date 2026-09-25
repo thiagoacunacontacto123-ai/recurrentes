@@ -108,7 +108,9 @@ if (typeof document !== "undefined" && !document.getElementById("rec-global-css"
                   box-shadow 0.16s ease, opacity 0.14s ease !important;
     }
     button:not(:disabled):hover  { filter: brightness(1.08); transform: translateY(-1px); }
-    button:not(:disabled):active { transform: scale(0.95) translateY(0px) !important; filter: brightness(0.94) !important; transition-duration: 0.06s !important; }
+    /* Al apretar NO se achica: con scale(.95) el botón se corría debajo del dedo y el click se perdía
+       (Thiago, 25-sept-2026). Solo oscurece un poco. */
+    button:not(:disabled):active { transform: translateY(0px) !important; filter: brightness(0.90) !important; transition-duration: 0.06s !important; }
     button:disabled { cursor: not-allowed !important; opacity: 0.38 !important; }
 
     /* Links */
@@ -132,7 +134,7 @@ if (typeof document !== "undefined" && !document.getElementById("rec-global-css"
       cursor: pointer;
     }
     .gh-clickable:hover  { transform: translateY(-2px) !important; box-shadow: 0 6px 20px rgba(0,0,0,0.12) !important; }
-    .gh-clickable:active { transform: scale(0.98) translateY(0) !important; transition-duration: 0.07s !important; }
+    .gh-clickable:active { transform: translateY(0) !important; filter: brightness(0.96) !important; transition-duration: 0.07s !important; }
 
     /* Filas de tabla — hover sutil en TODAS las tablas de datos.
        Sin !important: si la fila trae background inline (zebra, selección), gana el inline. */
@@ -155,7 +157,7 @@ if (typeof document !== "undefined" && !document.getElementById("rec-global-css"
                   border-color 0.14s ease, transform 0.14s ease !important;
     }
     .gh-tab:hover  { transform: translateY(-1px) !important; }
-    .gh-tab:active { transform: scale(0.96) !important; }
+    .gh-tab:active { transform: translateY(0) !important; filter: brightness(0.92) !important; }
 
     /* Chips / filtros */
     .gh-chip {
@@ -164,7 +166,7 @@ if (typeof document !== "undefined" && !document.getElementById("rec-global-css"
                   box-shadow 0.14s ease !important;
     }
     .gh-chip:hover  { transform: translateY(-1px) !important; }
-    .gh-chip:active { transform: scale(0.95) !important; }
+    .gh-chip:active { transform: translateY(0) !important; filter: brightness(0.92) !important; }
 
     /* Toggle switch */
     .gh-toggle        { transition: background 0.2s ease !important; cursor: pointer; }
