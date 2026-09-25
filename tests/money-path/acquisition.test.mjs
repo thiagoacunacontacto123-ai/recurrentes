@@ -125,26 +125,27 @@ test("(q) resumen para el Admin: por anuncio, con % y filtro de días", () => {
 });
 
 // ─── El evento por el que se pauta ────────────────────────────────────────
-// 25-sept-2026, Thiago: "la única variante que sea que quiere pagar los 100
-// dólares; el resto, suscripciones comunes". Optimizar por registro traía al que
-// registra barato: de los 4 leads del primer creativo, 3 contestaron "sin ventas".
-test("(q) califica SOLO el que pide la instalación paga, diga el volumen que diga", () => {
+// 25-sept-2026, Thiago. Optimizar por registro traía al que registra barato: de
+// los 4 leads del primer creativo, 3 contestaron "sin ventas" y ninguno conectó.
+test("(q) califica el que vende 50+ pedidos o el que pide la instalación paga", () => {
+  assert.equal(A.leadCalifica({ lead_volumen: "50_200" }), true, "100 pedidos/mes entra acá");
+  assert.equal(A.leadCalifica({ lead_volumen: "1000_mas", lead_instalacion: "solo" }), true);
+  // La instalación paga alcanza sola: nadie pone USD 100 "a ver qué onda".
   assert.equal(A.leadCalifica({ lead_volumen: "sin_ventas", lead_instalacion: "asistida" }), true);
-  assert.equal(A.leadCalifica({ lead_instalacion: "asistida" }), true);
-  // Decir que vendés mucho no cuesta nada: no alcanza para pautar por ahí.
-  assert.equal(A.leadCalifica({ lead_volumen: "1000_mas", lead_instalacion: "solo" }), false);
-  assert.equal(A.leadCalifica({ lead_volumen: "200_1000" }), false);
   assert.equal(A.leadCalifica({ lead_volumen: "sin_ventas", lead_instalacion: "solo" }), false);
+  assert.equal(A.leadCalifica({ lead_volumen: "1_50", lead_instalacion: "solo" }), false);
   assert.equal(A.leadCalifica(null), false);
   assert.equal(A.leadCalifica({}), false);
 });
 
-test("(q) el paso 'qualified' va a Meta como SubmitApplication y no se manda dos veces", async () => {
+test("(q) el paso 'qualified' llega a Meta con el nombre RegistroCalificado y no se manda dos veces", async () => {
   seedDoc("merchants/cal_uid", { email: "duena@marca.test", owner_name: "Ana Diaz", created_at: new Date().toISOString(), acquisition: { utm_source: "meta", utm_content: "RC-A1-H2" } });
 
   const r = await A.trackAcquisition("cal_uid", "qualified", { req });
   assert.deepEqual({ ok: r.ok, sent: r.sent }, { ok: true, sent: true });
-  assert.equal(ev(0).event_name, "SubmitApplication");
+  // El nombre es el que Thiago ve en Events Manager y elige en el conjunto de
+  // anuncios: si cambia acá, deja de existir la conversión por la que pauta.
+  assert.equal(ev(0).event_name, "RegistroCalificado");
   assert.equal(ev(0).custom_data.ad_name, "RC-A1-H2", "el anuncio viaja para poder comparar creativos");
   assert.ok(rawGet("merchants/cal_uid").acquisition.qualified_at);
 
@@ -153,7 +154,7 @@ test("(q) el paso 'qualified' va a Meta como SubmitApplication y no se manda dos
   assert.equal(meta.length, 1, "el mismo lead no se cuenta dos veces");
 });
 
-test("(q) el resumen del Admin cuenta por anuncio los que pagan instalación, aparte de los registros", () => {
+test("(q) el resumen del Admin cuenta por anuncio los calificados, aparte de los registros", () => {
   const now = Date.parse("2026-09-26T12:00:00Z");
   const d = (n) => new Date(now - n * 86400e3).toISOString();
   const accounts = [

@@ -1872,9 +1872,10 @@ async function saveOwner(ctx, req, res) {
     const { recordAttribution, trackAcquisition, leadCalifica } = await import("./_lib/acquisition.js");
     await recordAttribution(ctx.uid, b.attribution, { req });
     await trackAcquisition(ctx.uid, "registered", { req });
-    // Y el evento por el que se PAUTA (25-sept-2026, Thiago): SOLO el que pidió
-    // la instalación de USD 100. Es el que Meta tiene que optimizar; el registro
-    // pelado (CompleteRegistration, arriba) sigue contando todas las altas.
+    // Y el evento por el que se PAUTA (25-sept-2026, Thiago): el que vende 50+
+    // pedidos/mes o pide la instalación de USD 100. En Meta se llama
+    // "RegistroCalificado"; el registro pelado (CompleteRegistration, arriba)
+    // sigue contando todas las altas como métrica aparte.
     if (leadCalifica(lead)) await trackAcquisition(ctx.uid, "qualified", { req });
   } catch (e) { console.warn("[save-owner] acquisition:", e.message); }
   // Afiliados: el código del ?ref= con el que llegó (lo guarda la landing) se reclama acá.
