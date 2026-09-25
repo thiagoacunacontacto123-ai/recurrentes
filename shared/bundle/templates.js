@@ -232,7 +232,11 @@ function buildCtx(vm, state) {
         : '<span class="rc-gi-x" aria-hidden="true">\uD83C\uDF81</span>';
       var old = g && g.compareAt ? '<s class="rc-gold">' + esc(fmtARS(g.compareAt)) + "</s>" : "";
       // Regalo ficticio (ebook, sorteo): no viaja en la caja, se aclara.
-      var nota = g && g.note ? '<small class="rc-gn">' + esc(g.note) + "</small>" : "";
+      // Y si va SOLO en el primer envio hay que decirlo, porque en suscripcion
+      // el cliente espera recibirlo siempre. 25-sept-2026, Wellfresh.
+      var extra = (mode === "sub" && g && g.every === "once") ? "Solo en tu primer envío" : "";
+      var linea = [g && g.note ? g.note : "", extra].filter(Boolean).join(" · ");
+      var nota = linea ? '<small class="rc-gn">' + esc(linea) + "</small>" : "";
       return '<span class="rc-gift' + (g && g.virtual ? " is-virtual" : "") + '">' + gi +
         '<span class="rc-gt">' + esc(g && g.title ? g.title : "Regalo") + nota + "</span>" + old + "</span>";
     }).join("");

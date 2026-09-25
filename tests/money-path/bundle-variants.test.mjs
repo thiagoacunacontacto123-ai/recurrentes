@@ -329,3 +329,22 @@ test("(j) subiendo el grosor, los bordes se multiplican en las 13 variantes", ()
     assert.ok(!/border:\s*[0-9.]+px\s+solid/.test(css), `${v}: no puede quedar un borde sin escalar`);
   }
 });
+
+// ─── Un regalo puede ir solo en el primer envío ───────────────────────────
+// 25-sept-2026, Wellfresh: el raspador es un regalo FÍSICO y lo mandan una
+// sola vez, no en cada renovación. La guía (un ebook) sí va siempre.
+test("(j) el regalo elige si va en todos los envíos o solo en el primero", () => {
+  const r = normalizePacks([{ qty: 3, price_ars: 65990, gifts: [
+    { title: "Guía del mal aliento", virtual: true },
+    { title: "Raspador de lengua", every: "once" },
+  ] }]);
+  assert.equal(r.error, undefined, r.error);
+  const gs = r.packs[0].gifts;
+  assert.equal(gs[0].every, "always", "sin el campo: en todos (como era antes)");
+  assert.equal(gs[1].every, "once");
+
+  // En suscripción se avisa; en compra única no tiene sentido (no hay renovación).
+  const vm = buildBundleVM({ plan: plan(r.packs), merchant: { widget_variant: "v13" } });
+  assert.match(renderBundle(vm, { mode: "sub" }).html, /Solo en tu primer envío/);
+  assert.ok(!/Solo en tu primer envío/.test(renderBundle(vm, { mode: "once" }).html));
+});

@@ -222,7 +222,12 @@ export function normalizePacks(input) {
         // alcanza con marcarlo para poder decirlo en el widget.
         const virtual = g.virtual === true;
         const note = String(g.note ?? "").trim().slice(0, 120);
-        gifts.push({ title, image: gimg, compare_at_ars: gcmp, virtual, note });
+        // Cada cuanto viaja el regalo (25-sept-2026, Wellfresh): el raspador
+        // es un regalo FISICO y lo quieren mandar solo en el primer envio, no
+        // en cada renovacion. "once" = solo el primero, "always" = siempre.
+        // Sin el campo -> "always", que es como se comportaba hasta hoy.
+        const every = g.every === "once" ? "once" : "always";
+        gifts.push({ title, image: gimg, compare_at_ars: gcmp, virtual, note, every });
       }
     }
     // En que modo se muestra este pack (22-sept-2026, Thiago): el comerciante

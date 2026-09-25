@@ -73,6 +73,7 @@ export function packsFromPlan(plan) {
       compare_at_ars: g?.compare_at_ars != null ? String(g.compare_at_ars) : "",
       virtual: g?.virtual === true,
       note: g?.note || "",
+      every: g?.every === "once" ? "once" : "always",
     })) : [],
     default: p.default === true,
     hide_once: p.hide_once === true,
@@ -187,6 +188,7 @@ export function serializePacks(rows) {
           // muestra en el widget y NO viaja en la caja. 22-sept-2026.
           virtual: g.virtual === true,
           note: (g.note || "").trim(),
+          every: g.every === "once" ? "once" : "always",
         })),
       default: r.default === true,
       // En qué modo se muestra este pack, y la cantidad propia de suscripción.
@@ -398,6 +400,18 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                             <input type="text" value={g.note || ""} onChange={e=>updGift(i,gi,"note",e.target.value)}
                               style={{...inp,marginBottom:6}} maxLength={120}
                               placeholder="Aclaración para tu cliente (ej: te llega por mail)"/>
+                          )}
+                          {/* Cada cuánto viaja el regalo (25-sept-2026, Wellfresh):
+                              el raspador es físico y lo mandan solo la primera vez.
+                              Solo aplica al bloque de suscripción. */}
+                          {r.hide_sub !== true && (
+                            <div style={{marginBottom:6}}>
+                              <Lbl T={T}>¿En qué envíos va este regalo?</Lbl>
+                              <select value={g.every || "always"} onChange={e=>updGift(i,gi,"every",e.target.value)} style={inp}>
+                                <option value="always">En todos los envíos</option>
+                                <option value="once">Solo en el primero</option>
+                              </select>
+                            </div>
                           )}
                           <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
                             {products.length > 0 && !g.virtual && (

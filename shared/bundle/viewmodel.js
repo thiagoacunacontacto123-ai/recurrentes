@@ -171,6 +171,8 @@ export function resolvePack(plan, idx) {
         // Regalo que no es un producto de la tienda (ebook, sorteo).
         virtual: g && g.virtual === true,
         note: String(g && g.note || "").slice(0, 120),
+        // "once" = solo en el primer envio; "always" (default) = en todos.
+        every: g && g.every === "once" ? "once" : "always",
       };
     }).filter(function (g) { return g.title; }) : [],
     isDefault: raw.default === true,
