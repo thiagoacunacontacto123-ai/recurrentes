@@ -566,7 +566,9 @@ export default function Checkout() {
             {/* Encabezado: logo + nombre (o el texto que puso la tienda) */}
             <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "22px 0 6px", minHeight: 56 }}>
               {logo ? <img src={logo} alt="" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover", flexShrink: 0 }}/> : null}
-              <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: -0.2, overflowWrap: "anywhere" }}>{storeName}</div>
+              {theme.header_logo
+                ? <img src={theme.header_logo} alt={storeName} style={{ display: "block", maxHeight: 48, maxWidth: 220, width: "auto", height: "auto", objectFit: "contain" }}/>
+                : <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: -0.2, overflowWrap: "anywhere" }}>{storeName}</div>}
             </div>
 
             {/* Celular: resumen desplegable arriba (como Shopify) */}

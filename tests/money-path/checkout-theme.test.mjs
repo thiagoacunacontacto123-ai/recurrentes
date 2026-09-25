@@ -29,6 +29,13 @@ test("sanitize: solo claves conocidas, colores #RRGGBB, topes y links http", () 
   assert.ok(sanitizeCheckoutTheme({ font: "comic" }).error, "font inválida");
   assert.ok(sanitizeCheckoutTheme({ terms_url: "javascript:alert(1)" }).error, "link no http");
   assert.deepEqual(sanitizeCheckoutTheme({}).theme, {}, "vacío = nada");
+  // Logo arriba de todo: data:image PNG/WebP/JPEG (transparente ok) o https; otra cosa no.
+  const png = "data:image/png;base64," + "A".repeat(400);
+  assert.equal(sanitizeCheckoutTheme({ header_logo: png }).theme.header_logo, png);
+  assert.equal(sanitizeCheckoutTheme({ header_logo: "https://x.com/logo.png" }).theme.header_logo, "https://x.com/logo.png");
+  assert.ok(sanitizeCheckoutTheme({ header_logo: "data:text/html;base64,AAAA" }).error, "solo imágenes");
+  assert.ok(sanitizeCheckoutTheme({ header_logo: "data:image/png;base64," + "A".repeat(300000) }).error, "tope de peso");
+  assert.equal(sanitizeCheckoutTheme({ header_logo: "" }).theme.header_logo, undefined, "vacío = sin logo");
   assert.equal(sanitizeCheckoutTheme(null).theme, null);
 });
 

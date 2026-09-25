@@ -21,6 +21,7 @@ export const CHECKOUT_THEME_DEFAULTS = Object.freeze({
   font: "system",          // system | inter | serif
   radius: 6,               // radio de campos y botones (0–24)
   header_text: "",         // "" → nombre de la tienda
+  header_logo: "",         // logo arriba de todo en lugar del texto (data:image PNG/WebP/JPEG ≤ ~150 KB, o https). PNG transparente ok.
   footer_text: "",         // "" → "Se cobra $X ahora y se renueva…"
   cta_text: "",            // "" → "Suscribirme y pagar {{total}}"
   show_logo: true,         // foto de la tienda (store_photo) arriba
@@ -74,6 +75,14 @@ export function sanitizeCheckoutTheme(input) {
     if (v === "") continue;
     if (!URL_OK.test(v)) return { error: `${k}: tiene que ser un link http(s) válido` };
     out[k] = v;
+  }
+  if ("header_logo" in input) {
+    const v = String(input.header_logo ?? "").trim();
+    if (v) {
+      const okData = /^data:image\/(png|webp|jpeg);base64,[A-Za-z0-9+/=]+$/.test(v) && v.length <= 200000;
+      if (!okData && !URL_OK.test(v)) return { error: "header_logo: subí un PNG, WebP o JPEG de hasta 150 KB" };
+      out.header_logo = v;
+    }
   }
   if ("summary_mobile" in input) {
     const v = String(input.summary_mobile || "");

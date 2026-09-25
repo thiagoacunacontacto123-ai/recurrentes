@@ -61,6 +61,26 @@ export default function CheckoutDesigner({ merchant, onChange, section = "theme"
   useEffect(() => { apiGet("plans").then(d => setPlans(d?.plans || [])).catch(() => setPlans([])); }, [m.id]);
 
   const set = (k, v) => setDraft(d => ({ ...d, [k]: v }));
+  // Logo arriba de todo: se achica en el navegador (máx. 600×200, conserva la transparencia) y
+  // se guarda como PNG en el tema (≤ 150 KB; si pesa más, prueba WebP).
+  function loadLogo(file) {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      try {
+        const k = Math.min(1, 600 / img.width, 200 / img.height);
+        const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        let out = c.toDataURL("image/png");
+        if (out.length > 200000) out = c.toDataURL("image/webp", 0.9);
+        if (out.length > 200000) return toast("El logo pesa demasiado. Probá con uno más chico.", "error", 6000);
+        set("header_logo", out);
+      } catch (_) { toast("No pudimos leer esa imagen.", "error", 5000); }
+      finally { URL.revokeObjectURL(url); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); toast("No pudimos leer esa imagen.", "error", 5000); };
+    img.src = url;
+  }
   const diff = useMemo(() => {
     const out = {};
     for (const k of Object.keys(CHECKOUT_THEME_DEFAULTS)) if (draft[k] !== undefined && draft[k] !== base[k]) out[k] = draft[k];
@@ -71,7 +91,8 @@ export default function CheckoutDesigner({ merchant, onChange, section = "theme"
   const plan = useMemo(() => (plans || []).find(p => p.active !== false) || (plans || [])[0] || null, [plans]);
   const previewUrl = useMemo(() => {
     if (!plan) return "";
-    const q = new URLSearchParams({ merchant: m.id, plan: plan.id, preview: "1", theme: JSON.stringify(diff) });
+    const { header_logo, ...light } = diff;
+    const q = new URLSearchParams({ merchant: m.id, plan: plan.id, preview: "1", theme: JSON.stringify(light) });
     if (plan.pricing_mode === "packs" || (Array.isArray(plan.packs) && plan.packs.length)) q.set("pack", "0");
     return `${window.location.origin}${window.location.pathname}#/checkout?${q.toString()}`;
     // La URL no cambia con el borrador: los cambios viajan por postMessage (sin recargar).
@@ -148,7 +169,19 @@ export default function CheckoutDesigner({ merchant, onChange, section = "theme"
 
             <div style={{ ...sec, marginTop:18 }}>Textos</div>
             <Lbl T={T}>Arriba de todo</Lbl>
-            <input value={draft.header_text} onChange={e => set("header_text", e.target.value)} placeholder={m.store_name || "Nombre de tu tienda"} maxLength={80} style={iS}/>
+            {draft.header_logo ? (
+              <div style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 12px", border:`1px solid ${T.border}`, borderRadius:10, background:T.isDark ? "rgba(255,255,255,0.04)" : "#fafafa" }}>
+                <img src={draft.header_logo} alt="" style={{ maxHeight:40, maxWidth:160, objectFit:"contain", display:"block" }}/>
+                <span style={{ fontSize:DS.font.sm, color:T.textSm, flex:1 }}>Tu logo va en lugar del texto.</span>
+                <Btn T={T} variant="secondary" size="sm" onClick={() => set("header_logo", "")}>Quitar</Btn>
+              </div>
+            ) : (<>
+              <input value={draft.header_text} onChange={e => set("header_text", e.target.value)} placeholder={m.store_name || "Nombre de tu tienda"} maxLength={80} style={iS}/>
+              <label style={{ display:"inline-flex", alignItems:"center", gap:6, marginTop:6, fontSize:DS.font.sm, color:T.accentSolid, fontWeight:600, cursor:"pointer" }}>
+                <input type="file" accept="image/png,image/webp,image/jpeg,image/svg+xml" style={{ display:"none" }} onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) loadLogo(f); }}/>
+                o subí tu logo (PNG con fondo transparente, ideal)
+              </label>
+            </>)}
             <Lbl T={T}>Botón de pagar</Lbl>
             <input value={draft.cta_text} onChange={e => set("cta_text", e.target.value)} placeholder="Pagar suscripción · {{total}}" maxLength={60} style={iS}/>
             <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:4 }}>{"{{total}}"} se reemplaza por el monto.</div>
@@ -185,7 +218,7 @@ export default function CheckoutDesigner({ merchant, onChange, section = "theme"
               : !plan ? <Callout T={T} tone="info">Creá un plan en Planes para ver el checkout con un producto real.</Callout>
               : (
                 <div style={{ display:"flex", justifyContent:"center", background:T.bg, border:`1px solid ${T.border}`, borderRadius:14, padding: device === "mobile" ? "16px 0" : 0, overflow:"hidden" }}>
-                  <iframe ref={frame} title="Vista previa del checkout" src={previewUrl}
+                  <iframe ref={frame} title="Vista previa del checkout" src={previewUrl} onLoad={() => { try { frame.current?.contentWindow?.postMessage({ type: "rec-checkout-theme", theme: diff }, window.location.origin); } catch (_) {} }}
                     style={{ width: device === "mobile" ? 390 : "100%", maxWidth:"100%", height: device === "mobile" ? 780 : 820, border: device === "mobile" ? `10px solid #111` : "none", borderRadius: device === "mobile" ? 34 : 0, background:"#fff", display:"block" }}/>
                 </div>
               )}
