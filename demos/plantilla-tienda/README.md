@@ -39,6 +39,8 @@ van por URL al CDN de la tienda), pensado primero para **celular** (el 95% compr
   revie", 3 por página con paginación).
 
 ## Reglas que salieron de G4U (Thiago)
+- En computadora, la galería del producto queda **fija (sticky)** mientras se desliza la descripción, como
+  en Shopify; las reseñas de Revie NO son parte del producto: van centradas debajo, como sección de la landing.
 - Todo tiene que verse **perfecto en celular**: márgenes de 20 px a los costados en TODAS las
   secciones (ojo: el padding de una sección pisa el del `.wrap`), nada pegado a los bordes.
 - El pack de 1 viene preseleccionado; el primer casillero trae el producto de la página; los
