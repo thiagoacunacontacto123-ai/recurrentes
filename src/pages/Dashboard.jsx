@@ -61,7 +61,7 @@ function tabFromHash() {
 const PREFETCH_TABS = ["suscripciones", "cobros", "planes"];
 // Tiendas de muestra: la app entera precargada de entrada (ver `prewarm`). RECURRENTES (ex DEMO SHOPIFY), Thiago 18-sept.
 const PREWARM_MERCHANTS = new Set(["m_mu4jn3fj2x06fm"]);
-const PREWARM_TABS = ["analiticas", "suscripciones", "cobros", "planes", "widget", "carrito", "checkout", "retencion", "flujos", "whatsapp", "portal", "afiliados", "configuracion"];
+const PREWARM_TABS = ["analiticas", "suscripciones", "carritos", "cobros", "planes", "widget", "carrito", "checkout", "retencion", "flujos", "whatsapp", "portal", "afiliados", "configuracion"];
 
 export default function Dashboard({ user, onLogout }) {
   const { T, darkMode, setDarkMode } = useTheme();
@@ -348,7 +348,7 @@ export default function Dashboard({ user, onLogout }) {
     const secs = merchant?.role === "member" && merchant?.member_secciones && Object.keys(merchant.member_secciones).length ? merchant.member_secciones : null;
     // Widget acompaña al permiso de Planes (los permisos guardados antes no lo conocen).
     // Flujos de WhatsApp acompaña al permiso de Flujos (los permisos guardados antes no lo conocen).
-    const base = secs ? NAV.filter(n => n.id === "analiticas" || secs[n.id] === true || ((n.id === "widget" || n.id === "carrito" || n.id === "checkout") && secs.planes === true) || (n.id === "whatsapp" && secs.flujos === true) || n.adminOnly) : NAV;
+    const base = secs ? NAV.filter(n => n.id === "analiticas" || secs[n.id] === true || ((n.id === "widget" || n.id === "carrito" || n.id === "checkout") && secs.planes === true) || (n.id === "carritos" && secs.suscripciones === true) || (n.id === "whatsapp" && secs.flujos === true) || n.adminOnly) : NAV;
     // Afiliados es de la CUENTA: solo el dueño del login.
     return base.filter(n => (!n.adminOnly || isAdmin) && (n.id !== "afiliados" || merchant?.role !== "member"));
   }, [merchant?.role, merchant?.member_secciones, isAdmin]);
@@ -378,6 +378,8 @@ export default function Dashboard({ user, onLogout }) {
                 <PlanBlockedView T={T} billing={merchant.billing} title={(NAV.find(n => n.id === t) || navItem).label} onGo={()=>goConfig("facturacion")} onGoCobros={()=>goTab("cobros")}/>
               ) : t === "suscripciones" ? (
                 integrationsReady ? <SubscriptionsPage devMode={devMode} shop={shop}/> : needs("Suscripciones")
+              ) : t === "carritos" ? (
+                integrationsReady ? <SubscriptionsPage devMode={devMode} shop={shop} carts/> : needs("Carritos abandonados")
               ) : t === "cobros" ? (
                 integrationsReady ? <ChargesPage shop={shop}/> : needs("Cobros")
               ) : t === "planes" ? (

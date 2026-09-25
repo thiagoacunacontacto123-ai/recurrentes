@@ -29,6 +29,7 @@ export const NAV = [
   // Analíticas primero: es la pantalla de entrada y donde se mira el negocio.
   { id:"analiticas",    label:"Analíticas",         short:"Datos",    icon:ICON.analiticas, alertKey:"onboarding", badge:"accent" },
   { id:"suscripciones", label:"Suscripciones",      short:"Suscrip.", icon:ICON.suscripciones, alertKey:"suscripciones", section:"Ventas" },
+  { id:"carritos",      label:"Carritos abandonados", short:"Carritos", icon:SECTION_ICONS.carritos, section:"Ventas" }, // checkouts sin pagar (antes, estado "Sin pagar" en Suscripciones)
   { id:"cobros",        label:"Cobros",             short:"Cobros",   icon:SECTION_ICONS.cobros, alertKey:"cobros", badge:"red", section:"Ventas" },
   { id:"planes",        label:"Planes",             short:"Planes",   icon:SECTION_ICONS.planes, section:"Catálogo" },
   { id:"widget",        label:"Widget",             short:"Widget",   icon:SECTION_ICONS.widget, section:"Catálogo" },
@@ -49,8 +50,7 @@ export const NAV = [
 export const TAB_ALIASES = {
   inicio:        { tab:"analiticas" },
   suscriptores:  { tab:"suscripciones" },
-  carritos:      { tab:"suscripciones", query:"status=unpaid" },
-  abandonados:   { tab:"suscripciones", query:"status=unpaid" },
+  abandonados:   { tab:"carritos" },
   actividad:     { tab:"portal", query:"sec=registro" },
   integraciones: { config:"integraciones" },
   plan:          { config:"facturacion" },

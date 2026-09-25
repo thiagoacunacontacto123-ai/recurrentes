@@ -327,7 +327,7 @@ function FailedSection({ T, merchant, profile, failed, loading, reload, goTab })
 // ─── (c) Checkouts sin pagar ───────────────────────────────────────
 function UnpaidSection({ T, merchant, profile, count, loading, goTab }) {
   const whenPaid = profile.caps.orders ? `la orden entra a ${profile.channelInfo.label}` : "el cobro queda registrado";
-  const openUnpaid = () => { goTab?.("suscripciones"); setTimeout(() => { try { window.location.hash = "#/dashboard/suscripciones?status=unpaid"; } catch (_) {} }, 0); };
+  const openUnpaid = () => { goTab?.("carritos"); };
   return (
     <Panel T={T} title="Checkouts sin pagar" sub="Clientes que iniciaron la suscripción y no terminaron el pago en Mercado Pago."
       right={<Btn T={T} variant="secondary" size="sm" onClick={openUnpaid}>Ver la lista en Suscripciones →</Btn>}>

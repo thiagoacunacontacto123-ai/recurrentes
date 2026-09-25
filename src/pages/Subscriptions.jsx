@@ -238,10 +238,13 @@ const SearchIcon = ({ color }) => (
   <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="5" stroke={color} strokeWidth="1.6"/><path d="M11 11l3.5 3.5" stroke={color} strokeWidth="1.6" strokeLinecap="round"/></svg>
 );
 
-export function SubscriptionsPage({ devMode = false, shop = null }) {
+// `carts`: la misma página pero SOLO los checkouts sin pagar (pestaña propia "Carritos
+// abandonados", entre Suscripciones y Cobros; 25-sept-2026, Thiago). En Suscripciones el
+// estado "Sin pagar" ya no aparece.
+export function SubscriptionsPage({ devMode = false, shop = null, carts = false }) {
   const T = useT();
   const iS = InputStyle(T);
-  const [status, setStatus] = useState(() => { const s = hashQuery().get("status"); return STATUS_TABS.some(t => t.id === s) ? s : "active"; });
+  const [status, setStatus] = useState(() => { if (carts) return "unpaid"; const s = hashQuery().get("status"); return STATUS_TABS.some(t => t.id === s && s !== "unpaid") ? s : "active"; });
   const [subs, setSubs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -322,7 +325,7 @@ export function SubscriptionsPage({ devMode = false, shop = null }) {
     try { window.history.replaceState(null, "", `${window.location.pathname}#/dashboard/suscripciones?status=${id}`); } catch (_) {}
   }
 
-  const tabs = STATUS_TABS.map(t => ({ id:t.id, label:t.label, count: t.statKey ? counts[t.statKey] : counts.unpaid }));
+  const tabs = STATUS_TABS.filter(t => t.id !== "unpaid").map(t => ({ id:t.id, label:t.label, count: t.statKey ? counts[t.statKey] : counts.unpaid }));
   const isUnpaid = status === "unpaid";
 
   const clienteCol = { key:"cliente", label:"Cliente", render: s => {
@@ -384,7 +387,7 @@ export function SubscriptionsPage({ devMode = false, shop = null }) {
 
   return (
     <div>
-      <PageHeader T={T} title="Suscripciones" subtitle="Todas las suscripciones de tu negocio. Tocá una fila para abrir la ficha."
+      <PageHeader T={T} title={carts ? "Carritos abandonados" : "Suscripciones"} subtitle={carts ? "Clientes que iniciaron la suscripción y todavía no pagaron (últimos 30 días). Tocá una fila para ver el checkout y recuperarlo." : "Todas las suscripciones de tu negocio. Tocá una fila para abrir la ficha."}
         right={<>
           <Btn T={T} variant="secondary" size="sm" onClick={exportCsv} style={{ height:34 }}>⬇ Exportar CSV</Btn>
           <Btn T={T} variant="secondary" size="sm" onClick={() => { load(); loadCounts(); }} disabled={loading} style={{ height:34 }}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>
@@ -392,9 +395,9 @@ export function SubscriptionsPage({ devMode = false, shop = null }) {
 
       {/* Barra: estados con contadores · búsqueda · plan · conteo */}
       <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:10 }}>
-        <div style={{ maxWidth:"100%", overflowX:"auto" }}>
+        {!carts && <div style={{ maxWidth:"100%", overflowX:"auto" }}>
           <Segmented T={T} options={tabs} value={status} onChange={changeStatus} ariaLabel="Estado de la suscripción"/>
-        </div>
+        </div>}
         <div style={{ position:"relative", flex:"0 1 240px", minWidth:170 }}>
           <span style={{ position:"absolute", left:11, top:"50%", transform:"translateY(-50%)", display:"flex", pointerEvents:"none" }}><SearchIcon color={T.textSm}/></span>
           <input type="search" aria-label="Buscar suscripciones" placeholder="Buscar nombre, email o teléfono…" value={search} onChange={e => setSearch(e.target.value)} onKeyDown={e => { if (e.key === "Enter") load(); }}
