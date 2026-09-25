@@ -231,6 +231,15 @@ async function handleTnProduct(req, res) {
   }
 }
 
+const isDataImg = (v) => typeof v === "string" && v.startsWith("data:image/");
+function stripPackImages(packs) {
+  return packs.map(p => ({
+    ...p,
+    image: isDataImg(p?.image) ? null : (p?.image ?? null),
+    gifts: Array.isArray(p?.gifts) ? p.gifts.map(g => ({ ...g, image: isDataImg(g?.image) ? null : (g?.image ?? null) })) : p?.gifts,
+  }));
+}
+
 async function handlePlan(req, res) {
   // Lo pide el widget en CADA visita a una página de producto de CADA tienda: es el
   // endpoint más pedido de la app. La CDN de Vercel lo guarda 60 s (s-maxage) → Firestore
@@ -314,7 +323,10 @@ async function handlePlan(req, res) {
         // correria los indices y se cobraria otro pack. Los escondidos en
         // suscripcion se frenan en checkout/init (400 "no disponible para
         // suscripcion"), no sacandolos de la lista.
-        packs: planPacks(data),
+        // Al widget (sin checkout=1) las fotos subidas (data:image, hasta 200 KB c/u) no le
+        // sirven: el selector ya viene renderizado en ?view=bundle. Sacarlas baja la
+        // respuesta de ~300 KB a ~5 KB (25-sept-2026, Wellfresh tardaba 4 s en pintar).
+        packs: checkout ? planPacks(data) : stripPackImages(planPacks(data)),
         frequency_scales_with_qty: data.frequency_scales_with_qty !== false,
         // El checkout sólo respeta una frecuencia custom de la URL si el plan lo permite.
         allow_custom_frequency: data.allow_custom_frequency === true,

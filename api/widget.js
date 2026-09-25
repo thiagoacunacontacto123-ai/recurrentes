@@ -239,14 +239,34 @@ export default async function handler(req, res) {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.setHeader("Cache-Control", "public, max-age=60, s-maxage=60, stale-while-revalidate=120");
     const planId = String(req.query.plan || "").trim().slice(0, 80);
-    if (!planId || !/^[A-Za-z0-9_-]+$/.test(planId)) return res.status(400).json({ error: "Falta plan" });
+    const productId = String(req.query.product || "").trim().slice(0, 40);
+    const variantQ = String(req.query.variant || "").trim().slice(0, 40);
+    const v2 = String(req.query.v || "") === "2";
+    if (!planId && !productId) return res.status(400).json({ error: "Falta plan" });
+    if (planId && !/^[A-Za-z0-9_-]+$/.test(planId)) return res.status(400).json({ error: "Falta plan" });
     try {
       const { db } = await import("./_lib/firebase.js");
-      const ds = await db().collection("merchants").doc(merchantId).collection("plans").doc(planId).get();
-      if (!ds.exists || ds.data().active === false) return res.json({ bundle: null });
+      const col = db().collection("merchants").doc(merchantId).collection("plans");
+      let ds = null;
+      if (planId) { const d = await col.doc(planId).get(); if (d.exists && d.data().active !== false) ds = d; }
+      // 25-sept-2026: el widget pide el bundle POR PRODUCTO en paralelo con el plan (antes
+      // eran 3 pedidos en fila: widget.js → plan → bundle, ~4 s hasta pintar). Misma
+      // resolución que public?action=plan: variante exacta, si no el producto.
+      if (!ds && variantQ) { const q = await col.where("shopify_variant_id", "==", variantQ).where("active", "==", true).limit(1).get(); if (!q.empty) ds = q.docs[0]; }
+      if (!ds && productId) { const q = await col.where("shopify_product_id", "==", productId).where("active", "==", true).limit(1).get(); if (!q.empty) ds = q.docs[0]; }
+      if (!ds) return res.json({ bundle: null });
       const plan = { id: ds.id, ...ds.data() };
-      if (!planHasPacks(plan)) return res.json({ bundle: null });
-      return res.json({ bundle: buildBundlePayload(plan, merchantDoc || {}) });
+      if (!planHasPacks(plan)) return res.json({ bundle: null, plan_id: plan.id });
+      const out = { bundle: buildBundlePayload(plan, merchantDoc || {}), plan_id: plan.id };
+      if (!v2) return res.json(out);
+      // v=2: las fotos subidas (data:image) van UNA sola vez en `assets`; en el JSON quedan
+      // tokens __RCIMGn__ (el HTML repite la misma foto en cada estado: 54 copias = 1,9 MB).
+      const assets = [], seen = new Map();
+      const packed = JSON.stringify(out).replace(/data:image\/[a-z+.-]+;base64,[A-Za-z0-9+\/=]+/g, (m) => {
+        if (!seen.has(m)) { seen.set(m, assets.length); assets.push(m); }
+        return "__RCIMG" + seen.get(m) + "__";
+      });
+      return res.json({ v: 2, assets, payload: packed });
     } catch (e) {
       console.error("[widget/bundle] error:", e.message);
       return res.status(500).json({ error: "No se pudo armar el selector de packs" });
@@ -610,9 +630,20 @@ export default async function handler(req, res) {
     return Array.isArray(plan.packs) && plan.packs.length > 0;
   }
   // HTML precalculado de todos los estados del selector (ver ?view=bundle).
-  function fetchBundle(planId) {
-    var url = API_BASE + "/api/widget?merchant=" + encodeURIComponent(MERCHANT_ID) + "&view=bundle&plan=" + encodeURIComponent(planId);
-    return fetch(url).then(function(r){ return r.json(); }).catch(function(){ return { bundle: null }; });
+  // v=2: las fotos vienen una sola vez en "assets" y el resto con tokens __RCIMGn__.
+  function unpackBundle(d) {
+    if (!d || d.v !== 2 || typeof d.payload !== "string") return d || { bundle: null };
+    try {
+      var assets = d.assets || [];
+      var txt = d.payload.replace(/__RCIMG(\\d+)__/g, function (m, i) { return assets[parseInt(i, 10)] || ""; });
+      return JSON.parse(txt);
+    } catch (e) { return { bundle: null }; }
+  }
+  function fetchBundle(planId, productId, variantId) {
+    var url = API_BASE + "/api/widget?merchant=" + encodeURIComponent(MERCHANT_ID) + "&view=bundle&v=2";
+    if (planId) url += "&plan=" + encodeURIComponent(planId);
+    else { url += "&product=" + encodeURIComponent(productId || ""); if (variantId) url += "&variant=" + encodeURIComponent(variantId); }
+    return fetch(url).then(function(r){ return r.json(); }).then(unpackBundle).catch(function(){ return { bundle: null }; });
   }
 
   // ─── Render ───────────────────────────────────────────────────
@@ -1836,6 +1867,9 @@ export default async function handler(req, res) {
       log("Bundle montado — plan", plan.id, "variante", bundle.variant, "packs", (bundle.packs || []).length);
     }
 
+    // El bundle se pide POR PRODUCTO a la vez que el plan (antes esperaba al plan): un
+    // viaje menos hasta pintar. Si el plan resulta clásico, la respuesta se ignora.
+    var bundleEarly = fetchBundle(null, productId, variantId);
     fetchPlan(productId, variantId).then(guarded(function(d){
       if (d.error || !d.plan) { log("Sin plan para producto", productId, d); if (VERIFY) report("no_plan", { product: productId }); return; }
       var plan = d.plan;
@@ -1843,7 +1877,7 @@ export default async function handler(req, res) {
       // Plan por PACKS → selector de packs precalculado en el server. Si por
       // algún motivo no hay bundle renderizable, cae al widget clásico.
       if (planHasPacks(plan)) {
-        fetchBundle(plan.id).then(function(b){
+        bundleEarly.then(function(b0){ return (b0 && b0.bundle && b0.plan_id === plan.id) ? b0 : fetchBundle(plan.id); }).then(function(b){
           if (b && b.bundle && b.bundle.states) { guarded(mountBundle, "packs")(plan, b.bundle); return; }
           log("Plan con packs pero sin bundle renderizable — fallback al widget clásico", b);
           guarded(mountLegacy, "clasico")(plan);

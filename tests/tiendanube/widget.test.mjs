@@ -44,7 +44,7 @@ const f1 = run({
   location: { pathname: "/productos/cafe-1kg/", href: "https://cafedelsur.com.ar/productos/cafe-1kg/", origin: "https://cafedelsur.com.ar" },
   __q: (s) => (s.includes("js-product-form") ? tnForm : null),
 });
-ok(f1.length === 1 && /action=plan&merchant=m1&product=11&variant=555/.test(f1[0]), "Tiendanube: detecta producto 11 y variante 555 → " + (f1[0] || "sin fetch"));
+ok(f1.length === 2 && f1.some(u => /action=plan&merchant=m1&product=11&variant=555/.test(u)) && f1.some(u => /view=bundle&v=2&product=11&variant=555/.test(u)), "Tiendanube: detecta producto 11 y variante 555 (plan + bundle en paralelo) → " + (f1.join(" | ") || "sin fetch"));
 
 // Tiendanube con varias variantes: la elegida en los selects variation[N].
 const multiForm = { ...tnForm, querySelectorAll: (s) => (s.includes("variation") ? [{ value: "En grano" }] : []) };
@@ -53,7 +53,7 @@ const f1b = run({
   location: { pathname: "/productos/cafe-1kg/", href: "https://x/productos/cafe-1kg/", origin: "https://x" },
   __q: (s) => (s.includes("js-product-form") ? multiForm : null),
 });
-ok(f1b.length === 1 && /product=11&variant=556/.test(f1b[0]), "Tiendanube: variante elegida en el select (556)");
+ok(f1b.length >= 1 && f1b.some(u => /action=plan.*product=11&variant=556/.test(u)), "Tiendanube: variante elegida en el select (556) → " + f1b.join(" | "));
 
 // Tiendanube fuera de la página de producto → no carga.
 const f2 = run({ LS: { store: { id: 9001 } }, location: { pathname: "/", href: "https://x/", origin: "https://x" } });
@@ -67,7 +67,7 @@ const f3 = run({
   location: { pathname: "/products/x", href: "https://s.myshopify.com/products/x", origin: "https://s.myshopify.com" },
   __q: (s) => (s.includes("/cart/add") ? shForm : null),
 });
-ok(f3.length === 1 && /product=99&variant=7/.test(f3[0]), "Shopify sin cambios: producto 99 y variante 7 del form → " + (f3[0] || "sin fetch"));
+ok(f3.length === 2 && f3.every(u => /product=99&variant=7/.test(u)), "Shopify sin cambios: producto 99 y variante 7 del form (plan + bundle) → " + (f3.join(" | ") || "sin fetch"));
 
 // ?tn_store=<id> → merchant conectado a esa tienda.
 await db().collection("merchants").doc("m_tn").set({ tiendanube_store_id: "9001", tiendanube_token: "tok" });
