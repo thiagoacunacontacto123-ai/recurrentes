@@ -41,7 +41,10 @@ function Toggle({ T, label, hint, on, onChange }) {
 }
 const Lbl = ({ T, children }) => <div style={{ fontSize:10, fontWeight:700, color:T.textSm, textTransform:"uppercase", letterSpacing:0.6, margin:"14px 0 6px" }}>{children}</div>;
 
-export default function CheckoutDesigner({ merchant, onChange }) {
+// `section`: "theme" (Catálogo → Checkout: diseño) o "cart" (Catálogo → Carrito: los extras
+// "Sumá a tu suscripción"). Thiago, 25-sept-2026: el carrito con sus upsells es una pestaña aparte.
+export default function CheckoutDesigner({ merchant, onChange, section = "theme" }) {
+  const showCart = section === "cart", showTheme = section !== "cart";
   const T = useT();
   const iS = InputStyle(T);
   const m = merchant || {};
@@ -105,7 +108,7 @@ export default function CheckoutDesigner({ merchant, onChange }) {
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
-      <Panel T={T} title="Sumá a tu suscripción (extras en el checkout)" sub="Hasta 4 productos de tu catálogo que el cliente puede agregar a su suscripción desde el resumen. Llegan en cada envío y se cobran con cada renovación."
+      {showCart && <Panel T={T} title="Sumá a tu suscripción (extras en el carrito)" sub="Hasta 4 productos de tu catálogo que el cliente puede agregar a su suscripción desde el resumen. Llegan en cada envío y se cobran con cada renovación."
         right={<Btn T={T} variant="solid" size="sm" onClick={saveUps} disabled={upsSaving || !upsDirty}>{upsSaving ? <><Spinner size={12}/> Guardando…</> : "Guardar extras"}</Btn>}>
         <div style={{ padding:"0 16px 16px" }}>
           {plans === null ? <Spinner size={16}/> : !(plans || []).filter(p => p.active !== false && Number(p.subscription_price_ars) > 0).length
@@ -121,8 +124,8 @@ export default function CheckoutDesigner({ merchant, onChange }) {
               </div>}
           <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:10 }}>Cada extra suma su precio de suscripción por unidad al cobro y va como renglón propio en la orden de tu tienda.</div>
         </div>
-      </Panel>
-      <Panel T={T} title="Diseño del checkout" sub="Lo que ve tu cliente al suscribirse. Si no tocás nada, sale con el color de tu widget."
+      </Panel>}
+      {showTheme && <Panel T={T} title="Diseño del checkout" sub="Lo que ve tu cliente al suscribirse. Si no tocás nada, sale con el color de tu widget."
         right={<div style={{ display:"flex", gap:8, alignItems:"center" }}>
           <Btn T={T} variant="secondary" size="sm" onClick={() => { setDraft({ ...base }); }} disabled={saving || !Object.keys(diff).length}>Volver al default</Btn>
           <Btn T={T} variant="solid" size="sm" onClick={() => save(diff)} disabled={saving || !dirty}>{saving ? <><Spinner size={12}/> Guardando…</> : "Guardar"}</Btn>
@@ -188,7 +191,7 @@ export default function CheckoutDesigner({ merchant, onChange }) {
               )}
           </div>
         </div>
-      </Panel>
+      </Panel>}
     </div>
   );
 }
