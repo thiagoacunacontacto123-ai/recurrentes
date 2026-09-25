@@ -1873,11 +1873,18 @@ async function saveOwner(ctx, req, res) {
         // porque es la que define si hay que llamarlo ya.
         const VOL = { sin_ventas: "no vende todavia", "1_50": "hasta 50 pedidos/mes", "50_200": "50-200 pedidos/mes", "200_1000": "200-1.000 pedidos/mes", "1000_mas": "+1.000 pedidos/mes" };
         const OBJ = { recompra: "quiere recompra automatica", ingreso_fijo: "quiere ingreso fijo", ticket: "quiere vender packs mas grandes", dejar_manual: "quiere dejar de perseguir la recompra", mirando: "todavia mirando" };
+        // El contacto va SEPARADO de las respuestas (25-sept-2026, Thiago: "no
+        // entiendo, quiere instalacion o whatsapp, porque dice ambos"). Pegar
+        // el numero a continuacion de lo que eligio lo hacia parecer una
+        // opcion mas, cuando es su telefono.
         const partes = [];
         if (lead.lead_instalacion === "asistida") partes.push("PIDE INSTALACION USD 100");
+        else if (lead.lead_instalacion === "solo") partes.push("la instala el mismo");
         if (lead.lead_volumen) partes.push(VOL[lead.lead_volumen]);
         if (lead.lead_objetivo) partes.push(OBJ[lead.lead_objetivo]);
-        partes.push(`WhatsApp ${wa}`, email);
+        const respuestas = partes.length ? partes.join(" · ") : "sin respuestas";
+        partes.length = 0;
+        partes.push(`${respuestas}\nContacto: ${wa} · ${email}`);
         await notifyAdmin("signup", { merchantId: ctx.uid, store: `${name} (${prev.store_name || prev.shopify_shop || email})`, detail: partes.join(" · "), key: "first" });
       }
       // Y al comercio nuevo, un WhatsApp de bienvenida con el link a su panel (una sola vez).
