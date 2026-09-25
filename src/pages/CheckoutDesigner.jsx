@@ -125,7 +125,7 @@ export default function CheckoutDesigner({ merchant, onChange }) {
             <div style={{ ...sec, marginTop:18 }}>Qué se muestra</div>
             <Toggle T={T} label="Foto de la tienda" hint={m.store_photo ? "La que cargaste en Configuración → Tiendas" : "Cargá una foto en Configuración → Tiendas para verla acá"} on={draft.show_logo} onChange={v => set("show_logo", v)}/>
             <Toggle T={T} label="Código de descuento" hint="La caja para escribir un cupón" on={draft.show_discount} onChange={v => set("show_discount", v)}/>
-            <Toggle T={T} label="Renglón de confianza" hint="“Pago seguro con Mercado Pago · Pausás o cancelás cuando quieras”" on={draft.show_trust} onChange={v => set("show_trust", v)}/>
+            <Toggle T={T} label="Renglón de confianza" hint="“Envío automático cada 30 días · Pago seguro con Mercado Pago”, con la frecuencia real del plan" on={draft.show_trust} onChange={v => set("show_trust", v)}/>
             <Toggle T={T} label="Políticas" hint="Links a tus términos y política de privacidad debajo del botón" on={draft.show_policies} onChange={v => set("show_policies", v)}/>
             {draft.show_policies ? (
               <div style={{ paddingLeft:28 }}>

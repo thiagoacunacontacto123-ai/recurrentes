@@ -50,15 +50,17 @@ const viewId = () => { try { return crypto.randomUUID().replace(/-/g, ""); } cat
 // perdería el foco a cada tecla.
 const Field = ({ label, children }) => <div className="rc-f">{children}<label>{label}</label></div>;
 
-function freqText(days) {
+// "cada 30 días" o "cada mes", según cómo lo configuró la tienda en el widget (freq_unit
+// del pack: días o meses). Sin unidad → días, salvo que sea exactamente 1 mes.
+function freqText(days, unit) {
   const d = Number(days) || 0;
-  if (d === 7) return "semanal";
-  if (d === 14 || d === 15) return "quincenal";
-  if (d === 30) return "mensual";
-  if (d === 60) return "cada 2 meses";
-  if (d === 90) return "cada 3 meses";
-  if (d === 180) return "cada 6 meses";
-  if (d === 365) return "anual";
+  if (d <= 0) return "";
+  if (unit === "meses") {
+    const m = Math.max(1, Math.round(d / 30));
+    return m === 1 ? "cada mes" : `cada ${m} meses`;
+  }
+  if (d === 1) return "cada día";
+  if (d === 7) return "cada semana";
   return `cada ${d} días`;
 }
 
@@ -353,13 +355,13 @@ export default function Checkout() {
   if (loading) return <div style={{ ...pageBase, display: "flex", alignItems: "center", justifyContent: "center", background: cachedColor || colorParam ? theme.bg : "#ffffff" }}><AppLoader T={{ textSm: "#777" }} text="Preparando tu suscripción…" minHeight="70vh" color={loaderColor}/></div>;
   if (loadErr) return <div style={{ ...pageBase, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}><div style={{ maxWidth: 420, textAlign: "center", border: `1px solid ${theme.border}`, borderRadius: R + 6, padding: 24, background: theme.input_bg }}><div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Ups</div><div style={{ fontSize: 14, color: theme.text_muted, lineHeight: 1.5 }}>{loadErr}</div></div></div>;
 
-  const freqTxt = freqText(pack ? pack.freqDays : (freqParam || plan.frequency_days));
+  const freqTxt = freqText(pack ? pack.freqDays : (freqParam || plan.frequency_days), pack ? pack.freqUnit : plan.freq_unit);
   const kindLabel = isService ? "Membresía" : "Suscripción";
   const title = titleOverride || plan.product_title;
   const image = img || plan.product_image || "";
   const storeName = theme.header_text || cfg?.store_name || "";
   const logo = theme.show_logo ? (cfg?.store_logo || "") : "";
-  const footerTxt = theme.footer_text || `Se cobra ${money(total)} ahora y se renueva automáticamente (${freqTxt}). Podés pausar o cancelar cuando quieras.`;
+  const footerTxt = theme.footer_text || `Se cobra ${money(total)} ahora y se renueva automáticamente ${freqTxt}. Podés pausar o cancelar cuando quieras.`;
   const cta = submitting ? `Redirigiendo a ${providerLabel}…` : ctaText(theme, money(total));
   const policiesTxt = theme.policies_text || "Al pagar aceptás los términos y la política de privacidad.";
 
@@ -423,7 +425,7 @@ export default function Checkout() {
       <div className="rc-opts"><label className="rc-opt on" style={{ cursor: "default" }}>
         <input type="radio" checked readOnly aria-label={providerLabel}/>
         <img src="/brand/mercadopago.png" alt="" style={{ width: 30, height: 30, borderRadius: 7, objectFit: "contain", flexShrink: 0 }}/>
-        <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0 }}><b style={{ fontWeight: 600 }}>{providerLabel}</b><div style={{ color: theme.text_muted, fontSize: 13 }}>{isService ? "La cuota se cobra sola cada período." : "Se renueva sola cada período. Pausás o cancelás cuando quieras."}</div></div>
+        <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0 }}><b style={{ fontWeight: 600 }}>{providerLabel}</b><div style={{ color: theme.text_muted, fontSize: 13 }}>{isService ? `La cuota se cobra sola ${freqTxt}.` : `Se cobra ${freqTxt}, sin que hagas nada.`}</div></div>
       </label></div>
       {theme.summary_mobile === "before_pay" ? <div className="rc-inline-summary">{summaryBody}</div> : null}
       {formErr ? <div role="alert" style={{ background: "#fde8e8", border: "1px solid #f5b5b5", color: "#b42318", fontSize: 14, padding: "11px 13px", borderRadius: R, marginTop: 14 }}>{formErr}</div> : null}
@@ -441,7 +443,7 @@ export default function Checkout() {
       {theme.show_trust ? (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 12.5, color: theme.text_muted, marginTop: 14 }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-          Pago seguro con {providerLabel} · Pausás o cancelás cuando quieras
+          {askAddress ? `Envío automático ${freqTxt}` : `Renovación automática ${freqTxt}`} · Pago seguro con {providerLabel}
         </div>
       ) : null}
     </section>
