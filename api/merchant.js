@@ -60,6 +60,7 @@ import { emailSubscriptionActivated, emailTeamInvite, emailPlanRequest, effectiv
 import { shGetShopInfo, buildShopInfoPatch, shopifyRatesForPanel } from "./_lib/shopify.js";
 import { importDiscountsAction, cleanDiscountCodes } from "./_lib/discountImport.js";
 import { giftFreeAction } from "./_lib/giftDiscount.js";
+import { sanitizeCartSettings } from "../shared/bundle/cart.js";
 import { widgetVerifyUrlAction, widgetVerifyStatusAction } from "./_lib/widgetVerify.js";
 import { VARIANT_IDS } from "../shared/bundle/viewmodel.js";
 import { REASON_CODE_RE, retentionFor } from "./_lib/retention.js";
@@ -224,6 +225,8 @@ export default async function handler(req, res) {
         widget_box_scale: Number.isInteger(merchant.widget_box_scale) ? Math.max(80, Math.min(120, merchant.widget_box_scale)) : 100,
         widget_border_scale: Number.isInteger(merchant.widget_border_scale) ? Math.max(100, Math.min(300, merchant.widget_border_scale)) : 100,
         widget_edge_to_edge: merchant.widget_edge_to_edge === true,
+        // Editor del carrito de la suscripción (Catálogo → Carrito): textos, qué se muestra, colores.
+        cart_settings: (merchant.cart_settings && typeof merchant.cart_settings === "object") ? merchant.cart_settings : null,
         // Carrito propio de la suscripción (drawer) y botón fijo abajo (25-sept-2026).
         widget_cart_drawer: merchant.widget_cart_drawer !== false,
         widget_sticky_cta: merchant.widget_sticky_cta === true,
@@ -818,6 +821,11 @@ async function saveSettings(merchantId, req, res) {
     if (b.checkout_upsells != null && !Array.isArray(b.checkout_upsells)) return bad("checkout_upsells debe ser una lista");
     const ids = [...new Set((b.checkout_upsells || []).map(x => String(x || "").trim()).filter(x => /^[A-Za-z0-9_-]{4,64}$/.test(x)))].slice(0, 4);
     out.checkout_upsells = ids;
+  }
+  if ("cart_settings" in b) {
+    const r = sanitizeCartSettings(b.cart_settings);
+    if (r.error) return bad(r.error);
+    out.cart_settings = r.settings && Object.keys(r.settings).length ? r.settings : null;
   }
   if ("checkout_theme" in b) {
     const r = sanitizeCheckoutTheme(b.checkout_theme);

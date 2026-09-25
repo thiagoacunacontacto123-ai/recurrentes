@@ -4,6 +4,147 @@ import { DS, useT } from "../ui/theme.js";
 import { Btn, InputStyle, Spinner, Callout, toast } from "../ui/components.jsx";
 import { Panel, Segmented } from "../ui/charts.jsx";
 import { CHECKOUT_THEME_DEFAULTS, CHECKOUT_FONTS, CHECKOUT_FONT_IDS, resolveCheckoutTheme } from "../../shared/platform/checkoutTheme.js";
+import { CART_TEXT_DEFAULTS, CART_TOGGLE_DEFAULTS, resolveCartSettings, cartCss, cartShellHtml, cartBodyHtml, cartCtaText } from "../../shared/bundle/cart.js";
+import { buildBundleVM } from "../../shared/bundle/viewmodel.js";
+
+// ─── Editor del carrito de la suscripción (Catálogo → Carrito) ─────────────────
+// Todo lo que sale en el drawer se edita acá y se ve en vivo a la derecha. Se guarda
+// PARCIAL en merchants.cart_settings (solo lo que difiere del default); el widget lo
+// recibe resuelto (api/widget.js → CART_TEXTS / CART_THEME). 25-sept-2026, Thiago.
+const CART_FIELDS = [
+  ["title", "Título del carrito", "Tu suscripción"],
+  ["item_sub", "Renglón bajo el nombre del pack", "{{qty}} · te llega {{freq}}"],
+  ["gift_once", "Aclaración del regalo que va solo la primera vez", "Solo en tu primer envío"],
+  ["gift_always", "Aclaración del regalo que va siempre (vacío = nada)", ""],
+  ["row_subtotal", "Fila Subtotal", "Subtotal"],
+  ["row_save", "Fila Ahorro", "Ahorrás en cada envío"],
+  ["row_ship", "Fila Envío", "Envío"],
+  ["ship_value", "Texto del envío", "Se calcula en el siguiente paso"],
+  ["row_total", "Fila Total", "Total por envío"],
+  ["note", "Nota al pie del resumen", "Se renueva solo {{freq}}. Pausás…"],
+  ["cta", "Botón", "Finalizar suscripción · {{total}}"],
+  ["more", "Link para seguir viendo", "Seguir viendo"],
+  ["footer", "Renglón de seguridad", "🔒 Pago 100% seguro con Mercado Pago"],
+];
+const CART_TOGGLES = [
+  ["show_gifts", "Regalos del pack", "Las franjas “+ GRATIS …” dentro del carrito"],
+  ["show_compare", "Precio tachado", "El precio de comparación al lado del precio del pack"],
+  ["show_save", "Fila “Ahorrás”", "Cuánto ahorra por envío (solo si hay tachado)"],
+  ["show_ship", "Fila “Envío”", "Con el texto de envío de arriba"],
+  ["show_note", "Nota al pie", "El texto de renovación / pausar / cancelar"],
+  ["show_footer", "Renglón de seguridad", "Debajo de “Seguir viendo”"],
+];
+const fmtArs = (n) => "$" + Math.round(Number(n) || 0).toLocaleString("es-AR");
+const escHtml = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+function samplePack(plans, merchant) {
+  const plan = (plans || []).find(p => p.active !== false && Array.isArray(p.packs) && p.packs.length) || null;
+  if (plan) {
+    try {
+      const vm = buildBundleVM({ plan, merchant });
+      const p = vm.packs.find(x => !x.hideSub) || vm.packs[0];
+      if (p) return { label: p.label, qty: p.qty, sub_qty: p.subQty || p.qty, price_sub: p.priceSub, price_once: p.priceOnce, compare_at: p.compareAt || 0, freq_label: p.freqLabel || "", image: p.image || plan.product_image || null,
+        gifts: (p.gifts || []).map(g => ({ title: g.title, image: g.image, every: g.every || "always" })) };
+    } catch (_) {}
+  }
+  return { label: "Pack 2 unidades", qty: 2, sub_qty: 2, price_sub: 53991, price_once: 59990, compare_at: 99980, freq_label: "mes", image: null, gifts: [{ title: "+ GRATIS: Regalo de ejemplo", every: "once" }] };
+}
+
+function CartEditor({ T, iS, merchant, plans, onChange }) {
+  const m = merchant || {};
+  const saved = (m.cart_settings && typeof m.cart_settings === "object") ? m.cart_settings : {};
+  const checkoutTheme = useMemo(() => m.checkout_theme_resolved || resolveCheckoutTheme(m.checkout_theme, { widgetColor: m.widget_color }), [m.checkout_theme_resolved, m.checkout_theme, m.widget_color]);
+  const fromSaved = (s) => ({ texts: { ...CART_TEXT_DEFAULTS, ...(s.texts || {}) }, toggles: { ...CART_TOGGLE_DEFAULTS, ...Object.fromEntries(Object.keys(CART_TOGGLE_DEFAULTS).filter(k => typeof s[k] === "boolean").map(k => [k, s[k]])) }, colors: { color: s.color || "", bg: s.bg || "", text: s.text || "" } });
+  const [draft, setDraft] = useState(() => fromSaved(saved));
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { setDraft(fromSaved(saved)); /* eslint-disable-next-line */ }, [m.id, JSON.stringify(saved)]);
+
+  // Solo lo que difiere del default viaja al server.
+  const diff = useMemo(() => {
+    const out = {}; const texts = {};
+    for (const k of Object.keys(CART_TEXT_DEFAULTS)) if ((draft.texts[k] ?? "") !== CART_TEXT_DEFAULTS[k]) texts[k] = draft.texts[k] === "" ? "x" : draft.texts[k];
+    if (Object.keys(texts).length) out.texts = texts;
+    for (const k of Object.keys(CART_TOGGLE_DEFAULTS)) if (draft.toggles[k] !== CART_TOGGLE_DEFAULTS[k]) out[k] = draft.toggles[k];
+    if (!draft.toggles.use_checkout_theme) for (const k of ["color", "bg", "text"]) if (/^#[0-9a-fA-F]{6}$/.test(draft.colors[k] || "")) out[k] = draft.colors[k].toLowerCase();
+    return out;
+  }, [draft]);
+  const dirty = JSON.stringify(diff) !== JSON.stringify(saved);
+
+  // Vista previa: el MISMO render que el widget.
+  const resolved = useMemo(() => {
+    const r = resolveCartSettings(diff, checkoutTheme);
+    // Un texto vaciado se apaga ("x" en el diff → "" acá).
+    for (const k of Object.keys(r.texts)) if (r.texts[k] === "x") r.texts[k] = "";
+    return r;
+  }, [diff, checkoutTheme]);
+  const pack = useMemo(() => samplePack(plans, { ...m, widget_variant: m.widget_variant }), [plans, m]);
+  const previewHtml = useMemo(() => {
+    const TXT = { ...resolved.texts, ...resolved.toggles };
+    let shell = cartShellHtml(TXT, escHtml);
+    const body = cartBodyHtml(pack, TXT, fmtArs, escHtml, "");
+    shell = shell.replace('<div class="rc-cart-b"></div>', '<div class="rc-cart-b">' + body + "</div>")
+      .replace('<button type="button" class="rc-cart-go"></button>', '<button type="button" class="rc-cart-go">' + escHtml(cartCtaText(TXT, fmtArs(pack.price_sub))) + "</button>");
+    return shell;
+  }, [resolved, pack]);
+  const previewCss = useMemo(() => cartCss(resolved.theme)
+    // en el panel el drawer se ve quieto, sin overlay ni animación
+    .replace(".rc-cart{position:absolute;top:0;right:0;bottom:0;width:min(420px,100%);", ".rc-cart{position:relative;width:100%;max-width:380px;min-height:560px;border-radius:14px;overflow:hidden;")
+    .replace("transform:translateX(100%);transition:transform .3s cubic-bezier(.22,1,.36,1);", "")
+    .replace("@media (max-width:520px){.rc-cart{width:min(420px,92%)}}", ""), [resolved.theme]);
+
+  const setText = (k, v) => setDraft(d => ({ ...d, texts: { ...d.texts, [k]: v } }));
+  const setToggle = (k, v) => setDraft(d => ({ ...d, toggles: { ...d.toggles, [k]: v } }));
+  const setColor = (k, v) => setDraft(d => ({ ...d, colors: { ...d.colors, [k]: v } }));
+
+  async function save(settings) {
+    setSaving(true);
+    const d = await apiPatch("merchant", { cart_settings: settings }, { action: "save-settings" }).catch(e => ({ error: e.message }));
+    setSaving(false);
+    if (d?.error) return toast("Error: " + d.error, "error", 6000);
+    toast(Object.keys(settings).length ? "Carrito guardado. Ya lo ven tus clientes." : "El carrito volvió al diseño por defecto.");
+    onChange?.();
+  }
+  const sec = { fontSize:DS.font.lg, fontWeight:DS.w.bold, color:T.text, letterSpacing:-0.2 };
+
+  return (
+    <Panel T={T} title="Textos y diseño del carrito" sub="Todo lo que ve tu cliente al tocar Suscribirme. A la derecha, tal cual sale en tu tienda."
+      right={<div style={{ display:"flex", gap:8, alignItems:"center" }}>
+        <Btn T={T} variant="secondary" size="sm" onClick={() => setDraft(fromSaved({}))} disabled={saving || !Object.keys(diff).length}>Volver al default</Btn>
+        <Btn T={T} variant="solid" size="sm" onClick={() => save(diff)} disabled={saving || !dirty}>{saving ? <><Spinner size={12}/> Guardando…</> : "Guardar"}</Btn>
+      </div>}>
+      <div className="rc-ckd" style={{ display:"grid", gridTemplateColumns:"minmax(280px, 420px) minmax(0, 1fr)", gap:DS.sp.xl, padding:"0 16px 16px", alignItems:"start" }}>
+        <div style={{ minWidth:0 }}>
+          <div style={sec}>Textos</div>
+          <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:4, lineHeight:1.45 }}>{"{{qty}}"} = cantidad, {"{{freq}}"} = frecuencia (“cada mes”), {"{{total}}"} = monto. Dejá un campo vacío para sacar ese texto.</div>
+          {CART_FIELDS.map(([k, label, ph]) => (
+            <div key={k}>
+              <Lbl T={T}>{label}</Lbl>
+              {k === "note"
+                ? <textarea value={draft.texts[k]} onChange={e => setText(k, e.target.value)} rows={3} maxLength={300} placeholder={ph} style={{ ...iS, resize:"vertical", lineHeight:1.45 }}/>
+                : <input value={draft.texts[k]} onChange={e => setText(k, e.target.value)} placeholder={ph} maxLength={k === "footer" ? 80 : 60} style={iS}/>}
+            </div>
+          ))}
+          <div style={{ ...sec, marginTop:18 }}>Qué se muestra</div>
+          {CART_TOGGLES.map(([k, label, hint]) => <Toggle key={k} T={T} label={label} hint={hint} on={draft.toggles[k]} onChange={v => setToggle(k, v)}/>)}
+          <div style={{ ...sec, marginTop:18 }}>Colores</div>
+          <Toggle T={T} label="Usar los colores del checkout" hint="Acento, fondo y texto iguales a Catálogo → Checkout (recomendado: todo combina solo)" on={draft.toggles.use_checkout_theme} onChange={v => setToggle("use_checkout_theme", v)}/>
+          {!draft.toggles.use_checkout_theme && (<>
+            <ColorRow T={T} label="Color principal" hint="Botón y ahorro" value={draft.colors.color || checkoutTheme.color} fallback={checkoutTheme.color} onChange={v => setColor("color", v)}/>
+            <ColorRow T={T} label="Fondo" hint="Fondo del carrito" value={draft.colors.bg || checkoutTheme.bg} fallback={checkoutTheme.bg} onChange={v => setColor("bg", v)}/>
+            <ColorRow T={T} label="Texto" hint="Color del texto" value={draft.colors.text || checkoutTheme.text} fallback={checkoutTheme.text} onChange={v => setColor("text", v)}/>
+          </>)}
+        </div>
+        <div className="rc-ckd-prev" style={{ position:"sticky", top:16 }}>
+          <div style={{ fontSize:DS.font.sm, color:T.textSm, marginBottom:8 }}>Vista previa en vivo{pack.label ? ` · ${pack.label}` : ""}. Los datos salen de tu primer plan con packs.</div>
+          <div style={{ background:T.isDark ? "rgba(255,255,255,0.04)" : "#eef0f2", borderRadius:16, padding:18, display:"flex", justifyContent:"center" }}>
+            <style>{previewCss}</style>
+            <div dangerouslySetInnerHTML={{ __html: previewHtml }}/>
+          </div>
+        </div>
+      </div>
+    </Panel>
+  );
+}
 
 // ─── Configuración → Checkout: el diseñador del checkout hosteado ─────────────
 // (Thiago, 24-sept-2026: "que cada persona pueda cambiar su checkout: colores, textos,
@@ -146,6 +287,7 @@ export default function CheckoutDesigner({ merchant, onChange, section = "theme"
           <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:10 }}>Cada extra suma su precio de suscripción por unidad al cobro y va como renglón propio en la orden de tu tienda.</div>
         </div>
       </Panel>}
+      {showCart && <CartEditor T={T} iS={iS} merchant={m} plans={plans} onChange={onChange}/>}
       {showTheme && <Panel T={T} title="Diseño del checkout" sub="Lo que ve tu cliente al suscribirse. Si no tocás nada, sale con el color de tu widget."
         right={<div style={{ display:"flex", gap:8, alignItems:"center" }}>
           <Btn T={T} variant="secondary" size="sm" onClick={() => { setDraft({ ...base }); }} disabled={saving || !Object.keys(diff).length}>Volver al default</Btn>

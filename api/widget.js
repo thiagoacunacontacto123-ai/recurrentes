@@ -20,6 +20,11 @@
 // `?view=bundle&plan=<id>` y el cliente sólo swapea innerHTML.
 import { buildBundleVM, planHasPacks, resolvePack, freqLabel, fmtARS } from "../shared/bundle/viewmodel.js";
 import { resolveCheckoutTheme } from "../shared/platform/checkoutTheme.js";
+import { resolveCartSettings, cartCss, cartShellHtml, cartBodyHtml, cartCtaText } from "../shared/bundle/cart.js";
+// Funciones compartidas que viajan al navegador dentro del template literal. Lo que se
+// interpola con ${} entra TAL CUAL (el template solo procesa escapes del texto literal),
+// así que la fuente va sin tocar y las regex llegan intactas.
+const fnSrc = (f) => f.toString();
 import { renderBundle } from "../shared/bundle/templates.js";
 
 // Tarifas de envío del checkout on-store para merchants LEGACY (creados antes
@@ -133,8 +138,8 @@ export default async function handler(req, res) {
   let checkoutColor = "#10b981"; // acento del checkout (tema propio o el del widget): loader y &color= en la URL
   // Colores del carrito propio = los del checkout de la tienda (25-sept-2026, Thiago:
   // "que el carrito se lleve con sus colores"): acento, fondo, texto, letra y radio.
-  const pickCartTheme = (t) => ({ color: t.color, on: t.color_on, tint: t.color_tint, bg: t.bg, text: t.text, muted: t.text_muted, border: t.border, soft: t.border_soft, input: t.input_bg, radius: Math.max(6, Math.min(20, Number(t.radius) || 6)), font: t.font_stack, dark: !!t.dark });
-  let cartTheme = pickCartTheme(resolveCheckoutTheme(null, { widgetColor }));
+  // Textos, qué se muestra y colores del carrito: Catálogo → Carrito (cart_settings).
+  let cart = resolveCartSettings(null, resolveCheckoutTheme(null, { widgetColor }));
   let widgetSubTitle = "Suscripción";
   let widgetSubSubtitle = ""; // "" → usa default con frecuencia
   let widgetOnceTitle = "Compra única";
@@ -176,7 +181,7 @@ export default async function handler(req, res) {
       if (m.widget_cart_drawer === false) cartDrawer = false;
       if (m.widget_sticky_cta === true) stickyCta = true;
       if (typeof m.widget_color === "string" && /^#[0-9a-fA-F]{6}$/.test(m.widget_color)) widgetColor = m.widget_color;
-      { const th = resolveCheckoutTheme(m.checkout_theme, { widgetColor }); checkoutColor = th.color; cartTheme = pickCartTheme(th); }
+      { const th = resolveCheckoutTheme(m.checkout_theme, { widgetColor }); checkoutColor = th.color; cart = resolveCartSettings(m.cart_settings, th); }
       if (typeof m.widget_sub_title === "string" && m.widget_sub_title.trim()) widgetSubTitle = m.widget_sub_title.trim();
       if (typeof m.widget_sub_subtitle === "string") widgetSubSubtitle = m.widget_sub_subtitle;
       if (typeof m.widget_once_title === "string" && m.widget_once_title.trim()) widgetOnceTitle = m.widget_once_title.trim();
@@ -424,7 +429,12 @@ export default async function handler(req, res) {
   var CHECKOUT_PAGE_PATH = ${JSON.stringify(checkoutPagePath)};
   var WIDGET_COLOR = ${JSON.stringify(widgetColor)};
   var CART_DRAWER = ${cartDrawer ? "true" : "false"};
-  var CART_THEME = ${JSON.stringify(cartTheme)};
+  var CART_THEME = ${JSON.stringify(cart.theme)};
+  var CART_TEXTS = ${JSON.stringify({ ...cart.texts, ...cart.toggles })};
+  var cartCss = ${fnSrc(cartCss)};
+  var cartShellHtml = ${fnSrc(cartShellHtml)};
+  var cartBodyHtml = ${fnSrc(cartBodyHtml)};
+  var cartCtaText = ${fnSrc(cartCtaText)};
   var STICKY_CTA = ${stickyCta ? "true" : "false"};
   var CHECKOUT_COLOR = ${JSON.stringify(checkoutColor)};
   var SUB_TITLE = ${JSON.stringify(widgetSubTitle)};
@@ -1599,42 +1609,13 @@ export default async function handler(req, res) {
       function ensureCart() {
         if (cartEl) return cartEl;
         var T = (typeof CART_THEME === "object" && CART_THEME) || {};
-        var A = T.color || WIDGET_COLOR, ON = T.on || onColor(A), BG = T.bg || "#fff", TX = T.text || "#161616", MU = T.muted || "#6b6b6b", BD = T.soft || "#eee", TINT = T.tint || "rgba(0,0,0,.04)", RAD = (T.radius || 12) + "px", FONT = T.font || "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
+        var TXT = (typeof CART_TEXTS === "object" && CART_TEXTS) || {};
         var st = document.createElement("style");
-        st.textContent =
-          ".rc-cart-ov{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(17,17,17,.5);z-index:2147483000;display:none;opacity:0;transition:opacity .22s;font-family:" + FONT + ";color:" + TX + ";-webkit-font-smoothing:antialiased}" +
-          ".rc-cart-ov.is-open{display:block}.rc-cart-ov.is-vis{opacity:1}" +
-          ".rc-cart{position:absolute;top:0;right:0;bottom:0;width:min(420px,100%);background:" + BG + ";display:flex;flex-direction:column;transform:translateX(100%);transition:transform .3s cubic-bezier(.22,1,.36,1);box-shadow:-16px 0 50px -20px rgba(0,0,0,.4)}" +
-          ".rc-cart *{box-sizing:border-box}.rc-cart-ov.is-vis .rc-cart{transform:translateX(0)}" +
-          ".rc-cart-h{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid " + BD + ";font-size:17px;font-weight:800}" +
-          ".rc-cart-x{width:32px;height:32px;border-radius:50%;border:1px solid " + BD + ";background:transparent;font-size:20px;line-height:1;color:" + MU + ";cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}" +
-          ".rc-cart-b{flex:1;overflow-y:auto;padding:16px 18px}" +
-          ".rc-cart-it{display:grid;grid-template-columns:68px minmax(0,1fr);gap:12px;align-items:center}" +
-          ".rc-cart-it img{width:68px;height:68px;border-radius:" + RAD + ";object-fit:cover;border:1px solid " + BD + ";background:#fff}" +
-          ".rc-cart-ph{width:68px;height:68px;border-radius:" + RAD + ";background:" + TINT + ";display:flex;align-items:center;justify-content:center;font-size:24px}" +
-          ".rc-cart-it b{display:block;font-size:15px;font-weight:800;line-height:1.2}.rc-cart-it small{display:block;font-size:12.5px;color:" + MU + ";font-weight:600;margin-top:3px}" +
-          ".rc-cart-pr{margin-top:5px;font-size:15px;font-weight:800}.rc-cart-pr s{color:" + MU + ";opacity:.8;font-weight:600;font-size:12.5px;margin-left:6px}" +
-          ".rc-cart-g{display:flex;align-items:center;gap:9px;margin-top:10px;padding:8px 10px;border-radius:" + RAD + ";background:" + TINT + ";font-size:12.5px;font-weight:600}" +
-          ".rc-cart-g img{width:32px;height:32px;border-radius:6px;object-fit:cover;flex:none;background:#fff}.rc-cart-g em{font-style:normal;color:" + MU + ";display:block;font-size:11.5px;font-weight:600}" +
-          ".rc-cart-rows{margin-top:14px;border-top:1px solid " + BD + ";padding-top:10px}" +
-          ".rc-cart-row{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;color:" + MU + ";font-weight:600;padding:4px 0}" +
-          ".rc-cart-row.is-tot{font-size:16.5px;font-weight:800;color:" + TX + ";margin-top:4px}.rc-cart-row .ok{color:" + A + ";font-weight:800}" +
-          ".rc-cart-note{margin-top:12px;font-size:12px;color:" + MU + ";line-height:1.4}" +
-          ".rc-cart-f{padding:12px 18px 16px;border-top:1px solid " + BD + ";background:" + BG + "}" +
-          ".rc-cart-go{width:100%;background:" + A + ";color:" + ON + ";border:none;border-radius:" + RAD + ";padding:15px 12px;font-family:inherit;font-size:15.5px;font-weight:800;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent}" +
-          ".rc-cart-go:active{filter:brightness(.92)}.rc-cart-go:disabled{opacity:.7;cursor:default}" +
-          ".rc-cart-more{display:block;width:100%;margin-top:8px;background:none;border:none;color:" + MU + ";font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:3px}" +
-          // En celular también entra desde la derecha (como el carrito de la demo G4U y el de Shopify), a todo alto.
-          "@media (max-width:520px){.rc-cart{width:min(420px,92%)}}";
+        st.textContent = cartCss(T);
         document.head.appendChild(st);
         var ov = document.createElement("div");
         ov.className = "rc-cart-ov"; ov.setAttribute("data-rec-root", "1");
-        ov.innerHTML =
-          '<div class="rc-cart" role="dialog" aria-label="Tu suscripción">' +
-            '<div class="rc-cart-h"><span>Tu suscripción</span><button type="button" class="rc-cart-x" aria-label="Cerrar">×</button></div>' +
-            '<div class="rc-cart-b"></div>' +
-            '<div class="rc-cart-f"><button type="button" class="rc-cart-go"></button><button type="button" class="rc-cart-more">Seguir viendo</button></div>' +
-          "</div>";
+        ov.innerHTML = cartShellHtml(TXT, esc2);
         document.body.appendChild(ov);
         ov.addEventListener("click", function (e) { if (e.target === ov) closeCart(); });
         ov.querySelector(".rc-cart-x").addEventListener("click", closeCart);
@@ -1652,28 +1633,10 @@ export default async function handler(req, res) {
       function openCart() {
         var p = packInfo(state.idx); if (!p) { goCheckout(); return; }
         var ov = ensureCart();
-        var price = Number(p.price_sub) || 0, cmp = Number(p.compare_at) || 0;
-        var save = cmp > price ? cmp - price : (Number(p.price_once) > price ? Number(p.price_once) - price : 0);
-        var qty = p.sub_qty || p.qty;
-        var img = p.image || (document.querySelector('meta[property="og:image"]') || {}).content || "";
-        var freq = p.freq_label ? "cada " + p.freq_label : "";
-        var gifts = (p.gifts || []).filter(function (g) { return g && g.title; }).map(function (g) {
-          return '<div class="rc-cart-g">' + (g.image ? '<img src="' + esc2(g.image) + '" alt="">' : "") + "<span>" + esc2(g.title) + (g.every === "once" ? "<em>Solo en tu primer envío</em>" : "") + "</span></div>";
-        }).join("");
-        ov.querySelector(".rc-cart-b").innerHTML =
-          '<div class="rc-cart-it">' + (img ? '<img src="' + esc2(img) + '" alt="">' : '<div class="rc-cart-ph">📦</div>') +
-            "<div><b>" + esc2(p.label || (qty + (qty === 1 ? " unidad" : " unidades"))) + "</b>" +
-            "<small>" + esc2(qty + (qty === 1 ? " unidad" : " unidades")) + (freq ? " · te llega " + esc2(freq) : "") + "</small>" +
-            '<div class="rc-cart-pr">' + esc2(fmtArs(price)) + (cmp > price ? "<s>" + esc2(fmtArs(cmp)) + "</s>" : "") + "</div></div></div>" +
-          gifts +
-          '<div class="rc-cart-rows">' +
-            '<div class="rc-cart-row"><span>Subtotal</span><span>' + esc2(fmtArs(price)) + "</span></div>" +
-            (save > 0 ? '<div class="rc-cart-row"><span>Ahorrás en cada envío</span><span class="ok">' + esc2(fmtArs(save)) + "</span></div>" : "") +
-            '<div class="rc-cart-row"><span>Envío</span><span>Se calcula en el siguiente paso</span></div>' +
-            '<div class="rc-cart-row is-tot"><span>Total por envío</span><span>' + esc2(fmtArs(price)) + "</span></div>" +
-          "</div>" +
-          '<div class="rc-cart-note">' + (freq ? "Se renueva solo " + esc2(freq) + ". " : "") + "Pausás, cambiás la dirección o cancelás cuando quieras desde tu portal. Pago seguro con Mercado Pago.</div>";
-        var go = ov.querySelector(".rc-cart-go"); go.disabled = false; go.textContent = "Finalizar suscripción · " + fmtArs(price);
+        var TXT = (typeof CART_TEXTS === "object" && CART_TEXTS) || {};
+        var og = (document.querySelector('meta[property="og:image"]') || {}).content || "";
+        ov.querySelector(".rc-cart-b").innerHTML = cartBodyHtml(p, TXT, fmtArs, esc2, og);
+        var go = ov.querySelector(".rc-cart-go"); go.disabled = false; go.textContent = cartCtaText(TXT, fmtArs(Number(p.price_sub) || 0));
         document.body.style.overflow = "hidden";
         ov.classList.add("is-open");
         requestAnimationFrame(function () { ov.classList.add("is-vis"); });
