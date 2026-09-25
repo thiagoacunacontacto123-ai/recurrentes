@@ -198,8 +198,12 @@ function buildCtx(vm, state) {
   // Renglon del cuadro de suscripcion. Con `sub_hint` cargado manda ese texto;
   // vacio, se arma solo como siempre. 22-sept-2026, Thiago.
   ctx.subHint = function () {
-    if (mode === "sub") return ctx.freqText();
+    // Lo que escribe el comerciante manda SIEMPRE, tildado o no (25-sept-2026,
+    // Thiago: "acá escribo y no cambia nada"). Antes, con el cuadro tildado se
+    // salía por freqText() sin mirar `sub_hint`, así que el campo solo servía
+    // con el cuadro apagado: parecía roto.
     if (t.sub_hint) return t.sub_hint;
+    if (mode === "sub") return ctx.freqText();
     return "Activalo y te llega solo" +
       (sel && sel.freqLabel ? ", cada " + sel.freqLabel : "") +
       (ctx.disc > 0 ? ", con " + ctx.disc + "% off" : "");

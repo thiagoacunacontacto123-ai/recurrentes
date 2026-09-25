@@ -317,3 +317,26 @@ test("(w) cada bloque elige si la frecuencia se muestra en días o en meses", as
   assert.equal(r.packs.find(p => p.qty === 3).freq_unit, "dias", "sin el campo: días");
   assert.equal(r.packs.find(p => p.qty === 4).freq_unit, "dias", "un valor inválido cae a días");
 });
+
+// ─── El renglón del cuadro de suscripción es editable en LOS DOS modos ────
+// 25-sept-2026, Thiago: "acá escribo y no cambia nada". Con el cuadro TILDADO
+// se salía por freqText() sin mirar `sub_hint`, así que el campo solo servía
+// con el cuadro apagado y parecía roto.
+test("(w) sub_hint manda tildado y destildado", () => {
+  const plan = {
+    pricing_mode: "packs", discount_pct: 10, frequency_days: 30,
+    packs: [{ qty: 2, price_ars: 54900, default: true }],
+  };
+  const MIO = "Te llega solo, sin que hagas nada";
+  const renglon = (texts, mode) => {
+    const html = render2(buildBundleVM({ plan, merchant: { widget_variant: "v13", widget_texts: texts } }), { mode }).html;
+    const i = html.indexOf("rc-sub-txt");
+    const j = html.indexOf("<small", i);
+    return html.slice(j, html.indexOf("</small>", j)).replace(/<[^>]*>/g, "");
+  };
+  assert.equal(renglon({ sub_hint: MIO }, "sub"), MIO, "tildado: el texto del comerciante");
+  assert.equal(renglon({ sub_hint: MIO }, "once"), MIO, "apagado: el mismo");
+  // Sin cargarlo, los automáticos de siempre (cada modo el suyo).
+  assert.match(renglon({}, "sub"), /Te llegan 2 cada/);
+  assert.match(renglon({}, "once"), /Activalo y te llega solo/);
+});
