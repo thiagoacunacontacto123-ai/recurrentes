@@ -233,7 +233,10 @@ export function normalizePacks(input) {
         // sigue siendo solo de marketing, como hasta hoy.
         const gvid = !virtual && g.shopify_variant_id != null && /^\d{1,20}$/.test(String(g.shopify_variant_id).trim()) ? String(g.shopify_variant_id).trim() : null;
         const gpid = gvid && g.shopify_product_id != null && /^\d{1,20}$/.test(String(g.shopify_product_id).trim()) ? String(g.shopify_product_id).trim() : null;
-        gifts.push({ title, image: gimg, compare_at_ars: gcmp, virtual, note, every, shopify_variant_id: gvid, shopify_product_id: gpid });
+        // Código de descuento que lo deja gratis en compra única (opcional): el widget
+        // visita /discount/<code> después de agregar el regalo y el checkout lo aplica solo.
+        const gcode = gvid && g.discount_code != null ? String(g.discount_code).trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "").slice(0, 40) : "";
+        gifts.push({ title, image: gimg, compare_at_ars: gcmp, virtual, note, every, shopify_variant_id: gvid, shopify_product_id: gpid, discount_code: gcode || null });
       }
     }
     // En que modo se muestra este pack (22-sept-2026, Thiago): el comerciante

@@ -81,9 +81,12 @@ export function buildBundlePayload(plan, merchant) {
     // hideOnce/hideSub: el widget los usa para no dejar "elegido" un pack que no
     // se ve en el modo actual (Wellfresh, 25-sept: la suscripción mandaba el pack
     // de 3 de compra única). gifts: regalos vinculados a un producto → al carrito.
+    // label/precios/foto/regalos: los usa el carrito propio de la suscripción.
     packs: vm.packs.map((p) => ({
       idx: p.idx, qty: p.qty, freq_days: p.freqDays, hideOnce: !!p.hideOnce, hideSub: !!p.hideSub,
-      gifts: (p.gifts || []).filter((g) => g && g.variantId).map((g) => ({ variant_id: g.variantId, every: g.every || "always" })),
+      label: p.label || "", sub_qty: p.subQty || p.qty, price_sub: p.priceSub, price_once: p.priceOnce, compare_at: p.compareAt || 0,
+      freq_label: p.freqLabel || "", image: p.image || null,
+      gifts: (p.gifts || []).map((g) => ({ variant_id: g.variantId || null, every: g.every || "always", title: g.title || "", image: g.image || null, virtual: !!g.virtual, code: g.discountCode || null })),
     })),
   };
 }
@@ -123,6 +126,10 @@ export default async function handler(req, res) {
   let widgetModeOrder = "sub_first";
   let widgetModeDefault = "sub";
   let widgetColor = "#10b981";
+  // Carrito propio de la suscripción (drawer antes del checkout) y botón fijo
+  // abajo que vuelve al bundle (25-sept-2026, Wellfresh). Drawer prendido por
+  // defecto; el sticky se prende en Widget → ajustes.
+  let cartDrawer = true, stickyCta = false;
   let checkoutColor = "#10b981"; // acento del checkout (tema propio o el del widget): loader y &color= en la URL
   let widgetSubTitle = "Suscripción";
   let widgetSubSubtitle = ""; // "" → usa default con frecuencia
@@ -162,6 +169,8 @@ export default async function handler(req, res) {
       } catch (e) { console.warn("[widget] enforcement:", e.message); }
       if (m.widget_mode_order === "once_first") widgetModeOrder = "once_first";
       if (m.widget_mode_default === "once") widgetModeDefault = "once";
+      if (m.widget_cart_drawer === false) cartDrawer = false;
+      if (m.widget_sticky_cta === true) stickyCta = true;
       if (typeof m.widget_color === "string" && /^#[0-9a-fA-F]{6}$/.test(m.widget_color)) widgetColor = m.widget_color;
       checkoutColor = resolveCheckoutTheme(m.checkout_theme, { widgetColor }).color;
       if (typeof m.widget_sub_title === "string" && m.widget_sub_title.trim()) widgetSubTitle = m.widget_sub_title.trim();
@@ -390,6 +399,8 @@ export default async function handler(req, res) {
   var CHECKOUT_FLOW = ${JSON.stringify(checkoutFlow)};
   var CHECKOUT_PAGE_PATH = ${JSON.stringify(checkoutPagePath)};
   var WIDGET_COLOR = ${JSON.stringify(widgetColor)};
+  var CART_DRAWER = ${cartDrawer ? "true" : "false"};
+  var STICKY_CTA = ${stickyCta ? "true" : "false"};
   var CHECKOUT_COLOR = ${JSON.stringify(checkoutColor)};
   var SUB_TITLE = ${JSON.stringify(widgetSubTitle)};
   var SUB_SUBTITLE = ${JSON.stringify(widgetSubSubtitle)};
@@ -1360,10 +1371,25 @@ export default async function handler(req, res) {
         for (var i = 0; i < p.gifts.length; i++) if (p.gifts[i] && p.gifts[i].variant_id) out.push(p.gifts[i].variant_id);
         return out;
       }
+      // Código de descuento del regalo (lo deja gratis): Shopify lo aplica en el
+      // checkout con solo visitar /discount/<code> (deja la cookie). Best-effort.
+      function packGiftCodes() {
+        var p = packInfo(state.idx), out = [];
+        if (!p || !p.gifts) return out;
+        for (var i = 0; i < p.gifts.length; i++) if (p.gifts[i] && p.gifts[i].variant_id && p.gifts[i].code) out.push(p.gifts[i].code);
+        return out;
+      }
+      function applyGiftCodes() {
+        var codes = packGiftCodes();
+        if (!codes.length || IS_TN) return Promise.resolve();
+        var rootPath = (window.Shopify && Shopify.routes && Shopify.routes.root) || "/";
+        return Promise.all(codes.map(function (c) { return fetch(rootPath + "discount/" + encodeURIComponent(c) + "?redirect=%2Fcart", { credentials: "same-origin", redirect: "follow" }).catch(function () {}); }));
+      }
 
       function paint() {
         root.innerHTML = bundle.states[state.mode + ":" + state.idx] || "";
         host.setAttribute("data-rc-mode", state.mode);
+        try { if (typeof paintSticky === "function") paintSticky(); } catch (e) {}
       }
       function packQty() {
         var list = bundle.packs || [];
@@ -1391,6 +1417,7 @@ export default async function handler(req, res) {
         var q = packQty();
         window.__recPackQty = q;
         window.__recPackGifts = packGiftIds();
+        window.__recPackGiftCodes = packGiftCodes();
         var inputs = document.querySelectorAll('.js-quantity-input, input[name^="quantity"]');
         var found = 0;
         for (var i = 0; i < inputs.length; i++) {
@@ -1451,7 +1478,11 @@ export default async function handler(req, res) {
           return of.call(window, rootPath + "cart/add.js", {
             method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" },
             body: JSON.stringify({ items: ids.map(function (id) { return { id: parseInt(id, 10) || id, quantity: 1, properties: { _Regalo: "Incluido en tu pack" } }; }) }),
-          }).catch(function () {});
+          }).catch(function () {}).then(function () {
+            var codes = window.__recPackGiftCodes || [];
+            var rp = (window.Shopify && Shopify.routes && Shopify.routes.root) || "/";
+            return Promise.all(codes.map(function (c) { return of.call(window, rp + "discount/" + encodeURIComponent(c) + "?redirect=%2Fcart", { credentials: "same-origin" }).catch(function () {}); }));
+          });
         }
         var of = window.fetch;
         if (of) window.fetch = function (input, init) {
@@ -1519,6 +1550,146 @@ export default async function handler(req, res) {
           document.dispatchEvent(new CustomEvent("recurrentes:mode-change", { detail: { mode: state.mode, packIndex: state.idx, qty: packQty(), bundle: true } }));
         } catch(e){}
       }
+      // ─── Carrito propio de la suscripción (25-sept-2026, Thiago: "pasar directo
+      // al checkout es tosco"): drawer con el pack, sus regalos y el total, y
+      // "Finalizar suscripción" → checkout de Recurrentes. Vive en <body>.
+      function fmtArs(n) { n = Math.round(Number(n) || 0); var s = String(n), o = ""; while (s.length > 3) { o = "." + s.slice(-3) + o; s = s.slice(0, -3); } return "$" + s + o; }
+      function onColor(hex) {
+        var h = String(hex || "").replace("#", ""); if (h.length !== 6) return "#fff";
+        var r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+        return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62 ? "#111" : "#fff";
+      }
+      var cartEl = null;
+      function ensureCart() {
+        if (cartEl) return cartEl;
+        var A = WIDGET_COLOR, ON = onColor(A);
+        var st = document.createElement("style");
+        st.textContent =
+          ".rc-cart-ov{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(17,17,17,.5);z-index:2147483000;display:none;opacity:0;transition:opacity .22s;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#161616;-webkit-font-smoothing:antialiased}" +
+          ".rc-cart-ov.is-open{display:block}.rc-cart-ov.is-vis{opacity:1}" +
+          ".rc-cart{position:absolute;top:0;right:0;bottom:0;width:min(420px,100%);background:#fff;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .3s cubic-bezier(.22,1,.36,1);box-shadow:-16px 0 50px -20px rgba(0,0,0,.4)}" +
+          ".rc-cart *{box-sizing:border-box}.rc-cart-ov.is-vis .rc-cart{transform:translateX(0)}" +
+          ".rc-cart-h{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid #eee;font-size:17px;font-weight:800}" +
+          ".rc-cart-x{width:32px;height:32px;border-radius:50%;border:1px solid #e3e3e3;background:#fff;font-size:20px;line-height:1;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}" +
+          ".rc-cart-b{flex:1;overflow-y:auto;padding:16px 18px}" +
+          ".rc-cart-it{display:grid;grid-template-columns:68px minmax(0,1fr);gap:12px;align-items:center}" +
+          ".rc-cart-it img{width:68px;height:68px;border-radius:10px;object-fit:cover;border:1px solid #eee;background:#f6f6f6}" +
+          ".rc-cart-ph{width:68px;height:68px;border-radius:10px;background:#f3f3f3;display:flex;align-items:center;justify-content:center;font-size:24px}" +
+          ".rc-cart-it b{display:block;font-size:15px;font-weight:800;line-height:1.2}.rc-cart-it small{display:block;font-size:12.5px;color:#555;font-weight:600;margin-top:3px}" +
+          ".rc-cart-pr{margin-top:5px;font-size:15px;font-weight:800}.rc-cart-pr s{color:#a3a3a3;font-weight:600;font-size:12.5px;margin-left:6px}" +
+          ".rc-cart-g{display:flex;align-items:center;gap:9px;margin-top:10px;padding:8px 10px;border-radius:10px;background:#f7f7f7;font-size:12.5px;font-weight:600}" +
+          ".rc-cart-g img{width:32px;height:32px;border-radius:6px;object-fit:cover;flex:none;background:#fff}.rc-cart-g em{font-style:normal;color:#777;display:block;font-size:11.5px;font-weight:600}" +
+          ".rc-cart-rows{margin-top:14px;border-top:1px solid #eee;padding-top:10px}" +
+          ".rc-cart-row{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;color:#555;font-weight:600;padding:4px 0}" +
+          ".rc-cart-row.is-tot{font-size:16.5px;font-weight:800;color:#161616;margin-top:4px}.rc-cart-row .ok{color:#1f7a3e;font-weight:800}" +
+          ".rc-cart-note{margin-top:12px;font-size:12px;color:#777;line-height:1.4}" +
+          ".rc-cart-f{padding:12px 18px 16px;border-top:1px solid #eee;background:#fff}" +
+          ".rc-cart-go{width:100%;background:" + A + ";color:" + ON + ";border:none;border-radius:12px;padding:15px 12px;font-family:inherit;font-size:15.5px;font-weight:800;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent}" +
+          ".rc-cart-go:active{filter:brightness(.92)}.rc-cart-go:disabled{opacity:.7;cursor:default}" +
+          ".rc-cart-more{display:block;width:100%;margin-top:8px;background:none;border:none;color:#777;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:3px}" +
+          "@media (max-width:520px){.rc-cart{top:auto;width:100%;max-height:92vh;border-radius:18px 18px 0 0;transform:translateY(100%)}}";
+        document.head.appendChild(st);
+        var ov = document.createElement("div");
+        ov.className = "rc-cart-ov"; ov.setAttribute("data-rec-root", "1");
+        ov.innerHTML =
+          '<div class="rc-cart" role="dialog" aria-label="Tu suscripción">' +
+            '<div class="rc-cart-h"><span>Tu suscripción</span><button type="button" class="rc-cart-x" aria-label="Cerrar">×</button></div>' +
+            '<div class="rc-cart-b"></div>' +
+            '<div class="rc-cart-f"><button type="button" class="rc-cart-go"></button><button type="button" class="rc-cart-more">Seguir viendo</button></div>' +
+          "</div>";
+        document.body.appendChild(ov);
+        ov.addEventListener("click", function (e) { if (e.target === ov) closeCart(); });
+        ov.querySelector(".rc-cart-x").addEventListener("click", closeCart);
+        ov.querySelector(".rc-cart-more").addEventListener("click", closeCart);
+        ov.querySelector(".rc-cart-go").addEventListener("click", function () {
+          var b = ov.querySelector(".rc-cart-go"); if (b.disabled) return;
+          b.disabled = true; b.textContent = "Abriendo el checkout…";
+          goCheckout();
+        });
+        window.addEventListener("pageshow", function () { var b = ov.querySelector(".rc-cart-go"); if (b) b.disabled = false; closeCart(); });
+        cartEl = ov;
+        return ov;
+      }
+      function esc2(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+      function openCart() {
+        var p = packInfo(state.idx); if (!p) { goCheckout(); return; }
+        var ov = ensureCart();
+        var price = Number(p.price_sub) || 0, cmp = Number(p.compare_at) || 0;
+        var save = cmp > price ? cmp - price : (Number(p.price_once) > price ? Number(p.price_once) - price : 0);
+        var qty = p.sub_qty || p.qty;
+        var img = p.image || (document.querySelector('meta[property="og:image"]') || {}).content || "";
+        var freq = p.freq_label ? "cada " + p.freq_label : "";
+        var gifts = (p.gifts || []).filter(function (g) { return g && g.title; }).map(function (g) {
+          return '<div class="rc-cart-g">' + (g.image ? '<img src="' + esc2(g.image) + '" alt="">' : "") + "<span>" + esc2(g.title) + (g.every === "once" ? "<em>Solo en tu primer envío</em>" : "") + "</span></div>";
+        }).join("");
+        ov.querySelector(".rc-cart-b").innerHTML =
+          '<div class="rc-cart-it">' + (img ? '<img src="' + esc2(img) + '" alt="">' : '<div class="rc-cart-ph">📦</div>') +
+            "<div><b>" + esc2(p.label || (qty + (qty === 1 ? " unidad" : " unidades"))) + "</b>" +
+            "<small>" + esc2(qty + (qty === 1 ? " unidad" : " unidades")) + (freq ? " · te llega " + esc2(freq) : "") + "</small>" +
+            '<div class="rc-cart-pr">' + esc2(fmtArs(price)) + (cmp > price ? "<s>" + esc2(fmtArs(cmp)) + "</s>" : "") + "</div></div></div>" +
+          gifts +
+          '<div class="rc-cart-rows">' +
+            '<div class="rc-cart-row"><span>Subtotal</span><span>' + esc2(fmtArs(price)) + "</span></div>" +
+            (save > 0 ? '<div class="rc-cart-row"><span>Ahorrás en cada envío</span><span class="ok">' + esc2(fmtArs(save)) + "</span></div>" : "") +
+            '<div class="rc-cart-row"><span>Envío</span><span>Se calcula en el siguiente paso</span></div>' +
+            '<div class="rc-cart-row is-tot"><span>Total por envío</span><span>' + esc2(fmtArs(price)) + "</span></div>" +
+          "</div>" +
+          '<div class="rc-cart-note">' + (freq ? "Se renueva solo " + esc2(freq) + ". " : "") + "Pausás, cambiás la dirección o cancelás cuando quieras desde tu portal. Pago seguro con Mercado Pago.</div>";
+        var go = ov.querySelector(".rc-cart-go"); go.disabled = false; go.textContent = "Finalizar suscripción · " + fmtArs(price);
+        document.body.style.overflow = "hidden";
+        ov.classList.add("is-open");
+        requestAnimationFrame(function () { ov.classList.add("is-vis"); });
+        hideSticky(true);
+      }
+      function closeCart() {
+        if (!cartEl) return;
+        cartEl.classList.remove("is-vis");
+        document.body.style.overflow = "";
+        setTimeout(function () { if (cartEl) cartEl.classList.remove("is-open"); }, 300);
+        hideSticky(false);
+      }
+      // ─── Botón fijo abajo (sticky): el mismo texto que el CTA del modo actual; al
+      // tocarlo vuelve deslizando al bundle (no agrega nada). Aparece cuando el
+      // widget quedó arriba, fuera de la pantalla.
+      var stickyEl = null, stickyForce = false;
+      function hideSticky(force) { stickyForce = !!force; if (stickyEl) stickyEl.classList.toggle("is-on", !stickyForce && stickyEl.getAttribute("data-want") === "1"); }
+      function ctaLabel() {
+        var btn = root.querySelector('[data-rc-action="cta"]');
+        if (!btn) return state.mode === "sub" ? "Suscribirme" : "Agregar al carrito";
+        var c = btn.cloneNode(true);
+        Array.prototype.forEach.call(c.querySelectorAll(".rc-cta-price,.rc-cta-sub"), function (n) { n.parentNode.removeChild(n); });
+        var t = (c.textContent || "").replace(/\\s+/g, " ").trim();
+        return t || (state.mode === "sub" ? "Suscribirme" : "Agregar al carrito");
+      }
+      function paintSticky() { if (stickyEl) stickyEl.querySelector("button").textContent = ctaLabel(); }
+      function setupSticky() {
+        if (!STICKY_CTA || stickyEl || !("IntersectionObserver" in window)) return;
+        var A = WIDGET_COLOR, ON = onColor(A);
+        var st = document.createElement("style");
+        st.textContent =
+          ".rc-sticky{position:fixed;left:0;right:0;bottom:0;z-index:2147482000;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:rgba(255,255,255,.96);backdrop-filter:blur(10px);box-shadow:0 -6px 24px rgba(0,0,0,.10);transform:translateY(110%);transition:transform .26s cubic-bezier(.22,.8,.3,1);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}" +
+          ".rc-sticky.is-on{transform:translateY(0)}" +
+          ".rc-sticky button{display:block;width:100%;max-width:640px;margin:0 auto;background:" + A + ";color:" + ON + ";border:none;border-radius:12px;padding:13px 12px;font-family:inherit;font-size:15px;font-weight:800;letter-spacing:.2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;-webkit-tap-highlight-color:transparent}" +
+          ".rc-sticky button:active{filter:brightness(.92)}";
+        document.head.appendChild(st);
+        var bar = document.createElement("div");
+        bar.className = "rc-sticky"; bar.setAttribute("data-rec-root", "1");
+        bar.innerHTML = '<button type="button"></button>';
+        document.body.appendChild(bar);
+        bar.querySelector("button").addEventListener("click", function () {
+          try { host.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) { host.scrollIntoView(); }
+        });
+        stickyEl = bar;
+        paintSticky();
+        var io = new IntersectionObserver(function (entries) {
+          var en = entries[0]; if (!en) return;
+          // Solo cuando el bundle quedó ARRIBA (ya lo pasó): si está más abajo, todavía no llegó.
+          var above = !en.isIntersecting && en.boundingClientRect.bottom < 0;
+          bar.setAttribute("data-want", above ? "1" : "0");
+          bar.classList.toggle("is-on", above && !stickyForce);
+        }, { threshold: 0 });
+        io.observe(host);
+      }
       function showErr(msg) {
         var box = root.querySelector(".rc-err");
         if (box) { box.textContent = msg; box.classList.add("is-on"); }
@@ -1568,6 +1739,8 @@ export default async function handler(req, res) {
           body: JSON.stringify({ items: [{ id: parseInt(vid, 10) || vid, quantity: packQty() }].concat(giftCartItems()) }),
         }).then(function(r){
           if (!r.ok) throw new Error("cart/add " + r.status);
+          return applyGiftCodes();
+        }).then(function(){
           window.location.href = rootPath + "cart";
         }).catch(function(e){
           log("cart/add falló", e);
@@ -1602,7 +1775,7 @@ export default async function handler(req, res) {
             if (f && f.focus) f.focus();
           }
         }
-        if (cta) { if (state.mode === "sub") goCheckout(); else addToCart(); }
+        if (cta) { if (state.mode === "sub") { if (CART_DRAWER) openCart(); else goCheckout(); } else addToCart(); }
       }
       root.addEventListener("click", function(e){
         var el = e.target && e.target.closest ? e.target.closest("[data-rc-action]") : null;
@@ -1623,6 +1796,7 @@ export default async function handler(req, res) {
 
       paint();
       applyMode();
+      try { setupSticky(); } catch (e) { log("sticky", e); }
 
       // Cambio de variante en vivo → nuevo plan (con o sin packs).
       var idInput = form ? form.querySelector('input[name="id"]') : null;

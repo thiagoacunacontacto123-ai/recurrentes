@@ -223,6 +223,9 @@ export default async function handler(req, res) {
         widget_box_scale: Number.isInteger(merchant.widget_box_scale) ? Math.max(80, Math.min(120, merchant.widget_box_scale)) : 100,
         widget_border_scale: Number.isInteger(merchant.widget_border_scale) ? Math.max(100, Math.min(300, merchant.widget_border_scale)) : 100,
         widget_edge_to_edge: merchant.widget_edge_to_edge === true,
+        // Carrito propio de la suscripción (drawer) y botón fijo abajo (25-sept-2026).
+        widget_cart_drawer: merchant.widget_cart_drawer !== false,
+        widget_sticky_cta: merchant.widget_sticky_cta === true,
         // Códigos de descuento del merchant (para el checkout de suscripción)
         discount_codes: Array.isArray(merchant.discount_codes) ? merchant.discount_codes : [],
         // Klaviyo (recupero de carritos + eventos de suscripción). NUNCA la key.
@@ -971,6 +974,8 @@ async function saveSettings(merchantId, req, res) {
     out.widget_border_scale = n;
   }
   if ("widget_edge_to_edge" in b) out.widget_edge_to_edge = b.widget_edge_to_edge === true;
+  if ("widget_cart_drawer" in b) out.widget_cart_drawer = b.widget_cart_drawer !== false;
+  if ("widget_sticky_cta" in b) out.widget_sticky_cta = b.widget_sticky_cta === true;
 
   if (!Object.keys(out).length) return ignored.length ? res.json({ ok: true, ignored }) : bad("Nada para guardar");
   try {

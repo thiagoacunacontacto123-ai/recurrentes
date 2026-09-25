@@ -51,8 +51,11 @@ test("normalizePacks guarda la variante del regalo (no si es virtual); el widget
   assert.equal(r.packs[0].gifts[0].shopify_variant_id, null, "virtual → sin variante");
   assert.equal(r.packs[1].gifts[0].shopify_variant_id, "777002");
   const payload = buildBundlePayload(capsulasPlan({ pricing_mode: "packs", packs: r.packs }), { widget_variant: "v12" });
-  assert.deepEqual(payload.packs, [
-    { idx: 0, qty: 2, freq_days: 60, hideOnce: false, hideSub: true, gifts: [] },
+  const lite = payload.packs.map(p => ({ idx: p.idx, qty: p.qty, freq_days: p.freq_days, hideOnce: p.hideOnce, hideSub: p.hideSub, gifts: p.gifts.map(g => ({ variant_id: g.variant_id, every: g.every })) }));
+  assert.deepEqual(lite, [
+    { idx: 0, qty: 2, freq_days: 60, hideOnce: false, hideSub: true, gifts: [{ variant_id: null, every: "always" }] },
     { idx: 1, qty: 3, freq_days: 90, hideOnce: true, hideSub: false, gifts: [{ variant_id: "777002", every: "once" }] },
   ]);
+  // Lo que usa el carrito propio de la suscripción.
+  assert.equal(payload.packs[1].price_sub, 180); assert.equal(payload.packs[1].label, "3 unidades"); assert.ok(payload.packs[1].freq_label);
 });

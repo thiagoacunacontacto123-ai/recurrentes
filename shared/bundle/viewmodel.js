@@ -178,6 +178,7 @@ export function resolvePack(plan, idx) {
         every: g && g.every === "once" ? "once" : "always",
         // Producto de la tienda vinculado: el widget lo agrega al carrito.
         variantId: g && g.shopify_variant_id != null && /^\d{1,20}$/.test(String(g.shopify_variant_id)) ? String(g.shopify_variant_id) : null,
+        discountCode: g && typeof g.discount_code === "string" && /^[A-Z0-9_-]{1,40}$/.test(g.discount_code) ? g.discount_code : null,
       };
     }).filter(function (g) { return g.title; }) : [],
     isDefault: raw.default === true,

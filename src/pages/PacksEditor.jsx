@@ -76,6 +76,7 @@ export function packsFromPlan(plan) {
       every: g?.every === "once" ? "once" : "always",
       shopify_variant_id: g?.shopify_variant_id ? String(g.shopify_variant_id) : "",
       shopify_product_id: g?.shopify_product_id ? String(g.shopify_product_id) : "",
+      discount_code: g?.discount_code || "",
     })) : [],
     default: p.default === true,
     hide_once: p.hide_once === true,
@@ -194,6 +195,7 @@ export function serializePacks(rows) {
           // Producto de la tienda vinculado: el regalo se agrega al carrito / a la orden.
           shopify_variant_id: !g.virtual && g.shopify_variant_id ? String(g.shopify_variant_id) : null,
           shopify_product_id: !g.virtual && g.shopify_product_id ? String(g.shopify_product_id) : null,
+          discount_code: !g.virtual && g.shopify_variant_id ? (g.discount_code || "").trim().toUpperCase() || null : null,
         })),
       default: r.default === true,
       // En qué modo se muestra este pack, y la cantidad propia de suscripción.
@@ -426,6 +428,13 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                             <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:6,padding:"6px 9px",borderRadius:DS.r.md,background:T.accentBg||"rgba(16,185,129,0.10)",fontSize:DS.font.sm,color:T.text}}>
                               <span>✓ Vinculado a <b>{g._linked_title || products.find(p => String(p.id) === String(g.shopify_product_id))?.title || "un producto de tu tienda"}</b>: se agrega al carrito en compra única y a la orden en suscripción (a $0).</span>
                               <button type="button" onClick={()=>desvincularRegalo(i,gi)} style={{background:"transparent",border:"none",color:T.textSm,fontSize:DS.font.sm,cursor:"pointer",fontFamily:"inherit",textDecoration:"underline"}}>Desvincular</button>
+                            </div>
+                          )}
+                          {!g.virtual && g.shopify_variant_id && (
+                            <div style={{marginBottom:6}}>
+                              <Lbl T={T}>Para que salga GRATIS en compra única</Lbl>
+                              <input type="text" value={g.discount_code || ""} onChange={e=>updGift(i,gi,"discount_code",e.target.value.toUpperCase())} style={inp} maxLength={40} placeholder="Código de descuento (ej: REGALORASPADOR)"/>
+                              <div style={{fontSize:DS.font.sm,color:T.textSm,marginTop:4,lineHeight:1.45}}>En compra única el carrito agrega el regalo al precio que tiene en tu tienda. Para dejarlo en $0: creá en Shopify un código de descuento del 100% solo para ese producto y ponelo acá (el widget lo aplica solo), o un descuento automático "Comprá X, llevate el regalo gratis", o directamente un producto a $0. En suscripción ya va a $0 sin hacer nada.</div>
                             </div>
                           )}
                           {!g.virtual && !g.shopify_variant_id && (

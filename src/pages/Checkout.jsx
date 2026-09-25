@@ -489,6 +489,18 @@ export default function Checkout() {
         </div>
         <div style={{ fontSize: 14, fontWeight: 500, whiteSpace: "nowrap" }}>{money(subtotal)}</div>
       </div>
+      {/* Regalos del pack (25-sept-2026, Wellfresh): se ven en el resumen como "Gratis". Los
+          vinculados a un producto van a la orden a $0 ("solo en tu primer envío" si aplica). */}
+      {(pack?.gifts || []).filter(g => g && g.title).map((g, i) => (
+        <div key={i} style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 10, padding: "8px 10px", borderRadius: R + 2, background: theme.color_tint }}>
+          {g.image ? <img src={g.image} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover", background: "#fff", flexShrink: 0 }}/> : <div style={{ width: 36, height: 36, borderRadius: 8, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>🎁</div>}
+          <div style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.3 }}>
+            <div style={{ fontWeight: 600 }}>{String(g.title).replace(/^\+?\s*GRATIS:?\s*/i, "")}</div>
+            <div style={{ fontSize: 12, color: theme.text_muted }}>{g.every === "once" ? "Regalo · solo en tu primer envío" : "Regalo · en cada envío"}{g.virtual && g.note ? ` · ${g.note}` : ""}</div>
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: theme.color, whiteSpace: "nowrap" }}>Gratis</div>
+        </div>
+      ))}
       {upsells.length ? (
         <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${theme.border_soft}` }}>
           <div style={{ fontSize: 14, fontWeight: 600 }}>Sumá a tu suscripción</div>

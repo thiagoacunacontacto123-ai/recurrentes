@@ -370,6 +370,8 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
   // Grosor del borde de las tarjetas: 100 = el de siempre, hasta 300. 22-sept-2026.
   const [borderScale, setBorderScale] = useState(Number.isFinite(+m.widget_border_scale) ? +m.widget_border_scale : 100);
   const [edgeToEdge, setEdgeToEdge] = useState(m.widget_edge_to_edge === true);
+  const [cartDrawer, setCartDrawer] = useState(m.widget_cart_drawer !== false);
+  const [stickyCta, setStickyCta] = useState(m.widget_sticky_cta === true);
   const [texts, setTexts] = useState(() => normTexts(m.widget_texts));
   const [showCompare, setShowCompare] = useState(m.widget_show_compare !== false);
   const [showPerUnit, setShowPerUnit] = useState(m.widget_show_per_unit !== false);
@@ -385,6 +387,8 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
     setBoxScale(Number.isFinite(+m.widget_box_scale) ? +m.widget_box_scale : 100);
     setBorderScale(Number.isFinite(+m.widget_border_scale) ? +m.widget_border_scale : 100);
     setEdgeToEdge(m.widget_edge_to_edge === true);
+    setCartDrawer(m.widget_cart_drawer !== false);
+    setStickyCta(m.widget_sticky_cta === true);
     setTexts(normTexts(m.widget_texts));
     setShowCompare(m.widget_show_compare !== false);
     setShowPerUnit(m.widget_show_per_unit !== false);
@@ -456,6 +460,8 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
       widget_box_scale: Math.max(80, Math.min(120, Math.round(boxScale))),
       widget_border_scale: Math.max(100, Math.min(300, Math.round(borderScale))),
       widget_edge_to_edge: edgeToEdge,
+      widget_cart_drawer: cartDrawer,
+      widget_sticky_cta: stickyCta,
       widget_texts: {
         ...texts,
         trust_lines: (texts.trust_lines || []).map(s => s.trim()).filter(Boolean).slice(0, 4),
@@ -581,6 +587,20 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
             <input type="range" min="100" max="300" step="25" value={borderScale} onChange={e=>setBorderScale(parseInt(e.target.value,10)||100)} style={{width:"100%",accentColor:T.accentSolid}}/>
           </Field>
 
+          <label style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer",padding:"2px 0 10px"}}>
+            <input type="checkbox" checked={cartDrawer} onChange={e=>setCartDrawer(e.target.checked)} style={{marginTop:3,accentColor:T.accentSolid,width:16,height:16,flexShrink:0}}/>
+            <span>
+              <span style={{fontSize:DS.font.md,fontWeight:600,color:T.text}}>Carrito de la suscripción</span>
+              <span style={{display:"block",fontSize:DS.font.sm,color:T.textSm,lineHeight:1.45,marginTop:2}}>Al tocar Suscribirme se abre un carrito (como el de tu tienda) con el pack, sus regalos y el total, y desde ahí "Finalizar suscripción". Apagado, va directo al checkout.</span>
+            </span>
+          </label>
+          <label style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer",padding:"2px 0 10px"}}>
+            <input type="checkbox" checked={stickyCta} onChange={e=>setStickyCta(e.target.checked)} style={{marginTop:3,accentColor:T.accentSolid,width:16,height:16,flexShrink:0}}/>
+            <span>
+              <span style={{fontSize:DS.font.md,fontWeight:600,color:T.text}}>Botón fijo al pie</span>
+              <span style={{display:"block",fontSize:DS.font.sm,color:T.textSm,lineHeight:1.45,marginTop:2}}>Cuando el cliente baja y el bundle queda arriba, aparece una barra fina con el mismo botón; al tocarla vuelve deslizando al bundle.</span>
+            </span>
+          </label>
           <label style={{display:"flex",alignItems:"flex-start",gap:10,cursor:"pointer",padding:"2px 0 10px"}}>
             <input type="checkbox" checked={edgeToEdge} onChange={e=>setEdgeToEdge(e.target.checked)} style={{marginTop:3,accentColor:T.accentSolid,width:16,height:16,flexShrink:0}}/>
             <span>
