@@ -201,6 +201,36 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 .foot2 .b{border-top:1px solid rgba(255,255,255,.15);padding-top:18px;display:flex;gap:16px;flex-wrap:wrap;align-items:center}
 .foot2 .rec{margin-left:auto;display:inline-flex;align-items:center;gap:7px;color:#fff;text-decoration:none}
 @media(max-width:960px){.iwt .wrap{grid-template-columns:1fr;padding:34px 18px}.iwt h3{font-size:30px}.ibar .g,.testi .g{grid-template-columns:1fr}.foot2 .g{grid-template-columns:1fr 1fr}}
+/* ─── portal del suscriptor ─── */
+.pt-wrap{max-width:640px;margin:0 auto;padding:28px 20px 60px}
+.pt-hello{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:16px}
+.pt-eyebrow{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.pt-hello h1{margin:2px 0 0;font-size:26px;letter-spacing:-.4px}
+.pt-status{background:#dff5e7;color:#1f7a3e;font-size:12px;font-weight:700;padding:6px 12px;border-radius:99px}
+.pt-card{background:#fff;border:1px solid #e6dadd;border-radius:18px;padding:20px;margin-bottom:14px}
+.pt-row3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.pt-row3 div{background:var(--cream-2);border-radius:12px;padding:12px}
+.pt-row3 small{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
+.pt-row3 b{font-size:15px;line-height:1.2}
+.pt-sec{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:18px 0 8px}
+.pt-items{display:grid;gap:6px}
+.pt-it{display:flex;align-items:center;gap:10px;font-size:13.5px}
+.pt-it img{width:40px;height:40px;border-radius:8px;object-fit:cover;background:#fff;border:1px solid #eee}
+.pt-it .n{flex:1;min-width:0}
+.pt-it .n small{display:block;color:var(--muted);font-size:12px}
+.pt-lnk{background:none;border:none;color:var(--wine);font-weight:700;font-size:12.5px;cursor:pointer;font-family:inherit}
+.pt-addr{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13.5px;padding:10px 12px;background:var(--cream-2);border-radius:12px}
+.pt-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+.pt-btn{border:1.5px solid #e3d3d8;background:#fff;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink)}
+.pt-btn.danger{color:#b42318;border-color:#f3c2c2}
+.pt-hist div{display:flex;justify-content:space-between;padding:9px 0;border-top:1px solid #f0e6e9;font-size:13.5px}
+.pt-hist div:first-child{border-top:none}
+.pt-hist span.ok{color:#1f7a3e;font-weight:600}
+.pt-foot{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--muted);margin-top:10px}
+.pt-foot .rec{display:inline-flex;align-items:center;gap:7px;text-decoration:none;color:var(--muted)}
+.pt-foot .rec b{color:var(--ink)}
+.pt-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1d1416;color:#fff;font-size:13px;padding:10px 16px;border-radius:99px;z-index:80}
+@media(max-width:600px){.pt-row3{grid-template-columns:1fr 1fr}.pt-row3 div:first-child{grid-column:1/-1}}
 /* ─── checkout (estilo Recurrentes) ─── */
 .ck{background:#fff;color:#1a1a1a;min-height:100vh}
 .ck-shell{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);min-height:100vh}
@@ -307,7 +337,7 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
     <div class="benef">
       <div><b>15% OFF</b><span>en cada envío, siempre. No solo en el primero.</span></div>
       <div><b>Vos elegís</b><span>cada 15 días, cada mes o cada 2 meses. Lo cambiás cuando quieras.</span></div>
-      <div><b>Sin ataduras</b><span>pausá, cambiá el pack o cancelá desde tu mail. Un clic.</span></div>
+      <div><b>Sin ataduras</b><span>pausá o cancelá desde tu portal. Un clic.</span></div>
     </div>
     <div class="steps"><span><i>1</i> Armá tu pack</span><span><i>2</i> Elegí la frecuencia</span><span><i>3</i> Pagás con Mercado Pago y listo: llega solo</span></div>
   </div></section>
@@ -343,7 +373,7 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
         <details><summary>🍞 ¿Qué son los panificados G4U?</summary><p>G4U es un <b>panificado alto en proteína, bajo en carbohidratos y alto en fibra</b>, creado para quienes quieren cuidarse sin renunciar al sabor de siempre. Elaborado por <b>chefs y técnicos en alimentos</b>, combina <b>proteínas de calidad, fibra funcional y almidón resistente</b> que aportan saciedad, energía estable y bienestar digestivo. Tiene la <b>textura, aroma y sabor del pan artesanal</b>, pero con una formulación inteligente que se adapta a estilos de vida <b>keto, low-carb y saludables</b>.</p></details>
         <details><summary>🔬 Ingredientes y tecnología G4U</summary><p><b>INGREDIENTES:</b> Almidón resistente de trigo, gluten de trigo, concentrado de suero de leche, huevo en polvo, aceite de girasol, eritritol, levadura, inulina, lecitina de soja, psyllium, harina de malta, goma xántica, goma guar, mejoradores (INS 300, INS 1101).</p><p>Somos <b>G4U</b>, y reinventamos el pan combinando <b>ciencia, nutrición y sabor</b>. Desarrollamos una fórmula única con <b>almidones resistentes tipo RS4</b>, que reducen los carbohidratos netos, mejoran la digestión y aumentan la saciedad. Usamos <b>proteínas funcionales de alta calidad</b>, como aislado proteico y gluten vital, para lograr la estructura, suavidad y elasticidad de un pan artesanal. Sumamos <b>fibras solubles y gomas vegetales</b> que retienen la humedad y conservan la frescura sin conservantes.</p></details>
         <details><summary>🚚 Envío</summary><p>Entrega en 24/48 h en AMBA. Entregas en Buenos Aires, Córdoba y Santa Fe. En cada envío de tu suscripción te llega el seguimiento por mail y WhatsApp.</p><p><b>Durabilidad:</b> 25 días frescos / 45 días refrigerados / 3 meses congelados.</p></details>
-        <details><summary>⏸ ¿Cómo pauso o cancelo?</summary><p>Desde el link que te llega por mail después de cada cobro: pausar, cambiar la fecha, cambiar el pack o cancelar. Sin llamadas ni formularios.</p></details>
+        <details><summary>⏸ ¿Cómo pauso o cancelo?</summary><p>Desde tu portal de suscripción (el link te llega por mail y WhatsApp con cada cobro): pausar, cambiar la dirección o cancelar. Sin llamadas ni formularios. <a href="#portal" style="color:var(--wine);font-weight:600">Ver cómo es el portal →</a></p></details>
       </div>
     </div>
   </main>
@@ -374,6 +404,39 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
     </div>
     <div class="b"><span>© G4U · Buenos Aires, Argentina</span><a class="rec" href="https://www.recurrentesapp.com" target="_blank" rel="noopener">Suscripciones con <svg width="16" height="16" viewBox="0 0 32 32"><defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#34d399"/><stop offset="1" stop-color="#059669"/></linearGradient></defs><circle cx="16" cy="16" r="16" fill="url(#rg)"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><b>Recurrentes</b></a></div>
   </div></footer>
+</div>
+
+<!-- ════════ VISTA PORTAL DEL SUSCRIPTOR ════════ -->
+<div id="v-portal" hidden>
+  <header class="hdr"><div class="wrap" style="height:auto;padding:14px 28px"><img id="logoPt" alt="G4U"><span class="sp"></span><span style="font-size:12.5px;color:#f3d9e0">Portal de suscripción</span></div></header>
+  <div class="pt-wrap">
+    <div class="pt-hello"><div><div class="pt-eyebrow">Hola, Ana</div><h1>Tu suscripción G4U</h1></div><span class="pt-status">Activa</span></div>
+    <div class="pt-card">
+      <div class="pt-row3">
+        <div><small>Próximo envío y cobro</small><b id="ptNext"></b></div>
+        <div><small>Cada</small><b id="ptFreq"></b></div>
+        <div><small>Total por cobro</small><b id="ptTotal"></b></div>
+      </div>
+      <div class="pt-sec">Tu pack</div>
+      <div id="ptItems" class="pt-items"></div>
+      <div id="ptExtrasWrap"><div class="pt-sec">Extras que sumaste</div><div id="ptExtras" class="pt-items"></div></div>
+      <div class="pt-sec">Dirección de envío</div>
+      <div class="pt-addr"><span id="ptAddr">Av. Corrientes 1234, CABA (1043)</span><button type="button" class="pt-lnk" id="ptAddrBtn">Cambiar</button></div>
+      <div class="pt-sec">Medio de pago</div>
+      <div class="pt-addr"><span style="display:inline-flex;align-items:center;gap:8px"><img src="https://www.recurrentesapp.com/brand/mercadopago.png" alt="" style="width:22px;height:22px;object-fit:contain"> Mercado Pago · Visa terminada en 4421</span><span style="color:var(--muted);font-size:12px">Se cobra solo</span></div>
+      <div class="pt-actions">
+        <button type="button" class="pt-btn" id="ptPause">⏸ Pausar</button>
+        <button type="button" class="pt-btn" id="ptSkip">⏭ Saltar el próximo envío</button>
+        <button type="button" class="pt-btn danger" id="ptCancel">✕ Cancelar</button>
+      </div>
+    </div>
+    <div class="pt-card">
+      <div class="pt-sec" style="margin-top:0">Historial de cobros</div>
+      <div id="ptHist" class="pt-hist"></div>
+    </div>
+    <div class="pt-foot"><a href="#" id="ptBack">← Volver a la tienda</a><a class="rec" href="https://www.recurrentesapp.com" target="_blank" rel="noopener">Con tecnología de <svg width="16" height="16" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="url(#rg)"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><b>Recurrentes</b></a></div>
+  </div>
+  <div id="ptToast" class="pt-toast" hidden></div>
 </div>
 
 <!-- ════════ ELEGÍ UN PRODUCTO ════════ -->
@@ -429,9 +492,10 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
   <div class="ok-wrap">
     <div class="chk"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
     <h1>¡Listo! Tu suscripción está activa</h1>
-    <p>Tu primer pack sale en las próximas 24/48 h. Te mandamos por mail y WhatsApp el seguimiento y el link para pausar, cambiar la fecha o cancelar cuando quieras.</p>
+    <p>Tu primer pack sale en las próximas 24/48 h. Te mandamos por mail y WhatsApp el seguimiento y el link a tu portal, donde pausás, cambiás la dirección o cancelás cuando quieras.</p>
     <div class="ok-card" id="okCard"></div>
-    <p style="margin-top:26px"><a href="#" id="again" style="color:var(--wine);font-weight:600">Volver al inicio de la demo</a></p>
+    <p style="margin-top:22px"><a href="#portal" class="btn-rose" style="display:inline-block">Ir a mi portal de suscripción</a></p>
+    <p style="margin-top:16px"><a href="#" id="again" style="color:var(--wine);font-weight:600">Volver al inicio de la demo</a></p>
   </div>
 </div>
 
@@ -511,7 +575,36 @@ function renderAll() { renderPacks(); renderFreq(); renderCta(); }
 renderAll();
 
 // ── checkout ──
-function show(v) { S.view = v; $("#v-prod").hidden = v !== "prod"; $("#v-ck").hidden = v !== "ck"; $("#v-ok").hidden = v !== "ok"; window.scrollTo(0, 0); }
+function show(v) { S.view = v; $("#v-prod").hidden = v !== "prod"; $("#v-ck").hidden = v !== "ck"; $("#v-ok").hidden = v !== "ok"; $("#v-portal").hidden = v !== "portal"; if (v === "portal") renderPortal(); window.scrollTo(0, 0); }
+// ── Portal del suscriptor (demo): lo que ve el cliente después de suscribirse ──
+$("#logoPt").src = A.logo;
+const P = { paused: false, skipped: false, extras: null, items: null };
+function ptToast(t) { const e = $("#ptToast"); e.textContent = t; e.hidden = false; clearTimeout(ptToast.t); ptToast.t = setTimeout(() => { e.hidden = true; }, 2600); }
+function renderPortal() {
+  // Si entró directo a #portal sin armar nada, mostramos una suscripción de ejemplo.
+  if (!P.items) { const ch = chosen(); P.items = ch.length ? ch : [{ ...ITEMS.find(i => i.h === "pan-de-molde-proteico"), q: 2 }, { ...ITEMS.find(i => /hamburguesa/.test(i.h)), q: 1 }, { ...ITEMS.find(i => /grisin/.test(i.h)), q: 1 }]; }
+  if (!P.extras) { const ex = extrasList(); P.extras = ex.length ? ex : [{ ...ITEMS.find(i => /tostaditas-semillas/.test(i.h)), q: 1 }]; }
+  const list = P.items.reduce((a, i) => a + i.price * i.q, 0) * S.packQty, exT = P.extras.reduce((a, i) => a + i.price * i.q, 0);
+  const total = Math.round((list + exT) * (1 - SUB_OFF));
+  const days = S.freq + (P.skipped ? S.freq : 0);
+  $("#ptNext").textContent = P.paused ? "En pausa" : new Date(Date.now() + days * 864e5).toLocaleDateString("es-AR", { day: "numeric", month: "long" });
+  $("#ptFreq").textContent = freqTxt().replace("cada ", "");
+  $("#ptTotal").textContent = money(total);
+  $(".pt-status").textContent = P.paused ? "Pausada" : "Activa"; $(".pt-status").style.background = P.paused ? "#fdf0d5" : "#dff5e7"; $(".pt-status").style.color = P.paused ? "#8a5a00" : "#1f7a3e";
+  $("#ptItems").innerHTML = P.items.map(i => `<div class="pt-it"><img src="${i.img}" alt=""><span class="n">${i.q * S.packQty} × ${i.title}<small>${money(i.price * i.q * S.packQty)} · −15% en suscripción</small></span></div>`).join("");
+  $("#ptExtrasWrap").hidden = !P.extras.length;
+  $("#ptExtras").innerHTML = P.extras.map(i => `<div class="pt-it"><img src="${i.img}" alt=""><span class="n">${i.q} × ${i.title}<small>${money(i.price * i.q)} por cobro</small></span></div>`).join("");
+  $("#ptPause").textContent = P.paused ? "▶ Reactivar" : "⏸ Pausar";
+  const hist = [[0, total], [S.freq, total], [S.freq * 2, total]].map(([d, m], k) => `<div><span>${new Date(Date.now() - d * 864e5).toLocaleDateString("es-AR", { day: "numeric", month: "short" })} · Pack ${S.pack}${k ? "" : " · hoy"}</span><span class="ok">${money(m)} · pagado</span></div>`);
+  $("#ptHist").innerHTML = hist.join("");
+}
+$("#ptPause").addEventListener("click", () => { P.paused = !P.paused; renderPortal(); ptToast(P.paused ? "Suscripción pausada. No se cobra hasta que la reactives." : "Suscripción reactivada."); });
+$("#ptSkip").addEventListener("click", () => { P.skipped = true; renderPortal(); ptToast("Saltamos el próximo envío. El siguiente sigue igual."); });
+$("#ptCancel").addEventListener("click", () => { if (confirm("¿Cancelar la suscripción? No se hacen más cobros ni envíos.")) ptToast("En la demo no cancelamos nada 😉 En el portal real, acá pasa por la retención de la tienda."); });
+$("#ptAddrBtn").addEventListener("click", () => { const v = prompt("Nueva dirección de envío", $("#ptAddr").textContent); if (v) { $("#ptAddr").textContent = v; ptToast("Dirección actualizada para el próximo envío."); } });
+$("#ptBack").addEventListener("click", e => { e.preventDefault(); location.hash = ""; show("prod"); });
+function route() { if (location.hash === "#portal") show("portal"); }
+window.addEventListener("hashchange", route); route();
 // Suscribirme → carrito (como en su tienda) → Finalizar compra → checkout de Recurrentes.
 function renderCart() {
   const t = totals();
@@ -520,7 +613,7 @@ function renderCart() {
   const ups = ITEMS.filter(i => !inPack.has(i.h) || S.extras[i.h]).slice(0, 3);
   $("#cartBody").innerHTML = `<div class="cl"><img src="${A.gallery[0]}" alt=""><div class="t"><b>Pack G4U · ${S.pack} ítem${S.pack > 1 ? "s" : ""}</b><span class="pill">Suscripción</span></div><div class="p">${money(t.packSub)}<s>${money(t.packList)}</s><em>−15% cada envío</em></div></div>
     <div class="cfreq">${FREQS.map(f => `<button type="button" data-cf="${f.id}" class="${S.freq === f.id ? "on" : ""}">${f.l}</button>`).join("")}</div>
-    <div class="crow"><span>Cantidad de packs</span><div class="stp"><button type="button" data-pq="-1" ${S.packQty <= 1 ? "disabled" : ""}>−</button><b>${S.packQty}</b><button type="button" data-pq="1" ${S.packQty >= 3 ? "disabled" : ""}>+</button></div></div>
+
     <div class="cart-items">${chosen().map(i => `<div><span>${i.q * S.packQty} × ${i.title}</span><span>${money(i.price * i.q * S.packQty)}</span></div>`).join("")}</div>
     ${extrasList().length ? `<div class="cart-items" style="border-top-style:solid"><div style="font-weight:700;color:var(--ink)"><span>Extras en tu suscripción</span><span></span></div>${extrasList().map(i => `<div><span>${i.q} × ${i.title}</span><span>${money(i.price * i.q)}</span></div>`).join("")}</div>` : ""}
     <div class="ups"><h4>Sumá a tu suscripción</h4>
@@ -555,7 +648,7 @@ function summaryHtml() {
     <div class="line"><span>Envío</span><span>${S.ship == null ? '<span style="color:#6b6b6b;font-weight:400">Completá tu dirección</span>' : (shipPrice() === 0 ? "Gratis" : money(shipPrice()))}</span></div>
     <div style="border-top:1px solid #e8e8e8;margin:14px 0"></div>
     <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:17px;font-weight:600">Total</span><span><span style="font-size:12px;color:#6b6b6b;margin-right:8px">ARS</span><span style="font-size:22px;font-weight:700">${money(total)}</span></span></div>
-    <div style="font-size:12px;color:#6b6b6b;line-height:1.5;margin-top:10px">Se cobra ${money(total)} ahora y se renueva automáticamente ${freqTxt()}. Podés pausar, cambiar el pack o cancelar cuando quieras.</div>`;
+    <div style="font-size:12px;color:#6b6b6b;line-height:1.5;margin-top:10px">Se cobra ${money(total)} ahora y se renueva automáticamente ${freqTxt()}. Podés pausar o cancelar cuando quieras.</div>`;
 }
 function renderCk() {
   $("#sumSide").innerHTML = summaryHtml(); $("#msBody").innerHTML = summaryHtml();

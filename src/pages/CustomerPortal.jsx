@@ -21,7 +21,6 @@ const readSec = () => { const s = hashQuery().get("sec"); return SECS.includes(s
 const portalActions = (profile) => [
   { key:"allow_pause",   icon:"⏸", title:"Pausar la suscripción", desc:"Salta los próximos cobros y la retoma cuando quiera." },
   { key:"allow_cancel",  icon:"✕", title:"Cancelar",               desc:"Pasa por el flujo de retención si lo activaste." },
-  { key:"allow_edit_items", icon:"🧺", title:"Sacar extras del pedido", desc:"Puede bajar o sacar los productos que sumó en el checkout. El cobro baja; nunca sube." },
   ...(profile.caps.shipping ? [{ key:"allow_address", icon:"📍", title:"Cambiar la dirección", desc: profile.caps.orders ? `Se usa en las próximas órdenes de ${profile.channelInfo.label}.` : "Se usa en los próximos envíos." }] : []),
   { key:"allow_date",    icon:"📅", title:"Cambiar la fecha de cobro", desc:"Adelantar o atrasar el próximo cobro.", soon:true },
   { key:"allow_skip",    icon:"⏭", title: profile.caps.shipping ? "Saltar un envío" : "Saltar un ciclo", desc:"Se saltea un ciclo sin pausar.", soon:true },
@@ -112,7 +111,7 @@ export function CustomerPortalPage({ merchant, reloadMerchant, goTab }) {
 // ─── (a) Acciones permitidas ───────────────────────────────────────
 function ActionsSection({ T, merchant, profile, reloadMerchant }) {
   const saved = merchant?.portal || {};
-  const init = () => ({ allow_pause: saved.allow_pause !== false, allow_cancel: saved.allow_cancel !== false, allow_address: saved.allow_address !== false, allow_edit_items: saved.allow_edit_items !== false });
+  const init = () => ({ allow_pause: saved.allow_pause !== false, allow_cancel: saved.allow_cancel !== false, allow_address: saved.allow_address !== false });
   const [v, setV] = useState(init);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);

@@ -5,13 +5,13 @@
 import "../helpers/register.mjs";
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { createWorld, loadApi, MID, PLAN_ID, ADDRESS, luminaMerchant, capsulasPlan, subscriber, mpPreapproval, MP_TOKEN } from "../helpers/world.mjs";
+import { createWorld, loadApi, MID, PLAN_ID, ADDRESS, luminaMerchant, capsulasPlan } from "../helpers/world.mjs";
 import { invoke } from "../helpers/http.mjs";
 import { seedDoc } from "../helpers/fake-firestore.mjs";
 import { sanitizeCheckoutTheme, resolveCheckoutTheme, CHECKOUT_THEME_DEFAULTS, onColor, ctaText } from "../../shared/platform/checkoutTheme.js";
 
 const { default: merchantApi } = await loadApi("api/merchant.js");
-const { default: pub, generatePortalToken } = await loadApi("api/public.js");
+const { default: pub } = await loadApi("api/public.js");
 const { default: widget } = await loadApi("api/widget.js");
 const { default: init } = await loadApi("api/checkout/init.js");
 
@@ -116,31 +116,4 @@ test("upsells: se eligen en el panel, el checkout los muestra y checkout/init lo
   assert.deepEqual(sub.extra_items, [{ plan_id: "plan_extra", shopify_variant_id: "4002", shopify_product_id: "7002", product_title: "Grisines", qty: 2, price_ars: 3000 }]);
   assert.equal(sub.plan_snapshot.extras_total_ars, 6000);
   assert.equal(sub.plan_snapshot.total_per_charge_ars, 16800);
-});
-
-// Portal: el cliente saca o baja extras y el cobro BAJA en MP en el momento; nunca sube.
-test("portal update-items: solo hacia abajo, recalcula el total y lo manda a MP", async () => {
-  const extras = [{ plan_id: "plan_extra", shopify_variant_id: "4002", shopify_product_id: "7002", product_title: "Grisines", qty: 2, price_ars: 3000 }, { plan_id: "plan_b", shopify_variant_id: "4003", shopify_product_id: "7003", product_title: "Tostaditas", qty: 1, price_ars: 2000 }];
-  seedDoc(`merchants/${MID}/subscribers/sub_ups`, subscriber({ status: "active", mp_preapproval_id: "pre_ups", extra_items: extras, plan_snapshot: { ...capsulasPlan(), total_per_charge_ars: 10800 + 6000 + 2000, extras_total_ars: 8000, shopify_variant_id: "4001" } }));
-  W.mp.addPreapproval(mpPreapproval({ id: "pre_ups", planId: "plan_adhoc_ups", amount: 18800 }), MP_TOKEN);
-  const token = generatePortalToken(MID, "sub_ups");
-  const call = (body) => invoke(pub, { method: "POST", query: { action: "sub", token }, body, headers: { "x-forwarded-for": "10.9.9.9" } });
-  // intentar SUBIR (qty 5) no sube: se recorta a lo que tenía
-  let r = await call({ action: "update-items", extras: [{ plan_id: "plan_extra", qty: 5 }, { plan_id: "plan_b", qty: 1 }] });
-  assert.equal(r.statusCode, 200); assert.equal(r.body.unchanged, true, "nada bajó → sin cambios ni llamada a MP");
-  assert.equal(W.mp.preapprovalUpdates.length, 0);
-  // bajar grisines a 1 y sacar tostaditas
-  r = await call({ action: "update-items", extras: [{ plan_id: "plan_extra", qty: 1 }] });
-  assert.equal(r.statusCode, 200, JSON.stringify(r.body));
-  assert.equal(r.body.total_per_charge_ars, 10800 + 3000); assert.equal(r.body.removed_ars, 5000);
-  assert.deepEqual(W.mp.preapprovalUpdates.map(u => [u.id, u.token, u.body.auto_recurring.transaction_amount]), [["pre_ups", MP_TOKEN, 13800]]);
-  const d = W.subs().find(s => s.id === "sub_ups").data;
-  assert.deepEqual(d.extra_items, [{ ...extras[0], qty: 1 }]); assert.equal(d.plan_snapshot.total_per_charge_ars, 13800); assert.equal(d.plan_snapshot.extras_total_ars, 3000); assert.equal(d.repriced_by, "portal");
-  // el GET del portal lo muestra y el permiso viaja
-  const g = await invoke(pub, { method: "GET", query: { action: "sub", token } });
-  assert.equal(g.body.sub.extra_items.length, 1); assert.equal(g.body.portal.allow_edit_items, true);
-  // la tienda lo puede apagar
-  seedDoc(`merchants/${MID}`, luminaMerchant({ portal: { allow_edit_items: false } }));
-  r = await call({ action: "update-items", extras: [] });
-  assert.equal(r.statusCode, 403);
 });

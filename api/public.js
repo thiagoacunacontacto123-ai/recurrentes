@@ -380,52 +380,6 @@ async function handleUpdateAddress(req, res) {
   return res.json({ ok: true, shipping_address, customer_phone: phone });
 }
 
-// ─── action=sub · update-items ───────────────────────────────────────────
-// El cliente edita su pedido desde el portal (25-sept-2026, Thiago: "siempre para abajo,
-// no se puede cobrar de más"): solo puede SACAR o BAJAR extras. El nuevo monto se
-// recalcula en el server (total actual − lo que sacó) y se manda a MP con PUT
-// preapproval.transaction_amount, como el "Repreciar" del panel. Nunca sube.
-async function handleUpdateItems(req, res, payload, subRef) {
-  const { mid: merchantId } = payload;
-  const subSnap = await subRef.get();
-  if (!subSnap.exists) return res.status(404).json({ error: "Suscripción no encontrada" });
-  const sub = subSnap.data();
-  if (sub.status === "cancelled") return res.status(409).json({ error: "Esta suscripción está cancelada.", code: "sub_cancelled" });
-  const merchant = (await db().collection("merchants").doc(merchantId).get()).data() || {};
-  if (merchant.portal?.allow_edit_items === false) return res.status(403).json({ error: "Esta tienda no permite cambiar el pedido desde el portal. Escribile a la tienda." });
-  const current = Array.isArray(sub.extra_items) ? sub.extra_items : [];
-  if (!current.length) return res.status(400).json({ error: "Tu pedido no tiene extras para sacar." });
-  const wanted = new Map((Array.isArray(req.body?.extras) ? req.body.extras : []).map(e => [String(e?.plan_id || ""), Math.max(0, parseInt(e?.qty, 10) || 0)]));
-  const next = [];
-  for (const it of current) {
-    const q = wanted.has(it.plan_id) ? Math.min(wanted.get(it.plan_id), Number(it.qty) || 0) : 0; // no listado = lo saca; nunca sube
-    if (q > 0) next.push({ ...it, qty: q });
-  }
-  const before = current.reduce((a, x) => a + (Number(x.price_ars) || 0) * (Number(x.qty) || 0), 0);
-  const after = next.reduce((a, x) => a + (Number(x.price_ars) || 0) * (Number(x.qty) || 0), 0);
-  const removed = before - after;
-  if (removed <= 0) return res.json({ ok: true, unchanged: true, extra_items: current, total_per_charge_ars: sub.plan_snapshot?.total_per_charge_ars ?? null });
-  const oldTotal = Math.round(Number(sub.plan_snapshot?.total_per_charge_ars) || 0);
-  const newTotal = Math.max(0, oldTotal - removed);
-  if (!(newTotal > 0)) return res.status(400).json({ error: "El pedido no puede quedar en $0." });
-  // En MP (si la suscripción ya está autorizada). Si falla, no tocamos nada: el cobro y el pedido siguen iguales.
-  if (sub.mp_preapproval_id && merchant.mp_access_token) {
-    try { await mpUpdatePreapproval(merchant.mp_access_token, sub.mp_preapproval_id, { auto_recurring: { transaction_amount: newTotal, currency_id: "ARS" } }); }
-    catch (e) { console.warn("[portal/update-items] MP:", e.message); return res.status(502).json({ error: "No pudimos actualizar el cobro en Mercado Pago. Probá de nuevo en unos minutos." }); }
-  } else if (sub.status !== "pending") {
-    return res.status(409).json({ error: "No encontramos tu suscripción en Mercado Pago. Escribile a la tienda y lo ajustan." });
-  }
-  const now = new Date().toISOString();
-  await subRef.update({
-    extra_items: next.length ? next : FieldValue.delete(),
-    "plan_snapshot.extras_total_ars": after,
-    "plan_snapshot.total_per_charge_ars": newTotal,
-    repriced_at: now, repriced_from: oldTotal, repriced_by: "portal",
-    updated_at: now,
-  });
-  return res.json({ ok: true, extra_items: next, total_per_charge_ars: newTotal, removed_ars: removed });
-}
-
 // ─── action=sub ────────────────────────────────────────────────
 // Vista previa del portal para el comerciante: GET ?action=sub&demo=<merchantId>
 // devuelve una suscripción de ejemplo con la marca, el color, los textos y las
@@ -465,6 +419,8 @@ async function handleSubDemo(req, res) {
       allow_address: merchant?.portal?.allow_address !== false,
     },
     portal_welcome: merchant?.portal_welcome || "",
+    // Colores del portal = los del checkout (acento = widget_color salvo que la tienda lo cambie en Configuración → Checkout).
+    theme: resolveCheckoutTheme(merchant?.checkout_theme, { widgetColor: merchant?.widget_color }),
     business: { type: p.businessType, channel: p.channel, shipping: p.caps.shipping, provider_label: p.providerInfo.label, vocab: p.vocab },
   });
 }
@@ -522,9 +478,10 @@ async function handleSub(req, res) {
         allow_pause: merchant?.portal?.allow_pause !== false,
         allow_cancel: merchant?.portal?.allow_cancel !== false,
         allow_address: merchant?.portal?.allow_address !== false,
-        allow_edit_items: merchant?.portal?.allow_edit_items !== false,
       },
       portal_welcome: merchant?.portal_welcome || "",
+      // Colores del portal = los del checkout (acento = widget_color salvo que la tienda lo cambie en Configuración → Checkout).
+      theme: resolveCheckoutTheme(merchant?.checkout_theme, { widgetColor: merchant?.widget_color }),
       // Perfil del negocio: la pantalla de gracias y el portal adaptan los textos
       // (envío vs cuota, "Volver a la tienda" solo si hay tienda).
       business: (() => {
@@ -537,7 +494,6 @@ async function handleSub(req, res) {
   if (req.method === "POST") {
     if (await portalRateLimited(res, payload)) return;
     const { action: subAction } = req.body || {};
-    if (subAction === "update-items") return handleUpdateItems(req, res, payload, subRef);
     if (!["pause", "resume", "cancel"].includes(subAction)) {
       return res.status(400).json({ error: "action debe ser pause | resume | cancel" });
     }

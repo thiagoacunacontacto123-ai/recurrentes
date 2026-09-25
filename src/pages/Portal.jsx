@@ -52,20 +52,6 @@ export default function Portal() {
 
   const isDemo = String(token || "").startsWith("demo:");
   const demoStop = () => { toast("Es una vista previa: acá tu cliente haría esta acción de verdad. Nada se guarda.", "info", 5000); };
-  // Sacar / bajar un extra del pedido (solo hacia abajo; el server recalcula y avisa a MP).
-  async function editExtra(item, newQty) {
-    const ok = await appConfirm(newQty === 0 ? `Sacamos "${item.product_title}" de tu pedido. Tu próximo cobro baja $${(item.price_ars*item.qty).toLocaleString("es-AR")}. ¿Confirmás?` : `Dejamos ${newQty} × ${item.product_title}. Tu próximo cobro baja $${(item.price_ars*(item.qty-newQty)).toLocaleString("es-AR")}. ¿Confirmás?`, { title:"Cambiar tu pedido", okLabel:"Sí, cambiar" });
-    if (!ok) return;
-    setBusyAction("items");
-    try {
-      const extras = (sub.extra_items || []).map(x => ({ plan_id: x.plan_id, qty: x.plan_id === item.plan_id ? newQty : x.qty })).filter(x => x.qty > 0);
-      const r = await fetch(`/api/public?action=sub&token=${encodeURIComponent(token)}`, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ action:"update-items", extras }) });
-      const d = await r.json();
-      if (d.error) toast("Error: " + d.error, "error", 6000);
-      else { toast("Pedido actualizado. Tu próximo cobro ya bajó.", "success"); await load(token, true); }
-    } catch (e) { toast("Error: " + e.message, "error", 6000); }
-    finally { setBusyAction(null); }
-  }
   async function doAction(action) {
     if (isDemo) return demoStop();
     if (action === "cancel" && data?.retention?.enabled !== false) { setCancelOpen(true); return; }
@@ -157,9 +143,10 @@ export default function Portal() {
 
   const { sub, charges } = data;
   const brand = data.merchant_brand || sub.merchant_brand || "";
+  const th = data.theme || { bg:"#ffffff", summary_bg:"#f5f5f5", text:"#1a1a1a", text_muted:"#6b6b6b", border_soft:"#e9e9e9", color:"#10b981", color_dark:"#059669", color_tint:"rgba(16,185,129,0.12)", font_stack:"inherit", dark:false };
   const status = sub.status || "unknown";
   const statusMeta = {
-    active:        { label:"Activa",     color:"var(--accent)",     bg:"rgba(16,185,129,0.15)" },
+    active:        { label:"Activa",     color:"var(--accent)",     bg:"var(--accent-bg)" },
     pending:       { label:"Pendiente",  color:"var(--yellow)",     bg:"rgba(245,158,11,0.15)" },
     paused:        { label:"Pausada",    color:"var(--yellow)",     bg:"rgba(245,158,11,0.15)" },
     cancelled:     { label:"Cancelada",  color:"var(--text-sm)",    bg:"rgba(126,138,147,0.15)" },
@@ -178,11 +165,15 @@ export default function Portal() {
   const formattedNext = sub.next_charge_at ? new Date(sub.next_charge_at).toLocaleDateString("es-AR", { day:"2-digit", month:"long", year:"numeric" }) : null;
 
   return (
-    <div style={{minHeight:"100vh",background:"linear-gradient(180deg, var(--bg) 0%, var(--surface) 100%)",padding:"32px 20px"}}>
+    <div style={{minHeight:"100vh",background:"var(--bg)",padding:"32px 20px",colorScheme: th.dark ? "dark" : "light",fontFamily: th.font_stack,color:"var(--text)",
+      // El portal se pinta con los colores de la tienda (los mismos del checkout): acento del widget,
+      // fondo y letra del tema. Se pisan las variables del panel solo dentro de esta página.
+      "--bg": th.summary_bg, "--surface": th.dark ? "rgba(255,255,255,0.05)" : th.summary_bg, "--card": th.bg, "--border": th.border_soft, "--border-light": th.border_soft,
+      "--text": th.text, "--text-md": th.text, "--text-sm": th.text_muted, "--accent": th.color, "--green": th.color, "--green-dark": th.color_dark, "--accent-bg": th.color_tint}}>
       <div style={{maxWidth:680,margin:"0 auto"}}>
         {/* Header: marca de la tienda si la tenemos, si no Recurrentes */}
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:22}}>
-          <div style={{width:34,height:34,borderRadius:8,background:"linear-gradient(135deg, var(--green), var(--green-dark))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,boxShadow:"0 2px 8px rgba(16,185,129,0.3)"}}>🔁</div>
+          <div style={{width:34,height:34,borderRadius:8,background:"linear-gradient(135deg, var(--green), var(--green-dark))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,boxShadow:"0 2px 8px transparent"}}>🔁</div>
           <div>
             <div style={{fontWeight:800,fontSize:18,letterSpacing:-0.3}}>{brand || "Recurrentes"}</div>
             {brand && <div style={{fontSize:10,color:"var(--text-sm)"}}>Suscripciones con Recurrentes</div>}
@@ -247,25 +238,6 @@ export default function Portal() {
             </div>
           )}
 
-          {/* Tu pedido: los extras que sumó en el checkout, se pueden sacar (el cobro baja). */}
-          {Array.isArray(sub.extra_items) && sub.extra_items.length > 0 && status !== "cancelled" && (
-            <div style={{padding:"12px 14px",background:"var(--surface)",borderRadius:10,fontSize:12,color:"var(--text-md)",lineHeight:1.55,marginBottom:18}}>
-              <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5,marginBottom:8}}>Extras en tu pedido</div>
-              {sub.extra_items.map(it => (
-                <div key={it.plan_id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"7px 0",borderTop:"1px solid var(--border)"}}>
-                  <span style={{minWidth:0}}><b style={{color:"var(--text)"}}>{it.qty} × {it.product_title}</b><span style={{display:"block",fontSize:11,color:"var(--text-sm)"}}>${(it.price_ars*it.qty).toLocaleString("es-AR")} por cobro</span></span>
-                  {data?.portal?.allow_edit_items !== false && (
-                    <span style={{display:"inline-flex",gap:6}}>
-                      {it.qty > 1 && <button onClick={()=>editExtra(it, it.qty-1)} disabled={busyAction} style={{...btnSecondary,padding:"6px 10px",fontSize:12}}>− uno</button>}
-                      <button onClick={()=>editExtra(it, 0)} disabled={busyAction} style={{...btnDanger,padding:"6px 10px",fontSize:12}}>Sacar</button>
-                    </span>
-                  )}
-                </div>
-              ))}
-              <div style={{fontSize:11,color:"var(--text-sm)",marginTop:6}}>Al sacar un extra, el próximo cobro baja en el momento. Para sumar productos, hacelo desde la tienda.</div>
-            </div>
-          )}
-
           {/* Acciones */}
           <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
             {status === "active" && canPause && (
@@ -301,7 +273,7 @@ export default function Portal() {
                   <div style={{fontWeight:600}}>${(c.amount_ars||0).toLocaleString("es-AR")}</div>
                   <div style={{fontSize:11,color:"var(--text-sm)",marginTop:2}}>{new Date(c.created_at).toLocaleDateString("es-AR",{day:"2-digit",month:"long",year:"numeric"})}</div>
                 </div>
-                <div style={{fontSize:10,padding:"3px 8px",borderRadius:4,background:c.status==="approved"?"rgba(16,185,129,0.15)":"rgba(245,158,11,0.15)",color:c.status==="approved"?"var(--accent)":"var(--yellow)",fontWeight:700,letterSpacing:0.4,textTransform:"uppercase"}}>
+                <div style={{fontSize:10,padding:"3px 8px",borderRadius:4,background:c.status==="approved"?"var(--accent-bg)":"rgba(245,158,11,0.15)",color:c.status==="approved"?"var(--accent)":"var(--yellow)",fontWeight:700,letterSpacing:0.4,textTransform:"uppercase"}}>
                   {c.status==="approved"?"✓ Pagado":c.status}
                 </div>
               </div>
@@ -452,6 +424,6 @@ const inp = { width:"100%", background:"var(--card)", border:"1px solid var(--bo
 const btnBase = {
   border: "none", padding: "9px 16px", borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
 };
-const btnPrimary = { ...btnBase, background: "linear-gradient(135deg, var(--green), var(--green-dark))", color: "#fff", boxShadow: "0 2px 8px rgba(16,185,129,0.25)" };
+const btnPrimary = { ...btnBase, background: "linear-gradient(135deg, var(--green), var(--green-dark))", color: "#fff", boxShadow: "0 2px 8px transparent" };
 const btnSecondary = { ...btnBase, background: "transparent", color: "var(--text-md)", border: "1px solid var(--border)" };
 const btnDanger = { ...btnBase, background: "transparent", color: "var(--red)", border: "1px solid rgba(239,68,68,0.4)" };
