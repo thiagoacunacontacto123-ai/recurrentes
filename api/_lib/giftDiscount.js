@@ -22,7 +22,7 @@ export function buildGiftDiscountInput({ title, planProductId, packQty, giftVari
     title: String(title || "Regalo").slice(0, 255),
     startsAt: new Date().toISOString(),
     combinesWith: { productDiscounts: true, orderDiscounts: true, shippingDiscounts: true },
-    usesPerOrderLimit: 1,
+    usesPerOrderLimit: "1", // UnsignedInt64: Shopify lo exige como string
     customerBuys: {
       value: { quantity: String(Math.max(1, Number(packQty) || 1)) },
       items: { products: { productsToAdd: [`gid://shopify/Product/${planProductId}`] } },

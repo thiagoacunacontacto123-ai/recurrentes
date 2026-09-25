@@ -19,7 +19,7 @@ test("el input del descuento: comprá ≥ qty del producto del plan → 1 regalo
   assert.deepEqual(d.customerBuys.items.products.productsToAdd, ["gid://shopify/Product/7001"]);
   assert.deepEqual(d.customerGets.items.products.productVariantsToAdd, ["gid://shopify/ProductVariant/777002"]);
   assert.equal(d.customerGets.value.discountOnQuantity.effect.percentage, 1.0);
-  assert.equal(d.usesPerOrderLimit, 1);
+  assert.equal(d.usesPerOrderLimit, "1", "UnsignedInt64 va como string");
 });
 
 test("sin write_discounts responde 403 scope_missing con el texto para reconectar; normalizePacks conserva discount_gid", async () => {
