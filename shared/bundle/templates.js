@@ -1297,6 +1297,11 @@ var RENDERERS = { v01: v01, v02: v02, v03: v03, v04: v04, v05: v05, v06: v06, v0
 // queda idéntico byte a byte: ninguna tienda cambia de aspecto sola.
 var RX_FS = /font-size:\s*([0-9.]+)px/g;
 var RX_PAD = /padding:\s*([0-9.]+)px\s+([0-9.]+)px/g;
+// El AIRE entre tarjetas (25-sept-2026, Thiago): bajar "alto de los recuadros"
+// achicaba el padding pero el `gap` quedaba fijo en 26px, asi que el bundle
+// seguia viendose separado por mas que se pusiera el minimo. Ahora el mismo
+// control compacta las dos cosas.
+var RX_GAP = /gap:\s*([0-9.]+)px(?!\s)/g;
 // Grosor del borde de las tarjetas (22-sept-2026, Thiago). Cubre `border:` y
 // `border-top/right/bottom/left:` con la forma "Npx solid ...". Se multiplica
 // por --rc-bw, que vale 1 cuando el comerciante no lo toca.
@@ -1314,6 +1319,9 @@ function escalarCss(css, fs, bs, bw) {
     // Solo el padding de dos valores (vertical horizontal): el vertical escala,
     // el horizontal queda igual para no deformar el ancho de las tarjetas.
     out = out.replace(RX_PAD, function (_, v, h) { return "padding:calc(" + v + "px * var(--rc-bs)) " + h + "px"; });
+    // El gap de UN solo valor (el aire vertical entre tarjetas). Los de dos
+    // valores ("gap:0 9px") son de grillas horizontales y no se tocan.
+    out = out.replace(RX_GAP, function (_, g) { return "gap:calc(" + g + "px * var(--rc-bs))"; });
   }
   return out;
 }
