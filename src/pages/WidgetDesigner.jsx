@@ -40,6 +40,8 @@ const DEFAULT_WIDGET_TEXTS = {
   note_once: "",
   sub_hint: "",
   disc_label: "",
+  cta_price: "",
+  pack_freq: "",
 };
 
 // Los textos, separados por dónde se ven (21-sept-2026, Thiago): lo común, lo
@@ -48,6 +50,8 @@ const TEXT_FIELDS = [
   ["headline", "Título"],
   ["savings_label", "Ahorro ({pct} = %)"],
   ["per_unit_label", "Por unidad ({price} = precio)"],
+  // Aplica a los dos modos. Una "x" saca el precio del botón. 25-sept-2026.
+  ["cta_price", "Precio en el botón (x = sacarlo)"],
 ];
 const TEXT_FIELDS_SUB = [
   ["sub_label", "Etiqueta del modo"],
@@ -57,6 +61,8 @@ const TEXT_FIELDS_SUB = [
   // diseños que lo tienen (Foto, Foto + check…). 22-sept-2026, Thiago.
   ["sub_hint", "Renglón del cuadro apagado (vacío = automático)"],
   ["disc_label", "Píldora de descuento ({pct} = el %)"],
+  // Una "x" apaga cualquiera de los dos. 25-sept-2026, Thiago.
+  ["pack_freq", "Frecuencia dentro del pack (x = sacarla)"],
 ];
 const TEXT_FIELDS_ONCE = [
   ["once_label", "Etiqueta del modo"],

@@ -43,6 +43,12 @@ export const TEXT_DEFAULTS = Object.freeze({
   // La pildora de descuento al lado de "Suscripcion". {pct} = el % del plan.
   // Una "x" la apaga (esApagado), como el resto de los textos.
   disc_label: "−{pct}%",
+  // El precio dentro del boton ("· $65.990 cada 60 dias"). Una "x" lo apaga y
+  // el boton queda solo con su etiqueta. 25-sept-2026, Thiago.
+  cta_price: "· {price}{freq}",
+  // La pildora de frecuencia DENTRO de cada pack ("Te llegan 2 cada 60 dias").
+  // Una "x" la apaga. Vacio = como siempre.
+  pack_freq: "{prefix} {freq}",
 });
 
 // 12 = 6 por columna (22-sept-2026): los packs de compra unica y los de

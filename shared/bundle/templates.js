@@ -156,6 +156,13 @@ function buildCtx(vm, state) {
   };
   // Prefijo de la línea de frecuencia para UN pack. Si el comerciante escribió
   // el suyo en el diseñador, se respeta; si no, lleva la cantidad del pack.
+  // La pildora de frecuencia de un pack. "" (una "x" en pack_freq) = no se pinta.
+  ctx.packFreq = function (p) {
+    if (mode !== "sub" || !p || !p.freqLabel) return "";
+    var tpl = t.pack_freq === undefined ? "{prefix} {freq}" : t.pack_freq;
+    if (!tpl) return "";
+    return String(tpl).replace(/\{prefix\}/g, ctx.freqPrefix(p)).replace(/\{freq\}/g, p.freqLabel).trim();
+  };
   ctx.freqPrefix = function (p) {
     if (t.freq_prefix) return t.freq_prefix;
     return (p && p.qty > 1) ? "Te llegan " + p.qty + " cada" : "Te llega cada";
@@ -175,7 +182,14 @@ function buildCtx(vm, state) {
   ctx.ctaText = function () {
     var lbl = mode === "sub" ? (t.cta_sub || "Suscribirme") : (t.cta_once || "Agregar al carrito");
     var fl = mode === "sub" && sel && sel.freqLabel ? " cada " + sel.freqLabel : "";
-    var html = esc(lbl) + ' <span class="rc-cta-price">· ' + esc(fmtARS(view.price)) + esc(fl) + "</span>";
+    // El precio del boton se puede apagar con una "x" en `cta_price`
+    // (25-sept-2026, Thiago: "compra unica: sacarle el precio en el boton").
+    var pTpl = t.cta_price === undefined ? "· {price}{freq}" : t.cta_price;
+    var html = esc(lbl);
+    if (pTpl) {
+      html += ' <span class="rc-cta-price">' +
+        esc(String(pTpl).replace(/\{price\}/g, fmtARS(view.price)).replace(/\{freq\}/g, fl)) + "</span>";
+    }
     if (mode === "sub" && view.savingsArs > 0 && !apagado(t.savings_label)) html += '<span class="rc-cta-sub">Ahorrás ' + esc(fmtARS(view.savingsArs)) + " en cada envío</span>";
     return html;
   };
@@ -617,7 +631,7 @@ function v05(c) {
   }).join("");
   var cards = c.packs.map(function (p, i) {
     var v = c.v(p), on = p.idx === c.idx;
-    var meta = [c.perUnit(p), c.mode === "sub" ? c.freqPrefix(p) + " " + p.freqLabel : ""].filter(Boolean).join(" · ");
+    var meta = [c.perUnit(p), c.packFreq(p)].filter(Boolean).join(" · ");
     return '<div class="rc-card' + c.on(on) + c.on(!!p.image, "has-img") + '"' + c.radioAttrs(p) + ">" +
       '<div class="rc-side' + c.on(!v.savingsPct || !c.savings(p), "is-empty") + '">' + (v.savingsPct && c.savings(p) ? "<span>Ahorrás</span><b>" + v.savingsPct + "%</b>" : "<b>×" + p.qty + "</b>") + "</div>" +
       (p.image ? '<img class="rc-card-img" src="' + esc(p.image) + '" alt="" loading="lazy">' : "") +
@@ -1000,9 +1014,7 @@ function v11(c) {
     var img = p.image
       ? '<span class="rc-ph"><img src="' + esc(p.image) + '" alt="" loading="lazy"></span>'
       : phFallback(p.qty);
-    var freq = c.mode === "sub" && p.freqLabel
-      ? '<span class="rc-fq">' + esc(c.freqPrefix(p) + " " + p.freqLabel) + "</span>"
-      : "";
+    var freq = c.packFreq(p) ? '<span class="rc-fq">' + esc(c.packFreq(p)) + "</span>" : "";
     return '<div class="rc-fp' + c.on(on) + '"' + c.radioAttrs(p) + ">" +
       (p.badge ? '<span class="rc-ribbon">' + esc(p.badge) + "</span>" : "") +
       '<span class="rc-fp-row">' + img +
@@ -1089,9 +1101,7 @@ function v13(c) {
     var img = p.image
       ? '<span class="rc-ph"><img src="' + esc(p.image) + '" alt="" loading="lazy"></span>'
       : phFallback(p.qty);
-    var freq = c.mode === "sub" && p.freqLabel
-      ? '<span class="rc-fq">' + esc(c.freqPrefix(p) + " " + p.freqLabel) + "</span>"
-      : "";
+    var freq = c.packFreq(p) ? '<span class="rc-fq">' + esc(c.packFreq(p)) + "</span>" : "";
     return '<div class="rc-fp' + c.on(on) + '"' + c.radioAttrs(p) + ">" +
       (p.badge ? '<span class="rc-ribbon">' + esc(p.badge) + "</span>" : "") +
       '<span class="rc-fp-row">' + img +
@@ -1179,9 +1189,7 @@ function v12(c) {
     var img = p.image
       ? '<span class="rc-ph"><img src="' + esc(p.image) + '" alt="" loading="lazy"></span>'
       : phFallback(p.qty);
-    var freq = c.mode === "sub" && p.freqLabel
-      ? '<span class="rc-fq">' + esc(c.freqPrefix(p) + " " + p.freqLabel) + "</span>"
-      : "";
+    var freq = c.packFreq(p) ? '<span class="rc-fq">' + esc(c.packFreq(p)) + "</span>" : "";
     var gifts = (Array.isArray(p.gifts) ? p.gifts : []).map(function (g) {
       var gi = g && g.image
         ? '<img src="' + esc(g.image) + '" alt="" loading="lazy">'

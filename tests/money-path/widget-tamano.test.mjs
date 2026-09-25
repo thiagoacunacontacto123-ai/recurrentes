@@ -340,3 +340,27 @@ test("(w) sub_hint manda tildado y destildado", () => {
   assert.match(renglon({}, "sub"), /Te llegan 2 cada/);
   assert.match(renglon({}, "once"), /Activalo y te llega solo/);
 });
+
+// ─── Sacar el precio del botón y la pastilla de frecuencia ───────────────
+// 25-sept-2026, pedido de Wellfresh: "compra única, sacarle el precio en el
+// botón" y "lo que está tachado quiero sacarlo" (la pastilla del pack).
+// Se apagan con una "x", igual que el resto de los textos.
+test("(w) el precio del botón y la frecuencia del pack se pueden apagar", () => {
+  const plan = {
+    pricing_mode: "packs", discount_pct: 10, frequency_days: 30,
+    packs: [{ qty: 2, price_ars: 54900, default: true }],
+  };
+  const h = (texts, mode) => render2(buildBundleVM({ plan, merchant: { widget_variant: "v13", widget_texts: texts } }), { mode }).html;
+
+  // Sin tocar nada, como siempre.
+  assert.match(h({}, "once"), /rc-cta-price/, "el botón trae el precio");
+  assert.match(h({}, "sub"), /rc-fq/, "y el pack la pastilla");
+
+  // Con la "x" se van, sin llevarse nada más.
+  const sinPrecio = h({ cta_price: "x" }, "once");
+  assert.ok(!/rc-cta-price/.test(sinPrecio), "x: el botón queda sin precio");
+  assert.match(sinPrecio, /Agregar al carrito/, "pero conserva su etiqueta");
+
+  const sinFreq = h({ pack_freq: "x" }, "sub");
+  assert.ok(!/rc-fq/.test(sinFreq), "x: se va la pastilla de frecuencia");
+});
