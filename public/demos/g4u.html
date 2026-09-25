@@ -295,6 +295,7 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 .f input:focus+label,.f input:not(:placeholder-shown)+label,.f select+label{top:7px;font-size:11.5px}
 .f input:focus,.f select:focus{border-color:var(--wine);box-shadow:0 0 0 1px var(--wine)}
 .f input::placeholder{color:transparent}
+.f.is-err input,.f.is-err select{border-color:#d92d20;box-shadow:0 0 0 1px #d92d20}.f.is-err label{color:#d92d20}.fe{color:#d92d20;font-size:13px;line-height:1.35;margin-top:6px;padding-left:2px}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .g3{display:grid;grid-template-columns:1fr 1.4fr 1.4fr;gap:12px}
 .opts{border:1px solid #dedede;border-radius:var(--r);overflow:hidden;background:#fff}
@@ -777,11 +778,21 @@ function renderCk() {
   if (has) { if (S.ship == null) S.ship = 0; $("#ship").innerHTML = SHIP().map((s, i) => `<label class="opt ${S.ship === i ? "on" : ""}"><input type="radio" name="sh" ${S.ship === i ? "checked" : ""} data-i="${i}"><span class="n"><b>${s.n}</b><small>${s.s}</small></span><b>${s.p === 0 ? "Gratis" : "$ " + s.p.toLocaleString("es-AR", { minimumFractionDigits: 2 })}</b></label>`).join(""); }
 }
 ["#ckZip", "#ckProv"].forEach(s => $(s).addEventListener("input", renderCk));
+document.querySelectorAll("#v-ck .f").forEach(f => f.addEventListener("input", () => { f.classList.remove("is-err"); f.querySelector(".fe")?.remove(); }));
 $("#ship").addEventListener("change", e => { const r = e.target.closest("input"); if (r) { S.ship = +r.dataset.i; renderCk(); } });
 $("#msBtn").addEventListener("click", () => { $("#msBody").hidden = !$("#msBody").hidden; });
 $("#payBtn").addEventListener("click", () => {
-  const miss = []; if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test($("#ckEmail").value.trim())) miss.push("email válido"); if (!$("#ckName").value.trim()) miss.push("nombre"); if (!$("#ckAddr").value.trim()) miss.push("calle y número"); if (!$("#ckProv").value) miss.push("provincia");
-  const e = $("#ckErr"); if (miss.length) { e.hidden = false; e.textContent = "Completá: " + miss.join(", ") + "."; return; } e.hidden = true;
+  // Error por campo (borde rojo + texto debajo) y deslizamiento al primero que falta, como
+  // el checkout real de Recurrentes.
+  const miss = [];
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test($("#ckEmail").value.trim())) miss.push(["#ckEmail", "Ingresá un email válido"]);
+  if (!$("#ckName").value.trim()) miss.push(["#ckName", "Ingresá tu nombre y apellido"]);
+  if (!$("#ckAddr").value.trim()) miss.push(["#ckAddr", "Ingresá la calle y el número"]);
+  if (!$("#ckZip").value.trim()) miss.push(["#ckZip", "Ingresá el código postal"]);
+  if (!$("#ckProv").value) miss.push(["#ckProv", "Elegí la provincia"]);
+  document.querySelectorAll("#v-ck .f.is-err").forEach(f => { f.classList.remove("is-err"); f.querySelector(".fe")?.remove(); });
+  miss.forEach(([sel, msg]) => { const f = $(sel).closest(".f"); f.classList.add("is-err"); f.insertAdjacentHTML("beforeend", `<div class="fe">${msg}</div>`); });
+  if (miss.length) { const f = $(miss[0][0]).closest(".f"); f.scrollIntoView({ behavior: "smooth", block: "center" }); $(miss[0][0]).focus({ preventScroll: true }); return; }
   const b = $("#payBtn"); b.disabled = true; b.textContent = "Redirigiendo a Mercado Pago…";
   setTimeout(() => { b.disabled = false; const t = totals(); const next = new Date(Date.now() + S.freq * 864e5).toLocaleDateString("es-AR", { day: "numeric", month: "long" });
     $("#okCard").innerHTML = `<div><span>Pack</span><b>${S.packQty > 1 ? S.packQty + " × " : ""}${S.pack} producto${S.pack === 1 ? "" : "s"} · armado por vos${extrasList().length ? " + " + extrasList().reduce((a, i) => a + i.q, 0) + " extra" : ""}</b></div><div><span>Cobrado hoy</span><b>${money(t.sub + shipPrice())}</b></div><div><span>Frecuencia</span><b>${freqTxt()}</b></div><div><span>Próximo envío y cobro</span><b>${next}</b></div><div><span>Ahorro por envío</span><b style="color:#1f7a3e">${money(t.saving)}</b></div>`;

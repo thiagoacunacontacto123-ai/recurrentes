@@ -48,7 +48,26 @@ const viewId = () => { try { return crypto.randomUUID().replace(/-/g, ""); } cat
 // Campo con etiqueta flotante (estilo Shopify). Vive fuera del componente: si se
 // definiera adentro, React lo trataría como un tipo nuevo en cada render y el input
 // perdería el foco a cada tecla.
-const Field = ({ label, children }) => <div className="rc-f">{children}<label>{label}</label></div>;
+// `error`: texto debajo del campo + borde rojo (estilo Shopify, 25-sept-2026). `onFix` se llama
+// al tipear para sacar el error apenas el comprador corrige.
+const Field = ({ label, children, error, onFix }) => (
+  <div className={"rc-f" + (error ? " is-err" : "")} onInput={error ? onFix : undefined} onChange={error ? onFix : undefined}>
+    {children}<label>{label}</label>
+    {error ? <div className="rc-fe" role="alert">{error}</div> : null}
+  </div>
+);
+// Desliza hasta el primer campo con error (el de más arriba) y le da el foco: en celular el
+// botón queda abajo de todo y el comprador no ve qué le falta.
+function scrollToFirstError() {
+  requestAnimationFrame(() => {
+    try {
+      const el = document.querySelector(".rc-ck .rc-f.is-err, .rc-ck .rc-fe[data-f]");
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.querySelector("input,select")?.focus({ preventScroll: true });
+    } catch (_) {}
+  });
+}
 
 // "cada 30 días" o "cada mes", según cómo lo configuró la tienda en el widget (freq_unit
 // del pack: días o meses). Sin unidad → días, salvo que sea exactamente 1 mes.
@@ -154,6 +173,8 @@ export default function Checkout() {
 
   const [submitting, setSubmitting] = useState(false);
   const [formErr, setFormErr] = useState("");
+  const [errs, setErrs] = useState({}); // por campo: { email: "Ingresá un email válido", ... }
+  const fix = (k) => () => setErrs(e => (e[k] ? Object.fromEntries(Object.entries(e).filter(([kk]) => kk !== k)) : e));
 
   // Cargar el plan activo (por id o por producto) + qué pedir según el negocio.
   useEffect(() => {
@@ -301,19 +322,20 @@ export default function Checkout() {
   async function pagar() {
     setFormErr("");
     if (isPreview) { setFormErr("Esto es una vista previa: el botón no cobra."); return; }
-    const miss = [];
-    if (!EMAIL_RE.test(email.trim())) miss.push("email válido");
-    if (!name.trim()) miss.push("nombre");
-    if (requirePhone && !phone.trim()) miss.push("teléfono");
-    if (requireTaxId && !taxid.trim()) miss.push("DNI o CUIT");
+    const miss = {};
+    if (!EMAIL_RE.test(email.trim())) miss.email = "Ingresá un email válido";
+    if (!name.trim()) miss.name = "Ingresá tu nombre y apellido";
+    if (requirePhone && !phone.trim()) miss.phone = "Ingresá tu teléfono";
+    if (requireTaxId && !taxid.trim()) miss.taxid = "Ingresá tu DNI o CUIT";
     if (askAddress) {
-      if (!address1.trim()) miss.push("calle y número");
-      if (!city.trim()) miss.push("ciudad");
-      if (!province.trim()) miss.push("provincia");
-      if (!zip.trim()) miss.push("código postal");
-      if (!rates.length && zip.trim() && province.trim()) miss.push("método de envío (esperá a que carguen las opciones)");
+      if (!address1.trim()) miss.address1 = "Ingresá la calle y el número";
+      if (!zip.trim()) miss.zip = "Ingresá el código postal";
+      if (!city.trim()) miss.city = "Ingresá la localidad";
+      if (!province.trim()) miss.province = "Elegí la provincia";
+      if (!rates.length && zip.trim() && province.trim()) miss.ship = ratesLoading ? "Esperá a que carguen las opciones de envío" : "Elegí un método de envío";
     }
-    if (miss.length) { setFormErr("Completá: " + miss.join(", ") + "."); return; }
+    setErrs(miss);
+    if (Object.keys(miss).length) { scrollToFirstError(); return; }
     setSubmitting(true);
     try {
       const body = {
@@ -506,6 +528,9 @@ export default function Checkout() {
         .rc-f label{position:absolute;left:14px;top:16px;font-size:15px;color:${theme.text_muted};pointer-events:none;transition:top .12s,font-size .12s;white-space:nowrap;max-width:calc(100% - 28px);overflow:hidden;text-overflow:ellipsis}
         .rc-f input:focus+label,.rc-f input:not(:placeholder-shown)+label,.rc-f select+label{top:7px;font-size:11.5px}
         .rc-f input:focus,.rc-f select:focus{border-color:${theme.color};box-shadow:0 0 0 1px ${theme.color}}
+        .rc-f.is-err input,.rc-f.is-err select{border-color:#d92d20;box-shadow:0 0 0 1px #d92d20}
+        .rc-f.is-err label{color:#d92d20}
+        .rc-fe{color:#d92d20;font-size:13px;line-height:1.35;margin-top:6px;padding-left:2px}
         .rc-ck input::placeholder{color:transparent}
         .rc-ck input:-webkit-autofill,.rc-ck select:-webkit-autofill,.rc-ck input:-webkit-autofill:focus{-webkit-text-fill-color:${theme.text};-webkit-box-shadow:0 0 0 1000px ${theme.dark ? "#1c1c1c" : "#fff"} inset;box-shadow:0 0 0 1000px ${theme.dark ? "#1c1c1c" : "#fff"} inset;caret-color:${theme.text};transition:background-color 9999s ease-out}
         .rc-opts{border:1px solid ${theme.border};border-radius:${R}px;overflow:hidden;background:${theme.input_bg}}
@@ -556,7 +581,7 @@ export default function Checkout() {
 
             <section className="rc-sec" style={{ marginTop: 22 }}>
               <h2 className="rc-h2">{askAddress ? "Contacto" : "Tus datos"}</h2>
-              <Field label="Correo electrónico"><input type="email" autoComplete="email" placeholder=" " value={email} onChange={e => setEmail(e.target.value)} onBlur={captureLead}/></Field>
+              <Field label="Correo electrónico" error={errs.email} onFix={fix("email")}><input type="email" autoComplete="email" placeholder=" " value={email} onChange={e => setEmail(e.target.value)} onBlur={captureLead}/></Field>
               {cfg?.whatsapp_optin ? (
                 <label className="rc-check"><input type="checkbox" checked={waOptin} onChange={e => setWaOptin(e.target.checked)}/><span>Quiero recibir novedades de mi pedido por email y WhatsApp</span></label>
               ) : null}
@@ -564,24 +589,25 @@ export default function Checkout() {
 
             <section className="rc-sec">
               <h2 className="rc-h2">{askAddress ? "Entrega" : "Quién se suscribe"}</h2>
-              <Field label="Nombre y apellido"><input autoComplete="name" placeholder=" " value={name} onChange={e => setName(e.target.value)}/></Field>
+              <Field label="Nombre y apellido" error={errs.name} onFix={fix("name")}><input autoComplete="name" placeholder=" " value={name} onChange={e => setName(e.target.value)}/></Field>
               <div className="rc-2">
-                <Field label={requirePhone ? "Teléfono" : "Teléfono (opcional)"}><input type="tel" autoComplete="tel" placeholder=" " value={phone} onChange={e => setPhone(e.target.value)}/></Field>
-                <Field label={requireTaxId ? "DNI o CUIT" : "DNI o CUIT (opcional)"}><input inputMode="numeric" placeholder=" " value={taxid} onChange={e => setTaxid(e.target.value)}/></Field>
+                <Field label={requirePhone ? "Teléfono" : "Teléfono (opcional)"} error={errs.phone} onFix={fix("phone")}><input type="tel" autoComplete="tel" placeholder=" " value={phone} onChange={e => setPhone(e.target.value)}/></Field>
+                <Field label={requireTaxId ? "DNI o CUIT" : "DNI o CUIT (opcional)"} error={errs.taxid} onFix={fix("taxid")}><input inputMode="numeric" placeholder=" " value={taxid} onChange={e => setTaxid(e.target.value)}/></Field>
               </div>
               {askAddress ? (<>
-                <Field label="Calle y número"><input autoComplete="address-line1" placeholder=" " value={address1} onChange={e => setAddress1(e.target.value)}/></Field>
+                <Field label="Calle y número" error={errs.address1} onFix={fix("address1")}><input autoComplete="address-line1" placeholder=" " value={address1} onChange={e => setAddress1(e.target.value)}/></Field>
                 <Field label="Piso, depto o referencia (opcional)"><input autoComplete="address-line2" placeholder=" " value={address2} onChange={e => setAddress2(e.target.value)}/></Field>
                 <div className="rc-3">
-                  <Field label="C.P."><input autoComplete="postal-code" inputMode="numeric" placeholder=" " value={zip} onChange={e => setZip(e.target.value)}/></Field>
-                  <Field label="Localidad"><input autoComplete="address-level2" placeholder=" " value={city} onChange={e => setCity(e.target.value)}/></Field>
-                  <div className="rc-f">
+                  <Field label="C.P." error={errs.zip} onFix={fix("zip")}><input autoComplete="postal-code" inputMode="numeric" placeholder=" " value={zip} onChange={e => setZip(e.target.value)}/></Field>
+                  <Field label="Localidad" error={errs.city} onFix={fix("city")}><input autoComplete="address-level2" placeholder=" " value={city} onChange={e => setCity(e.target.value)}/></Field>
+                  <div className={"rc-f" + (errs.province ? " is-err" : "")} onChange={errs.province ? fix("province") : undefined}>
                     <select value={province} onChange={e => setProvince(e.target.value)} aria-label="Provincia">
                       <option value=""></option>
                       {PROVINCIAS.map(pv => <option key={pv} value={pv}>{pv}</option>)}
                     </select>
                     <label>Provincia</label>
                     {chevron}
+                    {errs.province ? <div className="rc-fe" role="alert">{errs.province}</div> : null}
                   </div>
                 </div>
               </>) : null}
@@ -590,6 +616,7 @@ export default function Checkout() {
             {askAddress ? (
               <section className="rc-sec">
                 <h2 className="rc-h2">Envío</h2>
+                {errs.ship ? <div className="rc-fe" data-f="ship" role="alert" style={{ marginBottom: 8 }}>{errs.ship}</div> : null}
                 {ratesLoading ? (
                   <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: theme.text_muted, padding: "14px 16px", border: `1px solid ${theme.border}`, borderRadius: R }}><span aria-hidden="true" style={{ width: 16, height: 16, border: `2px solid ${theme.border}`, borderTopColor: theme.color, borderRadius: "50%", display: "inline-block", flexShrink: 0, animation: "rc-spin .7s linear infinite" }}/>Buscando métodos de envío…</div>
                 ) : !rates.length ? (
