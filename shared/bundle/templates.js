@@ -136,6 +136,12 @@ function buildCtx(vm, state) {
   };
   ctx.perUnit = function (p, m) {
     if (!ctx.showPerUnit || apagado(t.per_unit_label)) return "";
+    // Se puede apagar SOLO en un modo (25-sept-2026, Wellfresh: "le quiero
+    // sacar el precio unitario solo a lo de la suscripcion"). Una "x" en
+    // per_unit_sub / per_unit_once apaga ese lado y deja el otro.
+    var modo = m || mode;
+    if (modo === "sub" && apagado(t.per_unit_sub)) return "";
+    if (modo === "once" && apagado(t.per_unit_once)) return "";
     var vv = ctx.v(p, m);
     return String(t.per_unit_label || "{price} c/u").replace("{price}", fmtARS(vv.perUnit));
   };

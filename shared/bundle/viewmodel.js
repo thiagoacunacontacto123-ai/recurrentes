@@ -49,6 +49,9 @@ export const TEXT_DEFAULTS = Object.freeze({
   // La pildora de frecuencia DENTRO de cada pack ("Te llegan 2 cada 60 dias").
   // Una "x" la apaga. Vacio = como siempre.
   pack_freq: "{prefix} {freq}",
+  // Apagar el "c/u" en UN solo modo con una "x". Vacio = se muestra.
+  per_unit_sub: "",
+  per_unit_once: "",
 });
 
 // 12 = 6 por columna (22-sept-2026): los packs de compra unica y los de

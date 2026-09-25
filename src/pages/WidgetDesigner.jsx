@@ -42,6 +42,8 @@ const DEFAULT_WIDGET_TEXTS = {
   disc_label: "",
   cta_price: "",
   pack_freq: "",
+  per_unit_sub: "",
+  per_unit_once: "",
 };
 
 // Los textos, separados por dónde se ven (21-sept-2026, Thiago): lo común, lo
@@ -60,6 +62,7 @@ const TEXT_FIELDS_SUB = [
   // El renglón chico del cuadro de suscripción cuando está apagado, en los
   // diseños que lo tienen (Foto, Foto + check…). 22-sept-2026, Thiago.
   ["sub_hint", "Renglón del cuadro apagado (vacío = automático)"],
+  ["per_unit_sub", "Precio por unidad acá (x = sacarlo)"],
   ["disc_label", "Píldora de descuento ({pct} = el %)"],
   // Una "x" apaga cualquiera de los dos. 25-sept-2026, Thiago.
   ["pack_freq", "Frecuencia dentro del pack (x = sacarla)"],
@@ -67,6 +70,7 @@ const TEXT_FIELDS_SUB = [
 const TEXT_FIELDS_ONCE = [
   ["once_label", "Etiqueta del modo"],
   ["cta_once", "Botón"],
+  ["per_unit_once", "Precio por unidad acá (x = sacarlo)"],
 ];
 
 // Bloque de textos de UN modo (suscripción o compra única): sus etiquetas, sus

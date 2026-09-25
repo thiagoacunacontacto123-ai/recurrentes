@@ -672,7 +672,7 @@ const WIDGET_VARIANT_OK = new Set(VARIANT_IDS);
 const WIDGET_VARIANT_RE = { test: (v) => WIDGET_VARIANT_OK.has(String(v || "")) };
 // note_sub / note_once (21-sept-2026): el texto libre debajo de cada modo.
 // Son más largos que una etiqueta, por eso WIDGET_NOTE_MAX aparte.
-const WIDGET_TEXT_KEYS = ["headline", "once_label", "sub_label", "cta_once", "cta_sub", "savings_label", "per_unit_label", "freq_prefix", "disc_label", "cta_price", "pack_freq"];
+const WIDGET_TEXT_KEYS = ["headline", "once_label", "sub_label", "cta_once", "cta_sub", "savings_label", "per_unit_label", "freq_prefix", "disc_label", "cta_price", "pack_freq", "per_unit_sub", "per_unit_once"];
 // sub_hint (22-sept-2026): el renglon chico del cuadro de suscripcion cuando
 // esta apagado. Va con las notas porque es una frase, no una etiqueta.
 const WIDGET_NOTE_KEYS = ["note_sub", "note_once", "sub_hint"];
