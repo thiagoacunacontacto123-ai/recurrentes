@@ -172,7 +172,9 @@ export function normalizePacks(input) {
     // los packs que ya tenían texto no cambian.
     const note_once = String(p.note_once ?? "").trim().slice(0, 120);
     let badge = null;
-    if (p.badge != null && String(p.badge).trim()) badge = String(p.badge).trim().slice(0, 24);
+    // 48 chars (24-sept-2026, Thiago): con 24 no entraba "Envío Gratis + 3
+    // Cuotas sin interés" (35). La cinta ya recorta con ellipsis si no entra.
+    if (p.badge != null && String(p.badge).trim()) badge = String(p.badge).trim().slice(0, 48);
     let frequency_days = null;
     if (p.frequency_days != null && p.frequency_days !== "") {
       frequency_days = toInt(p.frequency_days);

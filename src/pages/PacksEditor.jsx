@@ -324,7 +324,7 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                     </div>
                     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(96px, 1fr))",gap:8,marginTop:8}}>
                       <div><Lbl T={T}>Etiqueta</Lbl><input type="text" value={r.label} onChange={e=>upd(i,"label",e.target.value)} style={inp} placeholder={`${d.qty} ${d.qty===1?"pote":"potes"}`} maxLength={40}/></div>
-                      <div><Lbl T={T}>Badge</Lbl><input type="text" value={r.badge} onChange={e=>upd(i,"badge",e.target.value)} style={inp} placeholder="Más elegido" maxLength={24}/></div>
+                      <div><Lbl T={T}>Badge</Lbl><input type="text" value={r.badge} onChange={e=>upd(i,"badge",e.target.value)} style={inp} placeholder="Más elegido" maxLength={48}/></div>
                       {esSub && <div><Lbl T={T}>Precio sin descuento ($)</Lbl><input type="number" min="0" value={r.price_ars} onChange={e=>upd(i,"price_ars",e.target.value)} style={inp} placeholder="para calcular el ahorro"/></div>}
                       <div style={{display:"flex",alignItems:"flex-end",gap:8}}>
                         <label style={{display:"flex",alignItems:"center",gap:6,fontSize:DS.font.sm,color:T.textMd,cursor:"pointer",whiteSpace:"nowrap",paddingBottom:8}}>
