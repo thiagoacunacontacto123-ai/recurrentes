@@ -464,7 +464,7 @@ function summaryHtml() {
 function renderCk() {
   $("#sumSide").innerHTML = summaryHtml(); $("#msBody").innerHTML = summaryHtml();
   const t = totals(); $("#msTot").textContent = money(t.sub + shipPrice());
-  $("#payBtn").textContent = `Suscribirme y pagar ${money(t.sub + shipPrice())}`;
+  $("#payBtn").textContent = `Pagar suscripción · ${money(t.sub + shipPrice())}`;
   $("#payFreq").textContent = `Se cobra ${freqTxt()}, sin que hagas nada.`;
   $("#trFreq").textContent = `Envío automático ${freqTxt()} · Pago seguro con Mercado Pago`;
   const has = $("#ckZip").value.trim() || $("#ckProv").value;

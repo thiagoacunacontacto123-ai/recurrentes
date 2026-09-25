@@ -117,7 +117,7 @@ export default function CheckoutDesigner({ merchant, onChange }) {
             <Lbl T={T}>Arriba de todo</Lbl>
             <input value={draft.header_text} onChange={e => set("header_text", e.target.value)} placeholder={m.store_name || "Nombre de tu tienda"} maxLength={80} style={iS}/>
             <Lbl T={T}>Botón de pagar</Lbl>
-            <input value={draft.cta_text} onChange={e => set("cta_text", e.target.value)} placeholder="Suscribirme y pagar {{total}}" maxLength={60} style={iS}/>
+            <input value={draft.cta_text} onChange={e => set("cta_text", e.target.value)} placeholder="Pagar suscripción · {{total}}" maxLength={60} style={iS}/>
             <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:4 }}>{"{{total}}"} se reemplaza por el monto.</div>
             <Lbl T={T}>Debajo del total</Lbl>
             <textarea value={draft.footer_text} onChange={e => set("footer_text", e.target.value)} rows={3} maxLength={300} placeholder="Se cobra $X ahora y se renueva automáticamente. Podés pausar o cancelar cuando quieras." style={{ ...iS, resize:"vertical", lineHeight:1.45 }}/>

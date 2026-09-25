@@ -133,6 +133,6 @@ function derivedColors(t) {
 }
 
 export function ctaText(theme, totalTxt) {
-  const raw = theme?.cta_text || "Suscribirme y pagar {{total}}";
+  const raw = theme?.cta_text || "Pagar suscripción · {{total}}";
   return raw.includes("{{total}}") ? raw.replace(/\{\{\s*total\s*\}\}/g, totalTxt) : `${raw} ${totalTxt}`;
 }

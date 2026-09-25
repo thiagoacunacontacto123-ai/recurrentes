@@ -41,7 +41,7 @@ test("resolve: defaults + el color del widget como acento; el preview pisa; colo
   assert.equal(t2.color, "#ff5500"); assert.equal(t2.radius, 0, "preview manda");
   assert.equal(ctaText({ cta_text: "Pagar {{total}} hoy" }, "$100"), "Pagar $100 hoy");
   assert.equal(ctaText({ cta_text: "Confirmar" }, "$100"), "Confirmar $100");
-  assert.equal(ctaText({}, "$100"), "Suscribirme y pagar $100");
+  assert.equal(ctaText({}, "$100"), "Pagar suscripción · $100");
 });
 
 test("Lumina sin tema: el comprador recibe los defaults con el color de su widget", async () => {
