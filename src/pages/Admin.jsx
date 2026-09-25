@@ -301,23 +301,23 @@ function AcquisitionPanel({ T, acq }) {
   const cols = [
     { key:"ad", label:"Anuncio", render: r => <CellStack T={T} main={r.ad} sub={[r.campaign, r.source].filter(Boolean).join(" · ") || null}/> },
     { key:"registered", label:"Registros", align:"right", nowrap:true, render: r => <b>{fmtN(r.registered)}</b> },
-    // El que dijo que ya vende (50+ pedidos/mes) o pidió la instalación paga: es
-    // el evento por el que optimiza la pauta, así que va al lado del registro.
-    { key:"qualified", label:"Califican", align:"right", nowrap:true, render: r => `${fmtN(r.qualified)} · ${r.pct_qualified}%` },
+    // El que pidió la instalación de USD 100: es el evento por el que optimiza la
+    // pauta (SubmitApplication), así que va al lado del registro para comparar.
+    { key:"qualified", label:"Pagan instalación", align:"right", nowrap:true, render: r => `${fmtN(r.qualified)} · ${r.pct_qualified}%` },
     { key:"store_connected", label:"Conectaron tienda", align:"right", nowrap:true, render: r => `${fmtN(r.store_connected)} · ${r.pct_connected}%` },
     { key:"first_plan", label:"Crearon plan", align:"right", nowrap:true, render: r => fmtN(r.first_plan) },
     { key:"paid", label:"Pagan", align:"right", nowrap:true, render: r => `${fmtN(r.paid)} · ${r.pct_paid}%` },
     { key:"usd_month", label:"US$/mes", align:"right", nowrap:true, render: r => fmtUsd(r.usd_month) },
   ];
   const sub = acq?.pixel
-    ? "Registros → califican → conectaron la tienda → crearon plan → pagan, por anuncio (utm_content del link). Eventos al pixel propio por servidor: activo. En Meta optimizá por SubmitApplication (\"califican\"), no por registro."
+    ? "Registros → pagan instalación → conectaron la tienda → crearon plan → pagan el plan, por anuncio (utm_content del link). Eventos al pixel propio por servidor: activo. En Meta optimizá por SubmitApplication (el que pidió la instalación de USD 100), no por registro."
     : "Falta el pixel propio: cargá META_PIXEL_ID, META_CAPI_TOKEN y VITE_META_PIXEL_ID en Vercel (TAREAS_THIAGO.md). La tabla igual se arma con los UTM de los links.";
   return (
     <Panel T={T} title="Adquisición · Meta Ads" sub={sub} style={{ marginBottom:16 }}
       right={<Segmented T={T} ariaLabel="Período de adquisición" value={range} onChange={setRange} options={[{ id:"d30", label:"30 días" }, { id:"d90", label:"90 días" }, { id:"all", label:"Todo" }]}/>}>
       <div style={{ display:"flex", gap:18, flexWrap:"wrap", padding:"0 16px 12px", fontSize:DS.font.sm, color:T.textMd }}>
         <span><b style={{ color:T.text }}>{fmtN(t.registered)}</b> registros</span>
-        <span><b style={{ color:T.text }}>{fmtN(t.qualified)}</b> califican ({t.pct_qualified || 0}%)</span>
+        <span><b style={{ color:T.text }}>{fmtN(t.qualified)}</b> pagan instalación ({t.pct_qualified || 0}%)</span>
         <span><b style={{ color:T.text }}>{fmtN(t.store_connected)}</b> conectaron ({t.pct_connected || 0}%)</span>
         <span><b style={{ color:T.text }}>{fmtN(t.first_plan)}</b> crearon plan</span>
         <span><b style={{ color:T.text }}>{fmtN(t.paid)}</b> pagan ({t.pct_paid || 0}%) · {fmtUsd(t.usd_month)} por mes</span>

@@ -125,16 +125,16 @@ test("(q) resumen para el Admin: por anuncio, con % y filtro de días", () => {
 });
 
 // ─── El evento por el que se pauta ────────────────────────────────────────
-// 25-sept-2026, Thiago: "la conversión tiene que ser una creada por nosotros, de
-// las marcas que ponen que venden". Optimizar por registro traía al que registra
-// barato: de los 4 leads del primer creativo, 3 contestaron "sin ventas".
-test("(q) califica el que ya vende 50+ pedidos o el que paga la instalación", () => {
-  assert.equal(A.leadCalifica({ lead_volumen: "sin_ventas", lead_instalacion: "solo" }), false);
-  assert.equal(A.leadCalifica({ lead_volumen: "1_50", lead_instalacion: "solo" }), false);
-  assert.equal(A.leadCalifica({ lead_volumen: "50_200" }), true, "100 pedidos/mes entra acá");
-  assert.equal(A.leadCalifica({ lead_volumen: "1000_mas" }), true);
-  // La instalación paga alcanza sola: nadie pone USD 100 "a ver qué onda".
+// 25-sept-2026, Thiago: "la única variante que sea que quiere pagar los 100
+// dólares; el resto, suscripciones comunes". Optimizar por registro traía al que
+// registra barato: de los 4 leads del primer creativo, 3 contestaron "sin ventas".
+test("(q) califica SOLO el que pide la instalación paga, diga el volumen que diga", () => {
   assert.equal(A.leadCalifica({ lead_volumen: "sin_ventas", lead_instalacion: "asistida" }), true);
+  assert.equal(A.leadCalifica({ lead_instalacion: "asistida" }), true);
+  // Decir que vendés mucho no cuesta nada: no alcanza para pautar por ahí.
+  assert.equal(A.leadCalifica({ lead_volumen: "1000_mas", lead_instalacion: "solo" }), false);
+  assert.equal(A.leadCalifica({ lead_volumen: "200_1000" }), false);
+  assert.equal(A.leadCalifica({ lead_volumen: "sin_ventas", lead_instalacion: "solo" }), false);
   assert.equal(A.leadCalifica(null), false);
   assert.equal(A.leadCalifica({}), false);
 });
@@ -153,7 +153,7 @@ test("(q) el paso 'qualified' va a Meta como SubmitApplication y no se manda dos
   assert.equal(meta.length, 1, "el mismo lead no se cuenta dos veces");
 });
 
-test("(q) el resumen del Admin cuenta los calificados por anuncio", () => {
+test("(q) el resumen del Admin cuenta por anuncio los que pagan instalación, aparte de los registros", () => {
   const now = Date.parse("2026-09-26T12:00:00Z");
   const d = (n) => new Date(now - n * 86400e3).toISOString();
   const accounts = [
@@ -163,6 +163,7 @@ test("(q) el resumen del Admin cuenta los calificados por anuncio", () => {
     { id: "e", created_at: d(1), acquisition: { utm_source: "meta", utm_content: "VIDEO_1" } },
   ];
   const s = A.acquisitionSummary(accounts, {}, { days: 30, nowMs: now });
+  assert.equal(s.totals.registered, 4, "el registro sigue contando todas las altas");
   assert.equal(s.totals.qualified, 1);
   assert.equal(s.totals.pct_qualified, 25, "1 de 4: es el número que hay que mirar, no los registros");
 });
