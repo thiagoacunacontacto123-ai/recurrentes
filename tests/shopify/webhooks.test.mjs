@@ -60,7 +60,7 @@ tokenStatus.tok_m1 = "alive"; tokenStatus.tok_m3 = "alive"; tokenStatus.tok_m4 =
 // ── 0) Scopes compartidos ──
 // write_draft_orders volvió el 21-sept: draftOrderCalculate (la cotización de
 // envíos en vivo) lo exige. Ver tests/money-path/envios-auto.test.mjs.
-ok(shared.SHOPIFY_SCOPES_STRING === "read_products,read_orders,write_orders,read_customers,write_customers,read_shipping,write_draft_orders,read_discounts", "lista de scopes compartida (con read_shipping y write_draft_orders)");
+ok(shared.SHOPIFY_SCOPES_STRING === "read_products,read_orders,write_orders,read_customers,write_customers,read_shipping,write_draft_orders,read_discounts,write_discounts", "lista de scopes compartida (con read_shipping y write_draft_orders)");
 ok(shared.oauthScopes("read_products, read_inventory") === shared.SHOPIFY_SCOPES_STRING + ",read_inventory", "la env solo SUMA scopes");
 ok(shared.oauthScopes("") === shared.SHOPIFY_SCOPES_STRING, "sin env: lista compartida");
 ok(JSON.stringify(shared.missingShopifyScopes("write_orders,write_customers,read_products")) === JSON.stringify(["read_shipping","write_draft_orders"]), "faltan read_shipping y write_draft_orders (write_X cubre read_X)");

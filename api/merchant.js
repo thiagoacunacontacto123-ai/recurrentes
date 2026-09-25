@@ -59,6 +59,7 @@ import { mpMe } from "./_lib/mp.js";
 import { emailSubscriptionActivated, emailTeamInvite, emailPlanRequest, effectiveBrand, effectiveFrom } from "./_lib/email.js";
 import { shGetShopInfo, buildShopInfoPatch, shopifyRatesForPanel } from "./_lib/shopify.js";
 import { importDiscountsAction, cleanDiscountCodes } from "./_lib/discountImport.js";
+import { giftFreeAction } from "./_lib/giftDiscount.js";
 import { widgetVerifyUrlAction, widgetVerifyStatusAction } from "./_lib/widgetVerify.js";
 import { VARIANT_IDS } from "../shared/bundle/viewmodel.js";
 import { REASON_CODE_RE, retentionFor } from "./_lib/retention.js";
@@ -297,7 +298,7 @@ export default async function handler(req, res) {
     const action = String(req.query.action || "");
     // Integraciones: solo el dueño (propio o viaOwner). Un miembro del equipo no
     // conecta/desconecta MP ni Shopify de una tienda ajena.
-    const ownerOnly = ["save-mp-token", "mp-reuse", "saas-checkout", "saas-portal", "wa-card-setup", "mp-oauth-start", "disconnect-mp", "disconnect-shopify", "save-meta", "save-klaviyo", "disconnect-klaviyo", "klaviyo-test", "import-shipping-rates"];
+    const ownerOnly = ["save-mp-token", "mp-reuse", "saas-checkout", "saas-portal", "wa-card-setup", "mp-oauth-start", "disconnect-mp", "disconnect-shopify", "save-meta", "save-klaviyo", "disconnect-klaviyo", "klaviyo-test", "import-shipping-rates", "gift-free"];
     if (ownerOnly.includes(action) && ctx.role !== "owner") return res.status(403).json({ error: "Solo el dueño de la tienda puede administrar las integraciones." });
     // El perfil del negocio (tipo / canal / pasarela) cambia cómo se cumple cada cobro: solo el dueño.
     if (action === "save-settings" && ctx.role !== "owner" && ["business_type", "channel", "payment_provider"].some(k => k in (req.body || {}))) {
@@ -318,6 +319,7 @@ export default async function handler(req, res) {
     if (action === "save-meta")            return saveMeta(merchantId, req, res);
     if (action === "save-discount-codes")  return saveDiscountCodes(merchantId, req, res);
     if (action === "import-discounts")     return importDiscountsAction(merchantId, req, res);
+    if (action === "gift-free")            return giftFreeAction(merchantId, req, res);
     if (action === "test-email")           return testEmail(merchantId, req, res);
     if (action === "backfill-email-log")   return backfillEmailLog(merchantId, req, res);
     if (action === "mp-oauth-start")       return mpOauthStart(ctx, req, res);

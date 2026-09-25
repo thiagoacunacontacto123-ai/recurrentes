@@ -236,7 +236,9 @@ export function normalizePacks(input) {
         // Código de descuento que lo deja gratis en compra única (opcional): el widget
         // visita /discount/<code> después de agregar el regalo y el checkout lo aplica solo.
         const gcode = gvid && g.discount_code != null ? String(g.discount_code).trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "").slice(0, 40) : "";
-        gifts.push({ title, image: gimg, compare_at_ars: gcmp, virtual, note, every, shopify_variant_id: gvid, shopify_product_id: gpid, discount_code: gcode || null });
+        // Descuento automático creado en Shopify por "Hacerlo gratis" (gid). Se conserva tal cual.
+        const ggid = gvid && typeof g.discount_gid === "string" && /^gid:\/\/shopify\/DiscountAutomaticNode\/\d+$/.test(g.discount_gid) ? g.discount_gid : null;
+        gifts.push({ title, image: gimg, compare_at_ars: gcmp, virtual, note, every, shopify_variant_id: gvid, shopify_product_id: gpid, discount_code: gcode || null, discount_gid: ggid });
       }
     }
     // En que modo se muestra este pack (22-sept-2026, Thiago): el comerciante

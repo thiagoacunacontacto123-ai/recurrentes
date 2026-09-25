@@ -29,7 +29,12 @@ export const SHOPIFY_SCOPES = [
   // Opcional: solo lo usa el botón "Traer los descuentos de Shopify" (Configuración →
   // Descuentos). Si falta, todo lo demás anda y NO mostramos el aviso de permisos.
   { id: "read_discounts",  why: "Traer tus códigos de descuento al checkout de suscripción.", optional: true },
+  // Opcional (25-sept-2026, Wellfresh): el botón "Hacerlo gratis en Shopify" crea un
+  // descuento automático "comprá el pack, llevate el regalo gratis". Sin este permiso el
+  // regalo se agrega al carrito al precio de la tienda.
+  { id: "write_discounts", why: "Crear el descuento automático que deja tus regalos gratis en compra única.", optional: true },
 ];
+export const SHOPIFY_GIFT_SCOPE = "write_discounts";
 
 export const SHOPIFY_SCOPE_IDS = SHOPIFY_SCOPES.map(s => s.id);
 // Sin los opcionales: es lo que el panel exige para decir "te falta un permiso".

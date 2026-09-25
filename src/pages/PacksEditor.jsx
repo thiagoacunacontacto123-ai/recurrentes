@@ -3,6 +3,7 @@ import React from "react";
 import { DS, useT } from "../ui/theme.js";
 import { Btn, InputStyle, CheckLine, Callout, DSBadge } from "../ui/components.jsx";
 import { PackTip } from "./Onboarding.jsx";
+import { apiPost } from "../lib/api.js";
 
 // Editor de "Precios y packs" del plan (alta y edición). Vive fuera de
 // Dashboard.jsx para no engordarlo. Contrato de datos: shared/bundle/SPEC.md.
@@ -77,6 +78,7 @@ export function packsFromPlan(plan) {
       shopify_variant_id: g?.shopify_variant_id ? String(g.shopify_variant_id) : "",
       shopify_product_id: g?.shopify_product_id ? String(g.shopify_product_id) : "",
       discount_code: g?.discount_code || "",
+      discount_gid: g?.discount_gid || "",
     })) : [],
     default: p.default === true,
     hide_once: p.hide_once === true,
@@ -196,6 +198,7 @@ export function serializePacks(rows) {
           shopify_variant_id: !g.virtual && g.shopify_variant_id ? String(g.shopify_variant_id) : null,
           shopify_product_id: !g.virtual && g.shopify_product_id ? String(g.shopify_product_id) : null,
           discount_code: !g.virtual && g.shopify_variant_id ? (g.discount_code || "").trim().toUpperCase() || null : null,
+          discount_gid: !g.virtual && g.shopify_variant_id ? (g.discount_gid || null) : null,
         })),
       default: r.default === true,
       // En qué modo se muestra este pack, y la cantidad propia de suscripción.
@@ -233,7 +236,18 @@ const Lbl = ({ T, children }) => <label style={{display:"block",fontSize:DS.font
 
 // compact=true: solo las filas (sin título ni selector de modo) — lo usa el
 // diseñador del widget con mode="packs" fijo.
-export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, basePrice, discountPct, frequencyDays, freqScales, onFreqScalesChange, compact = false, radioName = "rc-pack-default", products = [], productImage = null, toast }) {
+export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, basePrice, discountPct, frequencyDays, freqScales, onFreqScalesChange, compact = false, radioName = "rc-pack-default", products = [], productImage = null, toast, planId = null }) {
+  // "Hacerlo gratis en Shopify": crea el descuento automático del regalo (write_discounts).
+  const [freeBusy, setFreeBusy] = React.useState("");
+  async function hacerGratis(i, gi) {
+    if (!planId) { toast?.("Guardá el plan primero y después tocá Hacerlo gratis.", "error"); return; }
+    setFreeBusy(i + ":" + gi);
+    const d = await apiPost("merchant", { plan_id: planId, pack_index: i, gift_index: gi }, { action: "gift-free" }).catch(e => ({ error: e.message }));
+    setFreeBusy("");
+    if (d?.error) { toast?.(d.error, "error", 9000); return; }
+    onPacksChange(packs.map((r, j) => j === i ? { ...r, gifts: (r.gifts || []).map((g, gj) => gj === gi ? { ...g, discount_gid: d.discount_gid } : g) } : r));
+    toast?.("Listo: Shopify ya lo deja gratis en el carrito cuando compran ese pack.", "success", 7000);
+  }
   const T = useT();
   const inp = { ...InputStyle(T), padding:"7px 9px", fontSize:DS.font.md };
   const ctx = { basePrice, discountPct, frequencyDays, freqScales, rows: packs };
@@ -399,7 +413,7 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                               ? <img src={g.image} alt="" style={{width:34,height:34,objectFit:"cover",borderRadius:5,border:`1px solid ${T.borderL}`,background:"#fff",flex:"none"}}/>
                               : <span style={{width:34,height:34,borderRadius:5,border:`1px dashed ${T.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flex:"none"}}>🎁</span>}
                             <input type="text" value={g.title} onChange={e=>updGift(i,gi,"title",e.target.value)} style={{...inp,flex:1}} placeholder="Nombre del regalo" maxLength={80}/>
-                            <input type="number" min="0" value={g.compare_at_ars} onChange={e=>updGift(i,gi,"compare_at_ars",e.target.value)} style={{...inp,width:92,flex:"none"}} placeholder="valor $"/>
+                            <input type="number" min="0" value={g.compare_at_ars} onChange={e=>updGift(i,gi,"compare_at_ars",e.target.value)} style={{...inp,width:92,flex:"none"}} placeholder="vale $ (tachado)" title="Cuánto vale el regalo: se muestra tachado. No es un precio: el regalo siempre va gratis."/>
                             <button type="button" onClick={()=>rmGift(i,gi)} title="Quitar regalo" style={{background:"transparent",border:"none",color:T.textSm,cursor:"pointer",fontSize:14,fontFamily:"inherit",flex:"none"}}>✕</button>
                           </div>
                           {/* Regalo que NO es un producto de la tienda: un ebook
@@ -432,9 +446,17 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                           )}
                           {!g.virtual && g.shopify_variant_id && (
                             <div style={{marginBottom:6}}>
-                              <Lbl T={T}>Para que salga GRATIS en compra única</Lbl>
-                              <input type="text" value={g.discount_code || ""} onChange={e=>updGift(i,gi,"discount_code",e.target.value.toUpperCase())} style={inp} maxLength={40} placeholder="Código de descuento (ej: REGALORASPADOR)"/>
-                              <div style={{fontSize:DS.font.sm,color:T.textSm,marginTop:4,lineHeight:1.45}}>En compra única el carrito agrega el regalo al precio que tiene en tu tienda. Para dejarlo en $0: creá en Shopify un código de descuento del 100% solo para ese producto y ponelo acá (el widget lo aplica solo), o un descuento automático "Comprá X, llevate el regalo gratis", o directamente un producto a $0. En suscripción ya va a $0 sin hacer nada.</div>
+                              <Lbl T={T}>Gratis en compra única</Lbl>
+                              {g.discount_gid ? (
+                                <div style={{fontSize:DS.font.sm,color:T.text,padding:"6px 9px",borderRadius:DS.r.md,background:T.accentBg||"rgba(16,185,129,0.10)"}}>✓ Shopify lo deja gratis con un descuento automático cuando compran este pack. En suscripción también va a $0.</div>
+                              ) : (<>
+                                <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                                  <Btn T={T} variant="secondary" size="sm" type="button" onClick={()=>hacerGratis(i,gi)} disabled={freeBusy === i+":"+gi}>{freeBusy === i+":"+gi ? "Creando en Shopify…" : "Hacerlo gratis en Shopify"}</Btn>
+                                  <span style={{fontSize:DS.font.sm,color:T.textSm}}>crea el descuento automático "comprá {r.qty} → regalo gratis"</span>
+                                </div>
+                                <div style={{fontSize:DS.font.sm,color:T.textSm,marginTop:6,lineHeight:1.45}}>Si no, el carrito lo agrega al precio de tu tienda. Alternativa: un código del 100% solo para ese producto, pegado acá (el widget lo aplica solo):</div>
+                                <input type="text" value={g.discount_code || ""} onChange={e=>updGift(i,gi,"discount_code",e.target.value.toUpperCase())} style={{...inp,marginTop:6}} maxLength={40} placeholder="Código de descuento (opcional)"/>
+                              </>)}
                             </div>
                           )}
                           {!g.virtual && !g.shopify_variant_id && (
