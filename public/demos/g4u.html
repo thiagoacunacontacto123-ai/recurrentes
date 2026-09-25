@@ -479,7 +479,7 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
     <div class="pt-hello"><div><div class="pt-eyebrow">Hola, Ana</div><h1>Tu suscripción G4U</h1></div><span class="pt-status">Activa</span></div>
     <div class="pt-card">
       <div class="pt-row3">
-        <div><small>Próximo envío y cobro</small><b id="ptNext"></b></div>
+        <div><small>Próximo cobro</small><b id="ptNext"></b></div>
         <div><small>Cada</small><b id="ptFreq"></b></div>
         <div><small>Total por cobro</small><b id="ptTotal"></b></div>
       </div>
@@ -795,7 +795,7 @@ $("#payBtn").addEventListener("click", () => {
   if (miss.length) { const f = $(miss[0][0]).closest(".f"); f.scrollIntoView({ behavior: "smooth", block: "center" }); $(miss[0][0]).focus({ preventScroll: true }); return; }
   const b = $("#payBtn"); b.disabled = true; b.textContent = "Redirigiendo a Mercado Pago…";
   setTimeout(() => { b.disabled = false; const t = totals(); const next = new Date(Date.now() + S.freq * 864e5).toLocaleDateString("es-AR", { day: "numeric", month: "long" });
-    $("#okCard").innerHTML = `<div><span>Pack</span><b>${S.packQty > 1 ? S.packQty + " × " : ""}${S.pack} producto${S.pack === 1 ? "" : "s"} · armado por vos${extrasList().length ? " + " + extrasList().reduce((a, i) => a + i.q, 0) + " extra" : ""}</b></div><div><span>Cobrado hoy</span><b>${money(t.sub + shipPrice())}</b></div><div><span>Frecuencia</span><b>${freqTxt()}</b></div><div><span>Próximo envío y cobro</span><b>${next}</b></div><div><span>Ahorro por envío</span><b style="color:#1f7a3e">${money(t.saving)}</b></div>`;
+    $("#okCard").innerHTML = `<div><span>Pack</span><b>${S.packQty > 1 ? S.packQty + " × " : ""}${S.pack} producto${S.pack === 1 ? "" : "s"} · armado por vos${extrasList().length ? " + " + extrasList().reduce((a, i) => a + i.q, 0) + " extra" : ""}</b></div><div><span>Cobrado hoy</span><b>${money(t.sub + shipPrice())}</b></div><div><span>Frecuencia</span><b>${freqTxt()}</b></div><div><span>Próximo cobro</span><b>${next}</b></div><div><span>Ahorro por envío</span><b style="color:#1f7a3e">${money(t.saving)}</b></div>`;
     show("ok"); }, 1400);
 });
 </script>

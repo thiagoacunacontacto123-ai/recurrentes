@@ -29,7 +29,7 @@ export const BUSINESS_TYPES = {
       item: "producto", items: "productos",
       customer: "suscriptor", customers: "suscriptores",
       delivery: "orden", deliveries: "órdenes",
-      next: "Próximo envío",
+      next: "Próximo cobro", // no "envío": recién comprado, el cliente entiende que le llega al mes (Thiago, 25-sept-2026)
     },
   },
   // Retirado el 19-sept-2026 (Thiago): una suscripción digital no necesita órdenes nuevas,
