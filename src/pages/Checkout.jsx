@@ -278,6 +278,7 @@ export default function Checkout() {
   const FALLBACK_RATE = { name: "Envío a domicilio", price: 0, _fallback: true };
   // Métodos de envío: de Shopify (tienda conectada) o los del checkout del merchant.
   const rateTimer = useRef(null);
+  const rateSeq = useRef(0); // descarta respuestas viejas que llegan después de una más nueva
   // Provincia sugerida por el CP: se aplica si el comprador no eligió una a mano.
   const provinceAuto = useRef(false);
   useEffect(() => {
@@ -298,10 +299,17 @@ export default function Checkout() {
       setRateIdx(0);
       return;
     }
-    if (!zip && !province) { setRates([]); setRateIdx(0); return; }
+    // Con cotización en vivo (Shopify, hay variante) se pide UNA sola vez, con el CP completo
+    // (4 dígitos): antes, con el CP a medio escribir o solo la provincia, salía la tarifa manual
+    // ("Envío gratis") y 3 s después las sucursales reales: confusión total (Thiago, 25-sept).
+    // Sin variante (tarifas manuales por provincia) alcanza con la provincia, como siempre.
+    const live = !!plan?.shopify_variant_id;
+    const zipOk = /\d{4}/.test(zip);
+    if (live ? !zipOk : (!zip && !province)) { setRates([]); setRateIdx(0); setRatesLoading(false); return; }
     clearTimeout(rateTimer.current);
+    const seq = ++rateSeq.current;
+    setRatesLoading(true); // el "Buscando…" arranca ya, y no se suelta hasta la respuesta final
     rateTimer.current = setTimeout(async () => {
-      setRatesLoading(true);
       try {
         // Con variante + CP, el backend le pide la cotización a Shopify y trae
         // las opciones de la app de envíos del comerciante (sucursales incluidas),
@@ -329,10 +337,11 @@ export default function Checkout() {
         // envío a domicilio estándar, que el comercio coordina al despachar.
         // 22-sept-2026, Thiago.
         const conPrecio = list.filter(r => !r.unpriced);
+        if (seq !== rateSeq.current) return; // llegó tarde: ya hay un pedido más nuevo en curso
         setRates(conPrecio.length ? conPrecio : [FALLBACK_RATE]);
         setRateIdx(0);
-      } catch (_) { setRates([FALLBACK_RATE]); setRateIdx(0); }
-      finally { setRatesLoading(false); }
+      } catch (_) { if (seq !== rateSeq.current) return; setRates([FALLBACK_RATE]); setRateIdx(0); }
+      finally { if (seq === rateSeq.current) setRatesLoading(false); }
     }, 350);
     return () => clearTimeout(rateTimer.current);
     // eslint-disable-next-line
@@ -673,7 +682,7 @@ export default function Checkout() {
                 ) : !rates.length ? (
                   <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: theme.text_muted, padding: "14px 16px", background: theme.dark ? "rgba(255,255,255,0.05)" : "#f5f5f5", borderRadius: R }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
-                    Completá tu dirección para ver las opciones de envío.
+                    {province && !/\d{4}/.test(zip) ? "Completá el código postal para ver las opciones de envío." : "Completá tu dirección para ver las opciones de envío."}
                   </div>
                 ) : (
                   <div className="rc-opts">
