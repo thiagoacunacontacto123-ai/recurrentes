@@ -110,8 +110,8 @@ export default function CheckoutSuccess() {
 
   const steps = shipping
     ? [
-        { icon: "📦", text: "Preparamos tu envío y te avisamos por email cuando salga en camino." },
-        { icon: "🔁", text: "Se renueva automáticamente. Cancelás cuando quieras." },
+        { icon: "🧭", text: "Desde tu portal pausás, cambiás la dirección o cancelás cuando quieras." },
+        { icon: "🔁", text: "Se renueva automáticamente y cada cobro te llega por mail." },
       ]
     : [
         { icon: "🔁", text: `La ${kind} se cobra sola ${freqTxt || "cada período"}. Pausás o cancelás cuando quieras.` },
@@ -190,7 +190,7 @@ export default function CheckoutSuccess() {
           <a href={portalUrl} style={S.btn} className="tk-btn">Gestionar mi {kind}</a>
         ) : null}
 
-        <p style={S.foot}>Cualquier duda, respondé el email de confirmación y te ayudamos.</p>
+        <p style={S.foot}>Cualquier duda, escribile a la tienda y te ayudan.</p>
       </div>
     </div>
   );

@@ -32,6 +32,7 @@ export const NAV = [
   { id:"cobros",        label:"Cobros",             short:"Cobros",   icon:SECTION_ICONS.cobros, alertKey:"cobros", badge:"red", section:"Ventas" },
   { id:"planes",        label:"Planes",             short:"Planes",   icon:SECTION_ICONS.planes, section:"Catálogo" },
   { id:"widget",        label:"Widget",             short:"Widget",   icon:SECTION_ICONS.widget, section:"Catálogo" },
+  { id:"checkout",      label:"Checkout",           short:"Checkout", icon:SECTION_ICONS.checkout, section:"Catálogo" }, // diseño del checkout + extras (antes en Configuración)
   { id:"retencion",     label:"Retención",          short:"Retener",  icon:ICON.retencion, alertKey:"retencion", badge:"orange", section:"Clientes" },
   { id:"flujos",        label:"Flujos de email",    short:"Flujos",   icon:ICON.flujos, section:"Clientes" },
   { id:"whatsapp",      label:"Flujos de WhatsApp", short:"WhatsApp", icon:ICON.whatsapp, section:"Clientes" },

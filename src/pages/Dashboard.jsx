@@ -17,6 +17,7 @@ import ReferralsPage from "./Referrals.jsx";
 import { PlanLimitBar, PlanLimitModal, PlanBlockedView, isBlocked, showsPlanLimit } from "./PlanLimit.jsx";
 import { HomeTab } from "./Home.jsx";
 import { PlansTab, WidgetTab } from "./Plans.jsx";
+import CheckoutDesigner from "./CheckoutDesigner.jsx";
 import { SubscriptionsPage } from "./Subscriptions.jsx";
 import { ChargesPage } from "./Charges.jsx";
 import { AnalyticsPage } from "./Analytics.jsx";
@@ -60,7 +61,7 @@ function tabFromHash() {
 const PREFETCH_TABS = ["suscripciones", "cobros", "planes"];
 // Tiendas de muestra: la app entera precargada de entrada (ver `prewarm`). RECURRENTES (ex DEMO SHOPIFY), Thiago 18-sept.
 const PREWARM_MERCHANTS = new Set(["m_mu4jn3fj2x06fm"]);
-const PREWARM_TABS = ["analiticas", "suscripciones", "cobros", "planes", "widget", "retencion", "flujos", "whatsapp", "portal", "afiliados", "configuracion"];
+const PREWARM_TABS = ["analiticas", "suscripciones", "cobros", "planes", "widget", "checkout", "retencion", "flujos", "whatsapp", "portal", "afiliados", "configuracion"];
 
 export default function Dashboard({ user, onLogout }) {
   const { T, darkMode, setDarkMode } = useTheme();
@@ -325,7 +326,7 @@ export default function Dashboard({ user, onLogout }) {
   // Bloqueado (pasó los 15 sin pagar): se cierran las secciones donde CONFIGURA
   // la venta. Cobros, Suscripciones, Analíticas y Configuración quedan abiertas
   // en lectura, así puede seguir viendo su negocio y pagar (Thiago, 17-sept).
-  const PLAN_BLOCKED_TABS = ["planes", "widget", "retencion", "flujos", "whatsapp", "portal"];
+  const PLAN_BLOCKED_TABS = ["planes", "widget", "checkout", "retencion", "flujos", "whatsapp", "portal"];
   const blockedTab = (id) => isBlocked(merchant?.billing) && PLAN_BLOCKED_TABS.includes(id);
   const integrationsReady = profile.ready;
   const shop = merchant?.shopify_shop || null;
@@ -347,7 +348,7 @@ export default function Dashboard({ user, onLogout }) {
     const secs = merchant?.role === "member" && merchant?.member_secciones && Object.keys(merchant.member_secciones).length ? merchant.member_secciones : null;
     // Widget acompaña al permiso de Planes (los permisos guardados antes no lo conocen).
     // Flujos de WhatsApp acompaña al permiso de Flujos (los permisos guardados antes no lo conocen).
-    const base = secs ? NAV.filter(n => n.id === "analiticas" || secs[n.id] === true || (n.id === "widget" && secs.planes === true) || (n.id === "whatsapp" && secs.flujos === true) || n.adminOnly) : NAV;
+    const base = secs ? NAV.filter(n => n.id === "analiticas" || secs[n.id] === true || ((n.id === "widget" || n.id === "checkout") && secs.planes === true) || (n.id === "whatsapp" && secs.flujos === true) || n.adminOnly) : NAV;
     // Afiliados es de la CUENTA: solo el dueño del login.
     return base.filter(n => (!n.adminOnly || isAdmin) && (n.id !== "afiliados" || merchant?.role !== "member"));
   }, [merchant?.role, merchant?.member_secciones, isAdmin]);
@@ -383,6 +384,8 @@ export default function Dashboard({ user, onLogout }) {
                 integrationsReady ? <PlansTab merchant={merchant} onMerchantChange={reloadMerchant}/> : needs("Planes")
               ) : t === "widget" ? (
                 integrationsReady ? <WidgetTab merchant={merchant} onMerchantChange={reloadMerchant}/> : needs("Widget")
+              ) : t === "checkout" ? (
+                integrationsReady ? <CheckoutDesigner merchant={merchant} onChange={reloadMerchant}/> : needs("Checkout")
               ) : t === "retencion" ? (
                 integrationsReady ? <RetentionPage merchant={merchant} reloadMerchant={reloadMerchant} goTab={goTab}/> : needs("Retención")
               ) : t === "flujos" ? (

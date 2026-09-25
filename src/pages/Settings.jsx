@@ -5,7 +5,6 @@ import * as api from "../lib/api.js";
 import { NewStoreModal, ManageStoreModal, StoreAvatar } from "../ui/Shell.jsx";
 import { IntegrationsTab } from "./Integrations.jsx";
 import CheckoutSettings, { StoreDataSection } from "./StoreSettings.jsx";
-import CheckoutDesigner from "./CheckoutDesigner.jsx";
 import { PlanPage } from "./Billing.jsx";
 import GuidePage from "./Guide.jsx";
 import MerchantAlertsSection from "./MerchantAlerts.jsx";
@@ -35,10 +34,10 @@ const { apiGet, apiPost } = api;
 // ─────────────────────────────────────────────────────────────────
 
 const F = "'Inter',system-ui,sans-serif";
-export const CFG_SECS = ["cuenta", "tiendas", "equipo", "avisos", "integraciones", "checkout-diseno", "checkout", "facturacion", "ayuda"];
+export const CFG_SECS = ["cuenta", "tiendas", "equipo", "avisos", "integraciones", "checkout", "facturacion", "ayuda"];
 // Secciones viejas → nuevas (links guardados / plan de acción viejo).
 // negocio / avanzado se sacaron (18-sept): el negocio se define solo con lo que conectás en Integraciones.
-const CFG_ALIASES = { operacion: "integraciones", negocio: "integraciones", avanzado: "integraciones", widget: "__planes_widget__", tienda: "checkout" };
+const CFG_ALIASES = { operacion: "integraciones", negocio: "integraciones", avanzado: "integraciones", widget: "__planes_widget__", "checkout-diseno": "__catalogo_checkout__", tienda: "checkout" };
 
 export const TEAM_SECTIONS = [
   { id: "suscripciones", label: "Suscripciones" },
@@ -109,14 +108,19 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
   const toast = toastProp || uiToast;
   const isOwner = (merchant?.role || "owner") === "owner";
 
-  const [sec, setSec] = useState(() => { const s = readHashSec(); return s && s !== "__planes_widget__" ? s : "cuenta"; });
+  const [sec, setSec] = useState(() => { const s = readHashSec(); return s && !s.startsWith("__") ? s : "cuenta"; });
 
   // #/config/widget (viejo) → el diseño ahora vive en Planes → Widget.
   const goPlanesWidget = React.useCallback(() => {
     try { goTab?.("planes"); } catch (_) {}
     try { setTimeout(() => { window.location.hash = "#/dashboard/widget"; }, 0); } catch (_) {}
   }, [goTab]);
-  useEffect(() => { if (readHashSec() === "__planes_widget__") goPlanesWidget(); /* eslint-disable-line */ }, []);
+  // #/config/checkout-diseno (viejo) → el diseño del checkout ahora vive en Catálogo → Checkout.
+  const goCatalogoCheckout = React.useCallback(() => {
+    try { goTab?.("checkout"); } catch (_) {}
+    try { setTimeout(() => { window.location.hash = "#/dashboard/checkout"; }, 0); } catch (_) {}
+  }, [goTab]);
+  useEffect(() => { const s0 = readHashSec(); if (s0 === "__planes_widget__") goPlanesWidget(); if (s0 === "__catalogo_checkout__") goCatalogoCheckout(); /* eslint-disable-line */ }, []);
 
   // Si la URL ya está en #/config/…, la mantenemos sincronizada (sin pisar otras rutas del shell).
   useEffect(() => {
@@ -130,6 +134,7 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
     const onHash = () => {
       const s = readHashSec();
       if (s === "__planes_widget__") return goPlanesWidget();
+      if (s === "__catalogo_checkout__") return goCatalogoCheckout();
       if (s && s !== sec) setSec(s);
     };
     window.addEventListener("hashchange", onHash);
@@ -154,7 +159,6 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
       badge: billing?.needs_activation ? { t: "Activar", c: T.yellow } : billing?.plan_requested ? { t: "Pedido", c: T.blue } : null },
     { group: "Negocio", id: "tiendas", l: "Tiendas", d: "Tus tiendas y cuál está activa", icon: "M3 9l1-5h16l1 5M3 9h18v11H3zM9 20v-6h6v6",
       badge: stores.length > 1 ? { t: String(stores.length), c: T.textSm } : null },
-    { group: "Negocio", id: "checkout-diseno", l: "Checkout", d: "Colores, letra y textos de tu checkout", icon: "M4 6h16M4 12h10M4 18h7M17 15l2 2 4-4" },
     { group: "Negocio", id: "checkout", l: "Descuentos", d: "Códigos de descuento", icon: "M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0" },
     { group: "Conexiones", id: "integraciones", l: "Integraciones", d: withStore ? `${profile.channelInfo.label}, ${profile.providerInfo.label}, Meta, WhatsApp` : `${profile.providerInfo.label}, Meta, WhatsApp`, icon: "M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71",
       badge: missing.length ? { t: `${missing.length} pendiente${missing.length === 1 ? "" : "s"}`, c: T.red } : null },
@@ -254,7 +258,6 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
           {cur === "avisos"        && isOwner && <MerchantAlertsSection key={merchant?.id || "m"} T={T} merchant={merchant} onChange={reloadMerchant} />}
           {cur === "integraciones" && <IntegrationsTab merchant={merchant} onChange={reloadMerchant} embedded />}
           {cur === "checkout"      && <CheckoutSettings merchant={merchant} onChange={reloadMerchant} />}
-          {cur === "checkout-diseno" && <CheckoutDesigner merchant={merchant} onChange={reloadMerchant} />}
           {cur === "facturacion"   && <PlanPage T={T} DS={DS} merchant={merchant} reloadMerchant={reloadMerchant} />}
           {cur === "ayuda"         && <GuidePage merchant={merchant} goTab={goTab} embedded />}
         </div>
