@@ -144,6 +144,24 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 .cl .p{text-align:right;font-size:15px;font-weight:600;line-height:1.2}
 .cl .p s{display:block;font-size:12px;color:#9a8a8e;font-weight:400}
 .cl .p em{display:block;font-size:11.5px;color:var(--ok);font-style:normal}
+.cfreq{display:flex;gap:6px;margin:10px 0 4px;flex-wrap:wrap}
+.cfreq button{border:1.5px solid #e3d3d8;background:#fff;border-radius:99px;padding:6px 11px;font-size:12px;font-weight:600;cursor:pointer;color:var(--ink)}
+.cfreq button.on{background:var(--wine);border-color:var(--wine);color:#fff}
+.stp{display:inline-flex;align-items:center;border:1.5px solid #e3d3d8;border-radius:8px;overflow:hidden;margin-top:8px}
+.stp button{width:30px;height:30px;border:none;background:#fff;font-size:16px;cursor:pointer;color:var(--wine);font-weight:700}
+.stp b{min-width:28px;text-align:center;font-size:13px}
+.ups{margin-top:22px;border-top:1px solid #eee;padding-top:16px}
+.ups h4{margin:0 0 4px;font-size:14px;font-weight:700}
+.ups p{margin:0 0 12px;font-size:12.5px;color:#7a6a6e}
+.up{display:flex;gap:12px;align-items:center;padding:10px;border:1.5px solid #eee;border-radius:12px;margin-bottom:8px;background:#fff}
+.up img{width:56px;height:56px;border-radius:9px;object-fit:cover;background:#fff;flex:none}
+.up .t{flex:1;min-width:0;font-size:13px;line-height:1.3}
+.up .t b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.up .t span{color:var(--ok);font-weight:600;font-size:12.5px}
+.up .t s{color:#9a8a8e;font-weight:400;margin-left:4px}
+.up .ab{background:var(--wine);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;flex:none}
+.up.on{border-color:var(--wine);background:#fbf1f3}
+.up .stp{margin:0}
 .cart-items{margin-top:14px;border-top:1px dashed #e6dadd;padding-top:12px;display:grid;gap:6px}
 .cart-items div{display:flex;justify-content:space-between;font-size:13px;color:#555}
 .cf{padding:18px 20px;border-top:1px solid #eee;background:#faf7f4}
@@ -264,7 +282,7 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
   <section class="intro"><div class="wrap">
     <span class="eyebrow">✦ Nuevo · Suscripción G4U</span>
     <h1>Tu pan proteico, todos los meses. Sin volver a pedir.</h1>
-    <p class="lead">Armá tu pack una vez, elegí cada cuánto lo querés y G4U te lo manda solo. Con descuento en cada envío, y lo pausás o cancelás desde un link, sin escribir a nadie.</p>
+    <p class="lead">Armá tu pack una vez, elegí cada cuánto lo querés y G4U te lo manda solo. Con descuento en cada envío, y lo pausás o cancelás cuando quieras desde tu panel de suscripción.</p>
     <div class="benef">
       <div><b>15% OFF</b><span>en cada envío, siempre. No solo en el primero.</span></div>
       <div><b>Vos elegís</b><span>cada 15 días, cada mes o cada 2 meses. Lo cambiás cuando quieras.</span></div>
@@ -405,7 +423,7 @@ const PACKS = [{ n: 1, label: "1 pack" }, { n: 4, label: "4 pack", badge: "" }, 
 const FREQS = [{ id: 15, l: "Cada 15 días", s: "para los que no paran" }, { id: 30, l: "Cada mes", s: "la más elegida" }, { id: 60, l: "Cada 2 meses", s: "se congela perfecto" }];
 const BASE_UNIT = 11800; // pan de molde
 const ITEMS = A.items.filter(i => i.h !== "semana-keto" && !/^pack|-pack$/.test(i.h));
-const S = { pack: 8, freq: 30, slots: [], view: "prod", ship: null, pickSlot: null }; // slots: handle por casillero (null = vacío)
+const S = { pack: 1, freq: 30, slots: [], view: "prod", ship: null, pickSlot: null, packQty: 1, extras: {} }; // slots: handle por casillero (null = vacío)
 // Como en su tienda: el primer casillero ya trae el pan de molde (el producto de esta página).
 function initSlots() { S.slots = Array.from({ length: S.pack }, (_, i) => S.slots[i] || null); if (!S.slots[0]) S.slots[0] = "pan-de-molde-proteico"; }
 initSlots();
@@ -425,11 +443,14 @@ renderGal();
 const selCount = () => S.slots.filter(Boolean).length;
 const freqTxt = () => ({ 15: "cada 15 días", 30: "cada mes", 60: "cada 2 meses" })[S.freq];
 function chosen() { const q = {}; S.slots.forEach(h => { if (h) q[h] = (q[h] || 0) + 1; }); return ITEMS.filter(i => q[i.h]).map(i => ({ ...i, q: q[i.h] })); }
+function extrasList() { return ITEMS.filter(i => S.extras[i.h] > 0).map(i => ({ ...i, q: S.extras[i.h] })); }
 function totals() {
   const list = chosen(); const listTotal = list.reduce((a, i) => a + i.price * i.q, 0);
   // Estimación mientras el pack no está completo: los que faltan al precio del pan de molde.
-  const missing = S.pack - selCount(); const est = listTotal + Math.max(0, missing) * BASE_UNIT;
-  return { list: est, sub: Math.round(est * (1 - SUB_OFF)), saving: Math.round(est * SUB_OFF) };
+  const missing = S.pack - selCount(); const packList = (listTotal + Math.max(0, missing) * BASE_UNIT) * S.packQty;
+  const extrasTotal = extrasList().reduce((a, i) => a + i.price * i.q, 0);
+  const est = packList + extrasTotal;
+  return { list: est, sub: Math.round(est * (1 - SUB_OFF)), saving: Math.round(est * SUB_OFF), packSub: Math.round(packList * (1 - SUB_OFF)), packList };
 }
 function renderPacks() {
   $("#packs").innerHTML = PACKS.map(p => {
@@ -469,13 +490,30 @@ renderAll();
 // ── checkout ──
 function show(v) { S.view = v; $("#v-prod").hidden = v !== "prod"; $("#v-ck").hidden = v !== "ck"; $("#v-ok").hidden = v !== "ok"; window.scrollTo(0, 0); }
 // Suscribirme → carrito (como en su tienda) → Finalizar compra → checkout de Recurrentes.
-function openCart() {
+function renderCart() {
   const t = totals();
-  $("#cartBody").innerHTML = `<div class="cl"><img src="${A.gallery[0]}" alt=""><div class="t"><b>Pack G4U × ${S.pack} · armado por vos</b><span class="pill">Suscripción · ${freqTxt()}</span><small>15% OFF en cada envío. Pausás, cambiás el pack o cancelás cuando quieras.</small></div><div class="p">${money(t.sub)}<s>${money(t.list)}</s><em>Ahorrás ${money(t.saving)}</em></div></div>
-    <div class="cart-items">${chosen().map(i => `<div><span>${i.q} × ${i.title}</span><span>${money(i.price * i.q)}</span></div>`).join("")}</div>`;
+  // Upsells: lo que no está en el pack, 3 sugerencias (como los "Sumá a tu pedido" de las tiendas).
+  const inPack = new Set(S.slots.filter(Boolean));
+  const ups = ITEMS.filter(i => !inPack.has(i.h) || S.extras[i.h]).slice(0, 3);
+  $("#cartBody").innerHTML = `<div class="cl"><img src="${A.gallery[0]}" alt=""><div class="t"><b>Pack G4U × ${S.pack} · armado por vos</b><span class="pill">Suscripción · ${freqTxt()}</span><small>15% OFF en cada envío. Pausás, cambiás el pack o cancelás cuando quieras.</small>
+      <div class="cfreq">${FREQS.map(f => `<button type="button" data-cf="${f.id}" class="${S.freq === f.id ? "on" : ""}">${f.l}</button>`).join("")}</div>
+      <div class="stp"><button type="button" data-pq="-1" ${S.packQty <= 1 ? "disabled" : ""}>−</button><b>${S.packQty} pack${S.packQty > 1 ? "s" : ""}</b><button type="button" data-pq="1" ${S.packQty >= 3 ? "disabled" : ""}>+</button></div>
+    </div><div class="p">${money(t.packSub)}<s>${money(t.packList)}</s><em>−15% cada envío</em></div></div>
+    <div class="cart-items">${chosen().map(i => `<div><span>${i.q * S.packQty} × ${i.title}</span><span>${money(i.price * i.q * S.packQty)}</span></div>`).join("")}</div>
+    ${extrasList().length ? `<div class="cart-items" style="border-top-style:solid"><div style="font-weight:700;color:var(--ink)"><span>Extras en tu suscripción</span><span></span></div>${extrasList().map(i => `<div><span>${i.q} × ${i.title}</span><span>${money(i.price * i.q)}</span></div>`).join("")}</div>` : ""}
+    <div class="ups"><h4>Sumá a tu suscripción</h4><p>Llegan con cada envío, con el mismo 15% OFF. Los sacás cuando quieras.</p>
+      ${ups.map(i => { const q = S.extras[i.h] || 0; return `<div class="up ${q ? "on" : ""}"><img src="${i.img}" alt=""><div class="t"><b>${i.title}</b><span>${money(i.price * (1 - SUB_OFF))}<s>${money(i.price)}</s></span></div>${q ? `<div class="stp"><button type="button" data-ex="${i.h}" data-d="-1">−</button><b>${q}</b><button type="button" data-ex="${i.h}" data-d="1">+</button></div>` : `<button type="button" class="ab" data-ex="${i.h}" data-d="1">+ Agregar</button>`}</div>`; }).join("")}
+    </div>`;
   $("#cartTot").textContent = money(t.sub); $("#cartSv").textContent = `Estás ahorrando ${money(t.saving)} en cada envío` + (t.sub >= 85000 ? " · envío gratis" : "");
-  $("#cartBg").style.display = "block"; $("#cart").classList.add("open"); $(".badge-cart b").textContent = "1";
+  $(".badge-cart b").textContent = String(S.packQty + extrasList().reduce((a, i) => a + i.q, 0));
 }
+function openCart() { renderCart(); $("#cartBg").style.display = "block"; $("#cart").classList.add("open"); }
+$("#cartBody").addEventListener("click", e => {
+  const cf = e.target.closest("[data-cf]"), pq = e.target.closest("[data-pq]"), ex = e.target.closest("[data-ex]");
+  if (cf) { S.freq = +cf.dataset.cf; renderAll(); renderCart(); }
+  else if (pq) { S.packQty = Math.max(1, Math.min(3, S.packQty + (+pq.dataset.pq))); renderCart(); }
+  else if (ex) { S.extras[ex.dataset.ex] = Math.max(0, (S.extras[ex.dataset.ex] || 0) + (+ex.dataset.d)); renderCart(); }
+});
 function closeCart() { $("#cartBg").style.display = "none"; $("#cart").classList.remove("open"); }
 $("#goCk").addEventListener("click", openCart);
 $("#cartX").addEventListener("click", closeCart); $("#cartBg").addEventListener("click", closeCart); $("#cartMore").addEventListener("click", e => { e.preventDefault(); closeCart(); });
@@ -486,8 +524,9 @@ const SHIP = () => { const t = totals(); const free = t.sub >= 85000; return [{ 
 function shipPrice() { return S.ship == null ? 0 : SHIP()[S.ship].p; }
 function summaryHtml() {
   const t = totals(); const total = t.sub + shipPrice();
-  return `<div style="display:flex;gap:14px;align-items:flex-start"><div style="position:relative"><img src="${A.gallery[0]}" style="width:64px;height:64px;border-radius:10px;object-fit:cover;border:1px solid #eee;background:#fff"><span style="position:absolute;top:-8px;right:-8px;min-width:22px;height:22px;padding:0 6px;border-radius:99px;background:#6b6b6b;color:#fff;font-size:12px;font-weight:600;display:grid;place-items:center">${S.pack}</span></div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600">Pack G4U × ${S.pack} · armado por vos</div><span class="pill" style="margin-top:6px">Suscripción</span><div style="font-size:13px;color:#6b6b6b;margin-top:6px">Frecuencia: ${freqTxt()}</div></div><div style="font-size:14px;font-weight:500">${money(t.sub)}</div></div>
-    <div style="margin-top:6px">${chosen().map(i => `<div class="sum-item"><span class="qb"><img src="${i.img}"><b>${i.q}</b></span><span style="flex:1;min-width:0">${i.title}</span><span style="color:#6b6b6b">${money(i.price * i.q)}</span></div>`).join("")}</div>
+  return `<div style="display:flex;gap:14px;align-items:flex-start"><div style="position:relative"><img src="${A.gallery[0]}" style="width:64px;height:64px;border-radius:10px;object-fit:cover;border:1px solid #eee;background:#fff"><span style="position:absolute;top:-8px;right:-8px;min-width:22px;height:22px;padding:0 6px;border-radius:99px;background:#6b6b6b;color:#fff;font-size:12px;font-weight:600;display:grid;place-items:center">${S.pack}</span></div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600">${S.packQty > 1 ? S.packQty + " × " : ""}Pack G4U × ${S.pack} · armado por vos</div><span class="pill" style="margin-top:6px">Suscripción</span><div style="font-size:13px;color:#6b6b6b;margin-top:6px">Frecuencia: ${freqTxt()}</div></div><div style="font-size:14px;font-weight:500">${money(t.packSub)}</div></div>
+    <div style="margin-top:6px">${chosen().map(i => `<div class="sum-item"><span class="qb"><img src="${i.img}"><b>${i.q * S.packQty}</b></span><span style="flex:1;min-width:0">${i.title}</span><span style="color:#6b6b6b">${money(i.price * i.q * S.packQty)}</span></div>`).join("")}</div>
+    ${extrasList().length ? `<div style="margin-top:14px;font-size:12px;font-weight:700;color:#6b6b6b;text-transform:uppercase;letter-spacing:.06em">Extras en tu suscripción</div>${extrasList().map(i => `<div class="sum-item"><span class="qb"><img src="${i.img}"><b>${i.q}</b></span><span style="flex:1;min-width:0">${i.title}</span><span style="color:#6b6b6b">${money(i.price * i.q)}</span></div>`).join("")}` : ""}
     <div style="border-top:1px solid #e8e8e8;margin:18px 0 4px"></div>
     <div class="line"><span>Productos</span><span>${money(t.list)}</span></div>
     <div class="line" style="color:#1f7a3e"><span style="color:#1f7a3e">Descuento suscripción · 15%</span><span>−${money(t.saving)}</span></div>
@@ -514,7 +553,7 @@ $("#payBtn").addEventListener("click", () => {
   const e = $("#ckErr"); if (miss.length) { e.hidden = false; e.textContent = "Completá: " + miss.join(", ") + "."; return; } e.hidden = true;
   const b = $("#payBtn"); b.disabled = true; b.textContent = "Redirigiendo a Mercado Pago…";
   setTimeout(() => { b.disabled = false; const t = totals(); const next = new Date(Date.now() + S.freq * 864e5).toLocaleDateString("es-AR", { day: "numeric", month: "long" });
-    $("#okCard").innerHTML = `<div><span>Pack</span><b>${S.pack} productos · armado por vos</b></div><div><span>Cobrado hoy</span><b>${money(t.sub + shipPrice())}</b></div><div><span>Frecuencia</span><b>${freqTxt()}</b></div><div><span>Próximo envío y cobro</span><b>${next}</b></div><div><span>Ahorro por envío</span><b style="color:#1f7a3e">${money(t.saving)}</b></div>`;
+    $("#okCard").innerHTML = `<div><span>Pack</span><b>${S.packQty > 1 ? S.packQty + " × " : ""}${S.pack} productos · armado por vos${extrasList().length ? " + " + extrasList().reduce((a, i) => a + i.q, 0) + " extra" : ""}</b></div><div><span>Cobrado hoy</span><b>${money(t.sub + shipPrice())}</b></div><div><span>Frecuencia</span><b>${freqTxt()}</b></div><div><span>Próximo envío y cobro</span><b>${next}</b></div><div><span>Ahorro por envío</span><b style="color:#1f7a3e">${money(t.saving)}</b></div>`;
     show("ok"); }, 1400);
 });
 </script>
