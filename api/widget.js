@@ -131,6 +131,10 @@ export default async function handler(req, res) {
   // defecto; el sticky se prende en Widget → ajustes.
   let cartDrawer = true, stickyCta = false;
   let checkoutColor = "#10b981"; // acento del checkout (tema propio o el del widget): loader y &color= en la URL
+  // Colores del carrito propio = los del checkout de la tienda (25-sept-2026, Thiago:
+  // "que el carrito se lleve con sus colores"): acento, fondo, texto, letra y radio.
+  const pickCartTheme = (t) => ({ color: t.color, on: t.color_on, tint: t.color_tint, bg: t.bg, text: t.text, muted: t.text_muted, border: t.border, soft: t.border_soft, input: t.input_bg, radius: Math.max(6, Math.min(20, Number(t.radius) || 6)), font: t.font_stack, dark: !!t.dark });
+  let cartTheme = pickCartTheme(resolveCheckoutTheme(null, { widgetColor }));
   let widgetSubTitle = "Suscripción";
   let widgetSubSubtitle = ""; // "" → usa default con frecuencia
   let widgetOnceTitle = "Compra única";
@@ -172,7 +176,7 @@ export default async function handler(req, res) {
       if (m.widget_cart_drawer === false) cartDrawer = false;
       if (m.widget_sticky_cta === true) stickyCta = true;
       if (typeof m.widget_color === "string" && /^#[0-9a-fA-F]{6}$/.test(m.widget_color)) widgetColor = m.widget_color;
-      checkoutColor = resolveCheckoutTheme(m.checkout_theme, { widgetColor }).color;
+      { const th = resolveCheckoutTheme(m.checkout_theme, { widgetColor }); checkoutColor = th.color; cartTheme = pickCartTheme(th); }
       if (typeof m.widget_sub_title === "string" && m.widget_sub_title.trim()) widgetSubTitle = m.widget_sub_title.trim();
       if (typeof m.widget_sub_subtitle === "string") widgetSubSubtitle = m.widget_sub_subtitle;
       if (typeof m.widget_once_title === "string" && m.widget_once_title.trim()) widgetOnceTitle = m.widget_once_title.trim();
@@ -400,6 +404,7 @@ export default async function handler(req, res) {
   var CHECKOUT_PAGE_PATH = ${JSON.stringify(checkoutPagePath)};
   var WIDGET_COLOR = ${JSON.stringify(widgetColor)};
   var CART_DRAWER = ${cartDrawer ? "true" : "false"};
+  var CART_THEME = ${JSON.stringify(cartTheme)};
   var STICKY_CTA = ${stickyCta ? "true" : "false"};
   var CHECKOUT_COLOR = ${JSON.stringify(checkoutColor)};
   var SUB_TITLE = ${JSON.stringify(widgetSubTitle)};
@@ -1562,31 +1567,32 @@ export default async function handler(req, res) {
       var cartEl = null;
       function ensureCart() {
         if (cartEl) return cartEl;
-        var A = WIDGET_COLOR, ON = onColor(A);
+        var T = (typeof CART_THEME === "object" && CART_THEME) || {};
+        var A = T.color || WIDGET_COLOR, ON = T.on || onColor(A), BG = T.bg || "#fff", TX = T.text || "#161616", MU = T.muted || "#6b6b6b", BD = T.soft || "#eee", TINT = T.tint || "rgba(0,0,0,.04)", RAD = (T.radius || 12) + "px", FONT = T.font || "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
         var st = document.createElement("style");
         st.textContent =
-          ".rc-cart-ov{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(17,17,17,.5);z-index:2147483000;display:none;opacity:0;transition:opacity .22s;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#161616;-webkit-font-smoothing:antialiased}" +
+          ".rc-cart-ov{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(17,17,17,.5);z-index:2147483000;display:none;opacity:0;transition:opacity .22s;font-family:" + FONT + ";color:" + TX + ";-webkit-font-smoothing:antialiased}" +
           ".rc-cart-ov.is-open{display:block}.rc-cart-ov.is-vis{opacity:1}" +
-          ".rc-cart{position:absolute;top:0;right:0;bottom:0;width:min(420px,100%);background:#fff;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .3s cubic-bezier(.22,1,.36,1);box-shadow:-16px 0 50px -20px rgba(0,0,0,.4)}" +
+          ".rc-cart{position:absolute;top:0;right:0;bottom:0;width:min(420px,100%);background:" + BG + ";display:flex;flex-direction:column;transform:translateX(100%);transition:transform .3s cubic-bezier(.22,1,.36,1);box-shadow:-16px 0 50px -20px rgba(0,0,0,.4)}" +
           ".rc-cart *{box-sizing:border-box}.rc-cart-ov.is-vis .rc-cart{transform:translateX(0)}" +
-          ".rc-cart-h{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid #eee;font-size:17px;font-weight:800}" +
-          ".rc-cart-x{width:32px;height:32px;border-radius:50%;border:1px solid #e3e3e3;background:#fff;font-size:20px;line-height:1;color:#555;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}" +
+          ".rc-cart-h{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid " + BD + ";font-size:17px;font-weight:800}" +
+          ".rc-cart-x{width:32px;height:32px;border-radius:50%;border:1px solid " + BD + ";background:transparent;font-size:20px;line-height:1;color:" + MU + ";cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}" +
           ".rc-cart-b{flex:1;overflow-y:auto;padding:16px 18px}" +
           ".rc-cart-it{display:grid;grid-template-columns:68px minmax(0,1fr);gap:12px;align-items:center}" +
-          ".rc-cart-it img{width:68px;height:68px;border-radius:10px;object-fit:cover;border:1px solid #eee;background:#f6f6f6}" +
-          ".rc-cart-ph{width:68px;height:68px;border-radius:10px;background:#f3f3f3;display:flex;align-items:center;justify-content:center;font-size:24px}" +
-          ".rc-cart-it b{display:block;font-size:15px;font-weight:800;line-height:1.2}.rc-cart-it small{display:block;font-size:12.5px;color:#555;font-weight:600;margin-top:3px}" +
-          ".rc-cart-pr{margin-top:5px;font-size:15px;font-weight:800}.rc-cart-pr s{color:#a3a3a3;font-weight:600;font-size:12.5px;margin-left:6px}" +
-          ".rc-cart-g{display:flex;align-items:center;gap:9px;margin-top:10px;padding:8px 10px;border-radius:10px;background:#f7f7f7;font-size:12.5px;font-weight:600}" +
-          ".rc-cart-g img{width:32px;height:32px;border-radius:6px;object-fit:cover;flex:none;background:#fff}.rc-cart-g em{font-style:normal;color:#777;display:block;font-size:11.5px;font-weight:600}" +
-          ".rc-cart-rows{margin-top:14px;border-top:1px solid #eee;padding-top:10px}" +
-          ".rc-cart-row{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;color:#555;font-weight:600;padding:4px 0}" +
-          ".rc-cart-row.is-tot{font-size:16.5px;font-weight:800;color:#161616;margin-top:4px}.rc-cart-row .ok{color:#1f7a3e;font-weight:800}" +
-          ".rc-cart-note{margin-top:12px;font-size:12px;color:#777;line-height:1.4}" +
-          ".rc-cart-f{padding:12px 18px 16px;border-top:1px solid #eee;background:#fff}" +
-          ".rc-cart-go{width:100%;background:" + A + ";color:" + ON + ";border:none;border-radius:12px;padding:15px 12px;font-family:inherit;font-size:15.5px;font-weight:800;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent}" +
+          ".rc-cart-it img{width:68px;height:68px;border-radius:" + RAD + ";object-fit:cover;border:1px solid " + BD + ";background:#fff}" +
+          ".rc-cart-ph{width:68px;height:68px;border-radius:" + RAD + ";background:" + TINT + ";display:flex;align-items:center;justify-content:center;font-size:24px}" +
+          ".rc-cart-it b{display:block;font-size:15px;font-weight:800;line-height:1.2}.rc-cart-it small{display:block;font-size:12.5px;color:" + MU + ";font-weight:600;margin-top:3px}" +
+          ".rc-cart-pr{margin-top:5px;font-size:15px;font-weight:800}.rc-cart-pr s{color:" + MU + ";opacity:.8;font-weight:600;font-size:12.5px;margin-left:6px}" +
+          ".rc-cart-g{display:flex;align-items:center;gap:9px;margin-top:10px;padding:8px 10px;border-radius:" + RAD + ";background:" + TINT + ";font-size:12.5px;font-weight:600}" +
+          ".rc-cart-g img{width:32px;height:32px;border-radius:6px;object-fit:cover;flex:none;background:#fff}.rc-cart-g em{font-style:normal;color:" + MU + ";display:block;font-size:11.5px;font-weight:600}" +
+          ".rc-cart-rows{margin-top:14px;border-top:1px solid " + BD + ";padding-top:10px}" +
+          ".rc-cart-row{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;color:" + MU + ";font-weight:600;padding:4px 0}" +
+          ".rc-cart-row.is-tot{font-size:16.5px;font-weight:800;color:" + TX + ";margin-top:4px}.rc-cart-row .ok{color:" + A + ";font-weight:800}" +
+          ".rc-cart-note{margin-top:12px;font-size:12px;color:" + MU + ";line-height:1.4}" +
+          ".rc-cart-f{padding:12px 18px 16px;border-top:1px solid " + BD + ";background:" + BG + "}" +
+          ".rc-cart-go{width:100%;background:" + A + ";color:" + ON + ";border:none;border-radius:" + RAD + ";padding:15px 12px;font-family:inherit;font-size:15.5px;font-weight:800;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent}" +
           ".rc-cart-go:active{filter:brightness(.92)}.rc-cart-go:disabled{opacity:.7;cursor:default}" +
-          ".rc-cart-more{display:block;width:100%;margin-top:8px;background:none;border:none;color:#777;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:3px}" +
+          ".rc-cart-more{display:block;width:100%;margin-top:8px;background:none;border:none;color:" + MU + ";font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:3px}" +
           "@media (max-width:520px){.rc-cart{top:auto;width:100%;max-height:92vh;border-radius:18px 18px 0 0;transform:translateY(100%)}}";
         document.head.appendChild(st);
         var ov = document.createElement("div");
@@ -1664,7 +1670,8 @@ export default async function handler(req, res) {
       function paintSticky() { if (stickyEl) stickyEl.querySelector("button").textContent = ctaLabel(); }
       function setupSticky() {
         if (!STICKY_CTA || stickyEl || !("IntersectionObserver" in window)) return;
-        var A = WIDGET_COLOR, ON = onColor(A);
+        var T = (typeof CART_THEME === "object" && CART_THEME) || {};
+        var A = T.color || WIDGET_COLOR, ON = T.on || onColor(A);
         var st = document.createElement("style");
         st.textContent =
           ".rc-sticky{position:fixed;left:0;right:0;bottom:0;z-index:2147482000;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:rgba(255,255,255,.96);backdrop-filter:blur(10px);box-shadow:0 -6px 24px rgba(0,0,0,.10);transform:translateY(110%);transition:transform .26s cubic-bezier(.22,.8,.3,1);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}" +
