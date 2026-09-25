@@ -52,6 +52,20 @@ export default function Portal() {
 
   const isDemo = String(token || "").startsWith("demo:");
   const demoStop = () => { toast("Es una vista previa: acá tu cliente haría esta acción de verdad. Nada se guarda.", "info", 5000); };
+  // Sacar / bajar un extra del pedido (solo hacia abajo; el server recalcula y avisa a MP).
+  async function editExtra(item, newQty) {
+    const ok = await appConfirm(newQty === 0 ? `Sacamos "${item.product_title}" de tu pedido. Tu próximo cobro baja $${(item.price_ars*item.qty).toLocaleString("es-AR")}. ¿Confirmás?` : `Dejamos ${newQty} × ${item.product_title}. Tu próximo cobro baja $${(item.price_ars*(item.qty-newQty)).toLocaleString("es-AR")}. ¿Confirmás?`, { title:"Cambiar tu pedido", okLabel:"Sí, cambiar" });
+    if (!ok) return;
+    setBusyAction("items");
+    try {
+      const extras = (sub.extra_items || []).map(x => ({ plan_id: x.plan_id, qty: x.plan_id === item.plan_id ? newQty : x.qty })).filter(x => x.qty > 0);
+      const r = await fetch(`/api/public?action=sub&token=${encodeURIComponent(token)}`, { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ action:"update-items", extras }) });
+      const d = await r.json();
+      if (d.error) toast("Error: " + d.error, "error", 6000);
+      else { toast("Pedido actualizado. Tu próximo cobro ya bajó.", "success"); await load(token, true); }
+    } catch (e) { toast("Error: " + e.message, "error", 6000); }
+    finally { setBusyAction(null); }
+  }
   async function doAction(action) {
     if (isDemo) return demoStop();
     if (action === "cancel" && data?.retention?.enabled !== false) { setCancelOpen(true); return; }
@@ -230,6 +244,25 @@ export default function Portal() {
                 </div>
                 <a href="https://www.mercadopago.com.ar/subscriptions" target="_blank" rel="noopener noreferrer" style={{...btnSecondary,padding:"6px 12px",fontSize:12,textDecoration:"none",display:"inline-block"}}>💳 Cambiar tarjeta en Mercado Pago</a>
               </div>
+            </div>
+          )}
+
+          {/* Tu pedido: los extras que sumó en el checkout, se pueden sacar (el cobro baja). */}
+          {Array.isArray(sub.extra_items) && sub.extra_items.length > 0 && status !== "cancelled" && (
+            <div style={{padding:"12px 14px",background:"var(--surface)",borderRadius:10,fontSize:12,color:"var(--text-md)",lineHeight:1.55,marginBottom:18}}>
+              <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5,marginBottom:8}}>Extras en tu pedido</div>
+              {sub.extra_items.map(it => (
+                <div key={it.plan_id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:"7px 0",borderTop:"1px solid var(--border)"}}>
+                  <span style={{minWidth:0}}><b style={{color:"var(--text)"}}>{it.qty} × {it.product_title}</b><span style={{display:"block",fontSize:11,color:"var(--text-sm)"}}>${(it.price_ars*it.qty).toLocaleString("es-AR")} por cobro</span></span>
+                  {data?.portal?.allow_edit_items !== false && (
+                    <span style={{display:"inline-flex",gap:6}}>
+                      {it.qty > 1 && <button onClick={()=>editExtra(it, it.qty-1)} disabled={busyAction} style={{...btnSecondary,padding:"6px 10px",fontSize:12}}>− uno</button>}
+                      <button onClick={()=>editExtra(it, 0)} disabled={busyAction} style={{...btnDanger,padding:"6px 10px",fontSize:12}}>Sacar</button>
+                    </span>
+                  )}
+                </div>
+              ))}
+              <div style={{fontSize:11,color:"var(--text-sm)",marginTop:6}}>Al sacar un extra, el próximo cobro baja en el momento. Para sumar productos, hacelo desde la tienda.</div>
             </div>
           )}
 
