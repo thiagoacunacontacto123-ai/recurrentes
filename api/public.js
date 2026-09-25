@@ -290,6 +290,7 @@ async function handlePlan(req, res) {
         // comprador recibe el tema completo; sin personalizar, el acento es el del widget.
         theme: resolveCheckoutTheme(m.checkout_theme, { widgetColor: m.widget_color }),
         upsells: await resolveCheckoutUpsells(merchantId, m, doc.id),
+        store_url: merchantStoreUrl(m) || null, // "← Volver a la tienda" al pie del checkout
         store_logo: typeof m.store_photo === "string" && /^https?:\/\//.test(m.store_photo) ? m.store_photo : null,
         shipping_rates: p.caps.shipping && Array.isArray(m.checkout_shipping_rates) ? m.checkout_shipping_rates : [],
         vocab: p.vocab,

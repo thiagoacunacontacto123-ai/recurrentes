@@ -371,6 +371,8 @@ export default function Checkout() {
   const footerTxt = theme.footer_text || `Se cobra ${money(total)} ahora y se renueva automáticamente ${freqTxt}. Podés pausar o cancelar cuando quieras.`;
   const cta = submitting ? `Redirigiendo a ${providerLabel}…` : ctaText(theme, money(total));
   const policiesTxt = theme.policies_text || "Al pagar aceptás los términos y la política de privacidad.";
+  // "← Volver a la tienda": a la página del producto de donde vino (el widget la pasa en &src=) o a la tienda.
+  const backUrl = (() => { const s = p.get("src") || ""; if (/^https?:\/\//.test(s)) return s; return cfg?.store_url || ""; })();
 
   const line = (l, v, opts = {}) => (
     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 14, color: opts.color || theme.text, ...(opts.style || {}) }}>
@@ -613,6 +615,7 @@ export default function Checkout() {
             <div className="rc-sec">{payBlock}</div>
 
             <div className="rc-foot">
+              {backUrl ? <a href={backUrl}>← Volver a la tienda</a> : null}
               {theme.show_policies && theme.terms_url ? <a href={theme.terms_url} target="_blank" rel="noopener">Términos</a> : null}
               {theme.show_policies && theme.privacy_url ? <a href={theme.privacy_url} target="_blank" rel="noopener">Privacidad</a> : null}
               <a href="https://www.recurrentesapp.com" target="_blank" rel="noopener" style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 7, textDecoration: "none" }}>
