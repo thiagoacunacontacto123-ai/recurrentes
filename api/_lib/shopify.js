@@ -548,8 +548,13 @@ export async function shCreatePaidOrder(shop, token, params) {
   // comisión de Shopify sobre un monto inexistente. Calculamos:
   //   subtotal_items = total_cobrado - envío
   //   price_por_unidad = subtotal_items / sum(quantity de todos los items)
-  const subtotalItems = r2(totalNum - shippingPriceNum);
-  const items = (line_items || []).map(li => ({ variant_id: li.variant_id, quantity: Number(li.quantity) || 1 }));
+  const subtotalItemsAll = r2(totalNum - shippingPriceNum);
+  // Ítems con `price` propio (los extras del checkout) se facturan a ese precio; el resto
+  // del cobro se reparte entre los ítems sin precio (el producto del plan), como siempre.
+  const pricedItems = (line_items || []).filter(li => li.extra === true && Number(li.price) > 0).map(li => ({ variant_id: li.variant_id, quantity: Number(li.quantity) || 1, price: r2(li.price).toFixed(2) }));
+  const pricedTotal = r2(pricedItems.reduce((a, li) => a + Number(li.price) * li.quantity, 0));
+  const subtotalItems = r2(subtotalItemsAll - pricedTotal);
+  const items = (line_items || []).filter(li => !(li.extra === true && Number(li.price) > 0)).map(li => ({ variant_id: li.variant_id, quantity: Number(li.quantity) || 1 }));
   const totalQty = items.reduce((acc, li) => acc + li.quantity, 0) || 1;
 
   // GUARD: si los datos son incoherentes (subtotal <= 0), ABORTAMOS la creación
@@ -562,7 +567,7 @@ export async function shCreatePaidOrder(shop, token, params) {
   // precio de lista (si no, no cierra la cuenta y seguimos con precio neto).
   const listUnit = r2(list_price_per_unit);
   const discAmt = r2(discount_amount);
-  const useDiscountCode = !!(discount_code && discAmt > 0 && listUnit > 0 && r2(listUnit * totalQty) > subtotalItems);
+  const useDiscountCode = !!(discount_code && discAmt > 0 && listUnit > 0 && r2(listUnit * totalQty) > subtotalItems && !pricedItems.length);
 
   let adjustedLineItems;
   let discountCodes;
@@ -624,7 +629,7 @@ export async function shCreatePaidOrder(shop, token, params) {
   const body = {
     order: {
       customer: { id: customer_id },
-      line_items: adjustedLineItems,
+      line_items: [...adjustedLineItems, ...pricedItems],
       ...(discountCodes ? { discount_codes: discountCodes } : {}),
       shipping_address: cleanShipping,
       billing_address: billing_address ? {

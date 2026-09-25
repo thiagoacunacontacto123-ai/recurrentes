@@ -170,9 +170,14 @@ function buildCtx(vm, state) {
     // si lo escribió él, se respeta tal cual.
     return ctx.freqPrefix(p) + (fl ? " " + fl : "") + " · pausás o cancelás cuando quieras";
   };
+  // Botón (25-sept-2026, Thiago: "Suscribirme · $X cada mes, y abajo Ahorrás $Y"):
+  // en suscripción lleva la frecuencia y, si hay tachado, el ahorro por envío.
   ctx.ctaText = function () {
     var lbl = mode === "sub" ? (t.cta_sub || "Suscribirme") : (t.cta_once || "Agregar al carrito");
-    return esc(lbl) + ' <span class="rc-cta-price">· ' + esc(fmtARS(view.price)) + "</span>";
+    var fl = mode === "sub" && sel && sel.freqLabel ? " cada " + sel.freqLabel : "";
+    var html = esc(lbl) + ' <span class="rc-cta-price">· ' + esc(fmtARS(view.price)) + esc(fl) + "</span>";
+    if (mode === "sub" && view.savingsArs > 0 && !apagado(t.savings_label)) html += '<span class="rc-cta-sub">Ahorrás ' + esc(fmtARS(view.savingsArs)) + " en cada envío</span>";
+    return html;
   };
   // Acepta el pack o la posicion. Con el pack usa su indice REAL en plan.packs,
   // que es lo que el checkout necesita para cobrar el correcto cuando hay packs
@@ -297,6 +302,7 @@ function baseCss(S, vm) {
     S + " .rc-cta:active{transform:scale(.985)}" +
     S + " .rc-cta[disabled]{opacity:.7;cursor:wait}" +
     S + " .rc-cta-price{font-weight:600;opacity:.92}" +
+    S + " .rc-cta-sub{display:block;font-size:12px;font-weight:500;opacity:.85;margin-top:3px;letter-spacing:0}" +
     S + " .rc-freq{display:flex;align-items:flex-start;gap:7px;font-size:12.5px;color:#4b4b4b;line-height:1.4}" +
     S + " .rc-freq-ic{color:var(--rc-a);flex-shrink:0;margin-top:2px;display:inline-flex}" +
     S + " .rc-trust{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:#5a5a5a;margin-top:12px}" +

@@ -124,7 +124,11 @@ export async function createShopifyOrderForSub(merchant, subscriberId, sub, { pa
       const itemQty = sub.quantity || sub.plan_snapshot?.units_per_shipment || 1;
       const order = await shCreatePaidOrder(merchant.shopify_shop, merchant.shopify_token, {
         customer_id: customer.id,
-        line_items: [{ variant_id: sub.plan_snapshot.shopify_variant_id, quantity: itemQty }],
+        line_items: [
+          { variant_id: sub.plan_snapshot.shopify_variant_id, quantity: itemQty },
+          // Extras ("Sumá a tu suscripción"): con precio propio; shopify.js reparte el resto al ítem principal.
+          ...(Array.isArray(sub.extra_items) ? sub.extra_items.filter(x => x.shopify_variant_id).map(x => ({ variant_id: x.shopify_variant_id, quantity: Math.max(1, Number(x.qty) || 1), price: Number(x.price_ars) || 0, extra: true })) : []),
+        ],
         shipping_address: toShopifyAddress(sub.shipping_address, sub.customer_name, sub.customer_phone),
         subscriber_id: subscriberId,
         plan_id: sub.plan_id,

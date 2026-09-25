@@ -677,6 +677,13 @@ export default async function handler(req, res) {
 
     // Calcula desglose para una qty dada: subtotal con descuento por qty,
     // costo de envío (si aplica), discount % aplicado, total final.
+    // "Suscribirme · $X cada 30 días" + "Ahorrás $Y en cada envío" (vs. el precio normal × cantidad).
+    function ctaHtml(total, subtotal, q) {
+      var base = Math.round((Number(plan.base_price_ars) || 0) * (q || 1));
+      var sav = Math.max(0, base - Math.round(Number(subtotal) || 0));
+      return 'Suscribirme · $' + Math.round(total).toLocaleString("es-AR") + ' cada ' + plan.frequency_days + ' días' +
+        (sav > 0 ? '<span style="display:block;font-size:12px;font-weight:500;opacity:.9;margin-top:3px">Ahorrás $' + sav.toLocaleString("es-AR") + ' en cada envío</span>' : '');
+    }
     function calcBreakdown(q) {
       var qDisc = 0;
       for (var i = 0; i < tiers.length; i++) if (q >= tiers[i].min_qty) qDisc = tiers[i].discount_pct;
@@ -765,7 +772,7 @@ export default async function handler(req, res) {
       </div>\
       <div id="rec-error-box" style="display:none;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;padding:10px 12px;border-radius:8px;font-size:12px;font-weight:600;line-height:1.4;margin-bottom:10px;"></div>\
       <button id="recurrentes-subscribe-btn" type="button" style="width:100%;background:linear-gradient(135deg,${COL},${COL_DARK});color:#fff;border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;box-shadow:0 4px 12px rgba(16,185,129,0.3);">\
-        Suscribirme — $' + initialTotal.toLocaleString("es-AR") + ' cada ' + plan.frequency_days + ' días\
+        ' + ctaHtml(initialTotal, initialCalc.subtotal, defaultQty) + '\
       </button>\
       <div style="font-size:11px;color:${COL_TEXT_MEDIUM};text-align:center;margin-top:10px;line-height:1.5;">Serás redirigido al checkout seguro de Mercado Pago</div>\
       ' + buildDisclaimerHTML(plan, initialCalc, unitPrice, defaultQty) + '\
@@ -784,7 +791,7 @@ export default async function handler(req, res) {
       panel.dataset.qty = String(q);
       var bd = calcBreakdown(q);
       totalEl.textContent = "$" + bd.total.toLocaleString("es-AR");
-      subBtn.textContent = "Suscribirme — $" + bd.total.toLocaleString("es-AR") + " cada " + plan.frequency_days + " días";
+      subBtn.innerHTML = ctaHtml(bd.total, bd.subtotal, q);
       // Actualizar el desglose
       var bdSub = panel.querySelector("#rec-bd-subtotal");
       var bdSubStrike = panel.querySelector("#rec-bd-subtotal-strike");
@@ -1697,7 +1704,7 @@ export default async function handler(req, res) {
               // Actualizar precios en el panel
               var newPlan = d2.plan;
               var btn = subPanel.querySelector("#recurrentes-subscribe-btn");
-              if (btn) btn.textContent = "Suscribirme — $" + (newPlan.subscription_price_ars||0).toLocaleString("es-AR") + " cada " + newPlan.frequency_days + " días";
+              if (btn) btn.innerHTML = "Suscribirme · $" + (newPlan.subscription_price_ars||0).toLocaleString("es-AR") + " cada " + newPlan.frequency_days + " días";
               plan = newPlan;
             });
           }

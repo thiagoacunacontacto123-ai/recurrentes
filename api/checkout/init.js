@@ -691,8 +691,28 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "El total de la suscripción no es válido con ese descuento. Sacá el cupón e intentá de nuevo." });
   }
 
-  const totalPerCharge = subtotal + shippingCost;
-  const fullPricePerCharge = subtotalBeforeCode + shippingCost;
+  // ── Extras ("Sumá a tu suscripción", 25-sept-2026) ─────────────────────────
+  // El comprador puede sumar otros planes de la tienda (los que ella eligió en
+  // Configuración → Checkout). Precio y variante salen del PLAN en el server, nunca
+  // del body: el body solo trae { plan_id, qty }. Van al cobro de MP y a cada orden.
+  const extraItems = [];
+  {
+    const allowed = new Set(Array.isArray(merchant.checkout_upsells) ? merchant.checkout_upsells : []);
+    const raw = Array.isArray(req.body.extras) ? req.body.extras.slice(0, 4) : [];
+    for (const e of raw) {
+      const pid = String(e?.plan_id || "").trim(), q = Math.max(1, Math.min(5, parseInt(e?.qty, 10) || 1));
+      if (!pid || pid === plan.id || !allowed.has(pid)) continue;
+      const ps = await db().collection("merchants").doc(merchantId).collection("plans").doc(pid).get();
+      if (!ps.exists || ps.data().active === false) continue;
+      const pd = ps.data(); const price = Math.round(Number(pd.subscription_price_ars) || 0);
+      if (!(price > 0)) continue;
+      extraItems.push({ plan_id: pid, shopify_variant_id: pd.shopify_variant_id ? String(pd.shopify_variant_id) : null, shopify_product_id: pd.shopify_product_id || null, product_title: pd.product_title || "Producto", qty: q, price_ars: price });
+    }
+  }
+  const extrasTotal = extraItems.reduce((a, x) => a + x.price_ars * x.qty, 0);
+
+  const totalPerCharge = subtotal + shippingCost + extrasTotal;
+  const fullPricePerCharge = subtotalBeforeCode + shippingCost + extrasTotal;
 
   // ── Subscriber pending ────────────────────────────────────────────────────
   // Reuso (en este orden), para no duplicar carritos ni planes MP:
@@ -777,8 +797,11 @@ export default async function handler(req, res) {
       qty_discount_pct: qtyDiscountPct,
       discount_code: discountCodeApplied,
       discount_code_pct: discountCodePct,
+      extras_total_ars: extrasTotal,
       total_per_charge_ars: totalPerCharge,
     },
+    // Extras sumados en el checkout: van a cada orden (sync.js) con su precio.
+    ...(extraItems.length ? { extra_items: extraItems } : {}),
     // Cupón sólo primer cobro: sync sube el monto a full_price_per_charge_ars después.
     discount_first_charge_only: discountFirstOnly,
     full_price_per_charge_ars: discountFirstOnly ? fullPricePerCharge : null,

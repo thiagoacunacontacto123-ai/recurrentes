@@ -340,7 +340,11 @@ export function buildTiendanubeOrderPayload(sub, params) {
   let shippingNum = r2(shipping_price);
   // Mismo guard que Shopify: si el cobro no cubre el envío, la orden sale con envío $0.
   if (shippingNum > 0 && totalNum < shippingNum) shippingNum = 0;
-  const subtotalItems = r2(totalNum - shippingNum);
+  // Extras del checkout ("Sumá a tu suscripción"): con su precio; el resto va al producto del plan.
+  const extras = (Array.isArray(sub?.extra_items) ? sub.extra_items : []).filter(x => x.shopify_variant_id && Number(x.price_ars) > 0)
+    .map(x => ({ variant_id: Number(x.shopify_variant_id) || x.shopify_variant_id, quantity: Math.max(1, Number(x.qty) || 1), price: r2(x.price_ars) }));
+  const extrasTotal = r2(extras.reduce((a, x) => a + x.price * x.quantity, 0));
+  const subtotalItems = r2(totalNum - shippingNum - extrasTotal);
   const qty = Math.max(1, parseInt(quantity, 10) || 1);
   if (subtotalItems <= 0) {
     throw new Error(`Datos incoherentes: total=${totalNum}, shipping=${shippingNum}, qty=${qty}. Orden NO creada.`);
@@ -353,6 +357,7 @@ export function buildTiendanubeOrderPayload(sub, params) {
       ? [{ variant_id: vid, quantity: 1, price: r2(unit + residue) }]
       : [{ variant_id: vid, quantity: 1, price: r2(unit + residue) }, { variant_id: vid, quantity: qty - 1, price: unit }])
     : [{ variant_id: vid, quantity: qty, price: unit }];
+  products.push(...extras);
 
   const name = String(sub?.customer_name || "").trim();
   const [first, ...rest] = name.split(" ");

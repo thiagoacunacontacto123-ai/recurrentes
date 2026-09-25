@@ -203,6 +203,7 @@ export default async function handler(req, res) {
         widget_hide_selector: merchant.widget_hide_selector || "",
         // Tema del checkout hosteado: lo guardado (parcial) + el resuelto para la vista previa.
         checkout_theme: (merchant.checkout_theme && typeof merchant.checkout_theme === "object") ? merchant.checkout_theme : null,
+        checkout_upsells: Array.isArray(merchant.checkout_upsells) ? merchant.checkout_upsells : [],
         checkout_theme_resolved: resolveCheckoutTheme(merchant.checkout_theme, { widgetColor: merchant.widget_color }),
         // "templates" (diseñador) | "custom" (desarrollo a medida). Vacío = según la cuenta.
         widget_source: merchant.widget_source || "",
@@ -806,6 +807,13 @@ async function saveSettings(merchantId, req, res) {
   const ignored = ["abandoned_enabled", "abandoned_coupons", "email_accent"].filter(k => k in b);
   if ("dev_mode" in b) out.dev_mode = b.dev_mode === true;
   // Tema del checkout (24-sept-2026): objeto PARCIAL saneado; {} o null = volver al default.
+  // Upsells del checkout (25-sept-2026): hasta 4 planes de la tienda que el comprador
+  // puede sumar a su suscripción desde el resumen ("Sumá a tu suscripción").
+  if ("checkout_upsells" in b) {
+    if (b.checkout_upsells != null && !Array.isArray(b.checkout_upsells)) return bad("checkout_upsells debe ser una lista");
+    const ids = [...new Set((b.checkout_upsells || []).map(x => String(x || "").trim()).filter(x => /^[A-Za-z0-9_-]{4,64}$/.test(x)))].slice(0, 4);
+    out.checkout_upsells = ids;
+  }
   if ("checkout_theme" in b) {
     const r = sanitizeCheckoutTheme(b.checkout_theme);
     if (r.error) return bad(r.error);

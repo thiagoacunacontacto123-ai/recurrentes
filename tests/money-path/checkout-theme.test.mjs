@@ -5,7 +5,7 @@
 import "../helpers/register.mjs";
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { createWorld, loadApi, MID, PLAN_ID, luminaMerchant } from "../helpers/world.mjs";
+import { createWorld, loadApi, MID, PLAN_ID, ADDRESS, luminaMerchant, capsulasPlan } from "../helpers/world.mjs";
 import { invoke } from "../helpers/http.mjs";
 import { seedDoc } from "../helpers/fake-firestore.mjs";
 import { sanitizeCheckoutTheme, resolveCheckoutTheme, CHECKOUT_THEME_DEFAULTS, onColor, ctaText } from "../../shared/platform/checkoutTheme.js";
@@ -13,6 +13,7 @@ import { sanitizeCheckoutTheme, resolveCheckoutTheme, CHECKOUT_THEME_DEFAULTS, o
 const { default: merchantApi } = await loadApi("api/merchant.js");
 const { default: pub } = await loadApi("api/public.js");
 const { default: widget } = await loadApi("api/widget.js");
+const { default: init } = await loadApi("api/checkout/init.js");
 
 let W;
 beforeEach(() => { W = createWorld(); });
@@ -86,4 +87,33 @@ test("widget: el acento del checkout viaja en la URL (&color=) para que el carga
   seedDoc(`merchants/${MID}`, luminaMerchant({ widget_color: "#ab12cd" }));
   const res2 = await invoke(widget, { method: "GET", query: { merchant: MID } });
   assert.ok(res2.body.includes('var CHECKOUT_COLOR = "#ab12cd";'));
+});
+
+// Upsells (25-sept-2026, Thiago: "que la persona pueda sumar upsells desde Recurrentes"):
+// la tienda elige hasta 4 planes en Configuración → Checkout; el comprador los ve en el
+// resumen; el server valida plan y precio y los suma al cobro de MP y a la orden.
+test("upsells: se eligen en el panel, el checkout los muestra y checkout/init los cobra y los guarda", async () => {
+  seedDoc(`merchants/${MID}/plans/plan_extra`, capsulasPlan({ product_title: "Grisines", shopify_variant_id: "4002", shopify_product_id: "7002", subscription_price_ars: 3000, base_price_ars: 3500 }));
+  seedDoc(`merchants/${MID}/plans/plan_off`, capsulasPlan({ product_title: "Apagado", active: false, subscription_price_ars: 1000 }));
+  const r = await guardar({ checkout_upsells: ["plan_extra", "plan_off", "no-existe", PLAN_ID, "x"] });
+  assert.equal(r.statusCode, 200);
+  assert.deepEqual(W.merchant().checkout_upsells, ["plan_extra", "plan_off", "no-existe", PLAN_ID], "se guardan hasta 4 ids con forma válida");
+  const pub = (await plan()).body.checkout.upsells;
+  assert.deepEqual(pub, [{ plan_id: "plan_extra", title: "Grisines", image: pub[0].image, price_ars: 3000, compare_ars: 3500, frequency_days: pub[0].frequency_days }], "solo activos, con precio y distintos al que se compra");
+  // checkout/init: extras del body → validados contra el plan (el precio NO sale del body)
+  const before = W.mp.plansCreated.length;
+  const res = await invoke(init, { method: "POST", query: {}, headers: { "x-forwarded-for": "190.1.2.3" }, body: {
+    merchant_id: MID, plan_id: PLAN_ID, quantity: 1, frequency_days: 30, base_price: 12000, sub_discount: 10,
+    customer: { email: "ups@cliente.test", name: "Ana Pérez", phone: "1144440000", tax_id: "20301234567" }, shipping_address: { ...ADDRESS },
+    shipping_method: { name: "Envío estándar", code: "" },
+    extras: [{ plan_id: "plan_extra", qty: 2, price_ars: 1 }, { plan_id: "plan_off", qty: 1 }, { plan_id: "otro", qty: 1 }],
+  } });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  const created = W.mp.plansCreated[before].body;
+  assert.equal(created.auto_recurring.transaction_amount, 10800 + 2 * 3000, "el cobro suma los extras al precio del plan (no al del body)");
+  const sub = W.subs().find(s => s.data.customer_email === "ups@cliente.test")?.data;
+  assert.ok(sub, "sub creada");
+  assert.deepEqual(sub.extra_items, [{ plan_id: "plan_extra", shopify_variant_id: "4002", shopify_product_id: "7002", product_title: "Grisines", qty: 2, price_ars: 3000 }]);
+  assert.equal(sub.plan_snapshot.extras_total_ars, 6000);
+  assert.equal(sub.plan_snapshot.total_per_charge_ars, 16800);
 });

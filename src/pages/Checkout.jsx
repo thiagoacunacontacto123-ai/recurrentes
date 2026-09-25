@@ -105,6 +105,8 @@ export default function Checkout() {
   // color de la tienda desde el primer instante (Thiago, 24-sept).
   const cachedColor = (() => { try { const v = localStorage.getItem("rec_ck_color_" + merchant); return /^#[0-9a-fA-F]{6}$/.test(v || "") ? v : ""; } catch (_) { return ""; } })();
   const [showSummary, setShowSummary] = useState(false);
+  // Extras ("Sumá a tu suscripción"): { plan_id: qty }. El server vuelve a validar precio y plan.
+  const [extras, setExtras] = useState({});
 
   const [plan, setPlan] = useState(null);
   const [codeInput, setCodeInput] = useState(codeParam);
@@ -274,7 +276,11 @@ export default function Checkout() {
   // Antes acá el % se capeaba en 100 y en el server en 90: con un código del
   // 99 % el comprador veía $595 y MP le cobraba $5.949 (21-sept).
   const discountAmt = discountAmountFor(subtotal, discount);
-  const total = Math.max(0, subtotal - discountAmt) + shippingPrice;
+  const upsells = Array.isArray(cfg?.upsells) ? cfg.upsells : [];
+  const extrasList = upsells.filter(u => (extras[u.plan_id] || 0) > 0).map(u => ({ ...u, qty: extras[u.plan_id] }));
+  const extrasTotal = extrasList.reduce((a, u) => a + u.price_ars * u.qty, 0);
+  const total = Math.max(0, subtotal - discountAmt) + shippingPrice + extrasTotal;
+  const setExtra = (id, d) => setExtras(e => ({ ...e, [id]: Math.max(0, Math.min(5, (e[id] || 0) + d)) }));
 
   async function aplicarCodigo(code, rc) {
     const c = String(code || "").trim().toUpperCase();
@@ -323,6 +329,7 @@ export default function Checkout() {
         // producto). Sin esto el backend usa la del plan y el que compró
         // frutilla recibía la variante por defecto (22-sept).
         ...(variantParam ? { shopify_variant_id: variantParam } : {}),
+        ...(extrasList.length ? { extras: extrasList.map(u => ({ plan_id: u.plan_id, qty: u.qty })) } : {}),
         customer: { email: email.trim(), name: name.trim(), phone: phone.trim(), tax_id: taxid.trim() },
         ...(cfg?.whatsapp_optin ? { whatsapp_optin: waOptin } : {}),
         fb: fbAttribution(qParams()),
@@ -400,12 +407,37 @@ export default function Checkout() {
         </div>
         <div style={{ fontSize: 14, fontWeight: 500, whiteSpace: "nowrap" }}>{money(subtotal)}</div>
       </div>
+      {upsells.length ? (
+        <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${theme.border_soft}` }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Sumá a tu suscripción</div>
+          <div style={{ fontSize: 12.5, color: theme.text_muted, marginBottom: 10, lineHeight: 1.45 }}>Llegan con cada envío. Los sacás cuando quieras.</div>
+          {upsells.map(u => { const q = extras[u.plan_id] || 0; return (
+            <div key={u.plan_id} style={{ display: "flex", gap: 12, alignItems: "center", padding: 10, border: `1.5px solid ${q ? theme.color : theme.border_soft}`, borderRadius: R + 4, marginBottom: 8, background: q ? theme.color_tint : theme.input_bg }}>
+              {u.image ? <img src={u.image} alt="" style={{ width: 52, height: 52, borderRadius: Math.min(R + 2, 10), objectFit: "cover", background: "#fff", flexShrink: 0 }}/> : <div style={{ width: 52, height: 52, borderRadius: 10, background: theme.color_tint, flexShrink: 0 }}/>}
+              <div style={{ flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 1.3 }}>
+                <div style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.title}</div>
+                <div style={{ color: "#0a8a3f", fontWeight: 600, fontSize: 13 }}>{money(u.price_ars)}{u.compare_ars ? <s style={{ color: theme.text_muted, fontWeight: 400, marginLeft: 6 }}>{money(u.compare_ars)}</s> : null}</div>
+              </div>
+              {q ? (
+                <div style={{ display: "inline-flex", alignItems: "center", border: `1.5px solid ${theme.border}`, borderRadius: R, overflow: "hidden", background: theme.input_bg }}>
+                  <button type="button" onClick={() => setExtra(u.plan_id, -1)} aria-label="Sacar uno" style={{ width: 32, height: 32, border: "none", background: "transparent", color: theme.color, fontSize: 16, fontWeight: 700, cursor: "pointer" }}>−</button>
+                  <b style={{ minWidth: 22, textAlign: "center", fontSize: 13 }}>{q}</b>
+                  <button type="button" onClick={() => setExtra(u.plan_id, 1)} aria-label="Sumar uno" style={{ width: 32, height: 32, border: "none", background: "transparent", color: theme.color, fontSize: 16, fontWeight: 700, cursor: "pointer" }}>+</button>
+                </div>
+              ) : (
+                <button type="button" onClick={() => setExtra(u.plan_id, 1)} style={{ background: theme.color, color: theme.color_on, border: "none", borderRadius: R, padding: "9px 12px", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>+ Agregar</button>
+              )}
+            </div>
+          ); })}
+        </div>
+      ) : null}
       {discountBox}
       <div style={{ borderTop: `1px solid ${theme.border_soft}`, margin: "18px 0 14px" }}/>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {line(<>Producto{qtyDiscountPct > 0 ? ` (−${qtyDiscountPct}%)` : ""}</>, money(subtotal))}
         {askAddress && line(<>Envío{rates.length && shippingSel?.name ? ` · ${shippingSel.name}` : ""}</>, !rates.length ? <span style={{ color: theme.text_muted, fontWeight: 400 }}>Completá tu dirección</span> : (shippingPrice === 0 ? "Gratis" : money(shippingPrice)))}
         {discountAmt > 0 && line(<>Descuento {discount?.code}</>, `−${money(discountAmt)}`, { color: "#0a8a3f" })}
+        {extrasList.map(u => line(<>{u.qty} × {u.title}</>, money(u.price_ars * u.qty)))}
       </div>
       <div style={{ borderTop: `1px solid ${theme.border_soft}`, margin: "14px 0" }}/>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>

@@ -137,7 +137,7 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 #cart .ch button{background:none;border:none;font-size:22px;cursor:pointer;color:#555}
 #cart .cb{flex:1;overflow:auto;padding:18px 20px}
 .cl{display:flex;gap:14px}
-.cl img{width:84px;height:84px;border-radius:12px;object-fit:cover;border:1px solid #eee;background:#fff}
+.cl img{width:64px;height:64px;border-radius:12px;object-fit:cover;border:1px solid #eee;background:#fff}
 .cl .t{flex:1;min-width:0;font-size:14px}
 .cl .t b{display:block;font-size:15px;line-height:1.3}
 .cl .t .pill{margin:6px 0}
@@ -145,14 +145,16 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 .cl .p{text-align:right;font-size:15px;font-weight:600;line-height:1.2}
 .cl .p s{display:block;font-size:12px;color:#9a8a8e;font-weight:400}
 .cl .p em{display:block;font-size:11.5px;color:var(--ok);font-style:normal}
-.cfreq{display:flex;gap:6px;margin:10px 0 4px;flex-wrap:wrap}
-.cfreq button{border:1.5px solid #e3d3d8;background:#fff;border-radius:99px;padding:6px 11px;font-size:12px;font-weight:600;cursor:pointer;color:var(--ink)}
+.cfreq{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:14px 0 0}
+.cfreq button{border:1.5px solid #e3d3d8;background:#fff;border-radius:10px;padding:9px 6px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--ink)}
+.crow{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;font-size:13px;color:#555}
+.crow .stp{margin:0}
 .cfreq button.on{background:var(--wine);border-color:var(--wine);color:#fff}
 .stp{display:inline-flex;align-items:center;border:1.5px solid #e3d3d8;border-radius:8px;overflow:hidden;margin-top:8px}
 .stp button{width:30px;height:30px;border:none;background:#fff;font-size:16px;cursor:pointer;color:var(--wine);font-weight:700}
 .stp b{min-width:28px;text-align:center;font-size:13px}
 .ups{margin-top:22px;border-top:1px solid #eee;padding-top:16px}
-.ups h4{margin:0 0 4px;font-size:14px;font-weight:700}
+.ups h4{margin:0 0 10px;font-size:14px;font-weight:700}
 .ups p{margin:0 0 12px;font-size:12.5px;color:#7a6a6e}
 .up{display:flex;gap:12px;align-items:center;padding:10px;border:1.5px solid #eee;border-radius:12px;margin-bottom:8px;background:#fff}
 .up img{width:56px;height:56px;border-radius:9px;object-fit:cover;background:#fff;flex:none}
@@ -251,7 +253,15 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 .ok-card{background:#fff;border-radius:16px;padding:20px;text-align:left;margin-top:26px;border:1px solid #e6dadd}
 .ok-card div{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0e6e9;font-size:14px}
 .ok-card div:last-child{border:0}
-.demo-tag{position:fixed;left:14px;bottom:14px;z-index:50;background:#1d1416;color:#fff;font-size:11.5px;padding:7px 11px;border-radius:99px;opacity:.85;pointer-events:none}
+.demo-tag{position:fixed;left:14px;bottom:14px;z-index:50;display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#10b981,#059669);color:#04140d;font-size:12px;font-weight:700;padding:7px 12px 7px 9px;border-radius:99px;box-shadow:0 8px 24px rgba(16,185,129,.35);pointer-events:none;font-family:'Inter',Poppins,system-ui,sans-serif}
+.demo-tag svg{width:18px;height:18px;flex:none}
+.demo-tag img{height:18px;width:auto;display:block;background:var(--wine);border-radius:5px;padding:2px 5px}
+/* marquesina (como la de su tienda): una palabra cada ~3 s, muy lenta */
+.mq{background:#1a0a10;color:#f3d9e0;font-size:12.5px;font-weight:600;letter-spacing:.02em;overflow:hidden;white-space:nowrap;border-bottom:1px solid rgba(255,255,255,.08)}
+.mq div{display:inline-block;padding:9px 0;animation:mq 48s linear infinite}
+.mq span{display:inline-block;padding:0 34px}
+@keyframes mq{to{transform:translateX(-50%)}}
+@media(prefers-reduced-motion:reduce){.mq div{animation:none}}
 @media(max-width:960px){
   .hdr .wrap{height:auto;gap:12px 18px;padding:12px 18px 0;flex-wrap:wrap}.hdr img{height:40px}
   .hdr nav{order:3;flex-basis:100%;display:flex;gap:18px;overflow-x:auto;padding:4px 0 10px;font-size:13.5px;scrollbar-width:none;-webkit-overflow-scrolling:touch}.hdr nav::-webkit-scrollbar{display:none}.hdr nav a{white-space:nowrap;flex:none}
@@ -275,10 +285,11 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 </style>
 
 <div id="ld"><svg width="56" height="56" viewBox="0 0 32 32"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8a2d4d"/><stop offset="1" stop-color="#3b0218"/></linearGradient></defs><circle cx="16" cy="16" r="16" fill="url(#lg)"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><div>Abriendo el checkout seguro…</div></div>
-<div class="demo-tag">Demo · Recurrentes para G4U</div>
+<div class="demo-tag"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#04140d" opacity=".18"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#04140d" stroke-width="2.8" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#04140d" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>demo.recurrentes para</span><img id="logoTag" alt="G4U"></div>
 
 <!-- ════════ VISTA PRODUCTO ════════ -->
 <div id="v-prod">
+  <div class="mq" aria-hidden="true"><div id="mq"></div></div>
   <header class="hdr"><div class="wrap">
     <img id="logo" alt="G4U">
     <nav><a href="#">Inicio</a><a href="#">Productos</a><a href="#" class="on">Suscripción</a><a href="#">Nuestra Harina</a><a href="#">Contacto</a></nav>
@@ -439,7 +450,9 @@ function initSlots() { S.slots = Array.from({ length: S.pack }, (_, i) => S.slot
 initSlots();
 
 // logos / galería
-["logo", "logoCk", "logoOk", "logoFt"].forEach(id => { $("#" + id).src = A.logo; });
+["logo", "logoCk", "logoOk", "logoFt", "logoTag"].forEach(id => { $("#" + id).src = A.logo; });
+const MQ = ["Envío GRATIS a partir de 85 mil", "ENVÍOS BUENOS AIRES · CÓRDOBA · SANTA FE", "Entrega directa en 24/48 h en AMBA", "Suscribite y ahorrá 15% en cada envío"];
+$("#mq").innerHTML = (MQ.concat(MQ).concat(MQ).concat(MQ)).map(x => `<span>${x}</span>`).join("");
 $("#iwtImg").src = A.gallery[2];
 const IBAR = [["Activamos la quema de grasa", "Cuando reducimos los carbs, también bajamos el azúcar en sangre y la insulina."], ["Energía más estable", "Dejamos atrás la montaña rusa del azúcar."], ["Foco y claridad mental", "Más foco, más lucidez, más presencia."], ["Menos inflamación, más bienestar", "Al estabilizar el azúcar en sangre, disminuye la inflamación y mejora cómo nos sentimos."]];
 $("#ibar").innerHTML = IBAR.map((x, i) => `<div><img src="${A.icons[i]}" alt=""><b>${x[0]}</b><span>${x[1]}</span></div>`).join("");
@@ -505,13 +518,12 @@ function renderCart() {
   // Upsells: lo que no está en el pack, 3 sugerencias (como los "Sumá a tu pedido" de las tiendas).
   const inPack = new Set(S.slots.filter(Boolean));
   const ups = ITEMS.filter(i => !inPack.has(i.h) || S.extras[i.h]).slice(0, 3);
-  $("#cartBody").innerHTML = `<div class="cl"><img src="${A.gallery[0]}" alt=""><div class="t"><b>Pack G4U × ${S.pack} · armado por vos</b><span class="pill">Suscripción · ${freqTxt()}</span><small>15% OFF en cada envío. Pausás, cambiás el pack o cancelás cuando quieras.</small>
-      <div class="cfreq">${FREQS.map(f => `<button type="button" data-cf="${f.id}" class="${S.freq === f.id ? "on" : ""}">${f.l}</button>`).join("")}</div>
-      <div class="stp"><button type="button" data-pq="-1" ${S.packQty <= 1 ? "disabled" : ""}>−</button><b>${S.packQty} pack${S.packQty > 1 ? "s" : ""}</b><button type="button" data-pq="1" ${S.packQty >= 3 ? "disabled" : ""}>+</button></div>
-    </div><div class="p">${money(t.packSub)}<s>${money(t.packList)}</s><em>−15% cada envío</em></div></div>
+  $("#cartBody").innerHTML = `<div class="cl"><img src="${A.gallery[0]}" alt=""><div class="t"><b>Pack G4U · ${S.pack} ítem${S.pack > 1 ? "s" : ""}</b><span class="pill">Suscripción</span></div><div class="p">${money(t.packSub)}<s>${money(t.packList)}</s><em>−15% cada envío</em></div></div>
+    <div class="cfreq">${FREQS.map(f => `<button type="button" data-cf="${f.id}" class="${S.freq === f.id ? "on" : ""}">${f.l}</button>`).join("")}</div>
+    <div class="crow"><span>Cantidad de packs</span><div class="stp"><button type="button" data-pq="-1" ${S.packQty <= 1 ? "disabled" : ""}>−</button><b>${S.packQty}</b><button type="button" data-pq="1" ${S.packQty >= 3 ? "disabled" : ""}>+</button></div></div>
     <div class="cart-items">${chosen().map(i => `<div><span>${i.q * S.packQty} × ${i.title}</span><span>${money(i.price * i.q * S.packQty)}</span></div>`).join("")}</div>
     ${extrasList().length ? `<div class="cart-items" style="border-top-style:solid"><div style="font-weight:700;color:var(--ink)"><span>Extras en tu suscripción</span><span></span></div>${extrasList().map(i => `<div><span>${i.q} × ${i.title}</span><span>${money(i.price * i.q)}</span></div>`).join("")}</div>` : ""}
-    <div class="ups"><h4>Sumá a tu suscripción</h4><p>Llegan con cada envío, con el mismo 15% OFF. Los sacás cuando quieras.</p>
+    <div class="ups"><h4>Sumá a tu suscripción</h4>
       ${ups.map(i => { const q = S.extras[i.h] || 0; return `<div class="up ${q ? "on" : ""}"><img src="${i.img}" alt=""><div class="t"><b>${i.title}</b><span>${money(i.price * (1 - SUB_OFF))}<s>${money(i.price)}</s></span></div>${q ? `<div class="stp"><button type="button" data-ex="${i.h}" data-d="-1">−</button><b>${q}</b><button type="button" data-ex="${i.h}" data-d="1">+</button></div>` : `<button type="button" class="ab" data-ex="${i.h}" data-d="1">+ Agregar</button>`}</div>`; }).join("")}
     </div>`;
   $("#cartTot").textContent = money(t.sub); $("#cartSv").textContent = `Estás ahorrando ${money(t.saving)} en cada envío` + (t.sub >= 85000 ? " · envío gratis" : "");

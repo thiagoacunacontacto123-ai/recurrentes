@@ -93,6 +93,24 @@ async function portalRateLimited(res, payload) {
   return true;
 }
 
+// Upsells del checkout: los planes que la tienda eligió en Configuración → Checkout, con
+// precio de suscripción por unidad. Se saltea el plan que se está comprando, los inactivos
+// y los que no tienen precio. Best-effort: nunca rompe el checkout.
+export async function resolveCheckoutUpsells(merchantId, m, currentPlanId) {
+  const ids = Array.isArray(m?.checkout_upsells) ? m.checkout_upsells.filter(id => id && id !== currentPlanId).slice(0, 4) : [];
+  if (!ids.length) return [];
+  try {
+    const col = db().collection("merchants").doc(merchantId).collection("plans");
+    const snaps = await Promise.all(ids.map(id => col.doc(String(id)).get()));
+    return snaps.filter(s => s.exists && s.data().active !== false).map(s => {
+      const d = s.data();
+      const price = Math.round(Number(d.subscription_price_ars) || 0), base = Math.round(Number(d.base_price_ars) || 0);
+      if (!(price > 0)) return null;
+      return { plan_id: s.id, title: d.product_title || "Producto", image: d.product_image || null, price_ars: price, compare_ars: base > price ? base : null, frequency_days: Number(d.frequency_days) || null };
+    }).filter(Boolean);
+  } catch (e) { console.warn("[public/upsells]", e.message); return []; }
+}
+
 // Generador exportable — lo usa checkout/init para armar el back_url con el portal token.
 export function generatePortalToken(merchantId, subscriberId, ttlDays = 180) {
   return signToken({ mid: merchantId, sid: subscriberId }, ttlDays * 86400);
@@ -271,6 +289,7 @@ async function handlePlan(req, res) {
         // Tema del checkout (colores, letra, textos, qué mostrar). Resuelto acá: el
         // comprador recibe el tema completo; sin personalizar, el acento es el del widget.
         theme: resolveCheckoutTheme(m.checkout_theme, { widgetColor: m.widget_color }),
+        upsells: await resolveCheckoutUpsells(merchantId, m, doc.id),
         store_logo: typeof m.store_photo === "string" && /^https?:\/\//.test(m.store_photo) ? m.store_photo : null,
         shipping_rates: p.caps.shipping && Array.isArray(m.checkout_shipping_rates) ? m.checkout_shipping_rates : [],
         vocab: p.vocab,

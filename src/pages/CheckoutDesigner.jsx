@@ -78,6 +78,19 @@ export default function CheckoutDesigner({ merchant, onChange }) {
     try { frame.current?.contentWindow?.postMessage({ type: "rec-checkout-theme", theme: diff }, window.location.origin); } catch (_) {}
   }, [diff]);
 
+  // Upsells: planes de la tienda que el comprador puede sumar desde el resumen (máx. 4).
+  const [ups, setUps] = useState(() => Array.isArray(m.checkout_upsells) ? m.checkout_upsells : []);
+  const [upsSaving, setUpsSaving] = useState(false);
+  useEffect(() => { setUps(Array.isArray(m.checkout_upsells) ? m.checkout_upsells : []); /* eslint-disable-next-line */ }, [m.id, JSON.stringify(m.checkout_upsells)]);
+  const upsDirty = JSON.stringify(ups) !== JSON.stringify(Array.isArray(m.checkout_upsells) ? m.checkout_upsells : []);
+  async function saveUps() {
+    setUpsSaving(true);
+    const d = await apiPatch("merchant", { checkout_upsells: ups }, { action: "save-settings" }).catch(e => ({ error: e.message }));
+    setUpsSaving(false);
+    if (d?.error) return toast("Error: " + d.error, "error", 6000);
+    toast(ups.length ? "Listo: tus clientes ya pueden sumarlos en el checkout." : "Sin extras en el checkout.");
+    onChange?.(); try { frame.current?.contentWindow?.location.reload(); } catch (_) {}
+  }
   async function save(theme) {
     setSaving(true);
     const d = await apiPatch("merchant", { checkout_theme: theme }, { action: "save-settings" }).catch(e => ({ error: e.message }));
@@ -92,6 +105,23 @@ export default function CheckoutDesigner({ merchant, onChange }) {
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
+      <Panel T={T} title="Sumá a tu suscripción (extras en el checkout)" sub="Hasta 4 productos de tu catálogo que el cliente puede agregar a su suscripción desde el resumen. Llegan en cada envío y se cobran con cada renovación."
+        right={<Btn T={T} variant="solid" size="sm" onClick={saveUps} disabled={upsSaving || !upsDirty}>{upsSaving ? <><Spinner size={12}/> Guardando…</> : "Guardar extras"}</Btn>}>
+        <div style={{ padding:"0 16px 16px" }}>
+          {plans === null ? <Spinner size={16}/> : !(plans || []).filter(p => p.active !== false && Number(p.subscription_price_ars) > 0).length
+            ? <Callout T={T} tone="info">Creá al menos otro plan (con precio por unidad) para ofrecerlo como extra.</Callout>
+            : <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(240px, 1fr))", gap:8 }}>
+                {(plans || []).filter(p => p.active !== false && Number(p.subscription_price_ars) > 0).map(p => { const on = ups.includes(p.id); const full = !on && ups.length >= 4; return (
+                  <label key={p.id} style={{ display:"flex", gap:10, alignItems:"center", padding:"10px 12px", borderRadius:12, cursor: full ? "not-allowed" : "pointer", border:`1px solid ${on ? T.accentSolid + "66" : T.border}`, background: on ? T.accentSolid + "0f" : T.surface, opacity: full ? .5 : 1 }}>
+                    <input type="checkbox" checked={on} disabled={full} onChange={e => setUps(u => e.target.checked ? [...u, p.id].slice(0, 4) : u.filter(x => x !== p.id))} style={{ width:18, height:18, accentColor:T.accentSolid }}/>
+                    {p.product_image ? <img src={p.product_image} alt="" style={{ width:36, height:36, borderRadius:8, objectFit:"cover" }}/> : null}
+                    <span style={{ minWidth:0 }}><span style={{ display:"block", fontSize:DS.font.md, fontWeight:600, color:T.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.product_title || p.name}</span><span style={{ fontSize:DS.font.sm, color:T.textSm }}>${Math.round(Number(p.subscription_price_ars) || 0).toLocaleString("es-AR")} por unidad</span></span>
+                  </label>
+                ); })}
+              </div>}
+          <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:10 }}>Cada extra suma su precio de suscripción por unidad al cobro y va como renglón propio en la orden de tu tienda.</div>
+        </div>
+      </Panel>
       <Panel T={T} title="Diseño del checkout" sub="Lo que ve tu cliente al suscribirse. Si no tocás nada, sale con el color de tu widget."
         right={<div style={{ display:"flex", gap:8, alignItems:"center" }}>
           <Btn T={T} variant="secondary" size="sm" onClick={() => { setDraft({ ...base }); }} disabled={saving || !Object.keys(diff).length}>Volver al default</Btn>
