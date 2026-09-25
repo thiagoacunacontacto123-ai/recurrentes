@@ -579,7 +579,16 @@ export default function Checkout() {
             <div className="rc-foot">
               {theme.show_policies && theme.terms_url ? <a href={theme.terms_url} target="_blank" rel="noopener">Términos</a> : null}
               {theme.show_policies && theme.privacy_url ? <a href={theme.privacy_url} target="_blank" rel="noopener">Privacidad</a> : null}
-              <span style={{ marginLeft: "auto" }}>Con tecnología de <a href="https://www.recurrentesapp.com" target="_blank" rel="noopener" style={{ fontWeight: 600 }}>Recurrentes</a></span>
+              <a href="https://www.recurrentesapp.com" target="_blank" rel="noopener" style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 7, textDecoration: "none" }}>
+                <span>Con tecnología de</span>
+                <svg width="16" height="16" viewBox="0 0 32 32" aria-hidden="true" style={{ display: "block", flexShrink: 0 }}>
+                  <defs><linearGradient id="rcFootLogo" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#34d399"/><stop offset="100%" stopColor="#059669"/></linearGradient></defs>
+                  <circle cx="16" cy="16" r="16" fill="url(#rcFootLogo)"/>
+                  <path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round"/>
+                  <path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                <span style={{ fontWeight: 700, color: theme.text }}>Recurrentes</span>
+              </a>
             </div>
           </div>
         </div>
