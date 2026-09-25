@@ -78,7 +78,13 @@ export function buildBundlePayload(plan, merchant) {
     variant: vm.variant,
     modeDefault: vm.modeDefault,
     defaultIdx: vm.defaultIdx,
-    packs: vm.packs.map((p) => ({ idx: p.idx, qty: p.qty, freq_days: p.freqDays })),
+    // hideOnce/hideSub: el widget los usa para no dejar "elegido" un pack que no
+    // se ve en el modo actual (Wellfresh, 25-sept: la suscripción mandaba el pack
+    // de 3 de compra única). gifts: regalos vinculados a un producto → al carrito.
+    packs: vm.packs.map((p) => ({
+      idx: p.idx, qty: p.qty, freq_days: p.freqDays, hideOnce: !!p.hideOnce, hideSub: !!p.hideSub,
+      gifts: (p.gifts || []).filter((g) => g && g.variantId).map((g) => ({ variant_id: g.variantId, every: g.every || "always" })),
+    })),
   };
 }
 
@@ -1327,6 +1333,33 @@ export default async function handler(req, res) {
       var state = { mode: bundle.modeDefault === "once" ? "once" : "sub", idx: parseInt(bundle.defaultIdx, 10) || 0 };
       if (bundle.states[state.mode + ":" + state.idx] === undefined) state.idx = 0;
       var viaKeyboard = false;
+      function packInfo(idx) { var list = bundle.packs || []; for (var i = 0; i < list.length; i++) if (list[i].idx === idx) return list[i]; return null; }
+      function hiddenIn(p, mode) { return !!p && (mode === "sub" ? p.hideSub === true : p.hideOnce === true); }
+      // El pack elegido tiene que VERSE en el modo actual. Si no (arrancó en el
+      // default de compra única y pasó a suscripción, por ejemplo), salta al de la
+      // misma cantidad en este modo o, si no hay, al primero visible. Antes quedaba
+      // "elegido" un bloque invisible y el checkout cobraba ese (Wellfresh, 25-sept).
+      function fixIdx() {
+        var cur = packInfo(state.idx);
+        if (cur && !hiddenIn(cur, state.mode)) return;
+        var list = bundle.packs || [], pick = null;
+        for (var i = 0; i < list.length; i++) if (!hiddenIn(list[i], state.mode) && cur && list[i].qty === cur.qty) { pick = list[i]; break; }
+        if (!pick) for (var j = 0; j < list.length; j++) if (!hiddenIn(list[j], state.mode)) { pick = list[j]; break; }
+        if (pick) state.idx = pick.idx;
+      }
+      fixIdx();
+      // Regalos del pack elegido que son productos de la tienda: en compra única
+      // van al carrito junto con el pack (compra única = todos; el "solo en el
+      // primero" es cosa de la suscripción).
+      function giftCartItems() {
+        return packGiftIds().map(function (id) { return { id: parseInt(id, 10) || id, quantity: 1, properties: { _Regalo: "Incluido en tu pack" } }; });
+      }
+      function packGiftIds() {
+        var p = packInfo(state.idx), out = [];
+        if (!p || !p.gifts) return out;
+        for (var i = 0; i < p.gifts.length; i++) if (p.gifts[i] && p.gifts[i].variant_id) out.push(p.gifts[i].variant_id);
+        return out;
+      }
 
       function paint() {
         root.innerHTML = bundle.states[state.mode + ":" + state.idx] || "";
@@ -1357,6 +1390,7 @@ export default async function handler(req, res) {
         // correcto (Tiendanube y Shopify: en compra única manda el botón del tema).
         var q = packQty();
         window.__recPackQty = q;
+        window.__recPackGifts = packGiftIds();
         var inputs = document.querySelectorAll('.js-quantity-input, input[name^="quantity"]');
         var found = 0;
         for (var i = 0; i < inputs.length; i++) {
@@ -1405,18 +1439,39 @@ export default async function handler(req, res) {
           } catch (e) {}
           return body;
         }
+        // Compra única con regalos vinculados a productos: después de que el tema
+        // agregó el pack, sumamos los regalos al carrito (un cart/add.js aparte, con
+        // la propiedad _Regalo). Esperamos a que terminen antes de devolverle la
+        // respuesta al tema, así el drawer/redirect ya los muestra.
+        function onceMode() { return document.body.classList.contains("rec-bundle-active") && !document.body.classList.contains("rec-sub-active"); }
+        function addGiftsAfter() {
+          var ids = window.__recPackGifts || [];
+          if (!ids.length) return Promise.resolve();
+          var rootPath = (window.Shopify && Shopify.routes && Shopify.routes.root) || "/";
+          return of.call(window, rootPath + "cart/add.js", {
+            method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" },
+            body: JSON.stringify({ items: ids.map(function (id) { return { id: parseInt(id, 10) || id, quantity: 1, properties: { _Regalo: "Incluido en tu pack" } }; }) }),
+          }).catch(function () {});
+        }
         var of = window.fetch;
         if (of) window.fetch = function (input, init) {
+          var hit = false;
           try {
             var url = typeof input === "string" ? input : (input && input.url) || "";
-            if (isCartAdd(url) && onceActive() && init && init.body) init.body = fixBody(init.body);
+            hit = isCartAdd(url) && onceMode() && !(init && init.__rec);
+            if (hit && onceActive() && init && init.body) init.body = fixBody(init.body);
           } catch (e) {}
-          return of.apply(this, arguments);
+          var p = of.apply(this, arguments);
+          if (hit && (window.__recPackGifts || []).length) return p.then(function (r) { return addGiftsAfter().then(function () { return r; }); });
+          return p;
         };
         var XO = XMLHttpRequest.prototype.open, XS = XMLHttpRequest.prototype.send;
         XMLHttpRequest.prototype.open = function (m, url) { this.__recUrl = url; return XO.apply(this, arguments); };
         XMLHttpRequest.prototype.send = function (body) {
-          try { if (isCartAdd(this.__recUrl) && onceActive() && body) body = fixBody(body); } catch (e) {}
+          try {
+            if (isCartAdd(this.__recUrl) && onceActive() && body) body = fixBody(body);
+            if (isCartAdd(this.__recUrl) && onceMode() && (window.__recPackGifts || []).length) this.addEventListener("load", function () { addGiftsAfter(); });
+          } catch (e) {}
           return XS.call(this, body);
         };
       })();
@@ -1510,7 +1565,7 @@ export default async function handler(req, res) {
         fetch(rootPath + "cart/add.js", {
           method: "POST",
           headers: { "Content-Type": "application/json", "Accept": "application/json" },
-          body: JSON.stringify({ items: [{ id: parseInt(vid, 10) || vid, quantity: packQty() }] }),
+          body: JSON.stringify({ items: [{ id: parseInt(vid, 10) || vid, quantity: packQty() }].concat(giftCartItems()) }),
         }).then(function(r){
           if (!r.ok) throw new Error("cart/add " + r.status);
           window.location.href = rootPath + "cart";
@@ -1533,7 +1588,7 @@ export default async function handler(req, res) {
             if (i >= 0 && bundle.states[state.mode + ":" + i] !== undefined && i !== state.idx) { state.idx = i; changed = true; }
             lastAct = lastAct || act;
           } else if (act === "mode") {
-            if ((v === "sub" || v === "once") && v !== state.mode) { state.mode = v; changed = true; }
+            if ((v === "sub" || v === "once") && v !== state.mode) { state.mode = v; fixIdx(); changed = true; }
             lastAct = lastAct || act;
           } else if (act === "cta") {
             cta = true;

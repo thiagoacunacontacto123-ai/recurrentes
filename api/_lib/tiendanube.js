@@ -358,6 +358,11 @@ export function buildTiendanubeOrderPayload(sub, params) {
       : [{ variant_id: vid, quantity: 1, price: r2(unit + residue) }, { variant_id: vid, quantity: qty - 1, price: unit }])
     : [{ variant_id: vid, quantity: qty, price: unit }];
   products.push(...extras);
+  // Regalos vinculados a un producto: a $0 ("once" = solo en la primera orden).
+  const firstOrder = Number(charge_number) <= 1 || !(sub?.shopify_orders || []).length;
+  for (const g of (Array.isArray(sub?.gift_items) ? sub.gift_items : [])) {
+    if (g && g.shopify_variant_id && (g.every !== "once" || firstOrder)) products.push({ variant_id: Number(g.shopify_variant_id) || g.shopify_variant_id, quantity: 1, price: 0 });
+  }
 
   const name = String(sub?.customer_name || "").trim();
   const [first, ...rest] = name.split(" ");

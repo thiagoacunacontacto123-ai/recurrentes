@@ -107,6 +107,16 @@ const mpFeeReal = (payment) =>
  * lo pone shopify.js). `requireAddress` solo lo usa el simulador.
  * `extra` se mergea en los params de shCreatePaidOrder (ej. simulated:true).
  */
+// Regalos vinculados a un producto (sub.gift_items): renglones a $0 en la orden.
+// `every: "once"` viaja solo con la primera orden de la suscripción.
+export function giftLineItems(sub, chargeNumber) {
+  const list = Array.isArray(sub?.gift_items) ? sub.gift_items : [];
+  const first = Number(chargeNumber) <= 1 || !(sub?.shopify_orders || []).length;
+  return list
+    .filter(g => g && g.shopify_variant_id && (g.every !== "once" || first))
+    .map(g => ({ variant_id: g.shopify_variant_id, quantity: 1, gift: true }));
+}
+
 export async function createShopifyOrderForSub(merchant, subscriberId, sub, { payment_id, total_price, charge_number, mp_fee_real = null, requireAddress = false, extra = {} }, tag = "sync") {
   const out = { shopifyOrderId: null, orderStatusUrl: null, shopifyError: null };
   const addrOk = !!(sub.shipping_address?.address1 && sub.shipping_address?.city);
@@ -128,6 +138,8 @@ export async function createShopifyOrderForSub(merchant, subscriberId, sub, { pa
           { variant_id: sub.plan_snapshot.shopify_variant_id, quantity: itemQty },
           // Extras ("Sumá a tu suscripción"): con precio propio; shopify.js reparte el resto al ítem principal.
           ...(Array.isArray(sub.extra_items) ? sub.extra_items.filter(x => x.shopify_variant_id).map(x => ({ variant_id: x.shopify_variant_id, quantity: Math.max(1, Number(x.qty) || 1), price: Number(x.price_ars) || 0, extra: true })) : []),
+          // Regalos del pack que son productos de la tienda: renglón a $0. "once" = solo en la primera orden.
+          ...giftLineItems(sub, charge_number),
         ],
         shipping_address: toShopifyAddress(sub.shipping_address, sub.customer_name, sub.customer_phone),
         subscriber_id: subscriberId,

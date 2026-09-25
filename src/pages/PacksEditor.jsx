@@ -74,6 +74,8 @@ export function packsFromPlan(plan) {
       virtual: g?.virtual === true,
       note: g?.note || "",
       every: g?.every === "once" ? "once" : "always",
+      shopify_variant_id: g?.shopify_variant_id ? String(g.shopify_variant_id) : "",
+      shopify_product_id: g?.shopify_product_id ? String(g.shopify_product_id) : "",
     })) : [],
     default: p.default === true,
     hide_once: p.hide_once === true,
@@ -189,6 +191,9 @@ export function serializePacks(rows) {
           virtual: g.virtual === true,
           note: (g.note || "").trim(),
           every: g.every === "once" ? "once" : "always",
+          // Producto de la tienda vinculado: el regalo se agrega al carrito / a la orden.
+          shopify_variant_id: !g.virtual && g.shopify_variant_id ? String(g.shopify_variant_id) : null,
+          shopify_product_id: !g.virtual && g.shopify_product_id ? String(g.shopify_product_id) : null,
         })),
       default: r.default === true,
       // En qué modo se muestra este pack, y la cantidad propia de suscripción.
@@ -250,15 +255,19 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
     try { aplicar(await achicarImagen(f)); }
     catch (err) { toast ? toast(err.message, "error") : alert(err.message); }
   };
-  // Elegir un producto de la tienda como regalo: trae nombre y foto de una.
+  // Elegir un producto de la tienda como regalo: queda VINCULADO (se agrega al
+  // carrito en compra única y a la orden en suscripción, a $0) y trae nombre y foto.
   const regaloDesdeProducto = (i, gi, id) => {
     const p = products.find(x => String(x.id) === String(id));
     if (!p) return;
+    const vid = (p.variants || [])[0]?.id ? String(p.variants[0].id) : "";
     onPacksChange(packs.map((r, j) => j === i
       ? { ...r, gifts: (r.gifts || []).map((g, gj) => gj === gi
-          ? { ...g, title: g.title || p.title, image: p.image || g.image || "" } : g) }
+          ? { ...g, title: g.title || p.title, image: p.image || g.image || "", shopify_variant_id: vid, shopify_product_id: String(p.id), _linked_title: p.title, virtual: false } : g) }
       : r));
   };
+  const desvincularRegalo = (i, gi) => onPacksChange(packs.map((r, j) => j === i
+    ? { ...r, gifts: (r.gifts || []).map((g, gj) => gj === gi ? { ...g, shopify_variant_id: "", shopify_product_id: "", _linked_title: "" } : g) } : r));
   const remove = (i) => onPacksChange(packs.filter((_, j) => j !== i));
   // El pack recien agregado se trae a la vista: como el boton quedo abajo de la
   // lista, sin esto en una lista larga no se nota que se sumo uno.
@@ -413,11 +422,20 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
                               </select>
                             </div>
                           )}
+                          {!g.virtual && g.shopify_variant_id && (
+                            <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginBottom:6,padding:"6px 9px",borderRadius:DS.r.md,background:T.accentBg||"rgba(16,185,129,0.10)",fontSize:DS.font.sm,color:T.text}}>
+                              <span>✓ Vinculado a <b>{g._linked_title || products.find(p => String(p.id) === String(g.shopify_product_id))?.title || "un producto de tu tienda"}</b>: se agrega al carrito en compra única y a la orden en suscripción (a $0).</span>
+                              <button type="button" onClick={()=>desvincularRegalo(i,gi)} style={{background:"transparent",border:"none",color:T.textSm,fontSize:DS.font.sm,cursor:"pointer",fontFamily:"inherit",textDecoration:"underline"}}>Desvincular</button>
+                            </div>
+                          )}
+                          {!g.virtual && !g.shopify_variant_id && (
+                            <div style={{fontSize:DS.font.sm,color:T.textSm,marginBottom:6}}>Sin vincular, el regalo solo se muestra: no viaja en la caja. Elegilo de tu tienda para que se agregue solo.</div>
+                          )}
                           <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
                             {products.length > 0 && !g.virtual && (
                               <select value="" onChange={e=>regaloDesdeProducto(i,gi,e.target.value)} style={{...inp,maxWidth:220}}>
-                                <option value="">Elegir de mi tienda…</option>
-                                {products.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+                                <option value="">{g.shopify_variant_id ? "Cambiar producto…" : "Elegir de mi tienda…"}</option>
+                                {products.map(p => <option key={p.id} value={p.id}>{p.title}{(p.variants||[])[0] && Number(p.variants[0].price) === 0 ? " · $0" : ""}</option>)}
                               </select>
                             )}
                             <label style={{border:`1px solid ${T.border}`,borderRadius:DS.r.md,padding:"6px 10px",fontSize:DS.font.sm,color:T.textMd,cursor:"pointer",background:T.surface,whiteSpace:"nowrap"}}>

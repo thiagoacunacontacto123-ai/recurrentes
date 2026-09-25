@@ -554,7 +554,9 @@ export async function shCreatePaidOrder(shop, token, params) {
   const pricedItems = (line_items || []).filter(li => li.extra === true && Number(li.price) > 0).map(li => ({ variant_id: li.variant_id, quantity: Number(li.quantity) || 1, price: r2(li.price).toFixed(2) }));
   const pricedTotal = r2(pricedItems.reduce((a, li) => a + Number(li.price) * li.quantity, 0));
   const subtotalItems = r2(subtotalItemsAll - pricedTotal);
-  const items = (line_items || []).filter(li => !(li.extra === true && Number(li.price) > 0)).map(li => ({ variant_id: li.variant_id, quantity: Number(li.quantity) || 1 }));
+  // Regalos (li.gift): renglón a $0.00, fuera del reparto del cobro y del modo cupón.
+  const giftItems = (line_items || []).filter(li => li.gift === true).map(li => ({ variant_id: li.variant_id, quantity: Number(li.quantity) || 1, price: "0.00" }));
+  const items = (line_items || []).filter(li => !(li.extra === true && Number(li.price) > 0) && li.gift !== true).map(li => ({ variant_id: li.variant_id, quantity: Number(li.quantity) || 1 }));
   const totalQty = items.reduce((acc, li) => acc + li.quantity, 0) || 1;
 
   // GUARD: si los datos son incoherentes (subtotal <= 0), ABORTAMOS la creación
@@ -629,7 +631,7 @@ export async function shCreatePaidOrder(shop, token, params) {
   const body = {
     order: {
       customer: { id: customer_id },
-      line_items: [...adjustedLineItems, ...pricedItems],
+      line_items: [...adjustedLineItems, ...pricedItems, ...giftItems],
       ...(discountCodes ? { discount_codes: discountCodes } : {}),
       shipping_address: cleanShipping,
       billing_address: billing_address ? {

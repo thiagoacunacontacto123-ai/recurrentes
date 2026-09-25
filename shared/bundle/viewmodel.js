@@ -176,6 +176,8 @@ export function resolvePack(plan, idx) {
         note: String(g && g.note || "").slice(0, 120),
         // "once" = solo en el primer envio; "always" (default) = en todos.
         every: g && g.every === "once" ? "once" : "always",
+        // Producto de la tienda vinculado: el widget lo agrega al carrito.
+        variantId: g && g.shopify_variant_id != null && /^\d{1,20}$/.test(String(g.shopify_variant_id)) ? String(g.shopify_variant_id) : null,
       };
     }).filter(function (g) { return g.title; }) : [],
     isDefault: raw.default === true,

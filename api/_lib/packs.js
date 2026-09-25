@@ -227,7 +227,13 @@ export function normalizePacks(input) {
         // en cada renovacion. "once" = solo el primero, "always" = siempre.
         // Sin el campo -> "always", que es como se comportaba hasta hoy.
         const every = g.every === "once" ? "once" : "always";
-        gifts.push({ title, image: gimg, compare_at_ars: gcmp, virtual, note, every });
+        // Regalo vinculado a un producto de la tienda (25-sept-2026, Wellfresh: el
+        // raspador es un producto real). Con variante, el regalo VIAJA: se agrega al
+        // carrito en compra unica y a la orden en suscripcion (a $0). Sin variante
+        // sigue siendo solo de marketing, como hasta hoy.
+        const gvid = !virtual && g.shopify_variant_id != null && /^\d{1,20}$/.test(String(g.shopify_variant_id).trim()) ? String(g.shopify_variant_id).trim() : null;
+        const gpid = gvid && g.shopify_product_id != null && /^\d{1,20}$/.test(String(g.shopify_product_id).trim()) ? String(g.shopify_product_id).trim() : null;
+        gifts.push({ title, image: gimg, compare_at_ars: gcmp, virtual, note, every, shopify_variant_id: gvid, shopify_product_id: gpid });
       }
     }
     // En que modo se muestra este pack (22-sept-2026, Thiago): el comerciante

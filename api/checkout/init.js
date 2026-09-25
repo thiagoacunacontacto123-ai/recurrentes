@@ -710,6 +710,9 @@ export default async function handler(req, res) {
     }
   }
   const extrasTotal = extraItems.reduce((a, x) => a + x.price_ars * x.qty, 0);
+  const giftItems = pack && Array.isArray(pack.gifts)
+    ? pack.gifts.filter(g => g && !g.virtual && g.shopify_variant_id).map(g => ({ shopify_variant_id: String(g.shopify_variant_id), shopify_product_id: g.shopify_product_id || null, title: String(g.title || "Regalo").slice(0, 80), every: g.every === "once" ? "once" : "always" }))
+    : [];
 
   const totalPerCharge = subtotal + shippingCost + extrasTotal;
   const fullPricePerCharge = subtotalBeforeCode + shippingCost + extrasTotal;
@@ -802,6 +805,9 @@ export default async function handler(req, res) {
     },
     // Extras sumados en el checkout: van a cada orden (sync.js) con su precio.
     ...(extraItems.length ? { extra_items: extraItems } : {}),
+    // Regalos del pack vinculados a un producto de la tienda: van a la orden a $0
+    // (sync.js); "once" = solo en la primera orden.
+    ...(giftItems.length ? { gift_items: giftItems } : {}),
     // Cupón sólo primer cobro: sync sube el monto a full_price_per_charge_ars después.
     discount_first_charge_only: discountFirstOnly,
     full_price_per_charge_ars: discountFirstOnly ? fullPricePerCharge : null,
