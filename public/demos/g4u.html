@@ -771,7 +771,7 @@ function renderCk() {
   $("#payFreq").textContent = `Se cobra ${freqTxt()}, sin que hagas nada.`;
   $("#trFreq").textContent = `Envío automático ${freqTxt()} · Pago seguro con Mercado Pago`;
   const has = $("#ckZip").value.trim() || $("#ckProv").value;
-  $("#shipHint").hidden = !!has; $("#ship").hidden = !has;
+  $("#shipHint").style.display = has ? "none" : "flex"; $("#ship").hidden = !has; // el hint tiene display:flex inline: `hidden` solo no alcanza
   if (has) { if (S.ship == null) S.ship = 0; $("#ship").innerHTML = SHIP().map((s, i) => `<label class="opt ${S.ship === i ? "on" : ""}"><input type="radio" name="sh" ${S.ship === i ? "checked" : ""} data-i="${i}"><span class="n"><b>${s.n}</b><small>${s.s}</small></span><b>${s.p === 0 ? "Gratis" : "$ " + s.p.toLocaleString("es-AR", { minimumFractionDigits: 2 })}</b></label>`).join(""); }
 }
 ["#ckZip", "#ckProv"].forEach(s => $(s).addEventListener("input", renderCk));
