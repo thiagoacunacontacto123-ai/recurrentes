@@ -123,3 +123,46 @@ test("(q) resumen para el Admin: por anuncio, con % y filtro de días", () => {
   assert.ok(all.by_source.some(x => x.source === "referido" && x.registered === 1));
   assert.ok(all.by_source.some(x => x.source === "directo" && x.registered === 1));
 });
+
+// ─── El evento por el que se pauta ────────────────────────────────────────
+// 25-sept-2026, Thiago: "la conversión tiene que ser una creada por nosotros, de
+// las marcas que ponen que venden". Optimizar por registro traía al que registra
+// barato: de los 4 leads del primer creativo, 3 contestaron "sin ventas".
+test("(q) califica el que ya vende 50+ pedidos o el que paga la instalación", () => {
+  assert.equal(A.leadCalifica({ lead_volumen: "sin_ventas", lead_instalacion: "solo" }), false);
+  assert.equal(A.leadCalifica({ lead_volumen: "1_50", lead_instalacion: "solo" }), false);
+  assert.equal(A.leadCalifica({ lead_volumen: "50_200" }), true, "100 pedidos/mes entra acá");
+  assert.equal(A.leadCalifica({ lead_volumen: "1000_mas" }), true);
+  // La instalación paga alcanza sola: nadie pone USD 100 "a ver qué onda".
+  assert.equal(A.leadCalifica({ lead_volumen: "sin_ventas", lead_instalacion: "asistida" }), true);
+  assert.equal(A.leadCalifica(null), false);
+  assert.equal(A.leadCalifica({}), false);
+});
+
+test("(q) el paso 'qualified' va a Meta como SubmitApplication y no se manda dos veces", async () => {
+  seedDoc("merchants/cal_uid", { email: "duena@marca.test", owner_name: "Ana Diaz", created_at: new Date().toISOString(), acquisition: { utm_source: "meta", utm_content: "RC-A1-H2" } });
+
+  const r = await A.trackAcquisition("cal_uid", "qualified", { req });
+  assert.deepEqual({ ok: r.ok, sent: r.sent }, { ok: true, sent: true });
+  assert.equal(ev(0).event_name, "SubmitApplication");
+  assert.equal(ev(0).custom_data.ad_name, "RC-A1-H2", "el anuncio viaja para poder comparar creativos");
+  assert.ok(rawGet("merchants/cal_uid").acquisition.qualified_at);
+
+  const dup = await A.trackAcquisition("cal_uid", "qualified", { req });
+  assert.deepEqual({ ok: dup.ok, skipped: dup.skipped }, { ok: true, skipped: "dup" });
+  assert.equal(meta.length, 1, "el mismo lead no se cuenta dos veces");
+});
+
+test("(q) el resumen del Admin cuenta los calificados por anuncio", () => {
+  const now = Date.parse("2026-09-26T12:00:00Z");
+  const d = (n) => new Date(now - n * 86400e3).toISOString();
+  const accounts = [
+    { id: "a", created_at: d(1), acquisition: { utm_source: "meta", utm_content: "VIDEO_1", qualified_at: d(1), store_connected_at: d(1) } },
+    { id: "b", created_at: d(1), acquisition: { utm_source: "meta", utm_content: "VIDEO_1" } },
+    { id: "c", created_at: d(1), acquisition: { utm_source: "meta", utm_content: "VIDEO_1" } },
+    { id: "e", created_at: d(1), acquisition: { utm_source: "meta", utm_content: "VIDEO_1" } },
+  ];
+  const s = A.acquisitionSummary(accounts, {}, { days: 30, nowMs: now });
+  assert.equal(s.totals.qualified, 1);
+  assert.equal(s.totals.pct_qualified, 25, "1 de 4: es el número que hay que mirar, no los registros");
+});

@@ -1869,9 +1869,13 @@ async function saveOwner(ctx, req, res) {
   // Adquisición: de qué anuncio vino (UTM/fbclid/fbp que guardó la landing) + el evento
   // CompleteRegistration a NUESTRO pixel por servidor (_lib/acquisition.js). Nunca lanza.
   try {
-    const { recordAttribution, trackAcquisition } = await import("./_lib/acquisition.js");
+    const { recordAttribution, trackAcquisition, leadCalifica } = await import("./_lib/acquisition.js");
     await recordAttribution(ctx.uid, b.attribution, { req });
     await trackAcquisition(ctx.uid, "registered", { req });
+    // Y el evento por el que se PAUTA (25-sept-2026, Thiago): solo si lo que
+    // contestó dice que ya vende o que quiere la instalación paga. Es el que
+    // Meta tiene que optimizar; el registro pelado trae al que no vende nada.
+    if (leadCalifica(lead)) await trackAcquisition(ctx.uid, "qualified", { req });
   } catch (e) { console.warn("[save-owner] acquisition:", e.message); }
   // Afiliados: el código del ?ref= con el que llegó (lo guarda la landing) se reclama acá.
   if (b.ref_code) { try { const { claimReferral } = await import("./_lib/referrals.js"); await claimReferral(ctx.uid, b.ref_code); } catch (e) { console.warn("[save-owner] ref:", e.message); } }
