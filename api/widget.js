@@ -2228,6 +2228,10 @@ function buildCheckoutEmbed({ merchantId, apiBase, color, shippingRates, waOptin
       if (PACK_MODE) {
         PACK = resolvePack(plan, PACK_IDX);
         if (!PACK) { mount.innerHTML = errBox("El pack elegido ya no está disponible. Volvé a la tienda y elegilo de nuevo."); return; }
+        // Este checkout SOLO crea suscripciones: un pack marcado como
+        // "solo compra unica" se frena ACA y no despues de que cargue toda la
+        // direccion. 25-sept-2026, Wellfresh.
+        if (PACK.hideSub) { mount.innerHTML = errBox("Ese pack es solo para compra unica. Volve a la tienda y elegi uno de suscripcion."); return; }
         QTY = PACK.qty;
       }
       if (!rates.length) { rates = [planRate()]; rateIdx = 0; }

@@ -309,6 +309,11 @@ async function handlePlan(req, res) {
         frequency_days: data.frequency_days,
         // Packs (bundle): el widget/embed renderiza el selector y manda pack_index.
         pricing_mode: planPricingMode(data),
+        // OJO: la lista va COMPLETA a proposito. El checkout resuelve el pack
+        // por INDICE (resolvePack(plan, pack_index)), asi que filtrar aca
+        // correria los indices y se cobraria otro pack. Los escondidos en
+        // suscripcion se frenan en checkout/init (400 "no disponible para
+        // suscripcion"), no sacandolos de la lista.
         packs: planPacks(data),
         frequency_scales_with_qty: data.frequency_scales_with_qty !== false,
         // El checkout sólo respeta una frecuencia custom de la URL si el plan lo permite.

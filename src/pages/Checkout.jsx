@@ -258,6 +258,12 @@ export default function Checkout() {
 
   // Cálculo de precios (mismo criterio que checkout/init).
   const pack = plan && plan.pricing_mode === "packs" && packIdx != null ? resolvePack(plan, packIdx) : null;
+  // Este checkout SOLO crea suscripciones: si el pack está marcado como "solo
+  // compra única" se avisa ACÁ y no después de que cargue toda la dirección
+  // (checkout/init lo rechaza con un 400). 25-sept-2026, Wellfresh.
+  useEffect(() => {
+    if (pack && pack.hideSub) setLoadErr("Ese pack es solo para compra única. Volvé a la tienda y elegí uno que se pueda suscribir.");
+  }, [pack]);
   const qty = pack ? pack.qty : qtyParam;
   const unitPrice = plan?.subscription_price_ars || 0;
   const tiers = Array.isArray(plan?.qty_discount_tiers) ? plan.qty_discount_tiers : [];
