@@ -123,8 +123,8 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 .acc summary:after{content:"";width:8px;height:8px;border-right:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink);transform:rotate(45deg);margin-right:6px;transition:transform .15s}
 .acc details[open] summary:after{transform:rotate(-135deg)}
 .acc p{margin:0 4px 14px;font-size:14px;color:var(--muted);line-height:1.55}
-.strip{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:34px 28px 60px;text-align:center}
-.strip div{font-size:13.5px;font-weight:600}
+.strip{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:26px 0 8px;text-align:center}
+.strip div{font-size:12.5px;font-weight:700;line-height:1.3}
 .strip svg{width:34px;height:34px;stroke:var(--wine);fill:none;stroke-width:1.8;display:block;margin:0 auto 10px}
 .foot{background:var(--wine);color:#f3d9e0;padding:28px 0;font-size:13px}
 .foot .wrap{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
@@ -187,8 +187,8 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 .ibar b{display:block;font-size:16px;margin-bottom:6px}
 .ibar span{font-size:14px;color:var(--muted);line-height:1.5}
 .testi{padding:40px 28px 60px}
-.tcar{max-width:780px;margin:0 auto 26px;text-align:left}
-.tq{font-size:20px;font-style:italic;line-height:1.5;color:var(--ink)}
+.tcar{margin:18px 0 6px;text-align:left}
+.tq{font-size:17px;font-style:italic;line-height:1.5;color:var(--ink)}
 .tmeta{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-style:italic;color:var(--muted);font-size:15px}
 .tst{color:#f2b705;letter-spacing:2px;font-style:normal;font-size:18px}
 .tnav{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:14px;border-bottom:1px solid #dccfd2;padding-bottom:16px}
@@ -196,9 +196,9 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 .tnav i{display:inline-block;width:8px;height:8px;border-radius:50%;border:1.5px solid var(--ink);margin:0 4px;vertical-align:middle}
 .tnav i.on{background:var(--ink)}
 /* Bloque de reseñas: mismo formato que el de Revie en su tienda */
-.rv{max-width:780px;margin:0 auto;font-family:Poppins,system-ui,sans-serif;color:#111}
-.rv-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-.rv-head h3{margin:0;font-size:24px;font-weight:800;letter-spacing:.5px;color:#111;text-align:left}
+.rv{font-family:Poppins,system-ui,sans-serif;color:#111}
+.rv-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.rv .rv-head h3{margin:0;font-size:24px;font-weight:800;letter-spacing:.5px;color:#111;text-align:left}
 .rv-head span{font-size:12px;color:#555;letter-spacing:.06em}
 .rv-score{display:flex;align-items:center;gap:12px}
 .rv-score b{background:#e9e9e9;font-size:22px;padding:8px 14px;border-radius:4px}
@@ -218,14 +218,14 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 .rv-pag a{color:#111;text-decoration:none;padding:4px 8px;border-radius:4px}
 .rv-pag a.on{background:#111;color:#fff}
 .rv-pag a.dis{opacity:.35;pointer-events:none}
-@media(max-width:600px){.rv-item{flex-direction:column}.rv-img{width:100%;height:auto;max-width:260px}.tq{font-size:17px}.rv-head h3{font-size:22px}}
+@media(max-width:600px){.rv-score{width:100%;justify-content:flex-start}.rv-score b{font-size:18px;padding:6px 10px}.rv-stars{font-size:22px}.rv-item{flex-direction:column}.rv-img{width:100%;height:auto;max-width:260px}.tq{font-size:17px}.rv-head h3{font-size:22px}}
 .testi h3{font-size:30px;text-align:center;margin:0 0 30px;font-weight:800;color:var(--wine)}
 .testi .g{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
 .testi .c{background:#fff;border-radius:18px;padding:26px 24px;border:1px solid #e6dadd}
 .testi .st{color:#f2b705;font-size:18px;letter-spacing:2px;margin-bottom:12px}
 .testi p{font-size:15px;line-height:1.6;margin:0 0 14px;color:var(--ink)}
 .testi small{font-weight:600;color:var(--muted)}
-.rev{display:flex;align-items:center;justify-content:center;gap:10px;padding:26px 0 0;font-size:14px;color:var(--muted)}
+.rev{display:flex;align-items:center;gap:10px;padding:18px 0 6px;font-size:15px;color:var(--muted)}.rev:before{content:"";display:none}
 .rev b{color:var(--ink)}
 .foot2{background:var(--wine);color:#f3d9e0;padding:44px 0 26px;font-size:13.5px}
 .foot2 .g{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:28px;margin-bottom:30px}
@@ -348,7 +348,7 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
   .hdr nav{order:3;flex-basis:100%;display:flex;gap:18px;overflow-x:auto;padding:4px 0 10px;font-size:13.5px;scrollbar-width:none;-webkit-overflow-scrolling:touch}.hdr nav::-webkit-scrollbar{display:none}.hdr nav a{white-space:nowrap;flex:none}
   .hdr .sp{order:1;flex:1}.hdr .ic{order:2;gap:16px}
   .wrap{padding:0 20px}.intro{padding:40px 0 36px}.intro h1{font-size:32px}.benef{grid-template-columns:1fr}.steps{flex-direction:column;gap:8px}
-  .prod{grid-template-columns:minmax(0,1fr);gap:22px;padding:22px 20px}.strip{grid-template-columns:repeat(2,1fr)}
+  .prod{grid-template-columns:minmax(0,1fr);gap:22px;padding:22px 20px}
   .thumbs img{width:72px;height:72px}
   h2.ttl{font-size:26px;line-height:1.15}.ttl-sub{font-size:30px;margin-top:4px}.sub{font-size:14px}
   .bul{font-size:16px;line-height:1.5}.bul li{margin:10px 0}
@@ -357,7 +357,7 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
   .slot .add{padding:10px 14px;font-size:11.5px}
   .freq{grid-template-columns:1fr 1fr 1fr;gap:8px}.freq button{padding:14px 4px;font-size:13px}
   .cta{font-size:22px;padding:26px 16px;border-radius:14px}.cta small{font-size:13px;margin-top:6px}
-  .strip{grid-template-columns:repeat(3,1fr);gap:10px;padding:30px 20px 40px}.strip div{font-size:12px}.strip svg{width:30px;height:30px}
+  .strip{gap:10px;padding:22px 0 6px}.strip div{font-size:12px}.strip svg{width:30px;height:30px}
   .ibar{padding:40px 20px 10px}.testi{padding:30px 20px 50px}.ibar h3,.testi h3{font-size:26px}.ibar .g{grid-template-columns:1fr 1fr;gap:18px}.ibar img{height:52px}.ibar b{font-size:14px}.ibar span{font-size:12.5px}
   .acc summary{padding:16px 4px;font-size:16px}
   .ck-shell{grid-template-columns:1fr}.ck-side{display:none}.ck-main{justify-content:center;padding:0 20px 48px}
@@ -425,37 +425,39 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
       <button class="cta" id="goCk" disabled>Suscribirme<small id="ctaSub">Elegí los productos de tu pack</small></button>
       <div class="trust"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Pago seguro con Mercado Pago · Pausás o cancelás cuando quieras</div>
 
+  <div class="strip">
+    <div><svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19"/></svg>Se pueden congelar</div>
+    <div><svg viewBox="0 0 24 24"><path d="M3 12h13l5-5v10l-5-5M3 6v12"/></svg>Entregas BUENOS AIRES · CÓRDOBA · SANTA FE</div>
+    <div><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Entrega directa en 24/48h en AMBA</div>
+  </div>
+      <div class="testi" style="padding:0"><div class="tcar"><div class="tq" id="tq"></div><div class="tmeta"><span id="ta"></span><span class="tst">★★★★★</span></div>
+      <div class="tnav"><button type="button" data-t="-1" aria-label="Anterior">‹</button><span id="tdots"></span><button type="button" data-t="1" aria-label="Siguiente">›</button></div></div>
+    </div>
       <div class="acc">
         <details><summary>🍞 ¿Qué son los panificados G4U?</summary><p>G4U es un <b>panificado alto en proteína, bajo en carbohidratos y alto en fibra</b>, creado para quienes quieren cuidarse sin renunciar al sabor de siempre. Elaborado por <b>chefs y técnicos en alimentos</b>, combina <b>proteínas de calidad, fibra funcional y almidón resistente</b> que aportan saciedad, energía estable y bienestar digestivo. Tiene la <b>textura, aroma y sabor del pan artesanal</b>, pero con una formulación inteligente que se adapta a estilos de vida <b>keto, low-carb y saludables</b>.</p></details>
         <details><summary>🔬 Ingredientes y tecnología G4U</summary><p><b>INGREDIENTES:</b> Almidón resistente de trigo, gluten de trigo, concentrado de suero de leche, huevo en polvo, aceite de girasol, eritritol, levadura, inulina, lecitina de soja, psyllium, harina de malta, goma xántica, goma guar, mejoradores (INS 300, INS 1101).</p><p>Somos <b>G4U</b>, y reinventamos el pan combinando <b>ciencia, nutrición y sabor</b>. Desarrollamos una fórmula única con <b>almidones resistentes tipo RS4</b>, que reducen los carbohidratos netos, mejoran la digestión y aumentan la saciedad. Usamos <b>proteínas funcionales de alta calidad</b>, como aislado proteico y gluten vital, para lograr la estructura, suavidad y elasticidad de un pan artesanal. Sumamos <b>fibras solubles y gomas vegetales</b> que retienen la humedad y conservan la frescura sin conservantes.</p></details>
         <details><summary>🚚 Envío</summary><p>Entrega en 24/48 h en AMBA. Entregas en Buenos Aires, Córdoba y Santa Fe. En cada envío de tu suscripción te llega el seguimiento por mail y WhatsApp.</p><p><b>Durabilidad:</b> 25 días frescos / 45 días refrigerados / 3 meses congelados.</p></details>
         <details><summary>⏸ ¿Cómo pauso o cancelo?</summary><p>Desde tu portal de suscripción (el link te llega por mail y WhatsApp con cada cobro): pausar, cambiar la dirección o cancelar. Sin llamadas ni formularios. <a href="#portal" style="color:var(--wine);font-weight:600">Ver cómo es el portal →</a></p></details>
       </div>
+      <div class="rev">★★★★★ <b>121 reseñas</b></div>
+      <div class="testi" style="padding:10px 0 0"><div class="rv" id="rv">
+      <div class="rv-head"><div><h3>RESEÑAS</h3><span>121 OPINIONES</span></div><div class="rv-score"><b>4.97</b><i class="rv-stars" style="--r:4.97"></i></div></div>
+      <hr><div class="rv-by">&nbsp;Reviews por Whatsapp by <a href="https://revie.lat/" target="_blank" rel="noopener"><img src="https://revie-wwwstatic.b-cdn.net/image/revie.png" width="85" height="24" alt="Revie"></a></div>
+      <div id="rvList"></div>
+      <div class="rv-pag" id="rvPag"></div>
+    </div>
+  </div>
     </div>
   </main>
 
-  <section class="wrap strip">
-    <div><svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19"/></svg>Se pueden congelar</div>
-    <div><svg viewBox="0 0 24 24"><path d="M3 12h13l5-5v10l-5-5M3 6v12"/></svg>Entregas BUENOS AIRES · CÓRDOBA · SANTA FE</div>
-    <div><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Entrega directa en 24/48h en AMBA</div>
-    <div><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-3-6.7M21 3v6h-6"/></svg>Se renueva sola · lo pausás cuando quieras</div>
-  </section>
+
 
   <section class="iwt"><div class="wrap">
     <img id="iwtImg" alt="">
     <div><h3>El pan de siempre, con beneficios reales.</h3><p>Pan de molde proteico, low-carb y sin azúcar. Con la suscripción te llega recién hecho cada vez que lo necesitás, con 15% de descuento en cada envío y sin volver a hacer el pedido.</p><button class="btn-rose" id="iwtCta">Suscribirme</button></div>
   </div></section>
   <section class="wrap ibar"><h3>Alimentación Low-Carb</h3><div class="g" id="ibar"></div></section>
-  <section class="wrap testi">
-    <div class="tcar"><div class="tq" id="tq"></div><div class="tmeta"><span id="ta"></span><span class="tst">★★★★★</span></div>
-      <div class="tnav"><button type="button" data-t="-1" aria-label="Anterior">‹</button><span id="tdots"></span><button type="button" data-t="1" aria-label="Siguiente">›</button></div></div>
-    <div class="rv" id="rv">
-      <div class="rv-head"><div><h3>RESEÑAS</h3><span>121 OPINIONES</span></div><div class="rv-score"><b>4.97</b><i class="rv-stars" style="--r:4.97"></i></div></div>
-      <hr><div class="rv-by">&nbsp;Reviews por Whatsapp by <a href="https://revie.lat/" target="_blank" rel="noopener"><img src="https://revie-wwwstatic.b-cdn.net/image/revie.png" width="85" height="24" alt="Revie"></a></div>
-      <div id="rvList"></div>
-      <div class="rv-pag" id="rvPag"></div>
-    </div>
-  </section>
+
   <footer class="foot2"><div class="wrap">
     <div class="g">
       <div><img id="logoFt" alt="G4U" style="height:48px;width:auto;margin-bottom:12px"><div>Pan proteico, low-carb y sin azúcar. El pan de siempre, con beneficios reales.</div></div>
