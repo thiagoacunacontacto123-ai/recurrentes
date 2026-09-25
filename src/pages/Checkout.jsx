@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { resolvePack } from "../../shared/bundle/viewmodel.js";
 import { AppLoader } from "../ui/components.jsx";
 import { discountAmountFor } from "../../shared/platform/discounts.js";
+import { resolveCheckoutTheme, ctaText } from "../../shared/platform/checkoutTheme.js";
 
 // Checkout propio de Recurrentes (hosteado). Dos entradas:
 //   · Link de suscripción (negocios sin tienda: servicios, digitales, venta por link):
@@ -44,6 +45,11 @@ function fbAttribution(p) {
 }
 const viewId = () => { try { return crypto.randomUUID().replace(/-/g, ""); } catch (_) { return String(Date.now()) + Math.random().toString(36).slice(2, 8); } };
 
+// Campo con etiqueta flotante (estilo Shopify). Vive fuera del componente: si se
+// definiera adentro, React lo trataría como un tipo nuevo en cada render y el input
+// perdería el foco a cada tecla.
+const Field = ({ label, children }) => <div className="rc-f">{children}<label>{label}</label></div>;
+
 function freqText(days) {
   const d = Number(days) || 0;
   if (d === 7) return "semanal";
@@ -81,6 +87,22 @@ export default function Checkout() {
   const img = p.get("img") || "";
   const titleOverride = p.get("title") || "";
   const colorParam = /^#[0-9a-fA-F]{6}$/.test(p.get("color") || "") ? p.get("color") : "";
+  // Vista previa del diseñador (Configuración → Checkout): ?preview=1&theme=<json>. No manda
+  // eventos, no registra leads y el botón de pagar no paga. El diseñador también empuja
+  // cambios en vivo por postMessage ({ type:"rec-checkout-theme", theme }).
+  const isPreview = p.get("preview") === "1";
+  const [previewTheme, setPreviewTheme] = useState(() => { try { return isPreview && p.get("theme") ? JSON.parse(p.get("theme")) : null; } catch (_) { return null; } });
+  useEffect(() => {
+    if (!isPreview) return;
+    const onMsg = (e) => { if (e.origin !== window.location.origin) return; if (e.data && e.data.type === "rec-checkout-theme" && e.data.theme && typeof e.data.theme === "object") setPreviewTheme(e.data.theme); };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, [isPreview]);
+  // Acento para el "cargando" ANTES de tener el tema: el que pasó el widget en la URL, o
+  // el que quedó guardado de la última visita a esta tienda. Así el logo ya gira del
+  // color de la tienda desde el primer instante (Thiago, 24-sept).
+  const cachedColor = (() => { try { const v = localStorage.getItem("rec_ck_color_" + merchant); return /^#[0-9a-fA-F]{6}$/.test(v || "") ? v : ""; } catch (_) { return ""; } })();
+  const [showSummary, setShowSummary] = useState(false);
 
   const [plan, setPlan] = useState(null);
   const [codeInput, setCodeInput] = useState(codeParam);
@@ -97,7 +119,7 @@ export default function Checkout() {
   const leadSent = useRef("");
   function captureLead() {
     const em = email.trim().toLowerCase();
-    if (!plan || !EMAIL_RE.test(em) || leadSent.current === em) return;
+    if (isPreview || !plan || !EMAIL_RE.test(em) || leadSent.current === em) return;
     leadSent.current = em;
     try {
       const body = {
@@ -145,8 +167,9 @@ export default function Checkout() {
         else if (d.plan.pricing_mode === "packs" && (packIdx == null || !resolvePack(d.plan, packIdx))) setLoadErr("Este plan se contrata desde la página del producto en la tienda.");
         else {
           setPlan(d.plan); setCfg(d.checkout || null);
+          try { const c = d.checkout?.theme?.color; if (c) localStorage.setItem("rec_ck_color_" + merchant, c); } catch (_) {}
           // Meta "carrito" (AddToCart): se abrió el checkout. Best-effort, sin esperar.
-          try {
+          if (!isPreview) try {
             const pk = d.plan.pricing_mode === "packs" && packIdx != null ? resolvePack(d.plan, packIdx) : null;
             const value = pk ? Number(pk.total_ars || pk.price_ars || 0) : Number(d.plan.subscription_price_ars || 0) * qtyParam;
             fetch("/api/checkout/init", { method: "POST", headers: { "Content-Type": "application/json" }, keepalive: true,
@@ -164,7 +187,11 @@ export default function Checkout() {
   const requirePhone = cfg ? cfg.require_phone !== false : true;
   const requireTaxId = cfg ? cfg.require_tax_id === true : false;
   const providerLabel = cfg?.provider_label || "Mercado Pago";
-  const accent = colorParam || cfg?.color || "#10b981";
+  // Tema: el resuelto por el server (o solo defaults + lo que manda el diseñador en la vista previa).
+  const theme = isPreview
+    ? resolveCheckoutTheme(null, { widgetColor: cfg?.color, preview: previewTheme || {} })
+    : (cfg?.theme || resolveCheckoutTheme(null, { widgetColor: colorParam || cfg?.color }));
+  const accent = theme.color;
   const isService = cfg?.business_type === "service";
 
   // Cálculo de precios (mismo criterio que checkout/init).
@@ -198,6 +225,7 @@ export default function Checkout() {
       setRateIdx(0);
       return;
     }
+    if (!zip && !province) { setRates([]); setRateIdx(0); return; }
     clearTimeout(rateTimer.current);
     rateTimer.current = setTimeout(async () => {
       setRatesLoading(true);
@@ -238,7 +266,7 @@ export default function Checkout() {
   }, [plan, cfg, province, subtotal, askAddress, zip, city, address1, qty]);
 
   const shippingSel = askAddress ? (rates[rateIdx] || planShipping) : null;
-  const shippingPrice = shippingSel ? (Number(shippingSel.price) || 0) : 0;
+  const shippingPrice = shippingSel && rates.length ? (Number(shippingSel.price) || 0) : 0;
   // Descuento validado contra el backend (el server lo vuelve a validar al pagar).
   // La cuenta la hace el módulo compartido, la MISMA que corre en el server.
   // Antes acá el % se capeaba en 100 y en el server en 90: con un código del
@@ -264,6 +292,7 @@ export default function Checkout() {
 
   async function pagar() {
     setFormErr("");
+    if (isPreview) { setFormErr("Esto es una vista previa: el botón no cobra."); return; }
     const miss = [];
     if (!EMAIL_RE.test(email.trim())) miss.push("email válido");
     if (!name.trim()) miss.push("nombre");
@@ -274,6 +303,7 @@ export default function Checkout() {
       if (!city.trim()) miss.push("ciudad");
       if (!province.trim()) miss.push("provincia");
       if (!zip.trim()) miss.push("código postal");
+      if (!rates.length && zip.trim() && province.trim()) miss.push("método de envío (esperá a que carguen las opciones)");
     }
     if (miss.length) { setFormErr("Completá: " + miss.join(", ") + "."); return; }
     setSubmitting(true);
@@ -314,140 +344,247 @@ export default function Checkout() {
     }
   }
 
-  const st = {
-    // colorScheme light: index.css declara `color-scheme: dark` para el panel y el
-    // checkout lo heredaba. Chrome entonces pintaba los campos con su paleta
-    // oscura (texto blanco, autocompletado gris-azul) sobre una página blanca.
-    page: { minHeight: "100vh", background: "#f6f6f7", colorScheme: "light", fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif", color: "#1a1a1a", padding: "24px 16px", boxSizing: "border-box" },
-    wrap: { maxWidth: 940, margin: "0 auto", display: "grid", gridTemplateColumns: "minmax(0,1fr) 360px", gap: 24, alignItems: "start" },
-    card: { background: "#fff", border: "1px solid #e5e5e7", borderRadius: 14, padding: 20, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" },
-    h: { fontSize: 15, fontWeight: 700, margin: "0 0 14px" },
-    label: { fontSize: 12, fontWeight: 600, color: "#555", margin: "0 0 5px", display: "block" },
-    // 16px: iOS Safari hace zoom al enfocar inputs con letra menor.
-    input: { width: "100%", padding: "11px 12px", fontSize: 16, border: "1px solid #d6d6d8", borderRadius: 9, boxSizing: "border-box", outline: "none", background: "#fff", color: "#1a1a1a", fontFamily: "inherit" },
-    row2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 },
-    field: { marginBottom: 12 },
-    opt: { color: "#aaa", fontWeight: 400 },
-  };
+  const R = theme.radius;
+  const font = theme.font_stack;
+  const pageBase = { minHeight: "100vh", background: theme.bg, color: theme.text, colorScheme: theme.dark ? "dark" : "light", fontFamily: font, boxSizing: "border-box" };
+  const loaderColor = colorParam || cachedColor || "#10b981";
 
-  // Misma animación de carga que el tablero (logo girando), Thiago 19-sept.
-  if (loading) return <div style={{ ...st.page, display: "flex", alignItems: "center", justifyContent: "center" }}><AppLoader T={{ textSm: "#777" }} text="Preparando tu suscripción…" minHeight="70vh"/></div>;
-  if (loadErr) return <div style={{ ...st.page, display: "flex", alignItems: "center", justifyContent: "center" }}><div style={{ ...st.card, maxWidth: 420, textAlign: "center" }}><div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Ups</div><div style={{ fontSize: 13, color: "#666", lineHeight: 1.5 }}>{loadErr}</div></div></div>;
+  // Misma animación de carga que el tablero (logo girando), del color de la tienda.
+  if (loading) return <div style={{ ...pageBase, display: "flex", alignItems: "center", justifyContent: "center", background: cachedColor || colorParam ? theme.bg : "#ffffff" }}><AppLoader T={{ textSm: "#777" }} text="Preparando tu suscripción…" minHeight="70vh" color={loaderColor}/></div>;
+  if (loadErr) return <div style={{ ...pageBase, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}><div style={{ maxWidth: 420, textAlign: "center", border: `1px solid ${theme.border}`, borderRadius: R + 6, padding: 24, background: theme.input_bg }}><div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Ups</div><div style={{ fontSize: 14, color: theme.text_muted, lineHeight: 1.5 }}>{loadErr}</div></div></div>;
 
   const freqTxt = freqText(pack ? pack.freqDays : (freqParam || plan.frequency_days));
   const kindLabel = isService ? "Membresía" : "Suscripción";
   const title = titleOverride || plan.product_title;
   const image = img || plan.product_image || "";
-  const summary = (
-    <div style={st.card}>
-      <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 14 }}>
-        {image ? <img src={image} alt="" style={{ width: 54, height: 54, borderRadius: 10, objectFit: "cover", border: "1px solid #eee", flexShrink: 0 }} /> : null}
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: accent, textTransform: "uppercase", letterSpacing: 0.5 }}>{kindLabel} · {freqTxt}</div>
-          <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.3, overflowWrap: "anywhere" }}>{title}{qty > 1 ? ` × ${qty}` : ""}</div>
-        </div>
-      </div>
-      <div style={{ borderTop: "1px solid #eee", paddingTop: 12, display: "flex", flexDirection: "column", gap: 8, fontSize: 13 }}>
-        {askAddress && <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}><span style={{ color: "#666" }}>Subtotal{qtyDiscountPct > 0 ? ` (−${qtyDiscountPct}%)` : ""}</span><b>{money(subtotal)}</b></div>}
-        {askAddress && <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}><span style={{ color: "#666" }}>Envío{shippingSel?.name ? ` · ${shippingSel.name}` : ""}</span><b>{shippingPrice === 0 ? "Gratis" : money(shippingPrice)}</b></div>}
-        {discountAmt > 0 && <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 13, color: "#0a8a3f", marginBottom: 6 }}><span>Descuento {discount?.code}</span><span>−{money(discountAmt)}</span></div>}
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, borderTop: askAddress ? "1px solid #eee" : "none", paddingTop: askAddress ? 10 : 0, fontSize: 15 }}><b>Total {freqTxt}</b><b>{money(total)}</b></div>
-      </div>
-      <div style={{ marginTop: 12, fontSize: 11, color: "#888", lineHeight: 1.5 }}>Se cobra {money(total)} ahora y se renueva automáticamente ({freqTxt}). Podés pausar o cancelar cuando quieras.</div>
+  const storeName = theme.header_text || cfg?.store_name || "";
+  const logo = theme.show_logo ? (cfg?.store_logo || "") : "";
+  const footerTxt = theme.footer_text || `Se cobra ${money(total)} ahora y se renueva automáticamente (${freqTxt}). Podés pausar o cancelar cuando quieras.`;
+  const cta = submitting ? `Redirigiendo a ${providerLabel}…` : ctaText(theme, money(total));
+  const policiesTxt = theme.policies_text || "Al pagar aceptás los términos y la política de privacidad.";
+
+  const line = (l, v, opts = {}) => (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 14, color: opts.color || theme.text, ...(opts.style || {}) }}>
+      <span style={{ color: opts.color || theme.text_muted, minWidth: 0 }}>{l}</span><span style={{ fontWeight: opts.bold ? 600 : 500, whiteSpace: "nowrap" }}>{v}</span>
     </div>
   );
 
-  return (
-    <div style={st.page} className="rc-checkout">
-      <style>{`@keyframes rc-spin{to{transform:rotate(360deg)}} @media(max-width:760px){ .rc-wrap{grid-template-columns:1fr!important;} .rc-summary{order:-1;} } @media(max-width:420px){ .rc-row2{grid-template-columns:1fr!important;} }
-        /* Autocompletado de Chrome: que no pise el fondo blanco ni el color del texto. */
-        .rc-checkout input:-webkit-autofill, .rc-checkout select:-webkit-autofill, .rc-checkout input:-webkit-autofill:focus {
-          -webkit-text-fill-color:#1a1a1a; -webkit-box-shadow:0 0 0 1000px #fff inset; box-shadow:0 0 0 1000px #fff inset; caret-color:#1a1a1a; transition:background-color 9999s ease-out;
-        }
-        .rc-checkout input::placeholder { color:#9a9a9e; }`}</style>
-      {cfg?.store_name ? (
-        <div style={{ maxWidth: 940, margin: "0 auto 16px", fontSize: 17, fontWeight: 800, letterSpacing: -0.2, overflowWrap: "anywhere" }}>{cfg.store_name}</div>
+  const discountBox = theme.show_discount && (
+    <div style={{ marginTop: 18 }}>
+      <div style={{ display: "flex", gap: 10 }}>
+        <div className="rc-f" style={{ flex: 1, marginBottom: 0 }}>
+          <input value={codeInput} onChange={e => setCodeInput(e.target.value.toUpperCase())} placeholder=" " aria-label="Código de descuento" style={{ textTransform: "uppercase" }}
+            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); aplicarCodigo(codeInput); } }}/>
+          <label>Código de descuento</label>
+        </div>
+        <button type="button" onClick={() => aplicarCodigo(codeInput)} disabled={codeBusy || !codeInput.trim()} className="rc-apply">{codeBusy ? "…" : "Aplicar"}</button>
+      </div>
+      {codeMsg ? <div style={{ fontSize: 13, color: discount ? "#0a8a3f" : "#c0392b", marginTop: 8 }}>{codeMsg}</div> : null}
+      {discount?.code ? <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 13, background: theme.color_tint, color: theme.text, padding: "5px 10px", borderRadius: 999 }}>🏷 {discount.code}</div> : null}
+    </div>
+  );
+
+  const summaryBody = (
+    <>
+      <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          {image ? <img src={image} alt="" style={{ width: 64, height: 64, borderRadius: Math.min(R + 2, 12), objectFit: "cover", border: `1px solid ${theme.border_soft}`, background: "#fff", display: "block" }}/> : <div style={{ width: 64, height: 64, borderRadius: Math.min(R + 2, 12), background: theme.color_tint }}/>}
+          {qty > 1 ? <span style={{ position: "absolute", top: -8, right: -8, minWidth: 22, height: 22, padding: "0 6px", borderRadius: 999, background: theme.text_muted, color: "#fff", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>{qty}</span> : null}
+        </div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, lineHeight: 1.35, overflowWrap: "anywhere" }}>{title}</div>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 6, fontSize: 12, fontWeight: 600, color: theme.color, background: theme.color_tint, padding: "3px 9px", borderRadius: 999 }}>{kindLabel}</div>
+          <div style={{ fontSize: 13, color: theme.text_muted, marginTop: 6 }}>Frecuencia: {freqTxt}</div>
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 500, whiteSpace: "nowrap" }}>{money(subtotal)}</div>
+      </div>
+      {discountBox}
+      <div style={{ borderTop: `1px solid ${theme.border_soft}`, margin: "18px 0 14px" }}/>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {line(<>Producto{qtyDiscountPct > 0 ? ` (−${qtyDiscountPct}%)` : ""}</>, money(subtotal))}
+        {askAddress && line(<>Envío{rates.length && shippingSel?.name ? ` · ${shippingSel.name}` : ""}</>, !rates.length ? <span style={{ color: theme.text_muted, fontWeight: 400 }}>Completá tu dirección</span> : (shippingPrice === 0 ? "Gratis" : money(shippingPrice)))}
+        {discountAmt > 0 && line(<>Descuento {discount?.code}</>, `−${money(discountAmt)}`, { color: "#0a8a3f" })}
+      </div>
+      <div style={{ borderTop: `1px solid ${theme.border_soft}`, margin: "14px 0" }}/>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+        <span style={{ fontSize: 17, fontWeight: 600 }}>Total</span>
+        <span style={{ display: "flex", alignItems: "baseline", gap: 8 }}><span style={{ fontSize: 12, color: theme.text_muted }}>ARS</span><span style={{ fontSize: 22, fontWeight: 700, letterSpacing: -0.3 }}>{money(total)}</span></span>
+      </div>
+      <div style={{ fontSize: 12, color: theme.text_muted, lineHeight: 1.5, marginTop: 10 }}>{footerTxt}</div>
+    </>
+  );
+
+  const chevron = <span aria-hidden="true" style={{ position: "absolute", right: 14, top: 20, width: 8, height: 8, borderRight: `1.5px solid ${theme.text_muted}`, borderBottom: `1.5px solid ${theme.text_muted}`, transform: "rotate(45deg)", pointerEvents: "none" }}/>;
+
+  const payBlock = (
+    <section>
+      <h2 className="rc-h2">Pago</h2>
+      <div style={{ border: `1px solid ${theme.border}`, borderRadius: R, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, background: theme.input_bg }}>
+        <span aria-hidden="true" style={{ width: 34, height: 22, borderRadius: 4, background: theme.color, color: theme.color_on, fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>MP</span>
+        <div style={{ fontSize: 14, lineHeight: 1.45 }}><b style={{ fontWeight: 600 }}>{providerLabel}</b><div style={{ color: theme.text_muted, fontSize: 13 }}>{isService ? "La cuota se cobra sola cada período." : "Se renueva sola cada período. Pausás o cancelás cuando quieras."}</div></div>
+      </div>
+      {theme.summary_mobile === "before_pay" ? <div className="rc-inline-summary">{summaryBody}</div> : null}
+      {formErr ? <div role="alert" style={{ background: "#fde8e8", border: "1px solid #f5b5b5", color: "#b42318", fontSize: 14, padding: "11px 13px", borderRadius: R, marginTop: 14 }}>{formErr}</div> : null}
+      <button onClick={pagar} disabled={submitting} className="rc-pay">{cta}</button>
+      {theme.show_policies ? (
+        <div style={{ fontSize: 12, color: theme.text_muted, lineHeight: 1.5, marginTop: 12, textAlign: "center" }}>
+          {policiesTxt}
+          {(theme.terms_url || theme.privacy_url) ? <span style={{ display: "block", marginTop: 4 }}>
+            {theme.terms_url ? <a href={theme.terms_url} target="_blank" rel="noopener" style={{ color: theme.color }}>Términos y condiciones</a> : null}
+            {theme.terms_url && theme.privacy_url ? " · " : ""}
+            {theme.privacy_url ? <a href={theme.privacy_url} target="_blank" rel="noopener" style={{ color: theme.color }}>Política de privacidad</a> : null}
+          </span> : null}
+        </div>
       ) : null}
-      <div className="rc-wrap" style={st.wrap}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, minWidth: 0 }}>
-          {/* Contacto */}
-          <div style={st.card}>
-            <h3 style={st.h}>{askAddress ? "Contacto" : "Tus datos"}</h3>
-            <div style={st.field}><label style={st.label}>Email</label><input style={st.input} type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} onBlur={captureLead} placeholder="tu@email.com" /></div>
-            <div className="rc-row2" style={st.row2}>
-              <div style={st.field}><label style={st.label}>Nombre y apellido</label><input style={st.input} autoComplete="name" value={name} onChange={e => setName(e.target.value)} placeholder="Juan Pérez" /></div>
-              <div style={st.field}><label style={st.label}>Teléfono {!requirePhone && <span style={st.opt}>(opcional)</span>}</label><input style={st.input} type="tel" autoComplete="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="11 2345 6789" /></div>
-            </div>
-            {cfg?.whatsapp_optin && (
-              <label style={{ display: "flex", alignItems: "flex-start", gap: 9, fontSize: 13.5, color: "#333", margin: "0 0 14px", cursor: "pointer", lineHeight: 1.4 }}>
-                <input type="checkbox" checked={waOptin} onChange={e => setWaOptin(e.target.checked)} style={{ width: 18, height: 18, margin: "1px 0 0", flexShrink: 0, accentColor: accent }} />
-                <span>Quiero que me manden notificaciones de mi pedido por email y WhatsApp</span>
-              </label>
-            )}
-            <div style={st.field}><label style={st.label}>DNI o CUIT {!requireTaxId && <span style={st.opt}>(opcional, para la factura)</span>}</label><input style={st.input} inputMode="numeric" value={taxid} onChange={e => setTaxid(e.target.value)} placeholder="20123456789" /></div>
-          </div>
+      {theme.show_trust ? (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 12.5, color: theme.text_muted, marginTop: 14 }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          Pago seguro con {providerLabel} · Pausás o cancelás cuando quieras
+        </div>
+      ) : null}
+    </section>
+  );
 
-          {askAddress && (
-            <div style={st.card}>
-              <h3 style={st.h}>Entrega</h3>
-              <div style={st.field}><label style={st.label}>Calle y número</label><input style={st.input} autoComplete="address-line1" value={address1} onChange={e => setAddress1(e.target.value)} placeholder="Av. Siempreviva 742" /></div>
-              <div style={st.field}><label style={st.label}>Piso / depto / referencia <span style={st.opt}>(opcional)</span></label><input style={st.input} autoComplete="address-line2" value={address2} onChange={e => setAddress2(e.target.value)} placeholder="3° B" /></div>
-              <div className="rc-row2" style={st.row2}>
-                <div style={st.field}><label style={st.label}>Ciudad / Localidad</label><input style={st.input} autoComplete="address-level2" value={city} onChange={e => setCity(e.target.value)} placeholder="San Justo" /></div>
-                <div style={st.field}><label style={st.label}>Código postal</label><input style={st.input} autoComplete="postal-code" value={zip} onChange={e => setZip(e.target.value)} placeholder="1754" /></div>
-              </div>
-              <div style={st.field}><label style={st.label}>Provincia</label>
-                <select style={st.input} value={province} onChange={e => setProvince(e.target.value)}>
-                  <option value="">Elegí tu provincia…</option>
-                  {PROVINCIAS.map(pv => <option key={pv} value={pv}>{pv}</option>)}
-                </select>
-              </div>
+  return (
+    <div style={pageBase} className="rc-ck">
+      {theme.font_url ? <link rel="stylesheet" href={theme.font_url}/> : null}
+      <style>{`
+        @keyframes rc-spin{to{transform:rotate(360deg)}}
+        .rc-ck *{box-sizing:border-box}
+        .rc-shell{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);min-height:100vh}
+        .rc-main{display:flex;justify-content:flex-end;padding:34px 40px 64px;min-width:0}
+        .rc-main>div{width:100%;max-width:580px;min-width:0}
+        .rc-side{background:${theme.summary_bg};border-left:1px solid ${theme.border_soft};padding:34px 40px 64px;min-width:0}
+        .rc-side>div{width:100%;max-width:440px;position:sticky;top:34px}
+        .rc-mobile-summary{display:none}
+        .rc-inline-summary{display:none}
+        .rc-h2{font-size:21px;font-weight:600;margin:0 0 14px;letter-spacing:-0.2px}
+        .rc-sec{margin-top:34px}
+        .rc-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+        .rc-3{display:grid;grid-template-columns:1fr 1.4fr 1.4fr;gap:12px}
+        .rc-f{position:relative;margin-bottom:12px;min-width:0}
+        .rc-f input,.rc-f select{width:100%;height:52px;padding:22px 13px 6px;font-size:16px;line-height:1.2;border:1px solid ${theme.border};border-radius:${R}px;background:${theme.input_bg};color:${theme.text};font-family:inherit;outline:none;-webkit-appearance:none;appearance:none;transition:border-color .12s,box-shadow .12s}
+        .rc-f select{padding-right:36px}
+        .rc-f label{position:absolute;left:14px;top:16px;font-size:15px;color:${theme.text_muted};pointer-events:none;transition:top .12s,font-size .12s;white-space:nowrap;max-width:calc(100% - 28px);overflow:hidden;text-overflow:ellipsis}
+        .rc-f input:focus+label,.rc-f input:not(:placeholder-shown)+label,.rc-f select+label{top:7px;font-size:11.5px}
+        .rc-f input:focus,.rc-f select:focus{border-color:${theme.color};box-shadow:0 0 0 1px ${theme.color}}
+        .rc-ck input::placeholder{color:transparent}
+        .rc-ck input:-webkit-autofill,.rc-ck select:-webkit-autofill,.rc-ck input:-webkit-autofill:focus{-webkit-text-fill-color:${theme.text};-webkit-box-shadow:0 0 0 1000px ${theme.dark ? "#1c1c1c" : "#fff"} inset;box-shadow:0 0 0 1000px ${theme.dark ? "#1c1c1c" : "#fff"} inset;caret-color:${theme.text};transition:background-color 9999s ease-out}
+        .rc-opts{border:1px solid ${theme.border};border-radius:${R}px;overflow:hidden;background:${theme.input_bg}}
+        .rc-opt{display:flex;align-items:center;gap:12px;padding:15px 16px;cursor:pointer;border-top:1px solid ${theme.border_soft};font-size:14px}
+        .rc-opt:first-child{border-top:none}
+        .rc-opt.on{background:${theme.color_tint};box-shadow:inset 0 0 0 1px ${theme.color}}
+        .rc-opt input{accent-color:${theme.color};width:18px;height:18px;margin:0;flex-shrink:0}
+        .rc-check{display:flex;align-items:flex-start;gap:10px;font-size:14px;line-height:1.4;cursor:pointer;margin:2px 0 14px}
+        .rc-check input{width:18px;height:18px;margin:1px 0 0;flex-shrink:0;accent-color:${theme.color}}
+        .rc-apply{padding:0 18px;height:52px;font-size:15px;font-weight:600;color:${theme.text};background:${theme.dark ? "rgba(255,255,255,0.08)" : "#e8e8e8"};border:none;border-radius:${R}px;cursor:pointer;font-family:inherit;flex-shrink:0}
+        .rc-apply:disabled{opacity:.55;cursor:default}
+        .rc-pay{width:100%;height:58px;margin-top:16px;font-size:17px;font-weight:600;color:${theme.color_on};background:${theme.color};border:none;border-radius:${R}px;cursor:pointer;font-family:inherit;letter-spacing:-0.1px;transition:filter .12s}
+        .rc-pay:hover{filter:brightness(.94)}
+        .rc-pay:disabled{opacity:.7;cursor:wait}
+        .rc-foot{margin-top:40px;padding-top:16px;border-top:1px solid ${theme.border_soft};font-size:12px;color:${theme.text_muted};display:flex;gap:14px;flex-wrap:wrap}
+        .rc-foot a{color:${theme.text_muted}}
+        @media(max-width:900px){
+          .rc-shell{grid-template-columns:1fr}
+          .rc-side{display:none}
+          .rc-main{justify-content:center;padding:0 20px 48px}
+          .rc-mobile-summary{display:${theme.summary_mobile === "top" ? "block" : "none"};background:${theme.summary_bg};border-bottom:1px solid ${theme.border_soft};margin:0 -20px 8px;padding:0 20px}
+          .rc-inline-summary{display:block;background:${theme.summary_bg};border:1px solid ${theme.border_soft};border-radius:${R}px;padding:18px;margin-top:16px}
+          .rc-sec{margin-top:28px}
+          .rc-h2{font-size:19px}
+          .rc-3{grid-template-columns:1fr 1fr}
+          .rc-3>:last-child{grid-column:1 / -1}
+        }
+        @media(max-width:420px){ .rc-2{grid-template-columns:1fr} }
+      `}</style>
+      <div className="rc-shell">
+        <div className="rc-main">
+          <div>
+            {/* Encabezado: logo + nombre (o el texto que puso la tienda) */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "22px 0 6px", minHeight: 56 }}>
+              {logo ? <img src={logo} alt="" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover", flexShrink: 0 }}/> : null}
+              <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: -0.2, overflowWrap: "anywhere" }}>{storeName}</div>
             </div>
-          )}
 
-          {askAddress && (
-            <div style={st.card}>
-              <h3 style={st.h}>Envío</h3>
-              {ratesLoading ? <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "#888" }}><span aria-hidden="true" style={{ width: 16, height: 16, border: "2px solid #e3e3e5", borderTopColor: accent, borderRadius: "50%", display: "inline-block", flexShrink: 0, animation: "rc-spin .7s linear infinite" }}/>Buscando métodos de envío…</div> : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {rates.map((rt, i) => (
-                    <label key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 13px", border: `1.5px solid ${i === rateIdx ? accent : "#e0e0e2"}`, borderRadius: 10, cursor: "pointer", background: i === rateIdx ? accent + "0d" : "#fff" }}>
-                      <input type="radio" checked={i === rateIdx} onChange={() => setRateIdx(i)} style={{ accentColor: accent }} />
-                      <span style={{ flex: 1, fontSize: 13, fontWeight: 500, minWidth: 0 }}>{rt.name}</span>
-                      <b style={{ fontSize: 13, color: (Number(rt.price) || 0) === 0 ? "#0a8a3f" : "#1a1a1a" }}>{(Number(rt.price) || 0) === 0 ? "Gratis" : money(rt.price)}</b>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Código de descuento (opcional): caja propia, separada del pago (Thiago, 18-sept). */}
-          <div style={st.card}>
-            <h3 style={st.h}>Código de descuento <span style={{ fontSize: 12, fontWeight: 500, color: "#888" }}>· opcional</span></h3>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input value={codeInput} onChange={e => setCodeInput(e.target.value.toUpperCase())} placeholder="Si tenés un código, ponelo acá" aria-label="Código de descuento"
-                style={{ ...st.input, flex: 1, textTransform: "uppercase" }} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); aplicarCodigo(codeInput); } }}/>
-              <button type="button" onClick={() => aplicarCodigo(codeInput)} disabled={codeBusy || !codeInput.trim()}
-                style={{ padding: "0 16px", fontSize: 14, fontWeight: 700, color: accent, background: "#fff", border: `1.5px solid ${accent}`, borderRadius: 9, cursor: "pointer", opacity: codeBusy || !codeInput.trim() ? 0.6 : 1 }}>
-                {codeBusy ? "…" : "Aplicar"}
+            {/* Celular: resumen desplegable arriba (como Shopify) */}
+            <div className="rc-mobile-summary">
+              <button type="button" onClick={() => setShowSummary(v => !v)} aria-expanded={showSummary}
+                style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "14px 0", background: "transparent", border: "none", fontFamily: "inherit", color: theme.color, fontSize: 14, cursor: "pointer" }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>{showSummary ? "Ocultar" : "Mostrar"} resumen del pedido <span aria-hidden="true" style={{ display: "inline-block", width: 7, height: 7, borderRight: `1.5px solid ${theme.color}`, borderBottom: `1.5px solid ${theme.color}`, transform: showSummary ? "rotate(-135deg) translate(-1px,-1px)" : "rotate(45deg) translateY(-2px)" }}/></span>
+                <b style={{ color: theme.text, fontSize: 18, fontWeight: 700 }}>{money(total)}</b>
               </button>
+              {showSummary ? <div style={{ paddingBottom: 18 }}>{summaryBody}</div> : null}
             </div>
-            {codeMsg ? <div style={{ fontSize: 12, color: discount ? "#0a8a3f" : "#b42318", marginTop: 8 }}>{codeMsg}</div> : null}
-          </div>
 
-          {/* Pago */}
-          <div style={st.card}>
-            <h3 style={st.h}>Pago</h3>
-            <div style={{ fontSize: 13, color: "#555", marginBottom: 12, lineHeight: 1.5 }}>Pagás con <b>{providerLabel}</b>. {isService ? "La cuota se cobra sola cada período." : "Se renueva sola cada período."}</div>
-            {formErr ? <div role="alert" style={{ background: "#fde8e8", border: "1px solid #f5b5b5", color: "#b42318", fontSize: 13, padding: "10px 12px", borderRadius: 9, marginBottom: 12 }}>{formErr}</div> : null}
-            <button onClick={pagar} disabled={submitting} style={{ width: "100%", padding: "14px", fontSize: 15, fontWeight: 700, color: "#fff", background: accent, border: "none", borderRadius: 11, cursor: submitting ? "wait" : "pointer", opacity: submitting ? 0.7 : 1 }}>
-              {submitting ? `Redirigiendo a ${providerLabel}…` : `Suscribirme y pagar ${money(total)}`}
-            </button>
+            <section className="rc-sec" style={{ marginTop: 22 }}>
+              <h2 className="rc-h2">{askAddress ? "Contacto" : "Tus datos"}</h2>
+              <Field label="Correo electrónico"><input type="email" autoComplete="email" placeholder=" " value={email} onChange={e => setEmail(e.target.value)} onBlur={captureLead}/></Field>
+              {cfg?.whatsapp_optin ? (
+                <label className="rc-check"><input type="checkbox" checked={waOptin} onChange={e => setWaOptin(e.target.checked)}/><span>Quiero recibir novedades de mi pedido por email y WhatsApp</span></label>
+              ) : null}
+            </section>
+
+            <section className="rc-sec">
+              <h2 className="rc-h2">{askAddress ? "Entrega" : "Quién se suscribe"}</h2>
+              <Field label="Nombre y apellido"><input autoComplete="name" placeholder=" " value={name} onChange={e => setName(e.target.value)}/></Field>
+              <div className="rc-2">
+                <Field label={requirePhone ? "Teléfono" : "Teléfono (opcional)"}><input type="tel" autoComplete="tel" placeholder=" " value={phone} onChange={e => setPhone(e.target.value)}/></Field>
+                <Field label={requireTaxId ? "DNI o CUIT" : "DNI o CUIT (opcional)"}><input inputMode="numeric" placeholder=" " value={taxid} onChange={e => setTaxid(e.target.value)}/></Field>
+              </div>
+              {askAddress ? (<>
+                <Field label="Calle y número"><input autoComplete="address-line1" placeholder=" " value={address1} onChange={e => setAddress1(e.target.value)}/></Field>
+                <Field label="Piso, depto o referencia (opcional)"><input autoComplete="address-line2" placeholder=" " value={address2} onChange={e => setAddress2(e.target.value)}/></Field>
+                <div className="rc-3">
+                  <Field label="C.P."><input autoComplete="postal-code" inputMode="numeric" placeholder=" " value={zip} onChange={e => setZip(e.target.value)}/></Field>
+                  <Field label="Localidad"><input autoComplete="address-level2" placeholder=" " value={city} onChange={e => setCity(e.target.value)}/></Field>
+                  <div className="rc-f">
+                    <select value={province} onChange={e => setProvince(e.target.value)} aria-label="Provincia">
+                      <option value=""></option>
+                      {PROVINCIAS.map(pv => <option key={pv} value={pv}>{pv}</option>)}
+                    </select>
+                    <label>Provincia</label>
+                    {chevron}
+                  </div>
+                </div>
+              </>) : null}
+            </section>
+
+            {askAddress ? (
+              <section className="rc-sec">
+                <h2 className="rc-h2">Envío</h2>
+                {ratesLoading ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: theme.text_muted, padding: "14px 16px", border: `1px solid ${theme.border}`, borderRadius: R }}><span aria-hidden="true" style={{ width: 16, height: 16, border: `2px solid ${theme.border}`, borderTopColor: theme.color, borderRadius: "50%", display: "inline-block", flexShrink: 0, animation: "rc-spin .7s linear infinite" }}/>Buscando métodos de envío…</div>
+                ) : !rates.length ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: theme.text_muted, padding: "14px 16px", background: theme.dark ? "rgba(255,255,255,0.05)" : "#f5f5f5", borderRadius: R }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+                    Completá tu dirección para ver las opciones de envío.
+                  </div>
+                ) : (
+                  <div className="rc-opts">
+                    {rates.map((rt, i) => (
+                      <label key={i} className={"rc-opt" + (i === rateIdx ? " on" : "")}>
+                        <input type="radio" checked={i === rateIdx} onChange={() => setRateIdx(i)}/>
+                        <span style={{ flex: 1, minWidth: 0 }}>{rt.name}</span>
+                        <b style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{(Number(rt.price) || 0) === 0 ? "Gratis" : money(rt.price)}</b>
+                      </label>
+                    ))}
+                  </div>
+                )}
+                <div style={{ fontSize: 13, color: theme.text_muted, marginTop: 10, lineHeight: 1.5 }}>Recibís un mail con los detalles de tu envío al confirmar la compra.</div>
+              </section>
+            ) : null}
+
+            <div className="rc-sec">{payBlock}</div>
+
+            <div className="rc-foot">
+              {theme.show_policies && theme.terms_url ? <a href={theme.terms_url} target="_blank" rel="noopener">Términos</a> : null}
+              {theme.show_policies && theme.privacy_url ? <a href={theme.privacy_url} target="_blank" rel="noopener">Privacidad</a> : null}
+              <span style={{ marginLeft: "auto" }}>Con tecnología de <a href="https://www.recurrentesapp.com" target="_blank" rel="noopener" style={{ fontWeight: 600 }}>Recurrentes</a></span>
+            </div>
           </div>
         </div>
 
-        <div className="rc-summary" style={{ minWidth: 0 }}>{summary}</div>
+        <aside className="rc-side"><div>{summaryBody}</div></aside>
       </div>
     </div>
   );

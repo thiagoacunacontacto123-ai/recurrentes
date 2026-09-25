@@ -5,6 +5,7 @@ import * as api from "../lib/api.js";
 import { NewStoreModal, ManageStoreModal, StoreAvatar } from "../ui/Shell.jsx";
 import { IntegrationsTab } from "./Integrations.jsx";
 import CheckoutSettings, { StoreDataSection } from "./StoreSettings.jsx";
+import CheckoutDesigner from "./CheckoutDesigner.jsx";
 import { PlanPage } from "./Billing.jsx";
 import GuidePage from "./Guide.jsx";
 import MerchantAlertsSection from "./MerchantAlerts.jsx";
@@ -153,6 +154,7 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
       badge: billing?.needs_activation ? { t: "Activar", c: T.yellow } : billing?.plan_requested ? { t: "Pedido", c: T.blue } : null },
     { group: "Negocio", id: "tiendas", l: "Tiendas", d: "Tus tiendas y cuál está activa", icon: "M3 9l1-5h16l1 5M3 9h18v11H3zM9 20v-6h6v6",
       badge: stores.length > 1 ? { t: String(stores.length), c: T.textSm } : null },
+    { group: "Negocio", id: "checkout-diseno", l: "Checkout", d: "Colores, letra y textos de tu checkout", icon: "M4 6h16M4 12h10M4 18h7M17 15l2 2 4-4" },
     { group: "Negocio", id: "checkout", l: "Descuentos", d: "Códigos de descuento", icon: "M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4zM3 6h18M16 10a4 4 0 01-8 0" },
     { group: "Conexiones", id: "integraciones", l: "Integraciones", d: withStore ? `${profile.channelInfo.label}, ${profile.providerInfo.label}, Meta, WhatsApp` : `${profile.providerInfo.label}, Meta, WhatsApp`, icon: "M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71",
       badge: missing.length ? { t: `${missing.length} pendiente${missing.length === 1 ? "" : "s"}`, c: T.red } : null },
@@ -252,6 +254,7 @@ export default function SettingsPage({ T: Tp, DS: DSp, user, merchant, workspace
           {cur === "avisos"        && isOwner && <MerchantAlertsSection key={merchant?.id || "m"} T={T} merchant={merchant} onChange={reloadMerchant} />}
           {cur === "integraciones" && <IntegrationsTab merchant={merchant} onChange={reloadMerchant} embedded />}
           {cur === "checkout"      && <CheckoutSettings merchant={merchant} onChange={reloadMerchant} />}
+          {cur === "checkout-diseno" && <CheckoutDesigner merchant={merchant} onChange={reloadMerchant} />}
           {cur === "facturacion"   && <PlanPage T={T} DS={DS} merchant={merchant} reloadMerchant={reloadMerchant} />}
           {cur === "ayuda"         && <GuidePage merchant={merchant} goTab={goTab} embedded />}
         </div>

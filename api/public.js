@@ -57,6 +57,7 @@ import { notifyMerchantStatusChange } from "./_lib/merchantAlerts.js";
 import { handleWhatsappWebhook } from "./_lib/whatsappWebhook.js";
 import { waSender } from "./_lib/whatsapp.js";
 import { merchantProfile } from "../shared/platform/profile.js";
+import { resolveCheckoutTheme } from "../shared/platform/checkoutTheme.js";
 
 // Tokens viejos (portal / back_url de MP ya emitidos) se firmaron con
 // MP_WEBHOOK_SECRET aunque hubiera PORTAL_SECRET. Si el secreto vigente es otro,
@@ -267,6 +268,10 @@ async function handlePlan(req, res) {
         currency: p.currency,
         store_name: m.store_name || m.shop_name || m.email_brand || "",
         color: /^#[0-9a-fA-F]{6}$/.test(String(m.widget_color || "")) ? m.widget_color : "#10b981",
+        // Tema del checkout (colores, letra, textos, qué mostrar). Resuelto acá: el
+        // comprador recibe el tema completo; sin personalizar, el acento es el del widget.
+        theme: resolveCheckoutTheme(m.checkout_theme, { widgetColor: m.widget_color }),
+        store_logo: typeof m.store_photo === "string" && /^https?:\/\//.test(m.store_photo) ? m.store_photo : null,
         shipping_rates: p.caps.shipping && Array.isArray(m.checkout_shipping_rates) ? m.checkout_shipping_rates : [],
         vocab: p.vocab,
         // Casilla "Quiero que me avisen por WhatsApp": solo si la tienda tiene quién mande.

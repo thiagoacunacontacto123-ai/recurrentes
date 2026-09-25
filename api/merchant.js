@@ -71,6 +71,7 @@ import { appBaseUrl } from "./_lib/config.js";
 import { rateLimit } from "./_lib/ratelimit.js";
 import { klaviyoEnabled, klaviyoValidateKey, klaviyoCheckoutStarted } from "./_lib/klaviyo.js";
 import { merchantProfile, validateProfilePatch } from "../shared/platform/profile.js";
+import { sanitizeCheckoutTheme, resolveCheckoutTheme } from "../shared/platform/checkoutTheme.js";
 import { flowsApi } from "./_lib/flowsApi.js";
 import { mobbexSafeFields, saveMobbex, disconnectMobbex } from "./_lib/providers/merchantActions.js";
 import { startMpOauth, mpOauthConfigured, mpConnectionStatus } from "./_lib/mpOauth.js";
@@ -200,6 +201,9 @@ export default async function handler(req, res) {
         widget_once_subtitle: merchant.widget_once_subtitle || "Comprá una vez al precio normal.",
         widget_disclaimer_text: merchant.widget_disclaimer_text || "",   // vacío = usar default explicativo
         widget_hide_selector: merchant.widget_hide_selector || "",
+        // Tema del checkout hosteado: lo guardado (parcial) + el resuelto para la vista previa.
+        checkout_theme: (merchant.checkout_theme && typeof merchant.checkout_theme === "object") ? merchant.checkout_theme : null,
+        checkout_theme_resolved: resolveCheckoutTheme(merchant.checkout_theme, { widgetColor: merchant.widget_color }),
         // "templates" (diseñador) | "custom" (desarrollo a medida). Vacío = según la cuenta.
         widget_source: merchant.widget_source || "",
         // "redirect" (botón → página de checkout on-store) | "inline". "page" legacy = redirect.
@@ -801,6 +805,12 @@ async function saveSettings(merchantId, req, res) {
   // email_accent también se retiró (2026-09-13): el mail usa widget_color.
   const ignored = ["abandoned_enabled", "abandoned_coupons", "email_accent"].filter(k => k in b);
   if ("dev_mode" in b) out.dev_mode = b.dev_mode === true;
+  // Tema del checkout (24-sept-2026): objeto PARCIAL saneado; {} o null = volver al default.
+  if ("checkout_theme" in b) {
+    const r = sanitizeCheckoutTheme(b.checkout_theme);
+    if (r.error) return bad(r.error);
+    out.checkout_theme = r.theme && Object.keys(r.theme).length ? r.theme : null;
+  }
   // Klaviyo: mandar también "Placed Order" (solo si su Klaviyo NO está conectado a Shopify).
   if ("klaviyo_send_orders" in b) out.klaviyo_send_orders = b.klaviyo_send_orders === true;
 

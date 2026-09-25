@@ -709,18 +709,30 @@ export function Hint({T, children, style={}}) {
 
 // Loader de pantalla (como el de Growith, con el logo de Recurrentes girando).
 // Se usa al arrancar la app y al cargar la cuenta; `T` es opcional (usa CSS vars).
-export function AppLoader({T, text="Cargando…", size=52, minHeight="100vh", style={}}) {
+// `color`: el logo gira del color que se pida (el checkout usa el de la tienda, 24-sept-2026).
+// Sin `color` queda el verde de Recurrentes.
+function loaderShade(hex, pct) {
+  const h = String(hex || "").replace("#", "");
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) return pct > 0 ? "#34d399" : "#059669";
+  const c = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
+  const t = pct < 0 ? 0 : 255, k = Math.abs(pct) / 100;
+  return "#" + c.map(v => Math.round(v + (t - v) * k).toString(16).padStart(2, "0")).join("");
+}
+export function AppLoader({T, text="Cargando…", size=52, minHeight="100vh", color=null, style={}}) {
   const textColor = T?.textSm || "var(--text-sm)";
+  const gradId = "recLoaderGrad" + (color ? String(color).replace("#", "") : "");
+  const c1 = color ? loaderShade(color, 35) : "#34d399", c2 = color ? loaderShade(color, -25) : "#059669";
+  const glow = color ? c2 + "59" : "rgba(16,185,129,0.35)";
   return (
     <div role="status" aria-live="polite" style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:14,minHeight,width:"100%",fontFamily:F,...style}}>
-      <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" style={{display:"block",animation:"rec-logo-spin 1.1s linear infinite",filter:"drop-shadow(0 6px 18px rgba(16,185,129,0.35))"}}>
+      <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" style={{display:"block",animation:"rec-logo-spin 1.1s linear infinite",filter:`drop-shadow(0 6px 18px ${glow})`}}>
         <defs>
-          <linearGradient id="recLoaderGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#34d399"/>
-            <stop offset="100%" stopColor="#059669"/>
+          <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={c1}/>
+            <stop offset="100%" stopColor={c2}/>
           </linearGradient>
         </defs>
-        <circle cx="16" cy="16" r="16" fill="url(#recLoaderGrad)"/>
+        <circle cx="16" cy="16" r="16" fill={`url(#${gradId})`}/>
         <path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round"/>
         <path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>

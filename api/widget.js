@@ -19,6 +19,7 @@
 // de TODOS los estados (modos × packs) se precalcula server-side en
 // `?view=bundle&plan=<id>` y el cliente sólo swapea innerHTML.
 import { buildBundleVM, planHasPacks, resolvePack, freqLabel, fmtARS } from "../shared/bundle/viewmodel.js";
+import { resolveCheckoutTheme } from "../shared/platform/checkoutTheme.js";
 import { renderBundle } from "../shared/bundle/templates.js";
 
 // Tarifas de envío del checkout on-store para merchants LEGACY (creados antes
@@ -116,6 +117,7 @@ export default async function handler(req, res) {
   let widgetModeOrder = "sub_first";
   let widgetModeDefault = "sub";
   let widgetColor = "#10b981";
+  let checkoutColor = "#10b981"; // acento del checkout (tema propio o el del widget): loader y &color= en la URL
   let widgetSubTitle = "Suscripción";
   let widgetSubSubtitle = ""; // "" → usa default con frecuencia
   let widgetOnceTitle = "Compra única";
@@ -155,6 +157,7 @@ export default async function handler(req, res) {
       if (m.widget_mode_order === "once_first") widgetModeOrder = "once_first";
       if (m.widget_mode_default === "once") widgetModeDefault = "once";
       if (typeof m.widget_color === "string" && /^#[0-9a-fA-F]{6}$/.test(m.widget_color)) widgetColor = m.widget_color;
+      checkoutColor = resolveCheckoutTheme(m.checkout_theme, { widgetColor }).color;
       if (typeof m.widget_sub_title === "string" && m.widget_sub_title.trim()) widgetSubTitle = m.widget_sub_title.trim();
       if (typeof m.widget_sub_subtitle === "string") widgetSubSubtitle = m.widget_sub_subtitle;
       if (typeof m.widget_once_title === "string" && m.widget_once_title.trim()) widgetOnceTitle = m.widget_once_title.trim();
@@ -189,6 +192,7 @@ export default async function handler(req, res) {
     const n = parseInt(hex.replace("#", ""), 16);
     return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
   }
+  if (checkoutColor === "#10b981" && widgetColor !== "#10b981") checkoutColor = widgetColor;
   const COL = widgetColor;
 
   // ?view=bundle&plan=<planId> → JSON con el selector de packs PRECALCULADO:
@@ -249,13 +253,14 @@ export default async function handler(req, res) {
   try {
     var q = new URLSearchParams(window.location.search);
     if (!q.get("merchant")) q.set("merchant", ${JSON.stringify(merchantId)});
+    if (!q.get("color")) q.set("color", ${JSON.stringify(checkoutColor)});
     url = base + "/#/checkout?" + q.toString();
   } catch (e) { url = base + "/#/checkout?merchant=" + ${JSON.stringify(encodeURIComponent(merchantId))}; }
   // Tapa la página del comercio al instante (mismo color y logo que el checkout).
   try {
     var o = document.createElement("div");
     o.setAttribute("style", "position:fixed;inset:0;z-index:2147483647;background:#0c1512;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;font-family:'Inter',system-ui,sans-serif");
-    o.innerHTML = '<svg width="52" height="52" viewBox="0 0 32 32" style="display:block;animation:rc-go 1.1s linear infinite"><defs><linearGradient id="rcGoG" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#34d399"/><stop offset="100%" stop-color="#059669"/></linearGradient></defs><circle cx="16" cy="16" r="16" fill="url(#rcGoG)"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+    o.innerHTML = '<svg width="52" height="52" viewBox="0 0 32 32" style="display:block;animation:rc-go 1.1s linear infinite"><defs><linearGradient id="rcGoG" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${shade(checkoutColor, 35)}"/><stop offset="100%" stop-color="${shade(checkoutColor, -25)}"/></linearGradient></defs><circle cx="16" cy="16" r="16" fill="url(#rcGoG)"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
       '<div style="font-size:13px;font-weight:600;color:#8fb3a7">Abriendo el checkout seguro…</div>' +
       '<style>@keyframes rc-go{to{transform:rotate(360deg)}}</style>';
     (document.body || document.documentElement).appendChild(o);
@@ -369,6 +374,7 @@ export default async function handler(req, res) {
       if (fbp) q += "&fbp=" + encodeURIComponent(fbp);
       if (fbc) q += "&fbc=" + encodeURIComponent(fbc);
       q += "&src=" + encodeURIComponent((location.origin + location.pathname).slice(0, 300));
+      q += "&color=" + encodeURIComponent(CHECKOUT_COLOR); // el cargando del checkout sale del color de la tienda desde el primer instante
       return q;
     } catch (e) { return ""; }
   }
@@ -378,6 +384,7 @@ export default async function handler(req, res) {
   var CHECKOUT_FLOW = ${JSON.stringify(checkoutFlow)};
   var CHECKOUT_PAGE_PATH = ${JSON.stringify(checkoutPagePath)};
   var WIDGET_COLOR = ${JSON.stringify(widgetColor)};
+  var CHECKOUT_COLOR = ${JSON.stringify(checkoutColor)};
   var SUB_TITLE = ${JSON.stringify(widgetSubTitle)};
   var SUB_SUBTITLE = ${JSON.stringify(widgetSubSubtitle)};
   var ONCE_TITLE = ${JSON.stringify(widgetOnceTitle)};
