@@ -19,6 +19,7 @@ button{font-family:inherit}
 .hdr .sp{flex:1}
 .hdr .ic{display:flex;gap:22px;align-items:center}
 .hdr .ic svg{width:24px;height:24px}
+.hdr .burger{display:none;width:26px;height:26px;color:#f3d9e0}
 .badge-cart{position:relative}
 .badge-cart b{position:absolute;right:-9px;bottom:-6px;background:var(--rose);color:var(--wine);font-size:10px;width:18px;height:18px;border-radius:99px;display:grid;place-items:center;font-weight:700}
 /* intro suscripción */
@@ -119,8 +120,8 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 .acc{margin-top:22px;border-top:1px solid #dccfd2}
 .acc details{border-bottom:1px solid #dccfd2}
 .acc summary{padding:14px 4px;font-weight:600;font-size:15px;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center}
-.acc summary:after{content:"+";font-size:20px;color:var(--wine)}
-.acc details[open] summary:after{content:"–"}
+.acc summary:after{content:"";width:8px;height:8px;border-right:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink);transform:rotate(45deg);margin-right:6px;transition:transform .15s}
+.acc details[open] summary:after{transform:rotate(-135deg)}
 .acc p{margin:0 4px 14px;font-size:14px;color:var(--muted);line-height:1.55}
 .strip{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:34px 0 60px;text-align:center}
 .strip div{font-size:13.5px;font-weight:600}
@@ -230,7 +231,7 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 .pt-foot .rec{display:inline-flex;align-items:center;gap:7px;text-decoration:none;color:var(--muted)}
 .pt-foot .rec b{color:var(--ink)}
 .pt-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1d1416;color:#fff;font-size:13px;padding:10px 16px;border-radius:99px;z-index:80}
-@media(max-width:600px){.pt-row3{grid-template-columns:1fr 1fr}.pt-row3 div:first-child{grid-column:1/-1}}
+@media(max-width:600px){.pt-row3{grid-template-columns:1fr 1fr}.pt-row3 div:first-child{grid-column:1/-1}.pt-lbl{display:none}#v-portal .hdr .wrap{grid-template-columns:1fr;padding:12px 16px}#v-portal .hdr img{height:44px}}
 /* ─── checkout (estilo Recurrentes) ─── */
 .ck{background:#fff;color:#1a1a1a;min-height:100vh}
 .ck-shell{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);min-height:100vh}
@@ -293,18 +294,26 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 @keyframes mq{to{transform:translateX(-50%)}}
 @media(prefers-reduced-motion:reduce){.mq div{animation:none}}
 @media(max-width:960px){
-  .hdr .wrap{height:auto;gap:12px 18px;padding:12px 18px 0;flex-wrap:wrap}.hdr img{height:40px}
+  .hdr .wrap{height:auto;gap:10px 14px;padding:10px 16px 0;flex-wrap:wrap;display:grid;grid-template-columns:40px 1fr 40px;align-items:center}
+  .hdr img{height:52px;margin:0 auto;grid-column:2}
+  .hdr .burger{display:block;grid-column:1;grid-row:1}
+  .hdr .sp{display:none}.hdr .ic{grid-column:3;grid-row:1;justify-content:flex-end}.hdr .ic svg:first-child{display:none}
+  .hdr nav{grid-column:1/-1;grid-row:2}
   .hdr nav{order:3;flex-basis:100%;display:flex;gap:18px;overflow-x:auto;padding:4px 0 10px;font-size:13.5px;scrollbar-width:none;-webkit-overflow-scrolling:touch}.hdr nav::-webkit-scrollbar{display:none}.hdr nav a{white-space:nowrap;flex:none}
   .hdr .sp{order:1;flex:1}.hdr .ic{order:2;gap:16px}
-  .wrap{padding:0 18px}.intro{padding:44px 0 40px}.intro h1{font-size:32px}.benef{grid-template-columns:1fr}.steps{flex-direction:column;gap:8px}
+  .wrap{padding:0 20px}.intro{padding:40px 0 36px}.intro h1{font-size:32px}.benef{grid-template-columns:1fr}.steps{flex-direction:column;gap:8px}
   .prod{grid-template-columns:minmax(0,1fr);gap:22px;padding:22px 0}.strip{grid-template-columns:repeat(2,1fr)}
   .thumbs img{width:72px;height:72px}
-  h2.ttl{font-size:21px}.ttl-sub{font-size:30px}
-  .pack{padding:16px 14px;gap:10px}.pack .nm{font-size:17px}.pack .pr b{font-size:19px}.pack .pr small{font-size:11px}
-  .slot .add{padding:9px 12px;font-size:11px}
-  .freq{grid-template-columns:1fr 1fr 1fr;gap:6px}.freq button{padding:10px 4px;font-size:12px}.freq small{font-size:10.5px}
-  .cta{font-size:17px;padding:16px}
-  .ibar{padding:40px 0 10px}.ibar h3,.testi h3{font-size:24px}
+  h2.ttl{font-size:26px;line-height:1.15}.ttl-sub{font-size:30px;margin-top:4px}.sub{font-size:14px}
+  .bul{font-size:16px;line-height:1.5}.bul li{margin:10px 0}
+  .sep{margin:26px 0 16px}
+  .packs{gap:14px}.pack{padding:22px 20px;gap:14px;border-radius:12px}.pack .rad{width:24px;height:24px}.pack .nm{font-size:22px}.pack .pr b{font-size:22px}.pack .pr s{font-size:14px}.pack .pr small{font-size:11px}
+  .slot .add{padding:10px 14px;font-size:11.5px}
+  .freq{grid-template-columns:1fr 1fr 1fr;gap:8px}.freq button{padding:14px 4px;font-size:13px}
+  .cta{font-size:22px;padding:26px 16px;border-radius:14px}.cta small{font-size:13px;margin-top:6px}
+  .strip{grid-template-columns:repeat(3,1fr);gap:10px;padding:30px 0 40px}.strip div{font-size:12px}.strip svg{width:30px;height:30px}
+  .ibar{padding:40px 0 10px}.ibar h3,.testi h3{font-size:26px}.ibar .g{grid-template-columns:1fr 1fr;gap:18px}.ibar img{height:52px}.ibar b{font-size:14px}.ibar span{font-size:12.5px}
+  .acc summary{padding:16px 4px;font-size:16px}
   .ck-shell{grid-template-columns:1fr}.ck-side{display:none}.ck-main{justify-content:center;padding:0 20px 48px}
   .mob-sum{display:block;background:var(--cream-2);border-bottom:1px solid #eee;margin:0 -20px 8px;padding:0 20px}
   .mob-sum button{width:100%;display:flex;justify-content:space-between;align-items:center;padding:14px 0;background:none;border:none;color:var(--wine);font-size:14px;cursor:pointer;font-family:inherit}
@@ -321,6 +330,7 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 <div id="v-prod">
   <div class="mq" aria-hidden="true"><div id="mq"></div></div>
   <header class="hdr"><div class="wrap">
+    <svg class="burger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
     <img id="logo" alt="G4U">
     <nav><a href="#">Inicio</a><a href="#">Productos</a><a href="#" class="on">Suscripción</a><a href="#">Nuestra Harina</a><a href="#">Contacto</a></nav>
     <span class="sp"></span>
@@ -408,7 +418,7 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 
 <!-- ════════ VISTA PORTAL DEL SUSCRIPTOR ════════ -->
 <div id="v-portal" hidden>
-  <header class="hdr"><div class="wrap" style="height:auto;padding:14px 28px"><img id="logoPt" alt="G4U"><span class="sp"></span><span style="font-size:12.5px;color:#f3d9e0">Portal de suscripción</span></div></header>
+  <header class="hdr"><div class="wrap" style="height:auto;padding:14px 28px"><img id="logoPt" alt="G4U"><span class="sp"></span><span class="pt-lbl" style="font-size:12.5px;color:#f3d9e0">Portal de suscripción</span></div></header>
   <div class="pt-wrap">
     <div class="pt-hello"><div><div class="pt-eyebrow">Hola, Ana</div><h1>Tu suscripción G4U</h1></div><span class="pt-status">Activa</span></div>
     <div class="pt-card">
