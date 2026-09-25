@@ -116,6 +116,7 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 .cta:hover{background:var(--wine-d)}
 .cta:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
 .cta small{display:block;font-size:12.5px;font-weight:500;color:#f3d9e0;margin-top:3px}
+.cta .l1{display:block;white-space:nowrap;font-size:clamp(15px,4.4vw,22px)} /* "Suscribirme · $X cada mes" siempre en UNA línea, también en iPhone chicos (25-sept) */
 .trust{display:flex;justify-content:center;gap:8px;font-size:12.5px;color:var(--muted);margin-top:12px;align-items:center}
 .acc{margin-top:22px;border-top:1px solid #dccfd2}
 .acc details{border-bottom:1px solid #dccfd2}
@@ -636,7 +637,7 @@ $("#freq").addEventListener("click", e => { const b = e.target.closest("button")
 function renderCta() {
   const t = totals(), left = S.pack - selCount(), ok = left === 0;
   $("#goCk").disabled = !ok;
-  $("#goCk").innerHTML = ok ? `Suscribirme · ${money(t.sub)} ${freqTxt()}<small>Ahorrás ${money(t.saving)} en cada envío · envío ${t.sub >= 85000 ? "gratis" : "a cotizar"}</small>` : `Suscribirme<small>Sumá ${left} producto${left === 1 ? "" : "s"} más para completar tu pack de ${S.pack}</small>`;
+  $("#goCk").innerHTML = ok ? `<span class="l1">Suscribirme · ${money(t.sub)} ${freqTxt()}</span><small>Ahorrás ${money(t.saving)} en cada envío · envío ${t.sub >= 85000 ? "gratis" : "a cotizar"}</small>` : `Suscribirme<small>Sumá ${left} producto${left === 1 ? "" : "s"} más para completar tu pack de ${S.pack}</small>`;
 }
 function renderAll() { renderPacks(); renderFreq(); renderCta(); }
 renderAll();
