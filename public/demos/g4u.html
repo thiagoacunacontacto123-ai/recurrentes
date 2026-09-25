@@ -645,7 +645,8 @@ $("#cartX").addEventListener("click", closeCart); $("#cartBg").addEventListener(
 $("#cartGo").addEventListener("click", () => { closeCart(); $("#ld").style.display = "flex"; setTimeout(() => { $("#ld").style.display = "none"; S.ship = null; renderCk(); show("ck"); }, 900); });
 $("#backProd").addEventListener("click", e => { e.preventDefault(); show("prod"); });
 $("#again").addEventListener("click", e => { e.preventDefault(); show("prod"); });
-const SHIP = () => { const t = totals(); const free = t.sub >= 85000; return [{ n: "Entrega directa en AMBA · 24/48 h", p: free ? 0 : 3500 }, { n: "Correo Argentino a domicilio · 3 a 5 días", p: free ? 0 : 5900 }]; };
+// Como en su tienda hoy (shipnow): dos tarifas a domicilio. Gratis desde $85.000.
+const SHIP = () => { const t = totals(); const free = t.sub >= 85000; return [{ n: "A domicilio · shipnow Estándar", s: "Llega en 2 a 4 días hábiles, de 8 a 18 h", p: free ? 0 : 7239 }, { n: "A domicilio · shipnow Express 🚀", s: "Llega hoy o mañana, de 8 a 21 h", p: free ? 0 : 8864 }]; };
 function shipPrice() { return S.ship == null ? 0 : SHIP()[S.ship].p; }
 function summaryHtml() {
   const t = totals(); const total = t.sub + shipPrice();
@@ -668,7 +669,7 @@ function renderCk() {
   $("#trFreq").textContent = `Envío automático ${freqTxt()} · Pago seguro con Mercado Pago`;
   const has = $("#ckZip").value.trim() || $("#ckProv").value;
   $("#shipHint").hidden = !!has; $("#ship").hidden = !has;
-  if (has) { if (S.ship == null) S.ship = 0; $("#ship").innerHTML = SHIP().map((s, i) => `<label class="opt ${S.ship === i ? "on" : ""}"><input type="radio" name="sh" ${S.ship === i ? "checked" : ""} data-i="${i}"><span class="n">${s.n}</span><b>${s.p === 0 ? "Gratis" : money(s.p)}</b></label>`).join(""); }
+  if (has) { if (S.ship == null) S.ship = 0; $("#ship").innerHTML = SHIP().map((s, i) => `<label class="opt ${S.ship === i ? "on" : ""}"><input type="radio" name="sh" ${S.ship === i ? "checked" : ""} data-i="${i}"><span class="n"><b>${s.n}</b><small>${s.s}</small></span><b>${s.p === 0 ? "Gratis" : money(s.p)}</b></label>`).join(""); }
 }
 ["#ckZip", "#ckProv"].forEach(s => $(s).addEventListener("input", renderCk));
 $("#ship").addEventListener("change", e => { const r = e.target.closest("input"); if (r) { S.ship = +r.dataset.i; renderCk(); } });
