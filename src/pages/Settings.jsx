@@ -35,7 +35,7 @@ const { apiGet, apiPost } = api;
 // ─────────────────────────────────────────────────────────────────
 
 const F = "'Inter',system-ui,sans-serif";
-export const CFG_SECS = ["cuenta", "tiendas", "equipo", "avisos", "integraciones", "checkout", "facturacion", "ayuda"];
+export const CFG_SECS = ["cuenta", "tiendas", "equipo", "avisos", "integraciones", "checkout-diseno", "checkout", "facturacion", "ayuda"];
 // Secciones viejas → nuevas (links guardados / plan de acción viejo).
 // negocio / avanzado se sacaron (18-sept): el negocio se define solo con lo que conectás en Integraciones.
 const CFG_ALIASES = { operacion: "integraciones", negocio: "integraciones", avanzado: "integraciones", widget: "__planes_widget__", tienda: "checkout" };
