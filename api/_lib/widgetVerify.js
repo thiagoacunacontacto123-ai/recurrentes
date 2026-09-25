@@ -22,10 +22,22 @@ export async function widgetVerifyUrl(merchantId, merchant, planId) {
     plan = s.exists ? { id: s.id, ...s.data() } : null;
   }
   if (!plan || plan.item_source === "manual" || !plan.shopify_product_id) {
-    const snap = await plansCol.where("active", "==", true).limit(25).get();
-    plan = snap.docs.map(d => ({ id: d.id, ...d.data() })).find(p => p.item_source !== "manual" && p.shopify_product_id) || null;
+    // Se miran TODOS los planes, no solo los activos (25-sept-2026). Desde que
+    // nacen sin publicar, filtrar por `active` dejaba a un comercio con el plan
+    // ya armado —caso Wellfresh: 5 packs y producto elegido— viendo "creá un
+    // plan". Lo que le falta es publicarlo, y eso hay que decírselo distinto.
+    const snap = await plansCol.limit(50).get();
+    const todos = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.item_source !== "manual" && p.shopify_product_id);
+    plan = todos.find(p => p.active !== false) || todos[0] || null;
   }
   if (!plan) return { error: "Creá un plan con un producto de tu tienda primero.", code: "no_plan" };
+  // Existe pero está sin publicar: el widget no se va a ver hasta que lo publique.
+  if (plan.active === false) {
+    return {
+      error: `Tu plan "${plan.product_title || "sin nombre"}" todavía no está publicado: el widget no se ve en tu tienda hasta que lo publiques. Entrá a Planes y tocá "Publicar en mi tienda".`,
+      code: "plan_unpublished", plan_id: plan.id,
+    };
+  }
   const base = { plan_id: plan.id, product_title: plan.product_title || null };
 
   if (m.shopify_token && m.shopify_shop) {

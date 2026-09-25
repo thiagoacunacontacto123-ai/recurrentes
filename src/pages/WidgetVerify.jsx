@@ -29,7 +29,12 @@ export function WidgetVerifyModal({ merchant, plans = [], onClose, onVerified })
   const T = useT();
   const m = merchant || {};
   const tn = merchantProfile(m).channel === "tiendanube";
-  const storePlans = (Array.isArray(plans) ? plans : []).filter(p => p && p.active !== false && p.item_source !== "manual" && p.shopify_product_id);
+  // TODOS los planes de tienda, publicados o no (25-sept-2026). Desde que
+  // nacen sin publicar, filtrar por `active` le decía "creá un plan" a alguien
+  // que ya lo tenía armado (caso Wellfresh). Lo que le falta es publicarlo.
+  const planesTienda = (Array.isArray(plans) ? plans : []).filter(p => p && p.item_source !== "manual" && p.shopify_product_id);
+  const storePlans = planesTienda.filter(p => p.active !== false);
+  const sinPublicar = planesTienda.filter(p => p.active === false);
   const [planId, setPlanId] = useState(storePlans[0]?.id || "");
   const [phase, setPhase] = useState("idle"); // idle | opening | waiting | ok | issue | timeout
   const [result, setResult] = useState(null);
@@ -100,7 +105,15 @@ export function WidgetVerifyModal({ merchant, plans = [], onClose, onVerified })
             </select>
           </label>
         ) : (
-          <Callout T={T} tone="warning" title="Primero creá un plan con un producto de tu tienda">El widget aparece solo en los productos que tienen plan. Creá uno en Planes y volvé acá.</Callout>
+          sinPublicar.length ? (
+            <Callout T={T} tone="warning" title="Tu plan todavía no está publicado">
+              <B T={T}>{sinPublicar[0].product_title || "Tu plan"}</B> ya está armado, pero el widget no se ve en tu
+              tienda hasta que lo publiques. Entrá a <B T={T}>Planes</B> y tocá <B T={T}>"Publicar en mi tienda"</B> en
+              el menú del plan.
+            </Callout>
+          ) : (
+            <Callout T={T} tone="warning" title="Primero creá un plan con un producto de tu tienda">El widget aparece solo en los productos que tienen plan. Creá uno en Planes y volvé acá.</Callout>
+          )
         )}
 
         {busy && (
