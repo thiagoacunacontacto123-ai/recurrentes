@@ -339,6 +339,18 @@ function DemoLeadsPanel({ T, onOpen }) {
     if (r.merchant_id) onOpen?.(r.merchant_id);
   }
 
+  async function borrar(l) {
+    if (!await appConfirm(
+      `Se borra el pedido de ${l.marca || l.email} y no se puede recuperar.\n\nSi es un lead real y solo querés sacarlo de la lista, marcalo como Perdido en vez de borrarlo.`,
+      { title: "Borrar el pedido", okLabel: "Borrar", danger: true })) return;
+    setBusy(l.id);
+    const r = await apiPost("stats", { lead_id: l.id }, { action: "admin-demo-lead-delete" });
+    setBusy("");
+    if (!r || r.error) return toast(r?.error || "No se pudo borrar", "error");
+    toast("Pedido borrado", "ok");
+    load();
+  }
+
   async function marcar(l, estado) {
     setBusy(l.id);
     const r = await apiPost("stats", { lead_id: l.id, estado }, { action: "admin-demo-lead-status" });
@@ -384,6 +396,16 @@ function DemoLeadsPanel({ T, onOpen }) {
                     {!l.merchant_id
                       ? <Btn T={T} variant="solid" size="sm" type="button" disabled={busy === l.id} onClick={() => crearCuenta(l)}>Crear cuenta</Btn>
                       : <Btn T={T} variant="solid" size="sm" type="button" onClick={() => onOpen?.(l.merchant_id)}>Abrir su tienda</Btn>}
+                    {/* Solo en los que todavía no son clientes: con la cuenta
+                        creada, borrar el lead perdería de qué anuncio salió. */}
+                    {!l.merchant_id && (
+                      <button type="button" aria-label={`Borrar el pedido de ${l.marca || l.email}`} title="Borrar"
+                        disabled={busy === l.id} onClick={() => borrar(l)}
+                        style={{ background:"transparent", border:`1px solid ${T.border}`, borderRadius:DS.r.md, color:T.textSm,
+                          cursor:"pointer", padding:"5px 9px", fontSize:13, lineHeight:1, fontFamily:F }}>
+                        🗑
+                      </button>
+                    )}
                   </div>
                   {abierto && (
                     <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${T.borderL}`, display:"flex", flexDirection:"column", gap:6 }}>

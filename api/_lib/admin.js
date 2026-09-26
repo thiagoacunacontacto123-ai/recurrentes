@@ -13,6 +13,7 @@
 //   POST ?action=admin-demo-lead-account { lead_id } → le crea la cuenta y le manda el link
 //        para que ponga SU contraseña (nunca la elegimos nosotros)
 //   POST ?action=admin-demo-lead-status  { lead_id, estado: nuevo|agendado|cuenta_creada|ganado|perdido }
+//   POST ?action=admin-demo-lead-delete  { lead_id } → lo borra (no si ya tiene cuenta)
 //   POST ?action=admin-setup-step { merchant_id, step, done } → tilda un paso de la
 //        puesta en marcha (shared/platform/setup.js); la ficha la devuelve en `setup`
 //   POST ?action=admin-note     { merchant_id, text }
@@ -707,6 +708,21 @@ async function setupStep(admin, req, res) {
   return res.json({ ok: true, step, done });
 }
 
+// Borra un pedido de demo. Es definitivo y a propósito: la lista se llena de
+// pruebas y dejarlas "ocultas" no arregla el conteo de "sin atender".
+// El panel pide confirmación escribiendo, y queda en la auditoría con la marca
+// y el mail, por si hay que reconstruir a quién se borró.
+async function demoLeadDelete(admin, req, res) {
+  const t = await demoLead(req, res);
+  if (!t) return;
+  // Un lead con cuenta creada NO se borra: es un cliente, y perder de dónde
+  // salió rompe el embudo del Admin.
+  if (t.l.merchant_id) return res.status(409).json({ error: "Este lead ya tiene cuenta creada: no se borra. Si querés sacarlo de la lista, marcalo como Perdido." });
+  await audit(admin, "demo_lead_delete", null, { lead_id: t.id, marca: t.l.marca || null, email: t.l.email || null, estado: t.l.status || null });
+  await t.ref.delete();
+  return res.json({ ok: true, id: t.id });
+}
+
 async function viewAsStart(admin, req, res) {
   const t = await existingMerchant(req, res);
   if (!t) return;
@@ -825,6 +841,7 @@ export async function adminHandler(req, res) {
       }
       if (action === "admin-demo-lead-account") return await demoLeadAccount(admin, req, res);
       if (action === "admin-demo-lead-status") return await demoLeadStatus(admin, req, res);
+      if (action === "admin-demo-lead-delete") return await demoLeadDelete(admin, req, res);
       if (action === "admin-setup-step") return await setupStep(admin, req, res);
       if (action === "admin-note") return await addNote(admin, req, res);
       if (action === "admin-view-as") return await viewAsStart(admin, req, res);

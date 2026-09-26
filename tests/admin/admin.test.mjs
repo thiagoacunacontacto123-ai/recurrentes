@@ -308,6 +308,21 @@ put("merchants/old", { email: "old@x.com", created_at: ago(35), plan: "free" });
   ok(r.status === 400, "estado inventado → 400");
   r = await call(stats, { method: "POST", query: { action: "admin-demo-lead-account" }, body: { lead_id: "no_existe" }, token: "t-admin" });
   ok(r.status === 404, "lead que no existe → 404");
+
+  // Borrar. Un lead que YA tiene cuenta no se borra: es un cliente, y perderlo
+  // de la lista rompe el rastro de que anuncio salio.
+  r = await call(stats, { method: "POST", query: { action: "admin-demo-lead-delete" }, body: { lead_id: "dl_1" }, token: "t-admin" });
+  ok(r.status === 409 && doc("demo_leads/dl_1"), "un lead con cuenta creada NO se borra", r.body);
+
+  put("demo_leads/dl_prueba", { id: "dl_prueba", nombre: "Thiago", marca: "aaaa", email: "thiago@x.com", status: "nuevo", created_at: ago(0) });
+  r = await call(stats, { method: "POST", query: { action: "admin-demo-lead-delete" }, body: { lead_id: "dl_prueba" }, token: "t-admin" });
+  ok(r.status === 200 && !doc("demo_leads/dl_prueba"), "una prueba sin cuenta se borra", r.body);
+  ok(docsOf("admin_audit").some(a => a.action === "demo_lead_delete" && a.detail?.marca === "aaaa"), "queda en la auditoria con la marca y el mail");
+
+  r = await call(stats, { method: "POST", query: { action: "admin-demo-lead-delete" }, body: { lead_id: "dl_prueba" }, token: "t-admin" });
+  ok(r.status === 404, "borrar dos veces → 404");
+  r = await call(stats, { method: "POST", query: { action: "admin-demo-lead-delete" }, body: { lead_id: "dl_1" }, token: "t-lumina" });
+  ok(r.status === 403, "un comercio no puede borrar pedidos de demo");
 }
 
 // ─── 8c) Puesta en marcha desde la ficha ─────────────────────────────────────
