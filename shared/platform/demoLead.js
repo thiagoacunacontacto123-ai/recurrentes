@@ -54,7 +54,10 @@ export const DEMO_CONFIRMACIONES = [
   },
   {
     id: "confirma_pago",
-    text: "Entiendo que integrar la opción de suscripción —y la página de suscripción, si la necesito— es un trabajo que lleva horas, y que puedo conseguir mucha ganancia sin depender de clientes nuevos. Por eso, si avanzo con Recurrentes, pago USD 100 una sola vez, recién cuando la integración esté 100% terminada, al detalle de cómo la quiero, y funcionando.",
+    // Redactada como COMPROMISO en primera persona, no como dato ("pago USD
+    // 100"): el que marca esto se está comprometiendo, y es lo único que
+    // separa al que va a avanzar del que mira. 25-sept-2026, Thiago.
+    text: "Entiendo que integrar la opción de suscripción —y la página de suscripción, si la necesito— es un trabajo que lleva horas, y que puedo conseguir mucha ganancia sin depender de clientes nuevos. Por eso, si avanzo con Recurrentes, voy a realizar el pago de USD 100 del costo de integración, una sola vez, recién con la integración terminada, al detalle de cómo la quiero, y funcionando.",
   },
 ];
 
