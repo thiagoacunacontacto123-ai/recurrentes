@@ -1,11 +1,11 @@
 // A dónde mandamos a alguien que quiere hablar con nosotros. Un solo lugar:
 // estaba suelto en Integrations.jsx y al sumar #/demo iba por el segundo.
 //
-// CUANDO ESTÉ EL CALENDLY: pegá la URL en AGENDA_URL y listo. Todos los botones
-// que hoy abren WhatsApp pasan solos a abrir el calendario — no hay que tocar
-// ninguna pantalla. Ejemplo: "https://calendly.com/thiago-recurrentes/demo".
-// Vacío = se sigue coordinando por WhatsApp.
-export const AGENDA_URL = "";
+// Calendly EN VIVO desde el 26-sept-2026: evento "Reunión de 30 minutos" con
+// Google Meet, de la cuenta soporte@recurrentesapp.com. Con esto cargado, todos
+// los botones que antes abrían WhatsApp abren el calendario, acá y en
+// Integraciones. Vaciarlo vuelve todo a WhatsApp sin tocar ninguna pantalla.
+export const AGENDA_URL = "https://calendly.com/soporte-recurrentesapp/30min";
 
 // El número de Thiago: instalaciones, ayuda al conectar y la demo.
 export const WA_CONTACTO = "5491164117974";

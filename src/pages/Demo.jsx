@@ -119,7 +119,7 @@ export default function DemoPage() {
                   Mirá cómo venden por suscripción nuestras tiendas <span style={{ background: `linear-gradient(135deg, ${T.accentSolid}, #34d399 60%, #a7f3d0)`, WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>y cómo quedaría la tuya.</span>
                 </h1>
                 <p style={{ fontSize: 16.5, color: T.textMd, lineHeight: 1.6, margin: 0, textWrap: "pretty" }}>
-                  Te mostramos en vivo cómo lo usan las tiendas que ya venden con Recurrentes y armamos juntos cómo llevarlo a la tuya, <strong style={{ color: T.text }}>de la manera que vos quieras</strong>. Dejanos tus datos y coordinamos por WhatsApp.
+                  Te mostramos en vivo cómo lo usan las tiendas que ya venden con Recurrentes y armamos juntos cómo llevarlo a la tuya, <strong style={{ color: T.text }}>de la manera que vos quieras</strong>. {AGENDA_URL ? "Dejanos tus datos y elegís el horario que te quede cómodo." : "Dejanos tus datos y coordinamos por WhatsApp."}
                 </p>
               </div>
 
