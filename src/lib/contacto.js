@@ -1,11 +1,16 @@
 // A dónde mandamos a alguien que quiere hablar con nosotros. Un solo lugar:
 // estaba suelto en Integrations.jsx y al sumar #/demo iba por el segundo.
 //
-// Calendly EN VIVO desde el 26-sept-2026: evento "Reunión de 30 minutos" con
-// Google Meet, de la cuenta soporte@recurrentesapp.com. Con esto cargado, todos
+// Calendly EN VIVO desde el 26-sept-2026: evento "DEMO RECURRENTES:
+// Suscripciones en tu ecommerce (15min)" con Google Meet, de la cuenta
+// soporte@recurrentesapp.com.
+//
+// OJO: el final de la URL sale del NOMBRE del evento en Calendly. Al renombrarlo
+// de 30 a 15 minutos, /30min pasó a devolver 404 y el botón de la demo quedó
+// roto sin que nada avisara. Si se vuelve a renombrar, hay que actualizar acá. Con esto cargado, todos
 // los botones que antes abrían WhatsApp abren el calendario, acá y en
 // Integraciones. Vaciarlo vuelve todo a WhatsApp sin tocar ninguna pantalla.
-export const AGENDA_URL = "https://calendly.com/soporte-recurrentesapp/30min";
+export const AGENDA_URL = "https://calendly.com/soporte-recurrentesapp/15min";
 
 // El número de Thiago: instalaciones, ayuda al conectar y la demo.
 export const WA_CONTACTO = "5491164117974";
