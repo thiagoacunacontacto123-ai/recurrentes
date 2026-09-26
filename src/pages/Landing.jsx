@@ -413,7 +413,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         <div style={{marginTop:40,display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:14}} className="rec-land-benefits">
           {[
             ["0%", "de comisión por venta", "Lo que cobra tu cliente es tuyo. Pagás un plan según tus suscriptores, no un porcentaje de cada cobro."],
-            ["10 min", "para estar vendiendo", "Conectás la tienda y Mercado Pago, creás el plan y el botón aparece solo en tu producto."],
+            ["1 llamada", "y queda integrado", "La integración la hacemos nosotros con vos, guiada paso a paso: tienda, Mercado Pago, planes y widget."],
             [`${FREE_SUBSCRIBERS}`, "suscriptores gratis", "Arrancás sin pagar el plan y recién pagás cuando la suscripción ya te está funcionando."],
           ].map(([v,l,d])=>(
             <div key={l} className="rec-stat">

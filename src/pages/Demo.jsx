@@ -126,10 +126,10 @@ export default function DemoPage() {
                   <span style={{ width: 7, height: 7, borderRadius: 99, background: T.accentSolid }}/>Demo de 20 minutos · por videollamada
                 </div>
                 <h1 style={{ fontSize: "clamp(32px, 4vw, 50px)", fontWeight: 800, lineHeight: 1.04, letterSpacing: "-0.04em", margin: "0 0 16px", textWrap: "balance" }}>
-                  Mirá tu tienda vendiendo por suscripción <span style={{ background: `linear-gradient(135deg, ${T.accentSolid}, #34d399 60%, #a7f3d0)`, WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>antes de decidir.</span>
+                  Mirá cómo venden por suscripción nuestras tiendas <span style={{ background: `linear-gradient(135deg, ${T.accentSolid}, #34d399 60%, #a7f3d0)`, WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>y cómo quedaría la tuya.</span>
                 </h1>
                 <p style={{ fontSize: 17, color: T.textMd, lineHeight: 1.6, margin: 0, maxWidth: 520, textWrap: "pretty" }}>
-                  Armamos la suscripción con <strong style={{ color: T.text }}>tus</strong> productos y <strong style={{ color: T.text }}>tus</strong> precios, en tu tienda, en la misma llamada. Si te sirve, queda andando ese día.
+                  Te mostramos en vivo cómo lo usan las tiendas que ya venden con Recurrentes y armamos juntos cómo llevarlo a la tuya, <strong style={{ color: T.text }}>de la manera que vos quieras</strong>: packs, descuentos, frecuencias y diseño.
                 </p>
 
                 <div className="rec-demo-que">
