@@ -210,8 +210,7 @@ export default function DemoPage() {
                   {loading ? <Spinner size={16}/> : "Reservar mi llamada →"}
                 </button>
                 <div style={{ textAlign: "center", marginTop: 14, fontSize: 12.5, color: T.textSm, lineHeight: 1.7 }}>
-                  Sin compromiso hasta que la integración esté funcionando.<br/>
-                  <a href="#/registro" style={{ color: T.textSm }}>Prefiero crear la cuenta y probar solo</a>
+                  Sin compromiso hasta que la integración esté funcionando.
                 </div>
               </div>
             </div>

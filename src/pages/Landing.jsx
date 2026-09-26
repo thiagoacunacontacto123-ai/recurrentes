@@ -375,7 +375,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
                 <span key={t} style={{display:"inline-flex",alignItems:"center",gap:6}}><span style={{width:5,height:5,borderRadius:99,background:T.accentSolid}}/>{t}</span>
               ))}
             </div>
-            <button onClick={irRegistro} style={{marginTop:10,background:"none",border:"none",padding:0,color:T.textSm,fontSize:12.5,cursor:"pointer",fontFamily:F,textDecoration:"underline",textUnderlineOffset:3}}>Prefiero crear la cuenta y probar solo</button>
+
           </div>
 
           {/* Panel de conectores: la explicación y el mapa visual, todo junto.
