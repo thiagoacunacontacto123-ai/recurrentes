@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /demos/
+
+Sitemap: https://www.recurrentesapp.com/sitemap.xml

@@ -1,5 +1,6 @@
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "npm run seo && npm run build",
+  "cleanUrls": true,
   "outputDirectory": "dist",
   "functions": {
     "api/cron.js": {
