@@ -224,7 +224,20 @@ async function handleDemoBooked(req, res) {
   if (lead.booked_at) return res.status(200).json({ ok: true, ya: true });
 
   const at = new Date().toISOString();
-  await ref.set({ booked_at: at, status: "agendado", updated_at: at }, { merge: true });
+  // La hora de la llamada sale de la API de Calendly con el URI que nos pasó el
+  // navegador. Sin CALENDLY_TOKEN devuelve null y el lead queda agendado igual,
+  // solo que sin recordatorio (_lib/demoReminder.js).
+  let cal = null;
+  try {
+    const { leerEventoCalendly } = await import("./_lib/demoReminder.js");
+    cal = await leerEventoCalendly(req.body?.event_uri);
+  } catch (e) { console.warn("[demo-booked] calendly:", e.message); }
+
+  await ref.set({
+    booked_at: at, status: "agendado", updated_at: at,
+    ...(cal?.startsAt ? { meeting_at: cal.startsAt } : {}),
+    ...(cal?.meetUrl ? { meeting_url: cal.meetUrl } : {}),
+  }, { merge: true });
   try {
     const { trackDemoBooked } = await import("./_lib/acquisition.js");
     await trackDemoBooked({ ...lead, id }, { req });

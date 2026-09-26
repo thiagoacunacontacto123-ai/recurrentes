@@ -107,6 +107,10 @@
       "schedule": "*/30 * * * *"
     },
     {
+      "path": "/api/cron?action=demo-reminders",
+      "schedule": "*/10 * * * *"
+    },
+    {
       "path": "/api/cron?action=reconcile-mp",
       "schedule": "17 * * * *"
     },

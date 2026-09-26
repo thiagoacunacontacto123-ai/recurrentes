@@ -524,6 +524,31 @@ export async function emailAccountInvite({ to, name, link, marca }) {
   return sendEmail({ from: platformFrom(), to, subject: title, html, tags: { type: "account_invite" } });
 }
 
+// ─── Recordatorio de la demo, 2 h antes ──────────────────────────────────────
+// El mail que manda Calendly al reservar es de ellos y en el plan gratis no se
+// puede maquillar. Este sale de Resend con nuestra marca, dos horas antes, y es
+// el que baja el ausentismo: en demos agendadas en frío, sin recordatorio no se
+// presenta entre el 30% y el 50%. 26-sept-2026, Thiago.
+export async function emailDemoRecordatorio({ to, nombre, marca, hora, meetUrl, reagendarUrl }) {
+  const who = plain(nombre, 40).split(" ")[0];
+  const tienda = plain(marca, 60);
+  const title = `Nos vemos hoy a las ${plain(hora, 20)}`;
+  const body = `
+    <p>${who ? `Hola ${escapeHtml(who)}, ` : "Hola, "}te escribo para recordarte que hoy a las <strong>${escapeHtml(plain(hora, 20))}</strong> tenemos la demo${tienda ? ` de <strong>${escapeHtml(tienda)}</strong>` : ""}. Son 15 minutos.</p>
+    <p style="margin-top:14px;">Te muestro tiendas que ya venden por suscripción —el selector en la ficha de producto, el cobro automático y el panel— y vemos cómo se aplicaría a tu catálogo.</p>
+    <p style="margin-top:14px;">Para aprovecharla, tené a mano el acceso de administrador de tu tienda y tu cuenta de Mercado Pago. Si decidís avanzar, dejamos la conexión hecha en la misma llamada.</p>
+    ${reagendarUrl ? `<p style="margin-top:14px;color:#6b7280;font-size:13px;">¿Se te complicó? <a href="${escapeAttr(reagendarUrl)}" style="color:#374151;">Reprogramá acá</a> y liberás el horario.</p>` : ""}`;
+  const html = baseTemplate({
+    title, body,
+    ctaLabel: meetUrl ? "Entrar a la videollamada" : null,
+    ctaUrl: meetUrl || null,
+    brand: "Recurrentes", accent: "#10b981",
+    footerNote: "Recurrentes · suscripciones con cobro automático para tiendas online de Argentina.",
+    support: "soporte@recurrentesapp.com",
+  });
+  return sendEmail({ from: platformFrom(), to, subject: title, html, tags: { type: "demo_reminder" } });
+}
+
 // ─── Aviso INTERNO al equipo de Recurrentes (ramal admin) ────────────────────
 // Respaldo del WhatsApp al admin (sin número de Recurrentes cargado, plantilla
 // sin aprobar o error de Meta). `to` = mails de ADMIN_EMAILS (o ADMIN_EMAIL).

@@ -83,7 +83,10 @@ function AgendaEmbed({ T, url, nombre, email, leadId, wa }) {
       avisado.current = true;
       setAgendado(true);
       pixelTrack("DemoAgendada", {}, leadId ? `acq_booked_${leadId}` : null);
-      if (leadId) { try { await apiPost("public", { lead_id: leadId }, { action: "demo-booked" }); } catch (_) {} }
+      // El URI del evento lo usa el servidor para sacar la hora de la llamada
+      // de la API de Calendly y programar el recordatorio de 2 h antes.
+      const eventUri = e.data?.payload?.event?.uri || null;
+      if (leadId) { try { await apiPost("public", { lead_id: leadId, event_uri: eventUri }, { action: "demo-booked" }); } catch (_) {} }
     };
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);

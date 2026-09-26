@@ -83,6 +83,12 @@ export default async function handler(req, res) {
 
   const action = String(req.query.action || "sync-all-pending");
   if (action === "run-flows") return runFlowsCron(res);
+  // Recordatorio de la demo, 2 h antes (_lib/demoReminder.js). Va pegado a
+  // run-flows: misma frecuencia y una sola consulta, así no suma un cron nuevo.
+  if (action === "demo-reminders") {
+    const { enviarRecordatorios } = await import("./_lib/demoReminder.js");
+    return res.json(await enviarRecordatorios());
+  }
   if (action === "retry-fulfillment") return fulfillmentCron(res);
   if (action === "reconcile-mp") return reconcileCron(res);
   if (action === "sync-saas-tiers") {
