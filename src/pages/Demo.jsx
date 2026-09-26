@@ -11,9 +11,9 @@ import { RecLogo } from "../ui/Shell.jsx";
 import { apiPost } from "../lib/api.js";
 import { normalizeWhatsapp, EMAIL_RE } from "../../shared/platform/contact.js";
 import { readAttribution, pixelTrack } from "../lib/attribution.js";
+import { AGENDA_URL, waLink } from "../lib/contacto.js";
 import { DEMO_PREGUNTAS, DEMO_CONFIRMACIONES, sanitizeDemoLead } from "../../shared/platform/demoLead.js";
 
-const WA_THIAGO = "5491164117974";
 
 export default function DemoPage() {
   const { T } = useTheme();
@@ -46,7 +46,10 @@ export default function DemoPage() {
     window.scrollTo(0, 0);
   }
 
-  const wa = `https://wa.me/${WA_THIAGO}?text=${encodeURIComponent(`Hola! Soy ${f.nombre || ""} de ${f.marca || ""}. Acabo de pedir la demo de Recurrentes.`)}`;
+  // Cuando AGENDA_URL tenga el Calendly, el botón principal pasa solo a abrir el
+  // calendario y WhatsApp queda de segunda opción. Hasta entonces, WhatsApp es
+  // el principal: no puede quedar una pantalla sin salida. Ver src/lib/contacto.js.
+  const wa = waLink(`Hola! Soy ${f.nombre || ""} de ${f.marca || ""}. Acabo de pedir la demo de Recurrentes.`);
 
   return (
     <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: "'Inter',system-ui,sans-serif" }}>
@@ -57,13 +60,22 @@ export default function DemoPage() {
           <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 16, padding: "28px 22px" }}>
             <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 10 }}>Listo, {f.nombre.split(" ")[0]}.</div>
             <p style={{ fontSize: 14.5, color: T.textMd, lineHeight: 1.6, margin: "0 0 18px" }}>
-              Ya tenemos tus datos. Te escribimos por WhatsApp al <strong style={{ color: T.text }}>{normalizeWhatsapp(f.whatsapp)}</strong> para
-              coordinar la llamada. Si querés adelantarla, escribinos vos ahora mismo.
+              {AGENDA_URL
+                ? <>Ya tenemos tus datos. Elegí el horario que te quede cómodo y listo: te llega la invitación a <strong style={{ color: T.text }}>{f.email}</strong>.</>
+                : <>Ya tenemos tus datos. Te escribimos por WhatsApp al <strong style={{ color: T.text }}>{normalizeWhatsapp(f.whatsapp)}</strong> para coordinar la llamada. Si querés adelantarla, escribinos vos ahora mismo.</>}
             </p>
-            <a href={wa} target="_blank" rel="noopener noreferrer"
+            <a href={AGENDA_URL || wa} target="_blank" rel="noopener noreferrer"
               style={{ ...BtnSolid(T), display: "inline-block", padding: "13px 22px", fontSize: 15, textDecoration: "none" }}>
-              Escribir por WhatsApp
+              {AGENDA_URL ? "Elegir horario →" : "Escribir por WhatsApp"}
             </a>
+            {/* Con la agenda puesta, WhatsApp sigue estando para el que prefiere escribir. */}
+            {AGENDA_URL && (
+              <div style={{ marginTop: 14 }}>
+                <a href={wa} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13.5, color: T.textMd, fontWeight: 600 }}>
+                  o escribinos por WhatsApp
+                </a>
+              </div>
+            )}
           </div>
         ) : (
           <>

@@ -10,6 +10,7 @@ import { MONO, fmtDateShort } from "./_shared.jsx";
 import { MP_RECONNECT_COPY, MP_LAST_ERROR_COPY } from "../lib/mpOauth.js";
 import { CHANNELS, PAYMENT_PROVIDERS, merchantProfile, channelAvailable } from "../../shared/platform/profile.js";
 import { INSTALL_USD } from "../../shared/platform/pricing.js";
+import { AGENDA_URL, WA_CONTACTO as WA_CONECTAR } from "../lib/contacto.js";
 import { ShopifyConnectSteps, ShopifyTroubleshoot, ShopifyScopeNotice, TutorialVideo, shopifyCredsWarning } from "./ShopifyConnect.jsx";
 import { WhatsAppRow } from "./WhatsAppIntegration.jsx";
 
@@ -49,8 +50,6 @@ function btnStyles(T) {
   };
 }
 
-// Número al que se piden las instalaciones a mano (21-sept-2026, Thiago).
-const WA_CONECTAR = "5491164117974";
 
 // ── Instalación a medida ───────────────────────────────────────────────────
 // El comerciante crea la cuenta solo y gratis (ahí está nuestra ventaja contra
@@ -58,10 +57,8 @@ const WA_CONECTAR = "5491164117974";
 // al conectar la tienda, que es donde de verdad se traban: el que llega a esta
 // pantalla ya entendió el producto y vale la hora.
 //
-// CUANDO ESTÉ EL CALENDLY: poner acá la URL y listo, el botón cambia solo.
-// Ejemplo: "https://calendly.com/thiago-recurrentes/instalacion"
-// Vacío = se sigue pidiendo por WhatsApp.
-const AGENDA_URL = "";
+// La agenda y el número viven en src/lib/contacto.js (un solo lugar para todas
+// las pantallas: acá, la demo y lo que venga).
 // Precio de la instalación: fuente única en shared/platform/pricing.js. Estaba
 // duplicado acá con el mismo valor; si cambia uno solo, la landing y el panel
 // dicen precios distintos. 25-sept-2026.
