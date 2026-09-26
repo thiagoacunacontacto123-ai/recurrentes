@@ -501,6 +501,29 @@ export async function emailVerifyAccount({ to, name, link }) {
   return sendEmail({ from: platformFrom(), to, subject: title, html, tags: { type: "verify_email" } });
 }
 
+// ─── Acceso para una cuenta creada por nosotros (pedido de demo) ─────────────
+// La cuenta se crea SIN contraseña y el link deja que la ponga el comercio.
+// Nunca la elegimos nosotros ni se la pedimos por WhatsApp: una contraseña que
+// conocemos deja de servir como prueba de quién hizo cada cosa, y para
+// configurarle la tienda ya está el "ver como" del Admin (queda auditado).
+export async function emailAccountInvite({ to, name, link, marca }) {
+  const who = plain(name, 40).split(" ")[0];
+  const tienda = plain(marca, 60);
+  const title = "Tu cuenta de Recurrentes está lista";
+  const body = `
+    <p>${who ? `Hola ${escapeHtml(who)}, ` : "Hola, "}ya te creamos la cuenta${tienda ? ` de <strong>${escapeHtml(tienda)}</strong>` : ""} en Recurrentes.</p>
+    <p style="margin-top:12px;">Solo falta que elijas tu contraseña. Tocá el botón y ponés la que quieras: nadie más la ve, ni nosotros.</p>
+    <p style="margin-top:14px;color:#6b7280;font-size:13px;">El link vence en unas horas. Si se te venció, entrá a Recurrentes y tocá "Olvidé mi contraseña" con este mismo mail.</p>`;
+  const html = baseTemplate({
+    title, body,
+    ctaLabel: "Elegir mi contraseña",
+    ctaUrl: link,
+    brand: "Recurrentes", accent: "#10b981",
+    footerNote: "Recurrentes · suscripciones con cobro automático para tiendas online de Argentina.",
+  });
+  return sendEmail({ from: platformFrom(), to, subject: title, html, tags: { type: "account_invite" } });
+}
+
 // ─── Aviso INTERNO al equipo de Recurrentes (ramal admin) ────────────────────
 // Respaldo del WhatsApp al admin (sin número de Recurrentes cargado, plantilla
 // sin aprobar o error de Meta). `to` = mails de ADMIN_EMAILS (o ADMIN_EMAIL).

@@ -265,6 +265,51 @@ put("merchants/old", { email: "old@x.com", created_at: ago(35), plan: "free" });
   ok(r.status === 403, "admin-view-as de no-admin → 403");
 }
 
+// ─── 8b) Pedidos de demo: listar y crear la cuenta ───────────────────────────
+// La cuenta se crea SIN contraseña y el link la deja poner al comercio. Que no
+// la elijamos nosotros es lo que hace que después se pueda saber quién tocó qué.
+{
+  put("demo_leads/dl_1", {
+    id: "dl_1", nombre: "Ana Díaz", marca: "Glow Derm", whatsapp: "+5492664006599", email: "ana@glowderm.test",
+    pedidos: "5_15", recurrencia: "25_50", objetivo: "recompra", status: "nuevo",
+    confirma_llamada: true, confirma_pago: true, created_at: ago(1),
+    acquisition: { utm_source: "meta", utm_content: "VIDEO_1" },
+  });
+
+  let r = await call(stats, { query: { action: "admin-demo-leads" }, token: "t-admin" });
+  const lead = r.body?.leads?.[0];
+  ok(r.status === 200 && lead?.marca === "Glow Derm", "admin-demo-leads lista los pedidos", r.body);
+  ok(lead?.respuestas?.length === 3 && /pedidos vendés por día/.test(lead.respuestas[0].pregunta) && lead.respuestas[0].respuesta === "Entre 5 y 15 por día",
+    "cada respuesta viene con su pregunta", lead?.respuestas);
+  ok(lead?.anuncio === "VIDEO_1", "y de qué anuncio vino");
+
+  r = await call(stats, { query: { action: "admin-demo-leads" }, token: "t-lumina" });
+  ok(r.status === 403, "un comercio no puede leer los pedidos de demo");
+
+  r = await call(stats, { method: "POST", query: { action: "admin-demo-lead-account" }, body: { lead_id: "dl_1" }, token: "t-admin" });
+  const uid = r.body?.merchant_id;
+  ok(r.status === 200 && uid, "admin-demo-lead-account crea la cuenta", r.body);
+  const u = __users.get(uid);
+  ok(u?.email === "ana@glowderm.test", "el usuario de Auth queda con el mail del lead");
+  ok(!("password" in (u || {})) && !("passwordHash" in (u || {})), "y SIN contraseña puesta por nosotros", u);
+  ok(/reset\.test/.test(r.body?.link || ""), "devuelve el link para que ponga la suya", r.body?.link);
+  const m = doc(`merchants/${uid}`);
+  ok(m?.store_name === "Glow Derm" && m?.owner_whatsapp === "+5492664006599" && m?.demo_lead_id === "dl_1", "el merchant queda con los datos del lead", m);
+  ok(m?.acquisition?.utm_content === "VIDEO_1", "y con el anuncio, para no perder el embudo");
+  ok(doc("demo_leads/dl_1")?.status === "cuenta_creada", "el lead queda marcado");
+  ok(docsOf("admin_audit").some(a => a.action === "demo_lead_account"), "queda en la auditoría");
+
+  r = await call(stats, { method: "POST", query: { action: "admin-demo-lead-account" }, body: { lead_id: "dl_1" }, token: "t-admin" });
+  ok(r.status === 409, "no se crea dos veces la cuenta del mismo lead", r.body);
+
+  r = await call(stats, { method: "POST", query: { action: "admin-demo-lead-status" }, body: { lead_id: "dl_1", estado: "ganado" }, token: "t-admin" });
+  ok(r.status === 200 && doc("demo_leads/dl_1")?.status === "ganado", "se puede marcar como ganado");
+  r = await call(stats, { method: "POST", query: { action: "admin-demo-lead-status" }, body: { lead_id: "dl_1", estado: "cualquiera" }, token: "t-admin" });
+  ok(r.status === 400, "estado inventado → 400");
+  r = await call(stats, { method: "POST", query: { action: "admin-demo-lead-account" }, body: { lead_id: "no_existe" }, token: "t-admin" });
+  ok(r.status === 404, "lead que no existe → 404");
+}
+
 // ─── 8) WhatsApp ─────────────────────────────────────────────────────────────
 {
   const w = admin.whatsappUrl;

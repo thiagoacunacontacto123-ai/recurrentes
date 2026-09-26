@@ -9,6 +9,10 @@
 //                               &sort=recientes|mrr|subs|actividad&page=1&limit=25[&fresh=1]
 //   GET  ?action=admin-merchant&id=<merchantId>
 //   POST ?action=admin-set-plan { merchant_id, plan: "starter"|"growth"|"scale"|"pro"|"unlimited"|"beta"|"none" }
+//   GET  ?action=admin-demo-leads[&limit=50]     → pedidos de demo (#/demo), los más nuevos primero
+//   POST ?action=admin-demo-lead-account { lead_id } → le crea la cuenta y le manda el link
+//        para que ponga SU contraseña (nunca la elegimos nosotros)
+//   POST ?action=admin-demo-lead-status  { lead_id, estado: nuevo|agendado|cuenta_creada|ganado|perdido }
 //   POST ?action=admin-note     { merchant_id, text }
 //   POST ?action=admin-view-as  { merchant_id }  → registra el inicio del "ver como". El header
 //        X-Admin-As lo valida requireMerchant en cada request (solo admins, solo lectura).
@@ -16,6 +20,8 @@
 // Datos (todo lo interno queda FUERA de merchants/*, porque el comercio puede
 // leer su propio doc y subcolecciones con el SDK web; las rules cierran el resto):
 //   admin_audit/{auto}          { action, merchant_id, admin_uid, admin_email, detail, at }
+//   demo_leads/{id}             pedidos de demo (los escribe api/public.js; acá se leen y se
+//                               marcan). Cerrado al cliente en firestore.rules.
 //   admin_merchants/{mid}       { notes: [{ id, text, at, by }], updated_at }
 //   admin_cache/merchant_stats  { at, stats: { [mid]: { subs, active, mrr, ch30_count,
 //                                 ch30_amount, ch_days:{YYYY-MM-DD: ARS}, last_charge_at, at } } }
@@ -566,6 +572,110 @@ async function addNote(admin, req, res) {
   return res.json({ ok: true, note });
 }
 
+// ─── Pedidos de demo (#/demo) ────────────────────────────────────────────────
+// Los leads viven en demo_leads/{id} (los escribe api/public.js). Acá se listan
+// y, cuando uno cierra en la llamada, se le crea la cuenta desde el botón.
+const DEMO_ESTADOS = ["nuevo", "agendado", "cuenta_creada", "ganado", "perdido"];
+const MAX_DEMO_LEADS = 100;
+
+async function demoLeads(q) {
+  const limit = Math.min(MAX_DEMO_LEADS, Math.max(1, parseInt(q.limit, 10) || 50));
+  const snap = await db().collection("demo_leads").orderBy("created_at", "desc").limit(limit).get();
+  const { DEMO_PREGUNTAS, labelDe } = await import("../../shared/platform/demoLead.js");
+  const rows = snap.docs.map((d) => {
+    const l = d.data() || {};
+    return {
+      id: d.id,
+      created_at: l.created_at || null,
+      marca: l.marca || "",
+      nombre: l.nombre || "",
+      whatsapp: l.whatsapp || "",
+      email: l.email || "",
+      // Pregunta + respuesta, con el texto que vio el que llenó el formulario.
+      respuestas: DEMO_PREGUNTAS.map((p) => ({ pregunta: p.label, respuesta: labelDe(p.options, l[p.id]) || "-" })),
+      estado: DEMO_ESTADOS.includes(l.status) ? l.status : "nuevo",
+      merchant_id: l.merchant_id || null,
+      anuncio: l.acquisition?.utm_content || null,
+      whatsapp_url: l.whatsapp ? `https://wa.me/${String(l.whatsapp).replace(/\D/g, "")}` : null,
+    };
+  });
+  return { leads: rows, total: rows.length };
+}
+
+async function demoLead(req, res) {
+  const id = String(req.body?.lead_id || "").trim().slice(0, 60);
+  if (!/^[A-Za-z0-9_-]{3,60}$/.test(id)) { res.status(400).json({ error: "Falta lead_id." }); return null; }
+  const ref = db().collection("demo_leads").doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) { res.status(404).json({ error: "Ese pedido de demo no existe." }); return null; }
+  return { id, ref, l: snap.data() || {} };
+}
+
+async function demoLeadStatus(admin, req, res) {
+  const estado = String(req.body?.estado || "").trim();
+  if (!DEMO_ESTADOS.includes(estado)) return res.status(400).json({ error: "Estado inválido." });
+  const t = await demoLead(req, res);
+  if (!t) return;
+  await t.ref.set({ status: estado, updated_at: new Date().toISOString() }, { merge: true });
+  await audit(admin, "demo_lead_status", t.l.merchant_id || null, { lead_id: t.id, estado });
+  return res.json({ ok: true, estado });
+}
+
+// Crea la cuenta del lead y le manda el link para que ponga SU contraseña.
+//
+// La contraseña no la elegimos nosotros: el usuario se crea sin ninguna y el
+// mail lleva un link de Firebase para que la ponga él. Si el mail no sale
+// igual respondemos ok con el link, para poder pasárselo en la llamada.
+async function demoLeadAccount(admin, req, res) {
+  const t = await demoLead(req, res);
+  if (!t) return;
+  const { l, ref, id } = t;
+  if (l.merchant_id) return res.status(409).json({ error: "Este lead ya tiene cuenta.", merchant_id: l.merchant_id });
+  const email = String(l.email || "").trim().toLowerCase();
+  if (!email) return res.status(400).json({ error: "El lead no tiene email." });
+
+  // Si ya existe una cuenta con ese mail (se registró solo antes de la llamada),
+  // se reusa: crear una segunda con el mismo mail es imposible y pisarla, peor.
+  let user = null, yaExistia = false;
+  try { user = await getAuth().getUserByEmail(email); yaExistia = true; }
+  catch (_) { /* no existe: se crea abajo */ }
+  if (!user) {
+    // Sin password a propósito. emailVerified: true porque ya hablamos con la
+    // persona (la verificación por mail se retiró el 19-sept).
+    user = await getAuth().createUser({ email, emailVerified: true, displayName: String(l.nombre || "").slice(0, 60) || undefined });
+  }
+
+  const { getOrCreateMerchant } = await import("./firebase.js");
+  await getOrCreateMerchant(user.uid, email);
+  const at = new Date().toISOString();
+  await db().collection("merchants").doc(user.uid).set({
+    owner_name: String(l.nombre || "").slice(0, 80),
+    owner_whatsapp: String(l.whatsapp || "").slice(0, 20),
+    contact_email: email,
+    store_name: String(l.marca || "").slice(0, 60),
+    // De dónde salió, para que el embudo del Admin no pierda el anuncio.
+    demo_lead_id: id,
+    ...(l.acquisition ? { acquisition: l.acquisition } : {}),
+    updated_at: at,
+  }, { merge: true });
+
+  // El link es de Firebase (restablecer contraseña) y vuelve al login.
+  let link = null, mail = null;
+  try {
+    const { appBaseUrl } = await import("./config.js");
+    link = await getAuth().generatePasswordResetLink(email, { url: `${appBaseUrl().replace(/\/$/, "")}/#/login` });
+    const { emailAccountInvite } = await import("./email.js");
+    const r = await emailAccountInvite({ to: email, name: l.nombre, link, marca: l.marca });
+    mail = r?.ok ? { ok: true } : { ok: false, error: String(r?.error || "no salió").slice(0, 200) };
+  } catch (e) {
+    mail = { ok: false, error: String(e?.message || e).slice(0, 200) };
+  }
+
+  await ref.set({ status: "cuenta_creada", merchant_id: user.uid, account_created_at: at, updated_at: at }, { merge: true });
+  await audit(admin, "demo_lead_account", user.uid, { lead_id: id, email, reused: yaExistia, mail_ok: mail?.ok === true });
+  return res.json({ ok: true, merchant_id: user.uid, reused: yaExistia, mail, link });
+}
+
 async function viewAsStart(admin, req, res) {
   const t = await existingMerchant(req, res);
   if (!t) return;
@@ -583,6 +693,7 @@ export async function adminHandler(req, res) {
       if (action === "admin-overview") return res.json(await overview(req.query || {}));
       if (action === "admin-merchants") return res.json(await merchantsList(req.query || {}));
       if (action === "admin-merchant") return await merchantDetail(req, res);
+      if (action === "admin-demo-leads") return res.json(await demoLeads(req.query || {}));
       // Plantillas de WhatsApp de Recurrentes en Meta (estado por plantilla).
       if (action === "admin-wa-templates") return res.json(await (await import("./waTemplates.js")).listPlatformTemplates());
     } else if (req.method === "POST") {
@@ -681,6 +792,8 @@ export async function adminHandler(req, res) {
         const r = await notifyAdmin("plan_paid", { merchantId: "prueba", store: "Prueba del ramal admin", detail: "Si leés esto, el número de Recurrentes ya te avisa a vos.", key: `test_${Date.now()}` });
         return res.json({ ok: r?.ok === true, result: r });
       }
+      if (action === "admin-demo-lead-account") return await demoLeadAccount(admin, req, res);
+      if (action === "admin-demo-lead-status") return await demoLeadStatus(admin, req, res);
       if (action === "admin-note") return await addNote(admin, req, res);
       if (action === "admin-view-as") return await viewAsStart(admin, req, res);
     } else {

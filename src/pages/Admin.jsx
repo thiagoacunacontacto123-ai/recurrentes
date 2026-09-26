@@ -188,6 +188,8 @@ export function AdminPage() {
           hint={needs.length ? "les toca un tramo pago y no lo activaste" : "nadie pendiente"} color={T.yellow} onClick={() => goFilter("activar")}/>
       </div>
 
+      <DemoLeadsPanel T={T}/>
+
       {needs.length > 0 && (
         <Panel T={T} title={`Para activar plan (${needs.length})`} sub={`Tienen más de ${FREE_SUBSCRIBERS} suscriptores activos y todavía no les activaste el plan que les toca. Escribiles y, cuando paguen, activalo acá.`} style={{ marginBottom:16 }}>
           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
@@ -290,6 +292,117 @@ const LEAD_OBJ = {
   recompra: "Que vuelvan a comprar solos", ingreso_fijo: "Ingreso fijo mensual",
   ticket: "Vender packs más grandes", dejar_manual: "Dejar de perseguir la recompra", mirando: "Todavía mirando",
 };
+
+// ─── Pedidos de demo (#/demo): la bandeja de entrada del día ─────────────────
+// Cada uno ya aceptó pagar los USD 100 (sin eso el formulario no se envía), así
+// que esta lista es gente para llamar, no curiosos.
+//
+// "Crear cuenta" NO elige una contraseña: crea el usuario sin ninguna y le manda
+// el link para que la ponga él. Una contraseña que conocemos nosotros deja de
+// servir como prueba de quién hizo cada cosa, y para configurarle la tienda ya
+// está "Ver como" (que además queda en la auditoría).
+const DEMO_ESTADO = {
+  nuevo:         { label: "Nuevo",         color: (T) => T.yellow },
+  agendado:      { label: "Agendado",      color: (T) => T.blue },
+  cuenta_creada: { label: "Cuenta creada", color: (T) => T.green },
+  ganado:        { label: "Cliente",       color: (T) => T.green },
+  perdido:       { label: "Perdido",       color: (T) => T.textSm },
+};
+
+function DemoLeadsPanel({ T }) {
+  const [d, setD] = useState(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState("");
+  const [abiertos, setAbiertos] = useState({});
+
+  const load = useCallback(async () => {
+    const r = await apiGet("stats", { action: "admin-demo-leads", limit: 50 });
+    if (r?.error) setErr(r.error); else { setErr(""); setD(r); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function crearCuenta(l) {
+    if (!await appConfirm(
+      `Se crea la cuenta de ${l.marca} con el mail ${l.email} y le llega un link para que ponga SU contraseña.\n\nVos no la vas a ver: para entrar a configurarle la tienda usá "Ver como" desde su ficha.`,
+      { title: "Crear la cuenta", okLabel: "Crear y mandar el acceso" })) return;
+    setBusy(l.id);
+    const r = await apiPost("stats", { lead_id: l.id }, { action: "admin-demo-lead-account" });
+    setBusy("");
+    if (!r || r.error) return toast(r?.error || "No se pudo crear la cuenta", "error");
+    // Si el mail no salió, el link sirve igual: se lo pasás en la llamada.
+    if (r.mail?.ok) toast(r.reused ? "Ya tenía cuenta: le mandamos el link igual." : "Cuenta creada y link enviado.", "ok");
+    else { copyText(r.link || ""); toast("Cuenta creada, pero el mail no salió. Te copié el link para pasárselo.", "error"); }
+    load();
+  }
+
+  async function marcar(l, estado) {
+    setBusy(l.id);
+    const r = await apiPost("stats", { lead_id: l.id, estado }, { action: "admin-demo-lead-status" });
+    setBusy("");
+    if (!r || r.error) return toast(r?.error || "No se pudo cambiar el estado", "error");
+    load();
+  }
+
+  const leads = d?.leads || [];
+  const nuevos = leads.filter(l => l.estado === "nuevo").length;
+  if (err) return <Panel T={T} title="Pedidos de demo" style={{ marginBottom:16 }}><Callout T={T} kind="error">{err}</Callout></Panel>;
+
+  return (
+    <Panel T={T} title={`Pedidos de demo${nuevos ? ` (${nuevos} sin atender)` : ""}`}
+      sub="Cada uno aceptó pagar la puesta en marcha antes de enviar el formulario. Llamalos y, cuando cierren, creales la cuenta acá."
+      style={{ marginBottom:16 }}
+      right={<Btn T={T} variant="secondary" size="sm" type="button" onClick={load}>Actualizar</Btn>}>
+      <div style={{ padding:"0 16px 16px" }}>
+        {!d ? <Loading T={T}/> : leads.length === 0 ? (
+          <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5 }}>
+            Todavía no pidió la demo nadie. El formulario está en <strong style={{ color:T.text }}>/#/demo</strong>.
+          </div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {leads.map(l => {
+              const est = DEMO_ESTADO[l.estado] || DEMO_ESTADO.nuevo;
+              const abierto = !!abiertos[l.id];
+              return (
+                <div key={l.id} style={{ background:T.bg, border:`1px solid ${l.estado === "nuevo" ? T.yellow + "55" : T.borderL}`, borderRadius:10, padding:"10px 12px" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+                    <div style={{ flex:"1 1 220px", minWidth:0 }}>
+                      <CellStack T={T} main={l.marca} sub={`${l.nombre} · ${l.email}${l.anuncio ? ` · vino de ${l.anuncio}` : ""} · ${ago(l.created_at)}`}/>
+                    </div>
+                    <DSBadge T={T} color={est.color(T)} size="sm">{est.label}</DSBadge>
+                    <WaLink T={T} url={l.whatsapp_url}/>
+                    <Btn T={T} variant="secondary" size="sm" type="button" onClick={() => setAbiertos(p => ({ ...p, [l.id]: !abierto }))}>
+                      {abierto ? "Ocultar" : "Ver respuestas"}
+                    </Btn>
+                    {!l.merchant_id
+                      ? <Btn T={T} variant="solid" size="sm" type="button" disabled={busy === l.id} onClick={() => crearCuenta(l)}>Crear cuenta</Btn>
+                      : <Btn T={T} variant="secondary" size="sm" type="button" onClick={() => copyText(l.merchant_id)}>Copiar id</Btn>}
+                  </div>
+                  {abierto && (
+                    <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${T.borderL}`, display:"flex", flexDirection:"column", gap:6 }}>
+                      {l.respuestas.map((r, i) => (
+                        <div key={i} style={{ fontSize:DS.font.sm, lineHeight:1.5 }}>
+                          <span style={{ color:T.textSm }}>{r.pregunta}</span>{" "}
+                          <strong style={{ color:T.text }}>{r.respuesta}</strong>
+                        </div>
+                      ))}
+                      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:4 }}>
+                        {["agendado", "ganado", "perdido"].map(e => (
+                          <Btn key={e} T={T} variant="secondary" size="sm" type="button" disabled={busy === l.id || l.estado === e} onClick={() => marcar(l, e)}>
+                            {DEMO_ESTADO[e].label}
+                          </Btn>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </Panel>
+  );
+}
 
 // ─── Adquisición: registros → conectaron → plan → pagan, por anuncio (Meta Ads propio) ───
 // Lo que Meta no puede ver: el pago llega 1 a 3 meses después del clic. Sale de
