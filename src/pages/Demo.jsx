@@ -113,7 +113,7 @@ export default function DemoPage() {
                   reseñas quedan al final (25-sept-2026, Thiago: "sin tanto choclo"). */}
               <div style={{ maxWidth: 640, margin: "36px auto 26px", textAlign: "center" }}>
                 <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "5px 12px", borderRadius: 20, background: T.accentSolid + "16", border: `1px solid ${T.accentSolid}44`, color: T.accent, fontSize: 11, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 16 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: 99, background: T.accentSolid }}/>Demo de 20 minutos · por videollamada
+                  <span style={{ width: 7, height: 7, borderRadius: 99, background: T.accentSolid }}/>Demo de 30 minutos · por videollamada
                 </div>
                 <h1 style={{ fontSize: "clamp(30px, 4vw, 46px)", fontWeight: 800, lineHeight: 1.04, letterSpacing: "-0.04em", margin: "0 0 14px", textWrap: "balance" }}>
                   Mirá cómo venden por suscripción nuestras tiendas <span style={{ background: `linear-gradient(135deg, ${T.accentSolid}, #34d399 60%, #a7f3d0)`, WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>y cómo quedaría la tuya.</span>

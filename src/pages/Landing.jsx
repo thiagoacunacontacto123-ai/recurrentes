@@ -222,7 +222,7 @@ function StickyCta({ T, onRegister, onToggle }) {
     }}>
       <div style={{maxWidth:1100, margin:"0 auto", display:"flex", alignItems:"center", gap:14}}>
         <div className="rec-sticky-txt" style={{flex:1, minWidth:0}}>
-          <div style={{fontSize:14, fontWeight:800, color:T.text, lineHeight:1.25}}>Vemos tu tienda con suscripción en 20 minutos</div>
+          <div style={{fontSize:14, fontWeight:800, color:T.text, lineHeight:1.25}}>Vemos tu tienda con suscripción en 30 minutos</div>
           <div style={{fontSize:12, color:T.textSm, lineHeight:1.35, marginTop:1}}>Con tus productos y tus precios · 0% de comisión por venta.</div>
         </div>
         <button onClick={onRegister} style={{...BtnSolid(T), padding:"12px 22px", fontSize:14.5, whiteSpace:"nowrap", flexShrink:0}}>
@@ -371,7 +371,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
               <button onClick={ir("rec-como-funciona")} style={{...BtnSecondary(T),padding:"14px 20px",fontSize:15,borderRadius:14}}>Ver cómo funciona</button>
             </div>
             <div style={{marginTop:18,display:"flex",gap:"6px 16px",flexWrap:"wrap",fontSize:13,color:T.textSm}}>
-              {["Shopify y Tiendanube","0% de comisión por venta","Demo de 20 minutos, con tus productos"].map(t => (
+              {["Shopify y Tiendanube","0% de comisión por venta","Demo de 30 minutos, con tus productos"].map(t => (
                 <span key={t} style={{display:"inline-flex",alignItems:"center",gap:6}}><span style={{width:5,height:5,borderRadius:99,background:T.accentSolid}}/>{t}</span>
               ))}
             </div>
@@ -510,7 +510,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         <div className="rec-cta-final">
           <RecLogo size={44} style={{marginBottom:18}}/>
           <h2 style={{fontSize:"clamp(30px, 4vw, 48px)",fontWeight:800,letterSpacing:"-0.04em",lineHeight:1.04,margin:"0 auto 14px",maxWidth:720,color:"#fff",textWrap:"balance"}}>Que te compren todos los meses sin tener que pedírselo</h2>
-          <p style={{fontSize:16,color:"#A9C3B9",margin:"0 auto 28px",maxWidth:500,lineHeight:1.6}}>En 20 minutos te mostramos cómo queda la suscripción en tu tienda, con tus productos y tus precios. Después, los primeros {FREE_SUBSCRIBERS} suscriptores son gratis.</p>
+          <p style={{fontSize:16,color:"#A9C3B9",margin:"0 auto 28px",maxWidth:500,lineHeight:1.6}}>En 30 minutos te mostramos cómo queda la suscripción en tu tienda, con tus productos y tus precios. Después, los primeros {FREE_SUBSCRIBERS} suscriptores son gratis.</p>
           <button onClick={irDemo} className="rec-btn-xl" style={{...BtnSolid(T)}}>Pedir una demo <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
           <div style={{fontSize:13,color:"#A9C3B9",marginTop:16}}>¿Ya tenés cuenta? <button onClick={irLogin} style={{background:"none",border:"none",color:"#fff",fontWeight:600,cursor:"pointer",fontFamily:F,fontSize:13,padding:0,textDecoration:"underline",textUnderlineOffset:3}}>Iniciá sesión</button></div>
         </div>
