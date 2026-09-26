@@ -222,11 +222,11 @@ function StickyCta({ T, onRegister, onToggle }) {
     }}>
       <div style={{maxWidth:1100, margin:"0 auto", display:"flex", alignItems:"center", gap:14}}>
         <div className="rec-sticky-txt" style={{flex:1, minWidth:0}}>
-          <div style={{fontSize:14, fontWeight:800, color:T.text, lineHeight:1.25}}>Gratis hasta {FREE_SUBSCRIBERS} suscriptores</div>
-          <div style={{fontSize:12, color:T.textSm, lineHeight:1.35, marginTop:1}}>Sin tarjeta y sin comisión por venta.</div>
+          <div style={{fontSize:14, fontWeight:800, color:T.text, lineHeight:1.25}}>Vemos tu tienda con suscripción en 20 minutos</div>
+          <div style={{fontSize:12, color:T.textSm, lineHeight:1.35, marginTop:1}}>Con tus productos y tus precios · 0% de comisión por venta.</div>
         </div>
         <button onClick={onRegister} style={{...BtnSolid(T), padding:"12px 22px", fontSize:14.5, whiteSpace:"nowrap", flexShrink:0}}>
-          Empezar gratis
+          Pedir una demo
         </button>
       </div>
     </div>
@@ -292,8 +292,9 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         @media(max-width:640px){
           .rec-land-hero{gap:22px!important;}
           .rec-land-h1{font-size:31px!important;letter-spacing:-1.1px!important;}
-          .rec-nav-login{padding:6px 10px!important;font-size:12px!important;}
-          .rec-nav-cta{padding:7px 12px!important;font-size:12px!important;}
+          .rec-nav-login{padding:6px 10px!important;font-size:12px!important;white-space:nowrap;}
+          .rec-nav-cta{padding:7px 12px!important;font-size:12px!important;white-space:nowrap;}
+          .rec-nav-login .rec-nav-login-long{display:none;}
         }
         @media(max-width:640px){ .rec-land-grid,.rec-land-stores,.rec-land-pasos{grid-template-columns:1fr!important;} .rec-land-h1{font-size:34px!important;} .rec-land-wrap{padding-left:16px;padding-right:16px;} .hide-mobile{display:none!important;} }
       `}</style>
@@ -314,7 +315,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
                 ?<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
                 :<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>}
             </button>
-            <button onClick={irLogin} className="rec-nav-login" style={{...BtnSecondary(T),padding:"7px 14px",fontSize:13,fontWeight:600}}>Iniciar sesión</button>
+            <button onClick={irLogin} className="rec-nav-login" style={{...BtnSecondary(T),padding:"7px 14px",fontSize:13,fontWeight:600}}>Ingresar<span className="rec-nav-login-long"> a mi cuenta</span></button>
             <button onClick={irDemo} className="rec-nav-cta" style={{...BtnSolid(T),padding:"8px 16px",fontSize:13}}>Pedir demo</button>
           </div>
         </div>
