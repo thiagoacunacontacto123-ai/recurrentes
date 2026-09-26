@@ -11,9 +11,7 @@ import { RecLogo } from "../ui/Shell.jsx";
 import { apiPost } from "../lib/api.js";
 import { normalizeWhatsapp, EMAIL_RE } from "../../shared/platform/contact.js";
 import { readAttribution, pixelTrack } from "../lib/attribution.js";
-import {
-  DEMO_PEDIDOS, DEMO_OBJETIVO, DEMO_RECURRENCIA, DEMO_CONFIRMACIONES, sanitizeDemoLead,
-} from "../../shared/platform/demoLead.js";
+import { DEMO_PREGUNTAS, DEMO_CONFIRMACIONES, sanitizeDemoLead } from "../../shared/platform/demoLead.js";
 
 const WA_THIAGO = "5491164117974";
 
@@ -110,27 +108,17 @@ export default function DemoPage() {
               <input style={iS} value={f.email} onChange={(e) => set("email", e.target.value)} placeholder="vos@tumarca.com" inputMode="email" autoComplete="email"/>
             </div>
 
-            <div style={campo}>
-              <label style={label}>¿Cuántos pedidos vendés por día?</label>
-              <select style={iS} value={f.pedidos} onChange={(e) => set("pedidos", e.target.value)}>
-                <option value="">Elegí una opción</option>
-                {DEMO_PEDIDOS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-              </select>
-            </div>
-            <div style={campo}>
-              <label style={label}>¿Cuál es tu tasa de clientes recurrentes hoy?</label>
-              <select style={iS} value={f.recurrencia} onChange={(e) => set("recurrencia", e.target.value)}>
-                <option value="">Elegí una opción</option>
-                {DEMO_RECURRENCIA.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-              </select>
-            </div>
-            <div style={campo}>
-              <label style={label}>¿Qué querés lograr con las suscripciones?</label>
-              <select style={iS} value={f.objetivo} onChange={(e) => set("objetivo", e.target.value)}>
-                <option value="">Elegí una opción</option>
-                {DEMO_OBJETIVO.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-              </select>
-            </div>
+            {/* Las tres salen de DEMO_PREGUNTAS: el aviso que le llega a Thiago
+                repite EXACTAMENTE estas preguntas con la respuesta elegida. */}
+            {DEMO_PREGUNTAS.map((q) => (
+              <div key={q.id} style={campo}>
+                <label style={label}>{q.label}</label>
+                <select style={iS} value={f[q.id]} onChange={(e) => set(q.id, e.target.value)}>
+                  <option value="">Elegí una opción</option>
+                  {q.options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                </select>
+              </div>
+            ))}
 
             {/* Las dos casillas SON el filtro, no letra chica: el que no las
                 marca no manda el formulario y no nos come una llamada. */}

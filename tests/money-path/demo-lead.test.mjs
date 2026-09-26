@@ -14,7 +14,7 @@ import { invoke } from "../helpers/http.mjs";
 import { rawGet, rawPaths } from "../helpers/fake-firestore.mjs";
 
 const handler = (await loadApi("api/public.js")).default;
-const { sanitizeDemoLead, DEMO_CONFIRMACIONES } = await loadApi("shared/platform/demoLead.js");
+const { sanitizeDemoLead, DEMO_CONFIRMACIONES, DEMO_PREGUNTAS, resumenDemoLead } = await loadApi("shared/platform/demoLead.js");
 const { normalizeWhatsapp, EMAIL_RE } = await loadApi("shared/platform/contact.js");
 
 const OK = {
@@ -77,6 +77,21 @@ test("(r) la misma validación corre en el navegador y en el servidor", () => {
   assert.match(sanitizeDemoLead({ ...OK, whatsapp: "123" }, args).error, /WhatsApp/);
   assert.match(sanitizeDemoLead({ ...OK, marca: "" }, args).error, /marca/i);
   assert.equal(DEMO_CONFIRMACIONES.length, 2, "las dos casillas son el filtro entero");
+});
+
+test("(r) el aviso repite cada pregunta con su respuesta, en una sola línea", () => {
+  // Thiago las lee por WhatsApp, y Meta APLASTA los saltos de línea dentro de
+  // una variable de plantilla: si el resumen los usara como separador, le
+  // llegaría todo pegado y sin poder distinguir qué contestó a qué.
+  const r = resumenDemoLead({ ...OK, objetivo: "ticket" });
+  assert.ok(!/[\r\n\t]/.test(r), "sin saltos de línea: no sobreviven a la plantilla");
+  for (const q of DEMO_PREGUNTAS) assert.ok(r.includes(q.label), `falta la pregunta: ${q.label}`);
+  assert.match(r, /¿Cuántos pedidos vendés por día\? Entre 5 y 15 por día/);
+  assert.match(r, /¿Cuál es tu tasa de clientes recurrentes hoy\? Entre el 25% y el 50%/);
+  assert.match(r, /¿Qué querés lograr con las suscripciones\? Vender packs más grandes/);
+  assert.match(r, /USD 100 de la integración\? SÍ/);
+  // Entra en el tope de la variable de plantilla de Meta (1024) con lugar de sobra.
+  assert.ok(r.length < 400, `el resumen quedó largo: ${r.length}`);
 });
 
 test("(r) si el aviso a Thiago falla, el lead NO se pierde", async () => {

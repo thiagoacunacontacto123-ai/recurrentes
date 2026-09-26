@@ -61,10 +61,15 @@ export const DEMO_CONFIRMACIONES = [
   },
 ];
 
-const ids = (list) => list.map((o) => o.id);
-export const DEMO_PEDIDOS_IDS = ids(DEMO_PEDIDOS);
-export const DEMO_OBJETIVO_IDS = ids(DEMO_OBJETIVO);
-export const DEMO_RECURRENCIA_IDS = ids(DEMO_RECURRENCIA);
+// Las tres preguntas, con su texto EXACTO. De acá las pinta el formulario y de
+// acá sale el aviso que le llega a Thiago (25-sept-2026: "que me repita la
+// pregunta con su respuesta"): si alguna vez se cambia una, cambia en los dos
+// lados a la vez y el aviso nunca miente sobre lo que se le preguntó.
+export const DEMO_PREGUNTAS = [
+  { id: "pedidos",     label: "¿Cuántos pedidos vendés por día?",            options: DEMO_PEDIDOS,     error: "Contanos cuántos pedidos vendés por día." },
+  { id: "recurrencia", label: "¿Cuál es tu tasa de clientes recurrentes hoy?", options: DEMO_RECURRENCIA, error: "Contanos qué tasa de clientes recurrentes tenés hoy." },
+  { id: "objetivo",    label: "¿Qué querés lograr con las suscripciones?",   options: DEMO_OBJETIVO,    error: "Contanos qué querés lograr con las suscripciones." },
+];
 
 export const labelDe = (list, id) => list.find((o) => o.id === id)?.label || "";
 
@@ -83,12 +88,12 @@ export function sanitizeDemoLead(input, { emailRe, normalizeWhatsapp } = {}) {
   const email = txt(b.email, 160).toLowerCase();
   if (emailRe && !emailRe.test(email)) return { error: "Ingresá un email válido." };
 
-  const pedidos = txt(b.pedidos, 20);
-  if (!DEMO_PEDIDOS_IDS.includes(pedidos)) return { error: "Contanos cuántos pedidos vendés por día." };
-  const objetivo = txt(b.objetivo, 20);
-  if (!DEMO_OBJETIVO_IDS.includes(objetivo)) return { error: "Contanos qué querés lograr con las suscripciones." };
-  const recurrencia = txt(b.recurrencia, 20);
-  if (!DEMO_RECURRENCIA_IDS.includes(recurrencia)) return { error: "Contanos qué tasa de clientes recurrentes tenés hoy." };
+  const respuestas = {};
+  for (const q of DEMO_PREGUNTAS) {
+    const v = txt(b[q.id], 20);
+    if (!q.options.some((o) => o.id === v)) return { error: q.error };
+    respuestas[q.id] = v;
+  }
 
   // Las dos casillas son el filtro entero: sin ellas no hay lead.
   for (const c of DEMO_CONFIRMACIONES) {
@@ -98,18 +103,21 @@ export function sanitizeDemoLead(input, { emailRe, normalizeWhatsapp } = {}) {
   return {
     value: {
       nombre, marca, whatsapp, email,
-      pedidos, objetivo, recurrencia,
+      ...respuestas,
       confirma_llamada: true, confirma_pago: true,
     },
   };
 }
 
-// Una línea con todo lo que contestó, para el aviso a Thiago por WhatsApp/mail.
+// El aviso a Thiago: cada PREGUNTA con su respuesta, tal cual las vio el que
+// llenó el formulario.
+//
+// Va todo en UNA línea a propósito: Meta no acepta saltos de línea dentro de
+// una variable de plantilla y los aplasta a espacios (waParamText), así que un
+// "\n" acá no se vería como salto sino como un texto corrido sin separación.
+// Por eso el separador es " · " y la pregunta queda pegada a su respuesta.
 export function resumenDemoLead(lead) {
-  return [
-    labelDe(DEMO_PEDIDOS, lead.pedidos),
-    "clientes que repiten hoy: " + labelDe(DEMO_RECURRENCIA, lead.recurrencia).toLowerCase(),
-    labelDe(DEMO_OBJETIVO, lead.objetivo).toLowerCase(),
-    "ACEPTA PAGAR USD 100",
-  ].filter(Boolean).join(" · ");
+  const partes = DEMO_PREGUNTAS.map((q) => `${q.label} ${labelDe(q.options, lead[q.id]) || "-"}`);
+  partes.push("¿Acepta pagar los USD 100 de la integración? SÍ");
+  return partes.join(" · ");
 }

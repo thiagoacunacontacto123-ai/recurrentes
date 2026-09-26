@@ -75,7 +75,10 @@ export async function notifyAdmin(event, { merchantId, store, detail, key } = {}
     const values = {
       evento: ADMIN_EVENT_LABEL[event],
       tienda: String(store || merchantId).slice(0, 80),
-      detalle: String(detail || "-").slice(0, 300),
+      // 900 y no 300 (25-sept-2026): el aviso del pedido de demo repite las tres
+      // preguntas con su respuesta y en 300 quedaba cortado por la mitad. Meta
+      // acepta hasta 1024 por variable de plantilla.
+      detalle: String(detail || "-").slice(0, 900),
       link_panel: `${appBaseUrl().replace(/\/$/, "")}/#/dashboard/admin`,
     };
     const out = { ok: false, whatsapp: [], email: null };
