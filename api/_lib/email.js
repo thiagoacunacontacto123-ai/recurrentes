@@ -538,15 +538,20 @@ export async function emailDemoRecordatorio({ to, nombre, marca, hora, meetUrl, 
     <p style="margin-top:14px;">Te muestro tiendas que ya venden por suscripción —el selector en la ficha de producto, el cobro automático y el panel— y vemos cómo se aplicaría a tu catálogo.</p>
     <p style="margin-top:14px;">Para aprovecharla, tené a mano el acceso de administrador de tu tienda y tu cuenta de Mercado Pago. Si decidís avanzar, dejamos la conexión hecha en la misma llamada.</p>
     ${reagendarUrl ? `<p style="margin-top:14px;color:#6b7280;font-size:13px;">¿Se te complicó? <a href="${escapeAttr(reagendarUrl)}" style="color:#374151;">Reprogramá acá</a> y liberás el horario.</p>` : ""}`;
+  // automatic:false y replyTo, a propósito. Este NO es un aviso masivo: es el
+  // recordatorio de una reunión 1 a 1 que la persona reservó. Poner "no
+  // respondas" es (a) una señal de correo en lote, que empuja a Promociones, y
+  // (b) operativamente malo: el que va a avisar "no llego" tiene que poder
+  // contestar y que eso llegue a alguien.
   const html = baseTemplate({
     title, body,
     ctaLabel: meetUrl ? "Entrar a la videollamada" : null,
     ctaUrl: meetUrl || null,
     brand: "Recurrentes", accent: "#10b981",
     footerNote: "Recurrentes · suscripciones con cobro automático para tiendas online de Argentina.",
-    support: "soporte@recurrentesapp.com",
+    automatic: false,
   });
-  return sendEmail({ from: platformFrom(), to, subject: title, html, tags: { type: "demo_reminder" } });
+  return sendEmail({ from: platformFrom(), to, replyTo: "soporte@recurrentesapp.com", subject: title, html, tags: { type: "demo_reminder" } });
 }
 
 // ─── Aviso INTERNO al equipo de Recurrentes (ramal admin) ────────────────────
