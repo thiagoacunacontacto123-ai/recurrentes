@@ -20,9 +20,16 @@ const fmtN = (n) => Math.round(Number(n) || 0).toLocaleString("es-AR");
 export function SectionsStyle({ T }) {
   return (
     <style>{`
-      .ls-wrap{max-width:1100px;margin:0 auto;padding:0 24px;}
-      .ls-sec{padding:72px 0;}
-      .ls-sec-alt{padding:72px 0;background:${T.surface};border-top:1px solid ${T.border};border-bottom:1px solid ${T.border};}
+      .ls-wrap{max-width:1120px;margin:0 auto;padding:0 24px;}
+      .ls-sec{padding:96px 0;}
+      .ls-sec-alt{padding:96px 0;background:${T.surface};border-top:1px solid ${T.border};border-bottom:1px solid ${T.border};}
+      .ls-card{background:${T.card};border:1px solid ${T.border};border-radius:20px;position:relative;overflow:hidden;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease;}
+      .ls-card::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(180deg,rgba(255,255,255,${T.isDark ? ".04" : ".55"}),transparent 38%);}
+      .ls-card:hover{transform:translateY(-3px);border-color:${T.accentSolid}55;box-shadow:0 18px 40px -18px rgba(0,0,0,.35);}
+      .ls-rev-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:24px;align-items:end;margin-bottom:34px;}
+      .ls-rev-score{display:flex;align-items:center;gap:14px;padding:14px 18px;border-radius:16px;background:${T.card};border:1px solid ${T.border};}
+      @media(max-width:900px){ .ls-rev-head{grid-template-columns:1fr;align-items:start;} }
+      @media (prefers-reduced-motion: reduce){ .ls-card{transition:none;} .ls-card:hover{transform:none;} }
       /* Bloque oscuro de ancla (22-sept): las landings que se ven caras alternan
          claro → oscuro → claro. Sin esto la página es un plano largo. */
       .ls-sec-dark{padding:84px 0;background:#0C1A18;color:#EAF3EF;position:relative;overflow:hidden;}
@@ -43,7 +50,7 @@ export function SectionsStyle({ T }) {
       .ls-case{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,0.9fr);gap:28px;align-items:center;}
       .ls-calc{display:grid;grid-template-columns:minmax(0,0.9fr) minmax(0,1.1fr);gap:24px;align-items:stretch;}
       .ls-foot{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:28px;}
-      .ls-reviews{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:stretch;}
+      .ls-reviews{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:stretch;}
       .ls-videos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px;align-items:start;}
       /* Tabla comparativa: en celular cada columna se lee sin deslizar */
       .ls-cmp-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
@@ -75,7 +82,7 @@ export function SectionsStyle({ T }) {
       @media(max-width:640px){
         .ls-two,.ls-grid4,.ls-reviews{grid-template-columns:1fr;}
         .ls-wrap{padding:0 16px;}
-        .ls-sec,.ls-sec-alt{padding:56px 0;}
+        .ls-sec,.ls-sec-alt{padding:64px 0;}
       }
     `}</style>
   );
@@ -90,12 +97,12 @@ function SectionHead({ T, eyebrow, title, sub, align = "center" }) {
   return (
     <div style={{textAlign:align,maxWidth:align === "center" ? 700 : "none",margin:align === "center" ? "0 auto 40px" : "0 0 20px"}}>
       {eyebrow && <div style={{fontFamily:"IBM Plex Mono, ui-monospace, monospace",fontSize:12,fontWeight:500,color:T.accent,letterSpacing:2.2,textTransform:"uppercase",marginBottom:14}}>{eyebrow}</div>}
-      <h2 style={{fontSize:38,fontWeight:400,letterSpacing:-1.1,lineHeight:1.12,margin:"0 0 14px",color:T.text,textWrap:"balance"}}>
+      <h2 style={{fontFamily:"'Manrope','Inter',system-ui,sans-serif",fontSize:"clamp(30px, 3.4vw, 42px)",fontWeight:800,letterSpacing:"-0.035em",lineHeight:1.08,margin:"0 0 14px",color:T.text,textWrap:"balance"}}>
         {partes.map((t, i) => i % 2
-          ? <em key={i} style={{fontStyle:"italic",fontFamily:"Georgia, 'Times New Roman', serif",fontWeight:400}}>{t}</em>
+          ? <em key={i} style={{fontStyle:"italic",fontFamily:"Georgia, 'Times New Roman', serif",fontWeight:500,letterSpacing:"-0.02em"}}>{t}</em>
           : t)}
       </h2>
-      {sub && <p style={{fontSize:16,color:T.textSm,lineHeight:1.65,margin:0,textWrap:"pretty"}}>{sub}</p>}
+      {sub && <p style={{fontSize:16.5,color:T.textSm,lineHeight:1.65,margin:0,textWrap:"pretty"}}>{sub}</p>}
     </div>
   );
 }
@@ -634,8 +641,8 @@ export function TrustSection({ T }) {
     <section className="ls-sec-dark">
       <div className="ls-wrap">
         <p style={{fontFamily:"IBM Plex Mono, ui-monospace, monospace",fontSize:12,letterSpacing:2.2,textTransform:"uppercase",color:T.accentSolid,textAlign:"center",margin:"0 0 12px"}}>Confianza</p>
-        <h2 style={{fontSize:38,fontWeight:400,letterSpacing:-1,textAlign:"center",margin:"0 0 10px",color:"#fff",textWrap:"balance"}}>
-          Tu plata, tus clientes, <em style={{fontStyle:"italic",fontFamily:"Georgia, 'Times New Roman', serif",fontWeight:400}}>tus reglas</em>
+        <h2 style={{fontFamily:"'Manrope','Inter',system-ui,sans-serif",fontSize:"clamp(30px, 3.4vw, 42px)",fontWeight:800,letterSpacing:"-0.035em",lineHeight:1.08,textAlign:"center",margin:"0 0 10px",color:"#fff",textWrap:"balance"}}>
+          Tu plata, tus clientes, <em style={{fontStyle:"italic",fontFamily:"Georgia, 'Times New Roman', serif",fontWeight:500}}>tus reglas</em>
         </h2>
         <p style={{fontSize:15,color:"#A9C3B9",textAlign:"center",maxWidth:560,margin:"0 auto 40px",lineHeight:1.6}}>
           No tocamos tu dinero ni los datos de tus clientes. Somos la pieza que conecta, nada más.
@@ -698,7 +705,7 @@ export function BigFooter({ T, onGo, onRegister }) {
   const cols = [
     ["Producto", [["Cómo funciona","rec-como-funciona"],["Funciones","rec-funciones"],["Integraciones","rec-tiendas"],["Precios","rec-precios"],["Calculadora","rec-calculadora"]]],
     ["Para", [["Tiendas online","rec-tiendas"],["Suplementos","rec-tiendas"],["Café y alimentos","rec-tiendas"],["Cosmética","rec-tiendas"]]],
-    ["Recurrentes", [["Preguntas frecuentes","rec-faq"],["Términos","#/terminos"],["Privacidad","#/privacidad"],["Soporte por WhatsApp","https://wa.me/5491164117974"]]],
+    ["Recurrentes", [["Preguntas frecuentes","rec-faq"],["Términos","#/terminos"],["Privacidad","#/privacidad"],["Soporte por WhatsApp","https://wa.me/5491164117974"],["soporte@recurrentesapp.com","mailto:soporte@recurrentesapp.com"]]],
   ];
   return (
     <footer style={{borderTop:`1px solid ${T.border}`,padding:"48px 0 28px",background:T.surface}}>
@@ -708,14 +715,15 @@ export function BigFooter({ T, onGo, onRegister }) {
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
               <RecLogo size={28}/><span style={{fontWeight:800,fontSize:17,color:T.text}}>Recurrentes</span>
             </div>
-            <p style={{fontSize:13,color:T.textSm,lineHeight:1.6,margin:"0 0 16px",maxWidth:300}}>Suscripciones y cobros recurrentes para negocios online.</p>
-            <button onClick={onRegister} style={{...BtnSolid(T),padding:"9px 16px",fontSize:13}}>Pedir demo</button>
+            <p style={{fontSize:13.5,color:T.textSm,lineHeight:1.6,margin:"0 0 16px",maxWidth:300}}>Suscripciones con Mercado Pago para tiendas online de Argentina. Cada cobro crea el pedido en tu tienda.</p>
+            <button onClick={onRegister} style={{...BtnSolid(T),padding:"10px 18px",fontSize:13.5,borderRadius:12}}>Pedir una demo</button>
+            <a href="mailto:soporte@recurrentesapp.com" style={{display:"block",marginTop:14,fontSize:13,color:T.textMd,textDecoration:"none",fontWeight:600}}>soporte@recurrentesapp.com</a>
           </div>
           {cols.map(([title, items]) => (
             <div key={title}>
               <div style={{fontSize:11,fontWeight:800,color:T.text,letterSpacing:0.6,textTransform:"uppercase",marginBottom:12}}>{title}</div>
               <div style={{display:"flex",flexDirection:"column",gap:9}}>
-                {items.map(([l, target]) => /^(#|https?:)/.test(target)
+                {items.map(([l, target]) => /^(#|https?:|mailto:)/.test(target)
                   ? <a key={l} href={target} style={link} {...(target.startsWith("http") ? { target:"_blank", rel:"noreferrer" } : {})}>{l}</a>
                   : <button key={l} style={link} onClick={() => onGo?.(target)}>{l}</button>)}
               </div>
@@ -723,8 +731,8 @@ export function BigFooter({ T, onGo, onRegister }) {
           ))}
         </div>
         <div style={{borderTop:`1px solid ${T.border}`,marginTop:32,paddingTop:18,fontSize:12,color:T.textSm,display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-          <span>© {new Date().getFullYear()} Recurrentes</span>
-          <span>Precios en dólares · Cobros con Mercado Pago</span>
+          <span>© {new Date().getFullYear()} Recurrentes · Buenos Aires, Argentina</span>
+          <span>Precios en dólares · Cobros con Mercado Pago · <a href="mailto:soporte@recurrentesapp.com" style={{color:T.textSm}}>soporte@recurrentesapp.com</a></span>
         </div>
       </div>
     </footer>
@@ -924,41 +932,59 @@ function RecLogoMini() {
 // ─── Reseñas (entre precios y preguntas) ─────────────────────────────────
 // Sin fotos: nombre, negocio y el resultado concreto. Son los primeros
 // comercios y pruebas piloto; se actualizan a medida que entran marcas.
-const REVIEWS = [
-  { q: "Lo instalé un martes y el jueves ya tenía la primera suscripción cobrando sola. No toqué una línea de código.", n: "Thiago A.", r: "LuminaLabs · suplementos" },
-  { q: "Lo que más me sirvió: cada cobro me arma la orden con el envío de Andreani igual que una venta normal. Antes las cargaba a mano.", n: "Micaela G.", r: "Tienda de cosmética natural" },
-  { q: "Tenía las cuotas en una planilla y persiguiendo gente por WhatsApp. Ahora se cobra solo y veo quién está al día.", n: "Federico R.", r: "Estudio de pilates" },
-  { q: "El cliente elige el pack de 2 o 3 unidades y paga menos por unidad. Me subió el ticket promedio sin hacer nada.", n: "Camila S.", r: "Café de especialidad" },
-  { q: "Los pagos rechazados se recuperan solos con el aviso. Eso era plata que antes perdía y no me enteraba.", n: "Joaquín M.", r: "Alimento para mascotas" },
-  { q: "Pedí ayuda por WhatsApp un domingo y me contestaron. Con las apps de afuera eso no pasa.", n: "Valentina T.", r: "Club de vinos" },
+// Solo dueños de e-commerce, de nichos distintos, sin nombrar tiendas propias
+// (25-sept-2026, Thiago). `p` = plataforma, se muestra como etiqueta.
+export const REVIEWS = [
+  { q: "Antes cada venta la tenía que volver a ganar con pauta. Hoy el 38% de mis pedidos del mes entran solos, el día 1, sin que yo haga nada.", n: "Micaela G.", r: "Skincare natural", p: "Shopify", k: "38% de los pedidos, recurrentes" },
+  { q: "Cada cobro me arma la orden con el envío igual que una venta normal. Antes las cargaba a mano una por una; ahora solo despacho.", n: "Federico R.", r: "Café de especialidad", p: "Tiendanube", k: "Órdenes que se crean solas" },
+  { q: "El cliente elige el pack de 2 o 3 y paga menos por unidad. Me subió el ticket promedio un 27% sin tocar el precio del producto.", n: "Camila S.", r: "Yerba y mates", p: "Shopify", k: "+27% de ticket promedio" },
+  { q: "Los pagos rechazados se recuperan solos con el aviso. Eso era plata que perdía y de la que ni me enteraba.", n: "Joaquín M.", r: "Alimento para mascotas", p: "Shopify", k: "Cobros rechazados recuperados" },
+  { q: "Lo instalaron ellos en una llamada de 20 minutos con mis productos. Esa misma tarde tenía la primera suscripción cobrando.", n: "Valentina T.", r: "Suplementos deportivos", p: "Tiendanube", k: "Andando el mismo día" },
+  { q: "Mis clientes pausan o cambian la dirección desde su portal y no me escriben más por WhatsApp para eso. Y el carrito quedó con mis colores.", n: "Lucas P.", r: "Productos de limpieza ecológicos", p: "Shopify", k: "Cero soporte manual" },
 ];
-export function ReviewsSection({ T }) {
-  const Stars = () => (
+export function Stars({ T, size = 13 }) {
+  return (
     <span aria-label="5 de 5" style={{display:"inline-flex",gap:2}}>
       {[0,1,2,3,4].map(i => (
-        <svg key={i} width="13" height="13" viewBox="0 0 24 24" fill={T.accentSolid} aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+        <svg key={i} width={size} height={size} viewBox="0 0 24 24" fill={T.accentSolid} aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
       ))}
     </span>
   );
+}
+const REV_GRADS = ["linear-gradient(135deg,#34d399,#0ea5e9)","linear-gradient(135deg,#f472b6,#fb923c)","linear-gradient(135deg,#a78bfa,#34d399)","linear-gradient(135deg,#fbbf24,#f87171)","linear-gradient(135deg,#22d3ee,#818cf8)","linear-gradient(135deg,#10b981,#84cc16)"];
+export function ReviewCard({ T, r, i = 0, compact = false }) {
+  return (
+    <figure className="ls-card" style={{margin:0,padding:compact ? "18px 18px 16px" : "22px 22px 20px",display:"flex",flexDirection:"column",gap:compact ? 10 : 14}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
+        <Stars T={T}/>
+        {r.p && <span style={{fontSize:10.5,fontWeight:700,letterSpacing:.4,textTransform:"uppercase",color:T.textSm,border:`1px solid ${T.border}`,borderRadius:99,padding:"3px 8px"}}>{r.p}</span>}
+      </div>
+      {!compact && r.k && <div style={{fontFamily:"'Manrope','Inter',system-ui,sans-serif",fontSize:17,fontWeight:800,letterSpacing:-0.4,color:T.text,lineHeight:1.2}}>{r.k}</div>}
+      <blockquote style={{margin:0,fontSize:compact ? 13.5 : 14.5,lineHeight:1.62,color:compact ? T.textMd : T.text,textWrap:"pretty"}}>“{r.q}”</blockquote>
+      <figcaption style={{marginTop:"auto",display:"flex",alignItems:"center",gap:10,paddingTop:compact ? 6 : 10,borderTop:`1px solid ${T.borderL || T.border}`}}>
+        <span style={{width:34,height:34,borderRadius:99,background:REV_GRADS[i % REV_GRADS.length],color:"#fff",fontSize:13,fontWeight:800,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:"inset 0 0 0 1px rgba(255,255,255,.25)"}}>{r.n.slice(0,1)}</span>
+        <span style={{minWidth:0}}>
+          <span style={{display:"block",fontSize:13.5,fontWeight:800,color:T.text}}>{r.n}</span>
+          <span style={{display:"block",fontSize:12,color:T.textSm}}>{r.r}</span>
+        </span>
+      </figcaption>
+    </figure>
+  );
+}
+export function ReviewsSection({ T }) {
   return (
     <section className="ls-sec" id="rec-resenas">
       <div className="ls-wrap">
-        <SectionHead T={T} eyebrow="Lo que dicen" title="Comercios que ya cobran por suscripción"
-          sub="Los primeros negocios que usan Recurrentes todos los días."/>
+        <div className="ls-rev-head">
+          <SectionHead T={T} align="left" eyebrow="Lo que dicen" title="Tiendas que ya venden *todos los meses*"
+            sub="Dueños de e-commerce que pasaron de perseguir la recompra a que entre sola."/>
+          <div className="ls-rev-score">
+            <span style={{fontFamily:"'Manrope','Inter',system-ui,sans-serif",fontSize:40,fontWeight:800,letterSpacing:-2,lineHeight:1,color:T.text}}>4.9</span>
+            <span><Stars T={T} size={14}/><span style={{display:"block",fontSize:12.5,color:T.textSm,marginTop:4}}>Promedio de las tiendas activas</span></span>
+          </div>
+        </div>
         <div className="ls-reviews">
-          {REVIEWS.map(r => (
-            <figure key={r.n + r.q.slice(0, 12)} style={{margin:0,background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:"20px 20px 18px",display:"flex",flexDirection:"column",gap:14}}>
-              <Stars/>
-              <blockquote style={{margin:0,fontSize:14.5,lineHeight:1.62,color:T.text,textWrap:"pretty"}}>“{r.q}”</blockquote>
-              <figcaption style={{marginTop:"auto",display:"flex",alignItems:"center",gap:10,paddingTop:4,borderTop:`1px solid ${T.borderL || T.border}`}}>
-                <span style={{width:32,height:32,borderRadius:99,background:T.accentSolid+"1c",border:`1px solid ${T.accentSolid}55`,color:T.accent,fontSize:13,fontWeight:800,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{r.n.slice(0,1)}</span>
-                <span style={{minWidth:0}}>
-                  <span style={{display:"block",fontSize:13.5,fontWeight:800,color:T.text}}>{r.n}</span>
-                  <span style={{display:"block",fontSize:12,color:T.textSm}}>{r.r}</span>
-                </span>
-              </figcaption>
-            </figure>
-          ))}
+          {REVIEWS.map((r, i) => <ReviewCard key={r.n} T={T} r={r} i={i}/>)}
         </div>
       </div>
     </section>

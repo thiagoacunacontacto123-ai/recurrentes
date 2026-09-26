@@ -188,7 +188,7 @@ export function AdminPage() {
           hint={needs.length ? "les toca un tramo pago y no lo activaste" : "nadie pendiente"} color={T.yellow} onClick={() => goFilter("activar")}/>
       </div>
 
-      <DemoLeadsPanel T={T}/>
+      <DemoLeadsPanel T={T} onOpen={setOpenId}/>
 
       {needs.length > 0 && (
         <Panel T={T} title={`Para activar plan (${needs.length})`} sub={`Tienen más de ${FREE_SUBSCRIBERS} suscriptores activos y todavía no les activaste el plan que les toca. Escribiles y, cuando paguen, activalo acá.`} style={{ marginBottom:16 }}>
@@ -309,7 +309,7 @@ const DEMO_ESTADO = {
   perdido:       { label: "Perdido",       color: (T) => T.textSm },
 };
 
-function DemoLeadsPanel({ T }) {
+function DemoLeadsPanel({ T, onOpen }) {
   const [d, setD] = useState(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState("");
@@ -333,6 +333,9 @@ function DemoLeadsPanel({ T }) {
     if (r.mail?.ok) toast(r.reused ? "Ya tenía cuenta: le mandamos el link igual." : "Cuenta creada y link enviado.", "ok");
     else { copyText(r.link || ""); toast("Cuenta creada, pero el mail no salió. Te copié el link para pasárselo.", "error"); }
     load();
+    // Se abre la ficha en el acto: recién creada la cuenta, lo que sigue es
+    // entrar con "Ver como" y dejarle la tienda configurada.
+    if (r.merchant_id) onOpen?.(r.merchant_id);
   }
 
   async function marcar(l, estado) {
@@ -373,9 +376,13 @@ function DemoLeadsPanel({ T }) {
                     <Btn T={T} variant="secondary" size="sm" type="button" onClick={() => setAbiertos(p => ({ ...p, [l.id]: !abierto }))}>
                       {abierto ? "Ocultar" : "Ver respuestas"}
                     </Btn>
+                    {/* Con la cuenta creada, el siguiente paso es SIEMPRE entrar a
+                        configurársela: la ficha se abre desde acá y adentro está
+                        "Ver como". Antes había que copiar el id y buscarlo en la
+                        tabla de comercios, en el medio de la llamada. */}
                     {!l.merchant_id
                       ? <Btn T={T} variant="solid" size="sm" type="button" disabled={busy === l.id} onClick={() => crearCuenta(l)}>Crear cuenta</Btn>
-                      : <Btn T={T} variant="secondary" size="sm" type="button" onClick={() => copyText(l.merchant_id)}>Copiar id</Btn>}
+                      : <Btn T={T} variant="solid" size="sm" type="button" onClick={() => onOpen?.(l.merchant_id)}>Abrir su tienda</Btn>}
                   </div>
                   {abierto && (
                     <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${T.borderL}`, display:"flex", flexDirection:"column", gap:6 }}>

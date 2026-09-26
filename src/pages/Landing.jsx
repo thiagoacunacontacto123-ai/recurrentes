@@ -8,6 +8,10 @@ import { SectionsStyle, ProblemSection, DeepDivesSection, TrustSection, FaqSecti
 import { LANDING_VIDEOS } from "../lib/landingMedia.js";
 
 const F = "'Inter',system-ui,sans-serif";
+// Display (25-sept-2026, Thiago: "bien zarpado, estético"): Manrope apretada para los
+// títulos, Inter para leer. Es la combinación de las landings de producto que se ven
+// caras (Linear, Vercel, Recharge): título grande y ajustado, cuerpo tranquilo.
+const FD = "'Manrope','Inter',system-ui,sans-serif";
 
 // Landing pública de Recurrentes (tema T, marca verde). Comunicación en modo
 // Argentina, para tiendas online: Shopify y Tiendanube hoy; el resto en camino.
@@ -251,7 +255,27 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
   return (
     <div className="rec-landing-root" style={{fontFamily:F,background:T.bg,minHeight:"100vh",color:T.text}}>
       <style>{`
-        .rec-land-hero{display:grid;grid-template-columns:0.86fr 1.22fr;gap:30px;align-items:center;}
+        .rec-landing-root h1,.rec-landing-root h2,.rec-landing-root h3{font-family:${FD};}
+        .rec-land-hero{display:grid;grid-template-columns:0.9fr 1.18fr;gap:44px;align-items:center;position:relative;}
+        /* Fondo del hero: grilla fina que se desvanece + halo del acento. Es lo que hace
+           que la primera pantalla se vea "de producto" y no de plantilla. */
+        .rec-hero-bg{position:absolute;inset:-40px -24px 0;pointer-events:none;z-index:0;
+          background-image:linear-gradient(${T.border} 1px,transparent 1px),linear-gradient(90deg,${T.border} 1px,transparent 1px);
+          background-size:56px 56px;
+          -webkit-mask-image:radial-gradient(ellipse 70% 60% at 50% 0%,#000 30%,transparent 100%);mask-image:radial-gradient(ellipse 70% 60% at 50% 0%,#000 30%,transparent 100%);opacity:.55;}
+        .rec-hero-sec > *{position:relative;z-index:1;}
+        .rec-nav-link{background:transparent;border:none;color:${T.textMd};font-size:13.5px;font-weight:500;cursor:pointer;font-family:${F};padding:7px 11px;border-radius:9px;transition:background .15s,color .15s;}
+        .rec-nav-link:hover{background:${T.surface};color:${T.text};}
+        .rec-stat{padding:22px 22px 20px;border-radius:18px;background:${T.card};border:1px solid ${T.border};position:relative;overflow:hidden;transition:transform .18s ease,border-color .18s ease;}
+        .rec-stat::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,${T.isDark ? ".035" : ".6"}),transparent 40%);pointer-events:none;}
+        .rec-stat:hover{transform:translateY(-3px);border-color:${T.accentSolid}66;}
+        .rec-paso{position:relative;background:${T.card};border:1px solid ${T.border};border-radius:20px;padding:26px 24px 24px;overflow:hidden;}
+        .rec-paso-n{font-family:${FD};font-size:64px;font-weight:800;line-height:1;letter-spacing:-3px;color:${T.accentSolid};opacity:.18;position:absolute;right:16px;top:8px;}
+        .rec-cta-final{position:relative;overflow:hidden;background:#0C1A18;color:#fff;border:1px solid rgba(255,255,255,.08);border-radius:28px;padding:64px 28px;text-align:center;}
+        .rec-cta-final::before{content:"";position:absolute;inset:-40%;background:radial-gradient(circle at 50% 30%,${T.accentSolid}55 0%,transparent 45%);pointer-events:none;}
+        .rec-cta-final > *{position:relative;}
+        .rec-btn-xl{display:inline-flex;align-items:center;gap:10px;padding:15px 26px;border-radius:14px;font-size:16px;font-weight:700;letter-spacing:-.1px;box-shadow:0 12px 30px -10px ${T.accentSolid}99;transition:transform .15s,box-shadow .15s;}
+        .rec-btn-xl:hover{transform:translateY(-1px);box-shadow:0 16px 36px -10px ${T.accentSolid}aa;}
         .rec-land-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
         .rec-land-pasos{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
         .rec-land-stores{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
@@ -283,7 +307,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
           </a>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             {[["Integraciones","rec-tiendas"],["Funciones","rec-funciones"],["Comparar","rec-comparar"],["Precios","rec-precios"],["Reseñas","rec-resenas"]].map(([l,id])=>(
-              <button key={id} onClick={ir(id)} className="hide-mobile" style={{background:"transparent",border:"none",color:T.textMd,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:F,padding:"6px 10px"}}>{l}</button>
+              <button key={id} onClick={ir(id)} className="hide-mobile rec-nav-link">{l}</button>
             ))}
             <button onClick={onToggleDark} title={darkMode?"Modo claro":"Modo oscuro"} aria-label={darkMode?"Modo claro":"Modo oscuro"} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:8,color:T.textMd,cursor:"pointer",padding:"6px 8px",display:"flex",alignItems:"center"}}>
               {darkMode
@@ -297,7 +321,8 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
       </nav>
 
       {/* Hero + panel de conectores (id rec-tiendas: el nav apunta acá) */}
-      <section id="rec-tiendas" className="rec-land-wrap rec-hero-sec" style={{paddingBottom:24}}>
+      <section id="rec-tiendas" className="rec-land-wrap rec-hero-sec" style={{paddingBottom:24,position:"relative"}}>
+        <div className="rec-hero-bg" aria-hidden="true"/>
         <style>{`
           .rec-flow-grid{display:grid;grid-template-columns:minmax(0,1fr) 72px minmax(0,1fr) 72px minmax(0,1.2fr);column-gap:10px;align-items:stretch;}
           /* Versión chica: el mismo mapa (curvas punteadas incluidas) dentro del panel del hero. */
@@ -330,21 +355,26 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
               <span style={{width:7,height:7,borderRadius:99,background:T.accentSolid,boxShadow:`0 0 0 3px ${T.accentSolid}33`}}/>
               <RotatingWords T={T}/>
             </div>
-            <h1 className="rec-land-h1" style={{fontSize:50,fontWeight:800,lineHeight:1.06,margin:"0 0 18px",letterSpacing:-1.6,color:T.text,textWrap:"balance"}}>
-              Vendé por <span style={{background:`linear-gradient(135deg, ${T.accentSolid}, #34d399)`,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent"}}>suscripción</span> en tu e-commerce desde hoy mismo
+            <h1 className="rec-land-h1" style={{fontSize:"clamp(36px, 4.6vw, 62px)",fontWeight:800,lineHeight:1.02,margin:"0 0 20px",letterSpacing:"-0.045em",color:T.text,textWrap:"balance"}}>
+              Tu tienda vende<br/>todos los meses,<br/>
+              <span style={{background:`linear-gradient(135deg, ${T.accentSolid}, #34d399 60%, #a7f3d0)`,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent"}}>sin volver a vender.</span>
             </h1>
-            <p style={{fontSize:18,color:T.textMd,lineHeight:1.62,margin:"0 0 22px",maxWidth:470,textWrap:"pretty"}}>
-              Tu cliente se suscribe <strong style={{color:T.text}}>una sola vez</strong>.<br/>
-              Elige cuánto y cada cuánto quiere recibirlo.<br/>
-              Desde ahí <strong style={{color:T.text}}>se le cobra solo</strong>, y los pedidos se registran sin que hagas nada.
+            <p style={{fontSize:18,color:T.textMd,lineHeight:1.6,margin:"0 0 26px",maxWidth:460,textWrap:"pretty"}}>
+              Suscripciones para e-commerce con Mercado Pago. Tu cliente se suscribe una vez, elige cada cuánto recibirlo, y cada cobro crea el pedido en tu tienda. <strong style={{color:T.text}}>Vos solo despachás.</strong>
             </p>
-            <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
-              <button onClick={irDemo} style={{...BtnSolid(T),padding:"13px 22px",fontSize:15}}>
-                Pedir demo
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
+              <button onClick={irDemo} className="rec-btn-xl" style={{...BtnSolid(T)}}>
+                Pedir una demo
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </button>
-              <button onClick={irRegistro} style={{...BtnSecondary(T),padding:"12px 18px",fontSize:14}}>Prefiero probar solo</button>
+              <button onClick={ir("rec-como-funciona")} style={{...BtnSecondary(T),padding:"14px 20px",fontSize:15,borderRadius:14}}>Ver cómo funciona</button>
             </div>
+            <div style={{marginTop:18,display:"flex",gap:"6px 16px",flexWrap:"wrap",fontSize:13,color:T.textSm}}>
+              {["Shopify y Tiendanube","0% de comisión por venta","Demo de 20 minutos, con tus productos"].map(t => (
+                <span key={t} style={{display:"inline-flex",alignItems:"center",gap:6}}><span style={{width:5,height:5,borderRadius:99,background:T.accentSolid}}/>{t}</span>
+              ))}
+            </div>
+            <button onClick={irRegistro} style={{marginTop:10,background:"none",border:"none",padding:0,color:T.textSm,fontSize:12.5,cursor:"pointer",fontFamily:F,textDecoration:"underline",textUnderlineOffset:3}}>Prefiero crear la cuenta y probar solo</button>
           </div>
 
           {/* Panel de conectores: la explicación y el mapa visual, todo junto.
@@ -379,14 +409,17 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         </div>
 
         {/* Tres beneficios a lo ancho, debajo del hero y del panel (Thiago, 17-sept). */}
-        <div style={{marginTop:34,paddingTop:26,borderTop:`1px solid ${T.borderL || T.border}`,display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:24}} className="rec-land-benefits">
+        <div style={{marginTop:40,display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:14}} className="rec-land-benefits">
           {[
-            ["Cobrás con Mercado Pago", "La pasarela que tu cliente ya tiene: paga con la tarjeta o el dinero de su cuenta."],
-            ["0% de comisión", "Por venta. Lo que te cobra tu cliente es tuyo: no nos quedamos con un peso de cada cobro."],
-            [`Primeros ${FREE_SUBSCRIBERS} gratis`, "Suscriptores sin pagar nada: arrancás gratis y recién pagás cuando ya te funciona."],
-          ].map(([v,d])=>(
-            <div key={v}>
-              <div style={{fontSize:25,fontWeight:800,color:T.accent,letterSpacing:-0.8,lineHeight:1.1,marginBottom:6}}>{v}</div>
+            ["0%", "de comisión por venta", "Lo que cobra tu cliente es tuyo. Pagás un plan según tus suscriptores, no un porcentaje de cada cobro."],
+            ["10 min", "para estar vendiendo", "Conectás la tienda y Mercado Pago, creás el plan y el botón aparece solo en tu producto."],
+            [`${FREE_SUBSCRIBERS}`, "suscriptores gratis", "Arrancás sin pagar el plan y recién pagás cuando la suscripción ya te está funcionando."],
+          ].map(([v,l,d])=>(
+            <div key={l} className="rec-stat">
+              <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:8}}>
+                <span style={{fontFamily:FD,fontSize:40,fontWeight:800,letterSpacing:-2,lineHeight:1,color:T.text}}>{v}</span>
+                <span style={{fontSize:13.5,fontWeight:700,color:T.accent}}>{l}</span>
+              </div>
               <div style={{fontSize:13.5,color:T.textSm,lineHeight:1.55}}>{d}</div>
             </div>
           ))}
@@ -411,14 +444,16 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
       {/* Empezá en tres pasos */}
       <section id="rec-como-funciona" style={{background:T.surface,borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,padding:"72px 0"}}>
         <div className="rec-land-wrap">
-          <h2 style={{fontSize:32,fontWeight:800,letterSpacing:-0.9,textAlign:"center",margin:"0 0 12px",textWrap:"balance"}}>Empezá en tres pasos</h2>
-          <p style={{fontSize:15,color:T.textSm,textAlign:"center",maxWidth:520,margin:"0 auto 32px",lineHeight:1.6}}>En unos 10 minutos tu negocio acepta suscripciones. Sin código.</p>
+          <div style={{fontFamily:"IBM Plex Mono, ui-monospace, monospace",fontSize:12,color:T.accent,letterSpacing:2.2,textTransform:"uppercase",textAlign:"center",marginBottom:14}}>Cómo funciona</div>
+          <h2 style={{fontSize:"clamp(30px, 3.4vw, 42px)",fontWeight:800,letterSpacing:"-0.035em",lineHeight:1.08,textAlign:"center",margin:"0 0 12px",textWrap:"balance"}}>Tres pasos y tu tienda cobra sola</h2>
+          <p style={{fontSize:16,color:T.textSm,textAlign:"center",maxWidth:520,margin:"0 auto 40px",lineHeight:1.6}}>En unos 10 minutos tu negocio acepta suscripciones. Sin código. Y si preferís, lo dejamos andando nosotros en la demo.</p>
           <div className="rec-land-pasos">
             {PASOS.map(p=>(
-              <div key={p.n} className="rec-land-card" style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:DS.r.xl,padding:"20px 20px 22px"}}>
-                <div style={{width:34,height:34,borderRadius:99,background:`linear-gradient(135deg, ${T.accentSolid}, #059669)`,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14,marginBottom:14,boxShadow:"0 4px 12px rgba(16,185,129,0.3)"}}>{p.n}</div>
-                <div style={{fontSize:15,fontWeight:700,marginBottom:6}}>{p.t}</div>
-                <div style={{fontSize:13,color:T.textSm,lineHeight:1.6}}>{p.d}</div>
+              <div key={p.n} className="rec-paso rec-land-card">
+                <div className="rec-paso-n" aria-hidden="true">{p.n}</div>
+                <div style={{width:36,height:36,borderRadius:12,background:T.accentSolid+"1a",border:`1px solid ${T.accentSolid}55`,color:T.accent,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14,marginBottom:16,fontFamily:FD}}>{p.n}</div>
+                <div style={{fontSize:17,fontWeight:700,marginBottom:8,letterSpacing:-0.3,fontFamily:FD}}>{p.t}</div>
+                <div style={{fontSize:14,color:T.textSm,lineHeight:1.6}}>{p.d}</div>
               </div>
             ))}
           </div>
@@ -433,8 +468,9 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
 
       {/* Precios */}
       <section id="rec-precios" className="rec-land-wrap" style={{padding:"64px 24px"}}>
-        <h2 style={{fontSize:28,fontWeight:800,letterSpacing:-0.7,textAlign:"center",margin:"0 0 10px",textWrap:"balance"}}>Pagás según tus suscriptores</h2>
-        <p style={{fontSize:14,color:T.textSm,textAlign:"center",maxWidth:560,margin:"0 auto 12px",lineHeight:1.6}}>Los primeros {FREE_SUBSCRIBERS} suscriptores son gratis. Después, el plan sube solo según cuántos clientes tenés cobrando. Todo lo demás está incluido.</p>
+        <div style={{fontFamily:"IBM Plex Mono, ui-monospace, monospace",fontSize:12,color:T.accent,letterSpacing:2.2,textTransform:"uppercase",textAlign:"center",marginBottom:14}}>Precios</div>
+        <h2 style={{fontSize:"clamp(30px, 3.4vw, 42px)",fontWeight:800,letterSpacing:"-0.035em",lineHeight:1.08,textAlign:"center",margin:"0 0 12px",textWrap:"balance"}}>Pagás según tus suscriptores</h2>
+        <p style={{fontSize:15,color:T.textSm,textAlign:"center",maxWidth:560,margin:"0 auto 12px",lineHeight:1.6}}>Los primeros {FREE_SUBSCRIBERS} suscriptores son gratis. Después, el plan sube solo según cuántos clientes tenés cobrando. Todo lo demás está incluido.</p>
         <div style={{display:"flex",justifyContent:"center",marginBottom:28}}>
           <span style={{display:"inline-flex",alignItems:"center",gap:8,padding:"5px 12px",borderRadius:20,background:T.accentSolid+"16",border:`1px solid ${T.accentSolid}44`,color:T.accent,fontSize:11,fontWeight:700,letterSpacing:0.4,textTransform:"uppercase"}}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -470,12 +506,12 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
 
       {/* CTA final */}
       <section className="rec-land-wrap" style={{paddingTop:72,paddingBottom:72}}>
-        <div style={{background:`linear-gradient(135deg, ${T.accentSolid}22, ${T.card})`,border:`1px solid ${T.accentSolid}44`,borderRadius:20,padding:"44px 28px",textAlign:"center"}}>
-          <RecLogo size={40} style={{marginBottom:14}}/>
-          <h2 style={{fontSize:30,fontWeight:800,letterSpacing:-0.8,margin:"0 0 10px",textWrap:"balance"}}>Que te compren todos los meses sin tener que pedírselo</h2>
-          <p style={{fontSize:14,color:T.textMd,margin:"0 auto 22px",maxWidth:480,lineHeight:1.6}}>Te mostramos en 20 minutos cómo quedaría en tu tienda, con tus productos. Después los primeros {FREE_SUBSCRIBERS} suscriptores son gratis.</p>
-          <button onClick={irDemo} style={{...BtnSolid(T),padding:"13px 24px",fontSize:15}}>Pedir demo</button>
-          <div style={{fontSize:12,color:T.textSm,marginTop:12}}>¿Ya tenés cuenta? <button onClick={irLogin} style={{background:"none",border:"none",color:T.accent,fontWeight:600,cursor:"pointer",fontFamily:F,fontSize:12,padding:0}}>Iniciá sesión</button></div>
+        <div className="rec-cta-final">
+          <RecLogo size={44} style={{marginBottom:18}}/>
+          <h2 style={{fontSize:"clamp(30px, 4vw, 48px)",fontWeight:800,letterSpacing:"-0.04em",lineHeight:1.04,margin:"0 auto 14px",maxWidth:720,color:"#fff",textWrap:"balance"}}>Que te compren todos los meses sin tener que pedírselo</h2>
+          <p style={{fontSize:16,color:"#A9C3B9",margin:"0 auto 28px",maxWidth:500,lineHeight:1.6}}>En 20 minutos te mostramos cómo queda la suscripción en tu tienda, con tus productos y tus precios. Después, los primeros {FREE_SUBSCRIBERS} suscriptores son gratis.</p>
+          <button onClick={irDemo} className="rec-btn-xl" style={{...BtnSolid(T)}}>Pedir una demo <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <div style={{fontSize:13,color:"#A9C3B9",marginTop:16}}>¿Ya tenés cuenta? <button onClick={irLogin} style={{background:"none",border:"none",color:"#fff",fontWeight:600,cursor:"pointer",fontFamily:F,fontSize:13,padding:0,textDecoration:"underline",textUnderlineOffset:3}}>Iniciá sesión</button></div>
         </div>
       </section>
 
