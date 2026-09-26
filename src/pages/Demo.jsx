@@ -101,11 +101,18 @@ function AgendaEmbed({ T, url, nombre, email, leadId, wa }) {
             : <>Ya tenemos tus datos. Falta solo esto: te llega la invitación a <strong style={{ color: T.text }}>{email}</strong>.</>}
         </p>
       </div>
-      {/* 700 px en compu. En celular Calendly apila día y horarios y necesita
-          más alto: con menos mete un scroll adentro del iframe y la gente no
-          encuentra el botón de confirmar. */}
-      <style>{`.rec-agenda{min-height:700px}@media(max-width:760px){.rec-agenda{min-height:1080px}}`}</style>
-      <div ref={box} className="rec-agenda" style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 18, overflow: "hidden" }}/>
+      {/* ALTO FIJO, no min-height: el iframe de Calendly se estira al alto del
+          contenedor, y con min-height quedaba corto y abajo se veía una franja
+          de nuestro fondo — parecía roto.
+
+          Y el fondo va BLANCO: Calendly solo pinta el calendario con los
+          colores de la marca en plan pago, así que en el gratis siempre llega
+          claro. Poniendo la tarjeta blanca se lee como una tarjeta a propósito
+          dentro de la página oscura, en vez de un recuadro ajeno mal pegado.
+          El día que se pague el plan, los parámetros de color ya van en la URL
+          y esto se cambia por T.card. */}
+      <style>{`.rec-agenda{height:720px}@media(max-width:760px){.rec-agenda{height:1100px}}`}</style>
+      <div ref={box} className="rec-agenda" style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 18, overflow: "hidden" }}/>
       <div style={{ textAlign: "center", marginTop: 14 }}>
         <a href={wa} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13.5, color: T.textMd, fontWeight: 600 }}>
           ¿Ningún horario te sirve? Escribinos por WhatsApp
