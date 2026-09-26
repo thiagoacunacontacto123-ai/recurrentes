@@ -78,5 +78,6 @@ function parseRoute() {
   if (path === "privacidad") return "privacidad";
   if (path === "soporte") return "soporte";
   if (path === "transferir") return "transferir";
+  if (path === "demo") return "demo";
   return "default";
 }
