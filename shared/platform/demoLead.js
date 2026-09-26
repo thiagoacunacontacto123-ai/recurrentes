@@ -29,16 +29,21 @@ export const DEMO_OBJETIVO = [
   { id: "ingreso_fijo", label: "Tener un ingreso fijo todos los meses" },
   { id: "ticket",       label: "Vender packs más grandes (más plata por venta)" },
   { id: "dejar_manual", label: "Dejar de perseguir la recompra a mano" },
+  // La de siempre (25-sept-2026, Thiago): el que quiere las cuatro no tiene que
+  // elegir una y dejar afuera el resto.
+  { id: "todas",        label: "Todas las anteriores" },
 ];
 
-// Cada cuánto le vuelve a comprar un cliente HOY, sin suscripciones. Es el dato
-// que dice si el producto es suscribible y con qué frecuencia arrancar.
+// Qué PORCENTAJE de sus clientes le vuelve a comprar hoy, sin suscripciones
+// (25-sept-2026, Thiago: "la pregunta era cuánto es tu tasa de clientes
+// recurrentes actualmente"). Es el dato que dice si hay algo que convertir en
+// suscripción: con 3% de recompra no hay nada que automatizar; con 30% sí.
 export const DEMO_RECURRENCIA = [
-  { id: "no_vuelve",  label: "Casi no vuelven: compran una vez" },
-  { id: "1_mes",      label: "Todos los meses, más o menos" },
-  { id: "2_3_meses",  label: "Cada 2 o 3 meses" },
-  { id: "4_6_meses",  label: "Cada 4 a 6 meses" },
-  { id: "no_se",      label: "No lo tengo medido" },
+  { id: "menos_10", label: "Menos del 10%" },
+  { id: "10_25",    label: "Entre el 10% y el 25%" },
+  { id: "25_50",    label: "Entre el 25% y el 50%" },
+  { id: "mas_50",   label: "Más del 50%" },
+  { id: "no_se",    label: "No lo tengo medido" },
 ];
 
 // Las dos confirmaciones. Obligatorias las dos: sin ellas no se manda.
@@ -80,7 +85,7 @@ export function sanitizeDemoLead(input, { emailRe, normalizeWhatsapp } = {}) {
   const objetivo = txt(b.objetivo, 20);
   if (!DEMO_OBJETIVO_IDS.includes(objetivo)) return { error: "Contanos qué querés lograr con las suscripciones." };
   const recurrencia = txt(b.recurrencia, 20);
-  if (!DEMO_RECURRENCIA_IDS.includes(recurrencia)) return { error: "Contanos cada cuánto te vuelve a comprar un cliente hoy." };
+  if (!DEMO_RECURRENCIA_IDS.includes(recurrencia)) return { error: "Contanos qué tasa de clientes recurrentes tenés hoy." };
 
   // Las dos casillas son el filtro entero: sin ellas no hay lead.
   for (const c of DEMO_CONFIRMACIONES) {
@@ -100,7 +105,7 @@ export function sanitizeDemoLead(input, { emailRe, normalizeWhatsapp } = {}) {
 export function resumenDemoLead(lead) {
   return [
     labelDe(DEMO_PEDIDOS, lead.pedidos),
-    "recompra hoy: " + labelDe(DEMO_RECURRENCIA, lead.recurrencia).toLowerCase(),
+    "clientes que repiten hoy: " + labelDe(DEMO_RECURRENCIA, lead.recurrencia).toLowerCase(),
     labelDe(DEMO_OBJETIVO, lead.objetivo).toLowerCase(),
     "ACEPTA PAGAR USD 100",
   ].filter(Boolean).join(" · ");

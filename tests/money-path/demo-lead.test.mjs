@@ -19,7 +19,7 @@ const { normalizeWhatsapp, EMAIL_RE } = await loadApi("shared/platform/contact.j
 
 const OK = {
   nombre: "Ana Díaz", marca: "Glow Derm", whatsapp: "2664 006599", email: "ana@glowderm.test",
-  pedidos: "5_15", objetivo: "recompra", recurrencia: "1_mes",
+  pedidos: "5_15", objetivo: "recompra", recurrencia: "25_50",
   confirma_llamada: true, confirma_pago: true,
 };
 const post = (body) => invoke(handler, { method: "POST", query: { action: "demo-lead" }, body });
@@ -73,7 +73,7 @@ test("(r) la misma validación corre en el navegador y en el servidor", () => {
   assert.ok(sanitizeDemoLead(OK, args).value);
   assert.match(sanitizeDemoLead({ ...OK, email: "no-es-mail" }, args).error, /email/i);
   assert.match(sanitizeDemoLead({ ...OK, pedidos: "" }, args).error, /pedidos/i);
-  assert.match(sanitizeDemoLead({ ...OK, recurrencia: "cualquiera" }, args).error, /vuelve a comprar/i);
+  assert.match(sanitizeDemoLead({ ...OK, recurrencia: "cualquiera" }, args).error, /clientes recurrentes/i);
   assert.match(sanitizeDemoLead({ ...OK, whatsapp: "123" }, args).error, /WhatsApp/);
   assert.match(sanitizeDemoLead({ ...OK, marca: "" }, args).error, /marca/i);
   assert.equal(DEMO_CONFIRMACIONES.length, 2, "las dos casillas son el filtro entero");

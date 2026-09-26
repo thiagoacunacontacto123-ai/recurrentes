@@ -118,7 +118,7 @@ export default function DemoPage() {
               </select>
             </div>
             <div style={campo}>
-              <label style={label}>¿Cada cuánto te vuelve a comprar un cliente hoy?</label>
+              <label style={label}>¿Cuál es tu tasa de clientes recurrentes hoy?</label>
               <select style={iS} value={f.recurrencia} onChange={(e) => set("recurrencia", e.target.value)}>
                 <option value="">Elegí una opción</option>
                 {DEMO_RECURRENCIA.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
