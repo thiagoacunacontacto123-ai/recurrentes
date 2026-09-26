@@ -11,8 +11,9 @@ import { apiGet, apiPost, getAdminAs, setAdminAs } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
 import { Btn, DSBadge, DSTable, PageHeader, Callout, Loading, InputStyle, CellStack, toast, appConfirm } from "../ui/components.jsx";
 import { KpiCard, Segmented, Panel, BarList, AreaChart } from "../ui/charts.jsx";
-import { fmtARS, fmtAgo, fmtDateOnly, fmtDateTime, copyText } from "./_shared.jsx";
+import { MONO, fmtARS, fmtAgo, fmtDateOnly, fmtDateTime, copyText } from "./_shared.jsx";
 import { CHANNELS, PAYMENT_PROVIDERS, BUSINESS_TYPES } from "../../shared/platform/profile.js";
+import { pedidoDeAccesos, SHOPIFY_PERMISOS } from "../../shared/platform/setup.js";
 import { PRICING_TIERS, TIER_BY_ID } from "../../shared/platform/pricing.js";
 
 const F = "'Inter',system-ui,sans-serif";
@@ -348,7 +349,7 @@ function DemoLeadsPanel({ T, onOpen }) {
 
   const leads = d?.leads || [];
   const nuevos = leads.filter(l => l.estado === "nuevo").length;
-  if (err) return <Panel T={T} title="Pedidos de demo" style={{ marginBottom:16 }}><Callout T={T} kind="error">{err}</Callout></Panel>;
+  if (err) return <Panel T={T} title="Pedidos de demo" style={{ marginBottom:16 }}><Callout T={T} tone="danger">{err}</Callout></Panel>;
 
   return (
     <Panel T={T} title={`Pedidos de demo${nuevos ? ` (${nuevos} sin atender)` : ""}`}
@@ -526,6 +527,84 @@ function HealthPanel({ T }) {
 }
 
 // ─── Ficha lateral de un comercio ────────────────────────────────────────────
+// ─── Puesta en marcha del cliente ────────────────────────────────────────────
+// La checklist sale de shared/platform/setup.js y se calcula con los datos
+// reales del comercio: lo hecho aparece tildado solo. El botón de arriba copia
+// el pedido de accesos con EXACTAMENTE lo que falta, para mandarlo por WhatsApp
+// sin tener que acordarse de qué pedir en cada caso. 26-sept-2026, Thiago.
+function SetupSection({ T, setup, m, busy, onToggle }) {
+  const [abierto, setAbierto] = useState(null);
+  const [verPermisos, setVerPermisos] = useState(false);
+  const pct = setup.total ? Math.round((setup.done / setup.total) * 100) : 0;
+  const listo = setup.done >= setup.total;
+
+  return (
+    <Section T={T} title={`Puesta en marcha · ${setup.done} de ${setup.total}`}>
+      <div style={{ height:6, borderRadius:99, background:T.surface, overflow:"hidden", marginBottom:10 }}>
+        <div style={{ height:"100%", width:`${pct}%`, background: listo ? T.green : T.accentSolid, transition:"width .3s" }}/>
+      </div>
+
+      {setup.faltan_scopes?.length > 0 && (
+        <Callout T={T} tone="warning" style={{ marginBottom:10 }}>
+          Le faltan permisos en Shopify: <strong>{setup.faltan_scopes.join(", ")}</strong>. Hay que reconectar con la lista completa o va a dar 403 en la mitad de las cosas.
+        </Callout>
+      )}
+
+      <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginBottom:10 }}>
+        <Btn T={T} variant="secondary" size="sm" type="button"
+          onClick={() => copyText(pedidoDeAccesos(setup, { nombre: m?.owner_name }), "Pedido de accesos copiado")}>
+          Copiar pedido de accesos
+        </Btn>
+        <Btn T={T} variant="secondary" size="sm" type="button" onClick={() => setVerPermisos(v => !v)}>
+          {verPermisos ? "Ocultar permisos" : "Ver permisos de Shopify"}
+        </Btn>
+      </div>
+
+      {verPermisos && (
+        <div style={{ background:T.bg, border:`1px solid ${T.borderL}`, borderRadius:10, padding:"10px 12px", marginBottom:10 }}>
+          {SHOPIFY_PERMISOS.map(p => (
+            <div key={p.id} style={{ display:"flex", gap:8, alignItems:"flex-start", padding:"3px 0", fontSize:12 }}>
+              <code style={{ fontFamily:MONO, color:p.opcional ? T.textSm : T.accent, flexShrink:0 }}>{p.id}</code>
+              <span style={{ color:T.textSm, lineHeight:1.4 }}>{p.why}{p.opcional ? " (opcional)" : ""}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+        {setup.steps.map(st => {
+          const open = abierto === st.id;
+          return (
+            <div key={st.id} style={{ background:T.bg, border:`1px solid ${st.done ? T.green + "44" : T.borderL}`, borderRadius:10, padding:"8px 10px" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:9 }}>
+                <button type="button" aria-label={st.done ? "Destildar" : "Tildar"} disabled={busy === "setup:" + st.id}
+                  onClick={() => onToggle(st.id, !st.done)}
+                  style={{ width:19, height:19, borderRadius:6, flexShrink:0, cursor:"pointer", padding:0,
+                    border:`1.5px solid ${st.done ? T.green : T.border}`, background: st.done ? T.green : "transparent",
+                    color:"#fff", fontSize:12, lineHeight:1, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  {st.done ? "✓" : ""}
+                </button>
+                <button type="button" onClick={() => setAbierto(open ? null : st.id)}
+                  style={{ flex:1, minWidth:0, textAlign:"left", background:"none", border:"none", padding:0, cursor:"pointer", fontFamily:F,
+                    fontSize:12.5, fontWeight:600, color: st.done ? T.textSm : T.text, textDecoration: st.done ? "line-through" : "none" }}>
+                  {st.title}{st.opcional ? " · opcional" : ""}
+                </button>
+                {st.manual && <span style={{ fontSize:10, color:T.textSm, flexShrink:0 }}>a mano</span>}
+              </div>
+              {open && (
+                <div style={{ marginTop:7, paddingTop:7, borderTop:`1px solid ${T.borderL}`, fontSize:12, lineHeight:1.5 }}>
+                  <div style={{ color:T.textMd }}><strong style={{ color:T.text }}>Le pedís:</strong> {st.pide}</div>
+                  {st.hace && <div style={{ color:T.textSm, marginTop:4 }}><strong>Hacés:</strong> {st.hace}</div>}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Section>
+  );
+}
+
 function Section({ T, title, children }) {
   return (
     <div style={{ marginBottom:18 }}>
@@ -577,6 +656,7 @@ function MerchantPanel({ id, onClose, onChanged }) {
   const s = d?.stats;
   const a = d?.auth;
   const notes = d?.notes || [];
+  const setup = d?.setup || null;
   const audit = d?.audit || [];
   const mailTo = m ? (m.contact_email || a?.email || m.email) : null;
 
@@ -600,6 +680,14 @@ function MerchantPanel({ id, onClose, onChanged }) {
     } catch (e) { toast(e.message, "error"); }
     finally { setBusy(""); }
   }
+  async function toggleStep(step, done) {
+    setBusy("setup:" + step);
+    const r = await apiPost("stats", { merchant_id: id, step, done }, { action: "admin-setup-step" });
+    setBusy("");
+    if (!r || r.error) return toast(r?.error || "No se pudo guardar", "error");
+    await load();
+  }
+
   async function viewAs() {
     if (!await appConfirm(`Vas a entrar al panel de ${m.name} como admin.\n\nOJO: lo que guardes SE GUARDA EN SU TIENDA, no en la tuya. Queda registrado en la auditoría.\n\nPara volver, tocá "Salir" en la barra amarilla de arriba.`, { title:`Entrar como ${m.name}`, okLabel:"Entrar" })) return;
     const r = await apiPost("stats", { merchant_id: id }, { action: "admin-view-as" });
@@ -719,6 +807,8 @@ function MerchantPanel({ id, onClose, onChanged }) {
                   <Btn T={T} variant="primary" size="sm" disabled={busy === "plan"} onClick={savePlan}>{busy === "plan" ? "Guardando…" : "Guardar plan"}</Btn>
                 </div>
               </Section>
+
+              {setup && <SetupSection T={T} setup={setup} m={m} busy={busy} onToggle={toggleStep}/>}
 
               <Section T={T} title={`Notas internas (${notes.length})`}>
                 <textarea value={note} onChange={e => setNote(e.target.value)} maxLength={2000} placeholder="Ej: le pasé el precio por WhatsApp, vuelve a escribir el lunes"

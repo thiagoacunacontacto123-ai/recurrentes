@@ -13,6 +13,8 @@
 //   POST ?action=admin-demo-lead-account { lead_id } → le crea la cuenta y le manda el link
 //        para que ponga SU contraseña (nunca la elegimos nosotros)
 //   POST ?action=admin-demo-lead-status  { lead_id, estado: nuevo|agendado|cuenta_creada|ganado|perdido }
+//   POST ?action=admin-setup-step { merchant_id, step, done } → tilda un paso de la
+//        puesta en marcha (shared/platform/setup.js); la ficha la devuelve en `setup`
 //   POST ?action=admin-note     { merchant_id, text }
 //   POST ?action=admin-view-as  { merchant_id }  → registra el inicio del "ver como". El header
 //        X-Admin-As lo valida requireMerchant en cada request (solo admins, solo lectura).
@@ -44,6 +46,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { db, requireAdmin } from "./firebase.js";
 import { acquisitionSummary, ownPixel } from "./acquisition.js";
 import { merchantProfile, CHANNELS, PAYMENT_PROVIDERS, BUSINESS_TYPES } from "../../shared/platform/profile.js";
+import { buildSetup, SETUP_STEP_IDS } from "../../shared/platform/setup.js";
 import { PRICING_TIERS, TIER_BY_ID, BILLABLE_STATUSES, tierRank } from "../../shared/platform/pricing.js";
 import { buildBilling, activatedTierId, isBeta, isInternal, PLAN_BY_ID } from "./plans_saas.js";
 import { adminEmails } from "./adminAuth.js";
@@ -476,6 +479,15 @@ async function merchantDetail(req, res) {
   const auth = (await authUsers([ownerUid]))[ownerUid] || null;
   const row = withAuth(rowOf(m, stats), auth);
   const notes = ((notesSnap.exists && notesSnap.data()?.notes) || []).slice().sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+  // Puesta en marcha: se calcula con lo que YA sabemos del comercio, así que los
+  // pasos hechos aparecen tildados solos. Los planes activos son 1 consulta con
+  // count() (no se leen los planes). shared/platform/setup.js.
+  const planesActivos = await ref.collection("plans").where("active", "==", true).count().get()
+    .then(r => r.data().count).catch(() => 0);
+  const setup = buildSetup(m, {
+    manual: (notesSnap.exists && notesSnap.data()?.setup) || [],
+    ctx: { planes_activos: planesActivos, subs: Number(stats?.subs) || 0 },
+  });
   const audit = auditSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => String(b.at || "").localeCompare(String(a.at || ""))).slice(0, 40);
   return res.json({
     merchant: {
@@ -505,6 +517,7 @@ async function merchantDetail(req, res) {
     auth,
     notes,
     audit,
+    setup,
   });
 }
 
@@ -676,6 +689,24 @@ async function demoLeadAccount(admin, req, res) {
   return res.json({ ok: true, merchant_id: user.uid, reused: yaExistia, mail, link });
 }
 
+// Tilda o destilda un paso de la puesta en marcha. Solo los manuales necesitan
+// esto; los automáticos se recalculan solos, pero se permite forzar cualquiera
+// por si el detector no ve un caso (una tienda conectada a mano, por ejemplo).
+async function setupStep(admin, req, res) {
+  const step = String(req.body?.step || "").trim();
+  if (!SETUP_STEP_IDS.includes(step)) return res.status(400).json({ error: "Paso desconocido." });
+  const t = await existingMerchant(req, res);
+  if (!t) return;
+  const done = req.body?.done !== false;
+  const ref = db().collection("admin_merchants").doc(t.id);
+  await ref.set({
+    setup: done ? FieldValue.arrayUnion(step) : FieldValue.arrayRemove(step),
+    updated_at: new Date().toISOString(),
+  }, { merge: true });
+  await audit(admin, "setup_step", t.id, { step, done });
+  return res.json({ ok: true, step, done });
+}
+
 async function viewAsStart(admin, req, res) {
   const t = await existingMerchant(req, res);
   if (!t) return;
@@ -794,6 +825,7 @@ export async function adminHandler(req, res) {
       }
       if (action === "admin-demo-lead-account") return await demoLeadAccount(admin, req, res);
       if (action === "admin-demo-lead-status") return await demoLeadStatus(admin, req, res);
+      if (action === "admin-setup-step") return await setupStep(admin, req, res);
       if (action === "admin-note") return await addNote(admin, req, res);
       if (action === "admin-view-as") return await viewAsStart(admin, req, res);
     } else {

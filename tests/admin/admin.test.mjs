@@ -310,6 +310,28 @@ put("merchants/old", { email: "old@x.com", created_at: ago(35), plan: "free" });
   ok(r.status === 404, "lead que no existe → 404");
 }
 
+// ─── 8c) Puesta en marcha desde la ficha ─────────────────────────────────────
+{
+  let r = await call(stats, { query: { action: "admin-merchant", id: "lumina" }, token: "t-admin" });
+  ok(r.status === 200 && r.body.setup && Array.isArray(r.body.setup.steps), "la ficha trae la checklist de puesta en marcha", r.body?.setup);
+  const total = r.body.setup.total;
+  ok(r.body.setup.steps.some(s => s.id === "pago" && s.manual === true), "el pago de la instalacion es un paso a mano");
+
+  r = await call(stats, { method: "POST", query: { action: "admin-setup-step" }, body: { merchant_id: "lumina", step: "pago", done: true }, token: "t-admin" });
+  ok(r.status === 200 && (doc("admin_merchants/lumina")?.setup || []).includes("pago"), "se tilda un paso", r.body);
+  r = await call(stats, { query: { action: "admin-merchant", id: "lumina" }, token: "t-admin" });
+  ok(r.body.setup.steps.find(s => s.id === "pago").done === true && r.body.setup.total === total, "y vuelve tildado en la ficha");
+
+  r = await call(stats, { method: "POST", query: { action: "admin-setup-step" }, body: { merchant_id: "lumina", step: "pago", done: false }, token: "t-admin" });
+  ok(r.status === 200 && !(doc("admin_merchants/lumina")?.setup || []).includes("pago"), "y se destilda");
+
+  r = await call(stats, { method: "POST", query: { action: "admin-setup-step" }, body: { merchant_id: "lumina", step: "inventado" }, token: "t-admin" });
+  ok(r.status === 400, "un paso que no existe → 400");
+  r = await call(stats, { method: "POST", query: { action: "admin-setup-step" }, body: { merchant_id: "lumina", step: "pago" }, token: "t-lumina" });
+  ok(r.status === 403, "un comercio no puede tocar su propia checklist");
+  ok(docsOf("admin_audit").some(a => a.action === "setup_step"), "queda en la auditoria");
+}
+
 // ─── 8) WhatsApp ─────────────────────────────────────────────────────────────
 {
   const w = admin.whatsappUrl;
