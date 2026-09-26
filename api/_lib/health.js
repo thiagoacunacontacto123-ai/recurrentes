@@ -21,10 +21,17 @@ const HEARTBEAT_DOC = ["system", "cron_heartbeat"];
 
 // Crons conocidos y cada cuánto deberían correr (vercel.json). Un cron está
 // "atrasado" si su último OK tiene más de `stale_after_min`.
+// 26-sept-2026: sync-all-pending pasa de 2 a 5 min y retry-fulfillment de 10 a
+// 30. Son la RED DE SEGURIDAD, no el camino del cobro: el webhook de MP es el
+// que cobra en el momento y no se toca. Lo único que cambia es cuánto tarda el
+// respaldo en actuar si el webhook falla. A cambio, ~21.000 ejecuciones menos
+// por mes (Fluid CPU y memoria eran un tercio de la factura de Vercel).
+// SI SE CAMBIA vercel.json, SE CAMBIA ACÁ: si no, el chequeo de salud marca los
+// crons atrasados y devuelve ok:false sin que pase nada malo.
 export const EXPECTED_CRONS = {
-  "sync-all-pending": { every_min: 2, stale_after_min: 10 },
+  "sync-all-pending": { every_min: 5, stale_after_min: 25 },
   "run-flows": { every_min: 5, stale_after_min: 20 },
-  "retry-fulfillment": { every_min: 10, stale_after_min: 40 },
+  "retry-fulfillment": { every_min: 30, stale_after_min: 90 },
   "reconcile-mp": { every_min: 60, stale_after_min: 150 },
 };
 

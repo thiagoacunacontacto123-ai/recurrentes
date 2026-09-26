@@ -95,7 +95,7 @@
   "crons": [
     {
       "path": "/api/cron?action=sync-all-pending",
-      "schedule": "*/2 * * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/cron?action=run-flows",
@@ -103,7 +103,7 @@
     },
     {
       "path": "/api/cron?action=retry-fulfillment",
-      "schedule": "*/10 * * * *"
+      "schedule": "*/30 * * * *"
     },
     {
       "path": "/api/cron?action=reconcile-mp",
