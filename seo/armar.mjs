@@ -47,6 +47,25 @@ function pagina(p, todas) {
   const otras = todas.filter((x) => x.slug !== p.slug);
   // JSON-LD de las preguntas: es lo que hace que Google muestre el desplegable
   // de respuestas debajo del resultado.
+  // Quién es Recurrentes, como entidad. Sin esto, un modelo tiene que inferir
+  // del texto qué es la marca; con esto lo lee declarado: qué software es, para
+  // qué sirve, en qué país y a qué precio.
+  const orgLd = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "Recurrentes",
+    url: SITIO,
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Web",
+    description: "Suscripciones con cobro recurrente por Mercado Pago para tiendas Shopify y Tiendanube en Argentina. Cada cobro genera la orden en la tienda automáticamente.",
+    inLanguage: "es-AR",
+    areaServed: { "@type": "Country", name: "Argentina" },
+    offers: {
+      "@type": "Offer", price: "0", priceCurrency: "USD",
+      description: "Gratis hasta 10 suscriptores activos. Desde USD 99 por mes, sin comisión por venta.",
+    },
+    publisher: { "@type": "Organization", name: "Recurrentes", url: SITIO, email: "soporte@recurrentesapp.com" },
+  };
   const faqLd = p.faq?.length ? {
     "@context": "https://schema.org", "@type": "FAQPage",
     mainEntity: p.faq.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })),
@@ -71,6 +90,7 @@ function pagina(p, todas) {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap">
 <style>${CSS}</style>
+<script type="application/ld+json">${JSON.stringify(orgLd)}</script>
 ${faqLd ? `<script type="application/ld+json">${JSON.stringify(faqLd)}</script>` : ""}
 </head>
 <body>
@@ -124,7 +144,18 @@ console.log("  sitemap →", "public/sitemap.xml");
 
 // El panel y el checkout no tienen nada que hacer en Google: son privados o
 // llevan tokens de un cliente en la URL.
+//
+// Los rastreadores de IA van NOMBRADOS a propósito (26-sept-2026, Thiago:
+// "que aparezca cuando me busquen en ChatGPT"). Con "User-agent: *" ya
+// estarían permitidos, pero varios buscan su propia línea y muchos sitios los
+// bloquean por defecto: dejarlo explícito es decir "sí, citen esto". Es una
+// decisión, no un descuido: significa que este contenido puede usarse para
+// entrenar y para responder preguntas. Para un SaaS que quiere ser
+// recomendado, es lo que conviene.
+const BOTS_IA = ["GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "Claude-User", "PerplexityBot", "Google-Extended", "Applebot-Extended", "meta-externalagent"];
 fs.writeFileSync(path.join(PUBLIC, "robots.txt"),
-  `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /demos/\n\nSitemap: ${SITIO}/sitemap.xml\n`);
+  `User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /demos/\n\n`
+  + BOTS_IA.map((b) => `User-agent: ${b}\nAllow: /\nDisallow: /api/\n`).join("\n")
+  + `\nSitemap: ${SITIO}/sitemap.xml\n`);
 console.log("  robots  →", "public/robots.txt");
 console.log(`\n${PAGINAS.length} páginas listas.`);
