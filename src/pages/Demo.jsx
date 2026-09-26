@@ -11,7 +11,6 @@ import { RecLogo } from "../ui/Shell.jsx";
 import { apiPost } from "../lib/api.js";
 import { normalizeWhatsapp, EMAIL_RE } from "../../shared/platform/contact.js";
 import { readAttribution, pixelTrack } from "../lib/attribution.js";
-import { INSTALL_USD } from "../../shared/platform/pricing.js";
 import {
   DEMO_PEDIDOS, DEMO_OBJETIVO, DEMO_RECURRENCIA, DEMO_CONFIRMACIONES, sanitizeDemoLead,
 } from "../../shared/platform/demoLead.js";
@@ -77,13 +76,22 @@ export default function DemoPage() {
               Te mostramos cómo quedaría la suscripción en <strong style={{ color: T.text }}>tu</strong> tienda,
               con tus productos y tus precios. Son 20 minutos por videollamada.
             </p>
-            {/* El precio va ARRIBA, antes de las preguntas: el que no lo quiere
-                pagar se va acá y no nos gastamos una llamada. */}
-            <p style={{ fontSize: 14, color: T.textMd, lineHeight: 1.6, margin: "0 0 24px", padding: "12px 14px", background: T.surface, border: `1px solid ${T.borderL}`, borderRadius: 12 }}>
-              La demo es gratis. Si después querés avanzar, la puesta en marcha sale{" "}
-              <strong style={{ color: T.text }}>USD {INSTALL_USD}, una sola vez</strong>, y se paga recién
-              cuando está terminada y funcionando.
-            </p>
+            {/* Arriba NO va el precio (25-sept-2026, Thiago): va lo que hacemos,
+                para que el que llega frío entienda qué está pidiendo. Los USD 100
+                están abajo, en la casilla que tiene que marcar sí o sí. */}
+            <div style={{ margin: "0 0 24px", padding: "14px 16px", background: T.surface, border: `1px solid ${T.borderL}`, borderRadius: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: T.textSm, letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 10 }}>Qué te dejamos andando</div>
+              {[
+                "El botón de suscribirse en tu página de producto, con tus packs, tus descuentos y el diseño de tu tienda.",
+                "Mercado Pago le cobra solo a tu cliente cada período, y cada cobro crea la orden en tu tienda, lista para despachar.",
+                "Tu panel con ingresos recurrentes, próximos cobros y bajas, más los mails y WhatsApp automáticos con tu marca.",
+              ].map((t, i) => (
+                <div key={i} style={{ display: "flex", gap: 9, alignItems: "flex-start", marginBottom: i === 2 ? 0 : 8 }}>
+                  <span style={{ color: T.accent, fontWeight: 800, fontSize: 13, lineHeight: 1.55, flexShrink: 0 }}>✓</span>
+                  <span style={{ fontSize: 13.5, color: T.textMd, lineHeight: 1.55 }}>{t}</span>
+                </div>
+              ))}
+            </div>
 
             <div style={campo}>
               <label style={label}>Tu nombre</label>

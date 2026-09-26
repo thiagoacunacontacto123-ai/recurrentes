@@ -49,7 +49,7 @@ export const DEMO_CONFIRMACIONES = [
   },
   {
     id: "confirma_pago",
-    text: "Entiendo que integrar la opción de suscripción —y la página de suscripción, si la necesito— es un trabajo que lleva horas, y que puede generar mucha ganancia sin depender de conseguir clientes nuevos. Por eso, si avanzo con Recurrentes, pago USD 100 una sola vez, recién cuando la integración esté 100% terminada, al detalle de cómo la quiero, y funcionando.",
+    text: "Entiendo que integrar la opción de suscripción —y la página de suscripción, si la necesito— es un trabajo que lleva horas, y que puedo conseguir mucha ganancia sin depender de clientes nuevos. Por eso, si avanzo con Recurrentes, pago USD 100 una sola vez, recién cuando la integración esté 100% terminada, al detalle de cómo la quiero, y funcionando.",
   },
 ];
 
