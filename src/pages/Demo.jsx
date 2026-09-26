@@ -59,29 +59,18 @@ export default function DemoPage() {
   // el principal: no puede quedar una pantalla sin salida. Ver src/lib/contacto.js.
   const wa = waLink(`Hola! Soy ${f.nombre || ""} de ${f.marca || ""}. Acabo de pedir la demo de Recurrentes.`);
 
-  const QUE = [
-    ["El botón de suscribirse en tu producto", "Con tus packs, tus descuentos y el diseño de tu tienda. Compra única y suscripción, uno u otro."],
-    ["Mercado Pago cobra solo cada período", "Y cada cobro crea la orden en tu tienda, con la dirección y el envío, lista para despachar."],
-    ["Panel, portal y avisos con tu marca", "Ingresos recurrentes, próximos cobros y bajas; tu cliente pausa o cambia la dirección desde su portal."],
-  ];
-
   return (
     <div className="rec-demo" style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: F }}>
       <style>{`
         .rec-demo h1,.rec-demo h2,.rec-demo h3{font-family:${FD};}
         .rec-demo-wrap{max-width:1120px;margin:0 auto;padding:0 24px;}
-        .rec-demo-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(360px,460px);gap:56px;align-items:start;padding:36px 0 72px;}
         .rec-demo-form{position:sticky;top:84px;background:${T.card};border:1px solid ${T.border};border-radius:22px;padding:26px 24px 22px;box-shadow:0 30px 70px -30px rgba(0,0,0,.45);}
         .rec-demo-bg{position:absolute;inset:0 0 auto;height:520px;pointer-events:none;z-index:0;
           background-image:linear-gradient(${T.border} 1px,transparent 1px),linear-gradient(90deg,${T.border} 1px,transparent 1px);background-size:56px 56px;
           -webkit-mask-image:radial-gradient(ellipse 70% 60% at 30% 0%,#000 20%,transparent 100%);mask-image:radial-gradient(ellipse 70% 60% at 30% 0%,#000 20%,transparent 100%);opacity:.5;}
-        .rec-demo-reviews{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;}
+        .rec-demo-reviews{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;}
         .ls-card{background:${T.card};border:1px solid ${T.border};border-radius:20px;position:relative;overflow:hidden;}
-        .rec-demo-que{display:grid;gap:12px;margin-top:28px;}
-        .rec-demo-que > div{display:grid;grid-template-columns:38px minmax(0,1fr);gap:14px;padding:16px 16px 16px 14px;border-radius:16px;background:${T.card};border:1px solid ${T.border};}
         @media(max-width:960px){
-          .rec-demo-grid{grid-template-columns:1fr;gap:28px;padding:20px 0 56px;}
-          .rec-demo-form{position:static;order:-1;}
           .rec-demo-reviews{grid-template-columns:1fr;}
           .rec-demo-wrap{padding:0 16px;}
         }
@@ -119,44 +108,23 @@ export default function DemoPage() {
               {AGENDA_URL && <div style={{ marginTop: 14 }}><a href={wa} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13.5, color: T.textMd, fontWeight: 600 }}>o escribinos por WhatsApp</a></div>}
             </div>
           ) : (
-            <div className="rec-demo-grid">
-              {/* Izquierda: qué es, qué te dejamos andando, prueba social */}
-              <div>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "5px 12px", borderRadius: 20, background: T.accentSolid + "16", border: `1px solid ${T.accentSolid}44`, color: T.accent, fontSize: 11, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 18 }}>
+            <>
+              {/* Arriba: una explicación breve. Después, directo a los datos. Las
+                  reseñas quedan al final (25-sept-2026, Thiago: "sin tanto choclo"). */}
+              <div style={{ maxWidth: 640, margin: "36px auto 26px", textAlign: "center" }}>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "5px 12px", borderRadius: 20, background: T.accentSolid + "16", border: `1px solid ${T.accentSolid}44`, color: T.accent, fontSize: 11, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 16 }}>
                   <span style={{ width: 7, height: 7, borderRadius: 99, background: T.accentSolid }}/>Demo de 20 minutos · por videollamada
                 </div>
-                <h1 style={{ fontSize: "clamp(32px, 4vw, 50px)", fontWeight: 800, lineHeight: 1.04, letterSpacing: "-0.04em", margin: "0 0 16px", textWrap: "balance" }}>
+                <h1 style={{ fontSize: "clamp(30px, 4vw, 46px)", fontWeight: 800, lineHeight: 1.04, letterSpacing: "-0.04em", margin: "0 0 14px", textWrap: "balance" }}>
                   Mirá cómo venden por suscripción nuestras tiendas <span style={{ background: `linear-gradient(135deg, ${T.accentSolid}, #34d399 60%, #a7f3d0)`, WebkitBackgroundClip: "text", backgroundClip: "text", WebkitTextFillColor: "transparent" }}>y cómo quedaría la tuya.</span>
                 </h1>
-                <p style={{ fontSize: 17, color: T.textMd, lineHeight: 1.6, margin: 0, maxWidth: 520, textWrap: "pretty" }}>
-                  Te mostramos en vivo cómo lo usan las tiendas que ya venden con Recurrentes y armamos juntos cómo llevarlo a la tuya, <strong style={{ color: T.text }}>de la manera que vos quieras</strong>: packs, descuentos, frecuencias y diseño.
+                <p style={{ fontSize: 16.5, color: T.textMd, lineHeight: 1.6, margin: 0, textWrap: "pretty" }}>
+                  Te mostramos en vivo cómo lo usan las tiendas que ya venden con Recurrentes y armamos juntos cómo llevarlo a la tuya, <strong style={{ color: T.text }}>de la manera que vos quieras</strong>. Dejanos tus datos y coordinamos por WhatsApp.
                 </p>
-
-                <div className="rec-demo-que">
-                  {QUE.map(([t, d], i) => (
-                    <div key={t}>
-                      <div style={{ width: 38, height: 38, borderRadius: 12, background: T.accentSolid + "1a", border: `1px solid ${T.accentSolid}55`, color: T.accent, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FD, fontWeight: 800, fontSize: 14 }}>{i + 1}</div>
-                      <div>
-                        <div style={{ fontFamily: FD, fontSize: 15.5, fontWeight: 700, letterSpacing: -0.2, marginBottom: 3 }}>{t}</div>
-                        <div style={{ fontSize: 13.5, color: T.textSm, lineHeight: 1.55 }}>{d}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "30px 0 14px" }}>
-                  <Stars T={T} size={14}/>
-                  <span style={{ fontSize: 13.5, color: T.textMd }}><strong style={{ color: T.text }}>4.9</strong> promedio de las tiendas que ya venden por suscripción</span>
-                </div>
-                <div className="rec-demo-reviews">
-                  {REVIEWS.slice(0, 2).map((r, i) => <ReviewCard key={r.n} T={T} r={r} i={i} compact/>)}
-                </div>
               </div>
 
-              {/* Derecha: el formulario */}
-              <div className="rec-demo-form">
-                <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.03em", margin: "0 0 4px" }}>Pedí tu demo</h2>
-                <p style={{ fontSize: 13.5, color: T.textSm, lineHeight: 1.5, margin: "0 0 18px" }}>Te escribimos por WhatsApp para coordinar la llamada.</p>
+              <div className="rec-demo-form" style={{ position: "static", maxWidth: 560, margin: "0 auto" }}>
+                <h2 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.03em", margin: "0 0 16px" }}>Tus datos</h2>
 
                 <div style={campo}>
                   <label style={label}>Tu nombre</label>
@@ -213,7 +181,18 @@ export default function DemoPage() {
                   Sin compromiso hasta que la integración esté funcionando.
                 </div>
               </div>
-            </div>
+
+              {/* Reseñas al final */}
+              <div style={{ margin: "64px 0 72px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginBottom: 18 }}>
+                  <Stars T={T} size={14}/>
+                  <span style={{ fontSize: 13.5, color: T.textMd }}><strong style={{ color: T.text }}>4.9</strong> promedio de las tiendas que ya venden por suscripción</span>
+                </div>
+                <div className="rec-demo-reviews">
+                  {REVIEWS.slice(0, 3).map((r, i) => <ReviewCard key={r.n} T={T} r={r} i={i} compact/>)}
+                </div>
+              </div>
+            </>
           )}
         </div>
       </div>
