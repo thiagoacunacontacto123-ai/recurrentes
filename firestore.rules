@@ -50,6 +50,11 @@ service cloud.firestore {
     match /shopify_pending/{state} {
       allow read, write: if false;
     }
+    // Pedidos de demo (#/demo): los escribe el Admin SDK desde public.js y solo
+    // los lee el Admin. Tienen WhatsApp y mail de gente que todavía no es cliente.
+    match /demo_leads/{id} {
+      allow read, write: if false;
+    }
 
     // Por defecto, todo lo demás está cerrado.
     match /{document=**} {

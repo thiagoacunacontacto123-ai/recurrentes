@@ -64,6 +64,7 @@ import { sanitizeCartSettings } from "../shared/bundle/cart.js";
 import { widgetVerifyUrlAction, widgetVerifyStatusAction } from "./_lib/widgetVerify.js";
 import { VARIANT_IDS } from "../shared/bundle/viewmodel.js";
 import { REASON_CODE_RE, retentionFor } from "./_lib/retention.js";
+import { normalizeWhatsapp, EMAIL_RE } from "../shared/platform/contact.js";
 import { PLAN_BY_ID, buildBilling } from "./_lib/plans_saas.js";
 import { saasStripeAvailable, createSaasCheckout, createSaasPortal, createWaCardSetup, createSaasSubscriptionWithCard } from "./_lib/saasBilling.js";
 import { BILLABLE_STATUSES } from "../shared/platform/pricing.js";
@@ -667,7 +668,6 @@ async function saveWidgetSettings(merchantId, req, res) {
   }
 }
 
-const EMAIL_RE = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 // "Nombre <mail@dominio>"
 const FROM_RE = /^[^<>]{1,60}<([^\s@<>]+@[^\s@<>]+\.[^\s@<>]+)>$/;
 const normHost = (v) => String(v || "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/:\d+$/, "");
@@ -1802,15 +1802,6 @@ async function sendVerification(dec, req, res) {
 // (merchants/{uid}), no en la tienda activa: son de la persona, sirven para soporte
 // y avisos. Primero getOrCreateMerchant: si el doc de perfil no existe (miembro de
 // un equipo sin tienda propia) se crea completo y no un doc a medias.
-function normalizeWhatsapp(raw) {
-  let d = String(raw || "").replace(/\D/g, "");
-  if (!d) return null;
-  if (d.startsWith("00")) d = d.slice(2);
-  if (d.length === 10) d = "549" + d;                                   // AR sin país: 11 6411 7974
-  else if (d.length === 11 && d.startsWith("0")) d = "549" + d.slice(1); // 011 6411 7974
-  if (d.length < 10 || d.length > 15) return null;
-  return "+" + d;
-}
 // Cuenta → Acceso: nombre y apellido + foto del dueño del login (Thiago, 18-sept). La foto va
 // como data URL chica (el panel la achica a 256 px) en merchants/{uid}.owner_photo: no hace
 // falta Storage. El nombre también se copia al displayName de Firebase Auth.

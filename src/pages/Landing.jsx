@@ -230,6 +230,12 @@ function StickyCta({ T, onRegister, onToggle }) {
 }
 
 export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister }) {
+  // 25-sept-2026, Thiago: el camino principal es PEDIR DEMO, no "empezar gratis".
+  // Las dos tiendas que funcionan salieron las dos de una integración hecha a
+  // mano; el que se registra solo no conecta nada. El registro sigue existiendo
+  // (lo necesita la instalación desde la app store de Tiendanube) pero como
+  // segunda opción.
+  const irDemo = () => { try { window.location.hash = "#/demo"; } catch (_) {} };
   const irRegistro = () => { if (onRegister) onRegister(); else window.location.hash = "#/registro"; };
   // Con la barra fija abajo, el botón de WhatsApp se corre para no taparla.
   const [stickyOn, setStickyOn] = React.useState(false);
@@ -276,7 +282,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
             <span style={{fontWeight:800,fontSize:18,letterSpacing:-0.3}}>Recurrentes</span>
           </a>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            {[["Integraciones","rec-tiendas"],["Video","rec-video"],["Funciones","rec-funciones"],["Comparar","rec-comparar"],["Precios","rec-precios"],["Reseñas","rec-resenas"]].map(([l,id])=>(
+            {[["Integraciones","rec-tiendas"],["Funciones","rec-funciones"],["Comparar","rec-comparar"],["Precios","rec-precios"],["Reseñas","rec-resenas"]].map(([l,id])=>(
               <button key={id} onClick={ir(id)} className="hide-mobile" style={{background:"transparent",border:"none",color:T.textMd,fontSize:13,fontWeight:500,cursor:"pointer",fontFamily:F,padding:"6px 10px"}}>{l}</button>
             ))}
             <button onClick={onToggleDark} title={darkMode?"Modo claro":"Modo oscuro"} aria-label={darkMode?"Modo claro":"Modo oscuro"} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:8,color:T.textMd,cursor:"pointer",padding:"6px 8px",display:"flex",alignItems:"center"}}>
@@ -285,7 +291,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
                 :<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>}
             </button>
             <button onClick={irLogin} className="rec-nav-login" style={{...BtnSecondary(T),padding:"7px 14px",fontSize:13,fontWeight:600}}>Iniciar sesión</button>
-            <button onClick={irRegistro} className="rec-nav-cta" style={{...BtnSolid(T),padding:"8px 16px",fontSize:13}}>Empezar gratis</button>
+            <button onClick={irDemo} className="rec-nav-cta" style={{...BtnSolid(T),padding:"8px 16px",fontSize:13}}>Pedir demo</button>
           </div>
         </div>
       </nav>
@@ -333,11 +339,11 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
               Desde ahí <strong style={{color:T.text}}>se le cobra solo</strong>, y los pedidos se registran sin que hagas nada.
             </p>
             <div style={{display:"flex",gap:10,flexWrap:"wrap",alignItems:"center"}}>
-              <button onClick={irRegistro} style={{...BtnSolid(T),padding:"13px 22px",fontSize:15}}>
-                Empezar gratis
+              <button onClick={irDemo} style={{...BtnSolid(T),padding:"13px 22px",fontSize:15}}>
+                Pedir demo
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </button>
-              <button onClick={ir("rec-video")} style={{...BtnSecondary(T),padding:"12px 18px",fontSize:14}}>Ver los videos</button>
+              <button onClick={irRegistro} style={{...BtnSecondary(T),padding:"12px 18px",fontSize:14}}>Prefiero probar solo</button>
             </div>
           </div>
 
@@ -451,7 +457,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
       {/* Barra fija con el CTA, como las de las tiendas de dropshipping: aparece
           al bajar un poco y acompaña el scroll (22-sept, Thiago). En celular es
           donde más rinde, pero se muestra en las dos. */}
-      <StickyCta T={T} onRegister={irRegistro} onToggle={setStickyOn}/>
+      <StickyCta T={T} onRegister={irDemo} onToggle={setStickyOn}/>
 
       {/* WhatsApp de Thiago, abajo a la derecha: la gente toca y le habla (18-sept). */}
       <a href={`https://wa.me/5491164117974?text=${encodeURIComponent("Hola! Vi Recurrentes y quiero saber más para mi tienda.")}`} target="_blank" rel="noopener noreferrer" aria-label="Escribinos por WhatsApp"
@@ -467,13 +473,13 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         <div style={{background:`linear-gradient(135deg, ${T.accentSolid}22, ${T.card})`,border:`1px solid ${T.accentSolid}44`,borderRadius:20,padding:"44px 28px",textAlign:"center"}}>
           <RecLogo size={40} style={{marginBottom:14}}/>
           <h2 style={{fontSize:30,fontWeight:800,letterSpacing:-0.8,margin:"0 0 10px",textWrap:"balance"}}>Que te compren todos los meses sin tener que pedírselo</h2>
-          <p style={{fontSize:14,color:T.textMd,margin:"0 auto 22px",maxWidth:480,lineHeight:1.6}}>Los primeros {FREE_SUBSCRIBERS} suscriptores son gratis. Conectás tu negocio, creás un plan y ves el primer cobro recurrente entrar solo.</p>
-          <button onClick={irRegistro} style={{...BtnSolid(T),padding:"13px 24px",fontSize:15}}>Empezar gratis</button>
+          <p style={{fontSize:14,color:T.textMd,margin:"0 auto 22px",maxWidth:480,lineHeight:1.6}}>Te mostramos en 20 minutos cómo quedaría en tu tienda, con tus productos. Después los primeros {FREE_SUBSCRIBERS} suscriptores son gratis.</p>
+          <button onClick={irDemo} style={{...BtnSolid(T),padding:"13px 24px",fontSize:15}}>Pedir demo</button>
           <div style={{fontSize:12,color:T.textSm,marginTop:12}}>¿Ya tenés cuenta? <button onClick={irLogin} style={{background:"none",border:"none",color:T.accent,fontWeight:600,cursor:"pointer",fontFamily:F,fontSize:12,padding:0}}>Iniciá sesión</button></div>
         </div>
       </section>
 
-      <BigFooter T={T} onGo={(id) => ir(id)()} onRegister={irRegistro}/>
+      <BigFooter T={T} onGo={(id) => ir(id)()} onRegister={irDemo}/>
     </div>
   );
 }

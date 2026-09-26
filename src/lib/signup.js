@@ -21,15 +21,6 @@ export function clearPendingSignup() {
   try { localStorage.removeItem(KEY); } catch (_) {}
 }
 
-// Mismo criterio que el backend (api/merchant.js normalizeWhatsapp):
-// 10 dígitos (código de área + número, Argentina) → +549…; 011… → +5491…
-export function normalizeWhatsapp(raw) {
-  let d = String(raw || "").replace(/\D/g, "");
-  if (!d) return null;
-  if (d.startsWith("00")) d = d.slice(2);
-  if (d.length === 10) d = "549" + d;
-  else if (d.length === 11 && d.startsWith("0")) d = "549" + d.slice(1);
-  if (d.length < 10 || d.length > 15) return null;
-  return "+" + d;
-}
-export const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+// Fuente única compartida con el backend (shared/platform/contact.js). Se
+// re-exportan para no tocar los imports que ya existen.
+export { normalizeWhatsapp, EMAIL_RE } from "../../shared/platform/contact.js";

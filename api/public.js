@@ -58,6 +58,8 @@ import { handleWhatsappWebhook } from "./_lib/whatsappWebhook.js";
 import { waSender } from "./_lib/whatsapp.js";
 import { merchantProfile } from "../shared/platform/profile.js";
 import { resolveCheckoutTheme } from "../shared/platform/checkoutTheme.js";
+import { normalizeWhatsapp, EMAIL_RE } from "../shared/platform/contact.js";
+import { sanitizeDemoLead, resumenDemoLead } from "../shared/platform/demoLead.js";
 
 // Tokens viejos (portal / back_url de MP ya emitidos) se firmaron con
 // MP_WEBHOOK_SECRET aunque hubiera PORTAL_SECRET. Si el secreto vigente es otro,
@@ -143,7 +145,71 @@ export default async function handler(req, res) {
   // Mercado Pago sigue en /api/mp/webhook. Carga el código de pasarelas solo para esta acción.
   if (action === "provider-webhook") return (await import("./_lib/providers/webhook.js")).handleProviderWebhook(req, res);
   if (action === "wa-webhook") return handleWhatsappWebhook(req, res);
-  return res.status(400).json({ error: "action debe ser plan | sub | discount | unsub | update-address | pause-offer" });
+  if (action === "demo-lead") return handleDemoLead(req, res);
+  return res.status(400).json({ error: "action debe ser plan | sub | discount | unsub | update-address | pause-offer | demo-lead" });
+}
+
+// ─── action=demo-lead ───────────────────────────────────────────
+// POST público (sin cuenta): el formulario de #/demo. Desde el 25-sept-2026 es
+// la puerta de entrada principal — la venta es demo + puesta en marcha paga, no
+// autoservicio (ver shared/platform/demoLead.js).
+//
+// Guarda el lead, le avisa a Thiago con TODO lo que contestó, y manda
+// RegistroCalificado a nuestro pixel. Ese evento sale de acá y no del registro
+// porque el formulario ya filtra: no se puede enviar sin aceptar los USD 100.
+async function handleDemoLead(req, res) {
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
+  // Un formulario público: sin tope, cualquiera puede llenar la base (y el aviso
+  // por WhatsApp se cobra). 10 por hora por IP alcanza de sobra para una persona.
+  const ip = clientIp(req);
+  const rl = await rateLimit(`demo:${ip}`, { limit: 10, windowSec: 3600 });
+  if (!rl.ok) return res.status(429).json({ error: "Demasiados envíos. Probá de nuevo en un rato." });
+
+  const { value: lead, error } = sanitizeDemoLead(req.body, { emailRe: EMAIL_RE, normalizeWhatsapp });
+  if (error) return res.status(400).json({ error });
+
+  const id = `dl_${Date.now().toString(36)}${crypto.randomBytes(4).toString("hex")}`;
+  const attribution = sanitizeDemoAttribution(req.body?.attribution);
+  const doc = {
+    ...lead, id, status: "nuevo",
+    acquisition: { ...(attribution || {}), ip: ip || null, ua: String(req.headers?.["user-agent"] || "").slice(0, 300) || null },
+    created_at: new Date().toISOString(),
+  };
+  await db().collection("demo_leads").doc(id).set(doc);
+
+  // Aviso a Thiago: si esto falla, el lead YA está guardado y se responde ok
+  // igual. Perder el aviso es malo; perder el lead es peor.
+  try {
+    const { notifyAdmin } = await import("./_lib/adminAlerts.js");
+    await notifyAdmin("signup", {
+      merchantId: id,
+      store: `${lead.marca} — pidió demo`,
+      detail: `${resumenDemoLead(lead)}\nContacto: ${lead.nombre} · ${lead.whatsapp} · ${lead.email}`,
+      key: "first",
+    });
+  } catch (e) { console.warn("[demo-lead] aviso:", e.message); }
+
+  // RegistroCalificado a nuestro pixel: el que llenó esto ya aceptó pagar.
+  try {
+    const { trackQualifiedLead } = await import("./_lib/acquisition.js");
+    await trackQualifiedLead(doc, { req });
+  } catch (e) { console.warn("[demo-lead] acquisition:", e.message); }
+
+  return res.status(200).json({ ok: true, id });
+}
+
+// Mismas claves que guarda la landing para el resto del embudo (attribution.js).
+const DEMO_ATTR_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "fbclid", "fbp", "fbc", "landing", "referrer"];
+function sanitizeDemoAttribution(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const out = {};
+  for (const k of DEMO_ATTR_KEYS) {
+    const v = String(raw[k] ?? "").trim().slice(0, 300);
+    if (v) out[k] = v;
+  }
+  if (!out.fbc && out.fbclid) out.fbc = `fb.1.${Date.now()}.${out.fbclid}`;
+  return Object.keys(out).length ? out : null;
 }
 
 // ─── action=unsub ───────────────────────────────────────────────

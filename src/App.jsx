@@ -11,6 +11,7 @@ import CheckoutSuccess from "./pages/CheckoutSuccess.jsx";
 import Checkout from "./pages/Checkout.jsx";
 import LegalPage, { SoportePage } from "./pages/Legal.jsx";
 import { TransferAcceptPage } from "./pages/Transfer.jsx";
+import DemoPage from "./pages/Demo.jsx";
 
 import { initPixel, pixelPageView } from "./lib/attribution.js";
 // Routing simple hash-based.
@@ -20,6 +21,7 @@ import { initPixel, pixelPageView } from "./lib/attribution.js";
 //   #/checkout-success?sub=...   → Pantalla de gracias post-MP
 //   #/terminos · #/privacidad    → páginas legales
 //   #/soporte                    → soporte público (lo pide la ficha de Tiendanube)
+//   #/demo                       → pedir demo (puerta de entrada principal, 25-sept-2026)
 // Rutas privadas:
 //   sin user → PublicSite (Landing · #/login · #/registro · #/recuperar)
 //   con user → Dashboard (#/dashboard/<tab>)
@@ -50,6 +52,8 @@ export default function App() {
   if (route === "terminos") return <LegalPage kind="terminos" T={readStoredDark() ? DARK : LIGHT}/>;
   if (route === "privacidad") return <LegalPage kind="privacidad" T={readStoredDark() ? DARK : LIGHT}/>;
   if (route === "soporte") return <SoportePage T={readStoredDark() ? DARK : LIGHT}/>;
+  // Pedir demo: anda con o sin sesión (no crea cuenta, junta el lead y avisa).
+  if (route === "demo") return <DemoPage/>;
   // Aceptar una tienda transferida: anda con o sin sesión (maneja el login adentro).
   if (route === "transferir") return <TransferAcceptPage user={user} authReady={authReady}/>;
 

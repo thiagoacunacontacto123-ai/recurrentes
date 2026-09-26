@@ -3,7 +3,7 @@ import { BundlePreview } from "./WidgetDesigner.jsx";
 import { DS } from "../ui/theme.js";
 import { BtnSolid } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
-import { tierFor, FREE_SUBSCRIBERS, PRICING_TIERS } from "../../shared/platform/pricing.js";
+import { tierFor, FREE_SUBSCRIBERS, PRICING_TIERS, INSTALL_USD } from "../../shared/platform/pricing.js";
 // El precio más barato, sacado de la escala real: la landing no lo repite a mano.
 const PRECIO_DESDE = PRICING_TIERS.find(t => t.usd > 0)?.usd ?? 0;
 
@@ -666,7 +666,7 @@ const FAQS = [
   ["¿Funciona con Tiendanube?", "Sí, ya funciona: instalás la app desde Tiendanube en un clic y el widget de suscripción aparece solo en tus productos con plan. Con Shopify es una línea en el tema."],
   ["¿Y con WooCommerce o Empretienda?", "Están en camino. Mientras tanto, el link de suscripción sirve para cualquier negocio, tenga la tienda que tenga."],
   ["¿Puedo vender sin tienda online?", "Sí. Cada plan tiene su link: lo compartís por Instagram, WhatsApp o tu web, y el cliente se suscribe desde ahí."],
-  ["¿Cuánto cuesta Recurrentes?", `Es gratis hasta ${FREE_SUBSCRIBERS} suscriptores activos. Después pagás según cuántos clientes tenés cobrando, desde USD ${PRECIO_DESDE} por mes, con todo incluido.`],
+  ["¿Cuánto cuesta Recurrentes?", `El abono es gratis hasta ${FREE_SUBSCRIBERS} suscriptores activos; después pagás según cuántos clientes tenés cobrando, desde USD ${PRECIO_DESDE} por mes, con todo incluido. Aparte, la puesta en marcha (dejarte la suscripción integrada y funcionando en tu tienda) sale USD ${INSTALL_USD} una sola vez, y se paga recién cuando está terminada.`],
   ["¿Qué cuenta como suscriptor activo?", "Un cliente con su suscripción cobrando, o con un pago que Mercado Pago está reintentando. Los pausados y cancelados no cuentan."],
   ["¿Puedo dar descuentos?", "Sí: descuento por suscribirse, packs con mejor precio y cupones que valen para toda la suscripción."],
   ["¿Mercado Pago me cobra comisión?", "Sí, la comisión habitual de Mercado Pago por cada cobro, como en cualquier venta. Recurrentes no suma comisión por cobro: pagás un plan según tus suscriptores."],
@@ -709,7 +709,7 @@ export function BigFooter({ T, onGo, onRegister }) {
               <RecLogo size={28}/><span style={{fontWeight:800,fontSize:17,color:T.text}}>Recurrentes</span>
             </div>
             <p style={{fontSize:13,color:T.textSm,lineHeight:1.6,margin:"0 0 16px",maxWidth:300}}>Suscripciones y cobros recurrentes para negocios online.</p>
-            <button onClick={onRegister} style={{...BtnSolid(T),padding:"9px 16px",fontSize:13}}>Empezar gratis</button>
+            <button onClick={onRegister} style={{...BtnSolid(T),padding:"9px 16px",fontSize:13}}>Pedir demo</button>
           </div>
           {cols.map(([title, items]) => (
             <div key={title}>
