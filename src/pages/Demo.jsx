@@ -134,15 +134,13 @@ export default function DemoPage() {
                   <label style={label}>¿Cuál es tu marca?</label>
                   <input style={iS} value={f.marca} onChange={(e) => set("marca", e.target.value)} placeholder="Nombre de la marca o link de tu tienda"/>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, ...campo }}>
-                  <div>
-                    <label style={label}>WhatsApp</label>
-                    <input style={iS} value={f.whatsapp} onChange={(e) => set("whatsapp", e.target.value)} placeholder="11 6411 7974" inputMode="tel" autoComplete="tel"/>
-                  </div>
-                  <div>
-                    <label style={label}>Email</label>
-                    <input style={iS} value={f.email} onChange={(e) => set("email", e.target.value)} placeholder="vos@tumarca.com" inputMode="email" autoComplete="email"/>
-                  </div>
+                <div style={campo}>
+                  <label style={label}>WhatsApp</label>
+                  <input style={iS} value={f.whatsapp} onChange={(e) => set("whatsapp", e.target.value)} placeholder="11 6411 7974" inputMode="tel" autoComplete="tel"/>
+                </div>
+                <div style={campo}>
+                  <label style={label}>Email</label>
+                  <input style={iS} value={f.email} onChange={(e) => set("email", e.target.value)} placeholder="vos@tumarca.com" inputMode="email" autoComplete="email"/>
                 </div>
 
                 {/* Las tres salen de DEMO_PREGUNTAS: el aviso que le llega a Thiago
