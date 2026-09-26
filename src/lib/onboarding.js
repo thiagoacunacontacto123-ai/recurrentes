@@ -140,7 +140,7 @@ export function computeSteps({ merchant, user, plansCount }) {
         : `Tu tienda y Mercado Pago${necesitaTienda ? "" : ""}. Meta Ads es opcional. Falta ${faltan.join(" y ")}.`,
       why:"Recurrentes lee tus productos para armar los planes y crea una orden en tu tienda cada vez que Mercado Pago cobra. Mercado Pago es la cuenta que cobra: la plata va directo a vos. Meta Ads solo si hacés publicidad, para que tus campañas cuenten las suscripciones como ventas.",
       needs:[
-        necesitaTienda ? "Tu tienda: Tiendanube instalás la app y listo · Shopify te guiamos con el video (5 min)" : null,
+        necesitaTienda ? "Tu tienda: Tiendanube instalás la app y listo · Shopify lo dejamos andando nosotros" : null,
         "Mercado Pago: autorizás con un clic, con la cuenta que cobra",
         "Meta Ads (opcional): Pixel ID y token de la API de Conversiones",
       ].filter(Boolean),

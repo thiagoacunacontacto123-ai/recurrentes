@@ -60,29 +60,34 @@ function ResumableVideo({ src, title }) {
 
 const WA_AYUDA = "5491164117974";
 
+// Sin video (hoy: SHOPIFY_TUTORIAL_URL vacío) el bloque NO desaparece entero: lo
+// que queda es la salida por WhatsApp, que desde el 25-sept-2026 es el camino
+// principal y no el de escape. Antes esto devolvía null sin URL y se llevaba
+// puesto el botón justo cuando pasó a ser lo más importante de la pantalla.
 export function TutorialVideo({ T, url = SHOPIFY_TUTORIAL_URL, title = "Video paso a paso", caption }) {
   const e = tutorialEmbed(url);
-  if (!e) return null;
   return (
     <div style={{ marginBottom:16 }}>
-      <div style={{ borderRadius:12, overflow:"hidden", border:`1px solid ${T.border}`, background:"#000" }}>
-        {e.kind === "iframe"
-          ? <div style={{ position:"relative", paddingTop:"56.25%" }}>
-              <iframe src={e.src} title={title} loading="lazy" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowFullScreen style={{ position:"absolute", inset:0, width:"100%", height:"100%", border:0 }}/>
-            </div>
-          : <ResumableVideo src={e.src} title={title}/>}
-      </div>
-      <div style={{ fontSize:11, color:T.textSm, marginTop:6, textAlign:"center" }}>{caption || "▶ Tutorial paso a paso · abajo el detalle escrito"}</div>
-      {/* Salida por WhatsApp justo debajo del video (22-sept, Thiago): el que
-          no quiere mirar 5 minutos de tutorial lo pide y listo. */}
-      <div style={{ textAlign:"center", marginTop:10 }}>
-        <a href={`https://wa.me/${WA_AYUDA}?text=${encodeURIComponent("Hola! Estoy conectando mi tienda con Recurrentes y necesito una mano.")}`}
+      {e && (<>
+        <div style={{ borderRadius:12, overflow:"hidden", border:`1px solid ${T.border}`, background:"#000" }}>
+          {e.kind === "iframe"
+            ? <div style={{ position:"relative", paddingTop:"56.25%" }}>
+                <iframe src={e.src} title={title} loading="lazy" allow="autoplay; fullscreen; picture-in-picture; encrypted-media" allowFullScreen style={{ position:"absolute", inset:0, width:"100%", height:"100%", border:0 }}/>
+              </div>
+            : <ResumableVideo src={e.src} title={title}/>}
+        </div>
+        <div style={{ fontSize:11, color:T.textSm, marginTop:6, textAlign:"center" }}>{caption || "▶ Tutorial paso a paso · abajo el detalle escrito"}</div>
+      </>)}
+      {/* Salida por WhatsApp (22-sept, Thiago; desde el 25-sept es la principal):
+          el que no quiere pelearse con la integración la pide y listo. */}
+      <div style={{ textAlign:"center", marginTop:e ? 10 : 0 }}>
+        <a href={`https://wa.me/${WA_AYUDA}?text=${encodeURIComponent("Hola! Quiero que me dejen Recurrentes andando en mi tienda. ¿Cómo seguimos?")}`}
           target="_blank" rel="noopener noreferrer"
           style={{ display:"inline-flex", alignItems:"center", gap:7, padding:"8px 15px", borderRadius:10,
             border:`1px solid ${T.border}`, background:T.card, color:T.text,
             fontSize:12, fontWeight:700, textDecoration:"none" }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="#25D366" aria-hidden="true"><path d="M17.5 14.4c-.3-.1-1.8-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-.3-.1-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.6c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.9-2.2c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.1.2 2.1 3.2 5.1 4.5.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.4.2-.7.2-1.3.2-1.4-.1-.2-.3-.3-.6-.4zM12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2z"/></svg>
-          ¿Preferís que lo hagamos nosotros? Escribinos
+          ¿Preferís que lo dejemos andando nosotros? Escribinos
         </a>
       </div>
     </div>

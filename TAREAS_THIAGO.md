@@ -47,7 +47,7 @@ Está todo codeado y esperando la configuración. Ver el detalle en la Parte 7 m
 ### ✅ Cerrado el 16-sept
 - **Envíos con proveedor externo**: probado con una suscripción real en Lumina eligiendo un HOP de Andreani → la orden #3048 llegó a Envialo con la sucursal correcta. La cotización en vivo quedó prendida por defecto para toda tienda Shopify.
 - **Tiendanube**: widget completo inyectado por Tiendanube (sin homologación), packs, compra única nativa, bloque HTML de respaldo, envío en el fulfillment order.
-- **Precios nuevos** (gratis hasta 10, 9 tramos, instalación gratis) en la fuente única y en toda la comunicación.
+- **Precios nuevos** (gratis hasta 10, 9 tramos; la instalación se cobra USD 100) en la fuente única y en toda la comunicación.
 
 ### D. Cabos sueltos de hoy
 

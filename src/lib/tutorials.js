@@ -6,9 +6,13 @@
 //   · Loom:     "https://www.loom.com/share/XXXXXXXX"
 //   · Vimeo:    "https://vimeo.com/123456789"
 //   · Archivo:  "/shopify-tutorial.mp4"  (subido a la carpeta public/ del repo)
-// Video de Thiago (18-sept): crear la app en Shopify + pegar el snippet, en una sola toma.
-// Alojado en Google Cloud Storage del proyecto Firebase (bucket recurrentes-16fbd-tutorials, público de lectura).
-export const SHOPIFY_TUTORIAL_URL = "https://storage.googleapis.com/recurrentes-16fbd-tutorials/shopify-instalacion.mp4";
+// VACÍO A PROPÓSITO desde el 25-sept-2026 (Thiago). El video del 18-sept quedó
+// viejo —la app cambió mucho desde entonces— y además repite todo el tiempo que
+// es gratis, justo cuando la instalación pasó a cobrarse USD 100. Mostrar un
+// tutorial desactualizado que promete otro precio es peor que no mostrar nada.
+// El archivo sigue en el bucket (recurrentes-16fbd-tutorials) por si se quiere
+// recuperar; para volver a mostrarlo alcanza con pegar la URL nueva acá.
+export const SHOPIFY_TUTORIAL_URL = "";
 
 // Convierte la URL en algo que se pueda mostrar: { kind:"iframe"|"video", src } o null.
 export function tutorialEmbed(url) {

@@ -93,7 +93,8 @@ export default function StoreStep2Modal({ merchant, channel = "shopify", onDone 
             Si algún tema no carga scripts, en <B T={T}>Planes → Poner en la tienda</B> escribimos la misma caja como HTML al final de la descripción del producto. Tu descripción no se toca y se saca con un clic.
           </Callout>
         </>) : (<>
-          {/* El mismo video del paso 1: sigue desde el minuto en que quedó (ResumableVideo). */}
+          {/* Con video, sigue desde el minuto en que quedó (ResumableVideo). Sin
+              video (hoy) queda solo la salida por WhatsApp. */}
           <TutorialVideo T={T} caption="▶ El mismo video del paso 1: sigue desde donde lo dejaste"/>
           <div style={step}>{num(1)}<div>Copiá tu snippet:<div style={{ marginTop: 8 }}><CopyLine T={T} text={snippet}/></div></div></div>
           <div style={step}>{num(2)}<div>En Shopify: <B T={T}>Tienda online → Temas</B>. En tu tema activo tocá los <B T={T}>tres puntos (⋯) → Editar código</B>.</div></div>

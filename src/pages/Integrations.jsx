@@ -9,6 +9,7 @@ import { WidgetThemeCard } from "./OperationalSettings.jsx";
 import { MONO, fmtDateShort } from "./_shared.jsx";
 import { MP_RECONNECT_COPY, MP_LAST_ERROR_COPY } from "../lib/mpOauth.js";
 import { CHANNELS, PAYMENT_PROVIDERS, merchantProfile, channelAvailable } from "../../shared/platform/profile.js";
+import { INSTALL_USD } from "../../shared/platform/pricing.js";
 import { ShopifyConnectSteps, ShopifyTroubleshoot, ShopifyScopeNotice, TutorialVideo, shopifyCredsWarning } from "./ShopifyConnect.jsx";
 import { WhatsAppRow } from "./WhatsAppIntegration.jsx";
 
@@ -61,10 +62,10 @@ const WA_CONECTAR = "5491164117974";
 // Ejemplo: "https://calendly.com/thiago-recurrentes/instalacion"
 // Vacío = se sigue pidiendo por WhatsApp.
 const AGENDA_URL = "";
-// Precio de la instalación. Hoy NO se muestra en el panel (Thiago, 22-sept:
-// el subtexto de cada plataforma dice solo para qué sirve); se habla en la
-// llamada. Queda acá para cuando se quiera mostrar junto al botón.
-export const INSTALL_USD_PUBLICO = 100;
+// Precio de la instalación: fuente única en shared/platform/pricing.js. Estaba
+// duplicado acá con el mismo valor; si cambia uno solo, la landing y el panel
+// dicen precios distintos. 25-sept-2026.
+export const INSTALL_USD_PUBLICO = INSTALL_USD;
 
 /** A dónde manda el botón de "que me lo instalen": agenda si existe, si no WhatsApp. */
 function linkInstalacion(label) {

@@ -4,7 +4,8 @@
 //
 // El precio sale de la cantidad de SUSCRIPTORES ACTIVOS de la tienda (no se
 // elige): los primeros 10 son gratis y después sube por tramos. La instalación
-// es gratis siempre. Todo lo demás está incluido en todos los planes.
+// NO es gratis (ver INSTALL_USD abajo). Todo lo demás está incluido en todos
+// los planes.
 //
 // Suscriptor activo = sub con status "active" o "payment_failed" (MP sigue
 // reintentando el cobro). Pausados, cancelados y los que nunca pagaron no cuentan.
@@ -19,10 +20,13 @@
 
 export const BILLABLE_STATUSES = ["active", "payment_failed"];
 export const FREE_SUBSCRIBERS = 10;
-// La instalación (dejar el widget andando en la tienda) se cotiza aparte desde
-// el 22-sept-2026: lleva trabajo real y no se promete más como gratis. No se
-// publica precio en la landing; se habla en la llamada.
-export const INSTALL_USD = null;
+// La instalación (dejar el widget andando en la tienda) se cobra aparte desde el
+// 22-sept-2026: lleva trabajo real y no se promete más como gratis. Desde el
+// 25-sept-2026 es OBLIGATORIA y con precio a la vista (Thiago: "son 100 dólares,
+// sí o sí"): las dos tiendas que funcionan salieron las dos con él haciendo la
+// integración a mano, así que la venta pasa a ser demo + puesta en marcha.
+// En ningún lado puede volver a decir que la instalación es gratis.
+export const INSTALL_USD = 100;
 
 // max null = sin techo. Los tramos son contiguos: min del siguiente = max + 1.
 // Los ids viejos (starter/growth/scale/pro/unlimited) se conservan para que
