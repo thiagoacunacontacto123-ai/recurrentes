@@ -16,7 +16,7 @@ import { RecLogo } from "../ui/Shell.jsx";
 import { apiPost } from "../lib/api.js";
 import { normalizeWhatsapp, EMAIL_RE } from "../../shared/platform/contact.js";
 import { readAttribution, pixelTrack } from "../lib/attribution.js";
-import { AGENDA_URL, waLink } from "../lib/contacto.js";
+import { AGENDA_URL, waLink, agendaUrl } from "../lib/contacto.js";
 import { DEMO_PREGUNTAS, DEMO_CONFIRMACIONES, sanitizeDemoLead } from "../../shared/platform/demoLead.js";
 import { REVIEWS, ReviewCard, Stars } from "./LandingSections.jsx";
 
@@ -57,6 +57,9 @@ export default function DemoPage() {
   // Cuando AGENDA_URL tenga el Calendly, el botón principal pasa solo a abrir el
   // calendario y WhatsApp queda de segunda opción. Hasta entonces, WhatsApp es
   // el principal: no puede quedar una pantalla sin salida. Ver src/lib/contacto.js.
+  // El calendario con nombre, mail y el anuncio del que vino ya puestos: en
+  // Calendly solo elige el horario, no vuelve a cargar los mismos datos.
+  const agenda = agendaUrl({ nombre: f.nombre, email: f.email, attribution: readAttribution() });
   const wa = waLink(`Hola! Soy ${f.nombre || ""} de ${f.marca || ""}. Acabo de pedir la demo de Recurrentes.`);
 
   return (
@@ -102,7 +105,7 @@ export default function DemoPage() {
                   ? <>Ya tenemos tus datos. Elegí el horario que te quede cómodo y listo: te llega la invitación a <strong style={{ color: T.text }}>{f.email}</strong>.</>
                   : <>Ya tenemos tus datos. Te escribimos por WhatsApp al <strong style={{ color: T.text }}>{normalizeWhatsapp(f.whatsapp)}</strong> para coordinar la llamada. Si querés adelantarla, escribinos vos ahora mismo.</>}
               </p>
-              <a href={AGENDA_URL || wa} target="_blank" rel="noopener noreferrer" style={{ ...BtnSolid(T), display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 24px", fontSize: 15.5, textDecoration: "none", borderRadius: 14 }}>
+              <a href={agenda || wa} target="_blank" rel="noopener noreferrer" style={{ ...BtnSolid(T), display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 24px", fontSize: 15.5, textDecoration: "none", borderRadius: 14 }}>
                 {AGENDA_URL ? "Elegir horario →" : "Escribir por WhatsApp"}
               </a>
               {AGENDA_URL && <div style={{ marginTop: 14 }}><a href={wa} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13.5, color: T.textMd, fontWeight: 600 }}>o escribinos por WhatsApp</a></div>}
