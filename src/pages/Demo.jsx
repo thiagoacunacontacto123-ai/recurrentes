@@ -9,7 +9,7 @@
 // —a la izquierda qué te dejamos andando y reseñas de tiendas, a la derecha el
 // formulario en una tarjeta fija—; en celular el formulario va primero y las
 // reseñas debajo. Mismas reseñas que la landing (LandingSections → REVIEWS).
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useTheme } from "../ui/theme.js";
 import { InputStyle, BtnSolid, Spinner } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
@@ -35,13 +35,32 @@ function AgendaEmbed({ T, url, nombre, email, leadId, wa }) {
   const [agendado, setAgendado] = useState(false);
   const avisado = React.useRef(false);
 
+  // Parámetros de marca del embed. Calendly los quiere en hexa SIN el #, y
+  // toma los colores del tema en el que esté el visitante, así no aparece un
+  // calendario blanco dentro de una página oscura.
+  //
+  // hide_event_type_details y hide_gdpr_banner sacan el panel de Calendly de la
+  // izquierda y el cartel de cookies: eso anda en el plan gratis. Los COLORES
+  // solo los aplica Calendly en plan pago; acá van igual para que el día que se
+  // pague quede con la marca sin tocar una línea de código.
+  const hex = (c) => String(c || "").replace("#", "").slice(0, 6);
+  const urlConMarca = useMemo(() => {
+    const u = new URL(url);
+    u.searchParams.set("hide_event_type_details", "1");
+    u.searchParams.set("hide_gdpr_banner", "1");
+    if (hex(T.card)) u.searchParams.set("background_color", hex(T.card));
+    if (hex(T.text)) u.searchParams.set("text_color", hex(T.text));
+    if (hex(T.accentSolid)) u.searchParams.set("primary_color", hex(T.accentSolid));
+    return u.toString();
+  }, [url, T.card, T.text, T.accentSolid]);
+
   useEffect(() => {
     let cancelado = false;
     const SRC = "https://assets.calendly.com/assets/external/widget.js";
     const montar = () => {
       if (cancelado || !box.current || !window.Calendly) return;
       box.current.innerHTML = "";
-      window.Calendly.initInlineWidget({ url, parentElement: box.current, prefill: { name: nombre, email } });
+      window.Calendly.initInlineWidget({ url: urlConMarca, parentElement: box.current, prefill: { name: nombre, email } });
     };
     if (window.Calendly) montar();
     else {
@@ -54,7 +73,7 @@ function AgendaEmbed({ T, url, nombre, email, leadId, wa }) {
       }
     }
     return () => { cancelado = true; };
-  }, [url, nombre, email]);
+  }, [urlConMarca, nombre, email]);
 
   // Calendly avisa cada paso por postMessage; solo nos importa el agendado.
   useEffect(() => {
