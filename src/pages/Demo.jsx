@@ -36,6 +36,10 @@ export default function DemoPage() {
   const label = { display: "block", fontSize: 12.5, fontWeight: 600, color: T.textMd, marginBottom: 6, lineHeight: 1.4 };
   const campo = { marginBottom: 14 };
 
+  // El calendario con nombre, mail y el anuncio del que vino ya puestos: en
+  // Calendly solo elige el horario, no vuelve a cargar los mismos datos.
+  const agenda = agendaUrl({ nombre: f.nombre, email: f.email, attribution: readAttribution() });
+
   async function enviar() {
     setError("");
     // Se valida con la MISMA función que el backend: un solo lugar donde están
@@ -50,16 +54,18 @@ export default function DemoPage() {
     // El pixel del navegador con el MISMO nombre que manda el servidor: Meta
     // deduplica por event_id y el que tenga el navegador bloqueado igual cuenta.
     pixelTrack("RegistroCalificado", {}, r?.id ? `acq_qualified_${r.id}` : null);
+    // Derecho al calendario (26-sept-2026, Thiago: "la persona va a buscar el
+    // horario y listo, ¿para qué se lo avisás?"). La pantalla de gracias era un
+    // clic de más entre el formulario y lo único que falta hacer. El evento del
+    // navegador ya salió, y el del servidor salió en el POST con el mismo
+    // event_id, así que irse de la página no pierde la conversión.
+    if (agenda) { window.location.href = agenda; return; }
+    // Sin Calendly cargado no hay a dónde mandarlo: ahí sí va la pantalla con
+    // la salida por WhatsApp, que no puede quedar en la nada.
     setListo(true);
     window.scrollTo(0, 0);
   }
 
-  // Cuando AGENDA_URL tenga el Calendly, el botón principal pasa solo a abrir el
-  // calendario y WhatsApp queda de segunda opción. Hasta entonces, WhatsApp es
-  // el principal: no puede quedar una pantalla sin salida. Ver src/lib/contacto.js.
-  // El calendario con nombre, mail y el anuncio del que vino ya puestos: en
-  // Calendly solo elige el horario, no vuelve a cargar los mismos datos.
-  const agenda = agendaUrl({ nombre: f.nombre, email: f.email, attribution: readAttribution() });
   const wa = waLink(`Hola! Soy ${f.nombre || ""} de ${f.marca || ""}. Acabo de pedir la demo de Recurrentes.`);
 
   return (
