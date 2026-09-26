@@ -146,7 +146,8 @@ export default async function handler(req, res) {
   if (action === "provider-webhook") return (await import("./_lib/providers/webhook.js")).handleProviderWebhook(req, res);
   if (action === "wa-webhook") return handleWhatsappWebhook(req, res);
   if (action === "demo-lead") return handleDemoLead(req, res);
-  return res.status(400).json({ error: "action debe ser plan | sub | discount | unsub | update-address | pause-offer | demo-lead" });
+  if (action === "demo-booked") return handleDemoBooked(req, res);
+  return res.status(400).json({ error: "action debe ser plan | sub | discount | unsub | update-address | pause-offer | demo-lead | demo-booked" });
 }
 
 // ─── action=demo-lead ───────────────────────────────────────────
@@ -197,6 +198,38 @@ async function handleDemoLead(req, res) {
   } catch (e) { console.warn("[demo-lead] acquisition:", e.message); }
 
   return res.status(200).json({ ok: true, id });
+}
+
+// ─── action=demo-booked ─────────────────────────────────────────────────────
+// El calendario está INCRUSTADO en #/demo, así que cuando alguien elige horario
+// Calendly avisa por JavaScript y el navegador nos lo manda acá. Con eso se ve
+// en el Admin quién llenó el formulario y NO reservó, que es la gente a la que
+// hay que escribirle. Antes era un agujero negro: el lead salía para Calendly y
+// no volvíamos a saber nada.
+//
+// Es público y solo mueve un lead de "nuevo" a "agendado": lo peor que puede
+// hacer alguien que lo llame a mano es marcar un lead como agendado.
+async function handleDemoBooked(req, res) {
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  const id = String(req.body?.lead_id || "").trim();
+  if (!/^dl_[A-Za-z0-9]{6,40}$/.test(id)) return res.status(400).json({ error: "lead_id inválido" });
+  const rl = await rateLimit(`demobooked:${clientIp(req)}`, { limit: 20, windowSec: 3600 });
+  if (!rl.ok) return res.status(429).json({ error: "Demasiados envíos." });
+
+  const ref = db().collection("demo_leads").doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) return res.status(404).json({ error: "No existe" });
+  const lead = snap.data() || {};
+  // Ya marcado: no se vuelve a contar ni se manda el evento dos veces.
+  if (lead.booked_at) return res.status(200).json({ ok: true, ya: true });
+
+  const at = new Date().toISOString();
+  await ref.set({ booked_at: at, status: "agendado", updated_at: at }, { merge: true });
+  try {
+    const { trackDemoBooked } = await import("./_lib/acquisition.js");
+    await trackDemoBooked({ ...lead, id }, { req });
+  } catch (e) { console.warn("[demo-booked] acquisition:", e.message); }
+  return res.status(200).json({ ok: true });
 }
 
 // Mismas claves que guarda la landing para el resto del embudo (attribution.js).

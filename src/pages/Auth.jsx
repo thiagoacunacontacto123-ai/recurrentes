@@ -24,6 +24,20 @@ googleProvider.setCustomParameters({ prompt: "select_account" });
 // Navegadores dentro de apps (Instagram, Facebook, TikTok…): Google bloquea el login ahí (disallowed_useragent).
 const IN_APP_BROWSER = typeof navigator !== "undefined" && /Instagram|FBAN|FBAV|FB_IAB|Line\/|TikTok|musical_ly/i.test(navigator.userAgent || "");
 
+// El registro self-serve está CERRADO (26-sept-2026, Thiago: "las cuentas las
+// creo yo desde mi admin, lo mismo que las integraciones"). #/registro redirige
+// a #/demo.
+//
+// Única excepción: la instalación desde la tienda de apps de Tiendanube vuelve
+// al panel con ?tn_claim= y necesita una cuenta para asociarse. Sin esta puerta,
+// el día que aprueben la app esa instalación se rompe y nadie se entera.
+export function registroPermitido() {
+  try {
+    const h = window.location.hash || "", q = window.location.search || "";
+    return /[?&]tn_claim=/.test(h) || /[?&]tn_claim=/.test(q);
+  } catch (_) { return false; }
+}
+
 function authViewFromHash() {
   const h = (typeof window !== "undefined" ? window.location.hash : "").toLowerCase().replace(/^#\/?/, "").split("?")[0];
   if (h === "login") return "login";
@@ -50,6 +64,11 @@ export function PublicSite() {
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+  // Quien llegue a #/registro (link viejo, mail guardado, la URL tipeada) va a
+  // pedir la demo. La cuenta la crea Thiago desde el Admin después de la llamada.
+  useEffect(() => {
+    if (view === "register" && !registroPermitido()) { try { window.location.hash = "#/demo"; } catch (_) {} }
+  }, [view]);
   const go = (v) => { try { window.location.hash = v === "landing" ? "#/" : `#/${v === "register" ? "registro" : v === "reset" ? "recuperar" : "login"}`; } catch (_) {} setView(v); window.scrollTo(0, 0); };
   if (view === "landing") return <Landing T={T} darkMode={darkMode} onToggleDark={toggleDark} onLogin={() => go("login")} onRegister={() => go("register")}/>;
   return <AuthScreen T={T} darkMode={darkMode} onToggleDark={toggleDark} mode={view} setMode={go} onBackToLanding={() => go("landing")}/>;

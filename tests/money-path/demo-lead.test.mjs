@@ -116,3 +116,44 @@ test("(r) GET no crea nada", async () => {
   assert.equal(res.statusCode, 405);
   assert.equal(meta.length, 0);
 });
+
+// ─── Agendó: el embed de Calendly avisa y se marca el lead ────────────────
+// 26-sept-2026. El calendario quedó DENTRO de #/demo, así que cuando alguien
+// elige horario el navegador nos avisa. Sin esto no había forma de saber quién
+// llenó el formulario y no reservó — que es justo la gente a la que hay que
+// escribirle.
+const booked = (body) => invoke(handler, { method: "POST", query: { action: "demo-booked" }, body });
+
+test("(r) al agendar, el lead queda marcado y sale DemoAgendada", async () => {
+  const res = await post({ ...OK, attribution: { utm_source: "meta", utm_content: "VIDEO_1" } });
+  const id = res.body.id;
+  meta.length = 0;
+
+  const b = await booked({ lead_id: id });
+  assert.equal(b.statusCode, 200);
+  const lead = rawGet(`demo_leads/${id}`);
+  assert.equal(lead.status, "agendado");
+  assert.ok(lead.booked_at);
+  assert.equal(meta.length, 1);
+  assert.equal(meta[0].json.data[0].event_name, "DemoAgendada");
+  assert.equal(meta[0].json.data[0].event_id, `acq_booked_${id}`, "id propio: no se pisa con el del formulario");
+  assert.equal(meta[0].json.data[0].custom_data.ad_name, "VIDEO_1", "se sabe qué anuncio trajo la reserva");
+});
+
+test("(r) avisar dos veces no cuenta la reserva dos veces", async () => {
+  const res = await post({ ...OK, email: "otra2@marca.test" });
+  meta.length = 0;
+  await booked({ lead_id: res.body.id });
+  const dup = await booked({ lead_id: res.body.id });
+  assert.equal(dup.statusCode, 200);
+  assert.equal(dup.body.ya, true);
+  assert.equal(meta.length, 1, "un solo evento a Meta");
+});
+
+test("(r) un lead_id inventado no crea nada", async () => {
+  meta.length = 0;
+  assert.equal((await booked({ lead_id: "dl_noexiste123" })).statusCode, 404);
+  assert.equal((await booked({ lead_id: "../../merchants/lumina" })).statusCode, 400);
+  assert.equal((await booked({})).statusCode, 400);
+  assert.equal(meta.length, 0);
+});

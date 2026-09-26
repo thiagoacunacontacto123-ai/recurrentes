@@ -9,7 +9,7 @@
 // —a la izquierda qué te dejamos andando y reseñas de tiendas, a la derecha el
 // formulario en una tarjeta fija—; en celular el formulario va primero y las
 // reseñas debajo. Mismas reseñas que la landing (LandingSections → REVIEWS).
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useTheme } from "../ui/theme.js";
 import { InputStyle, BtnSolid, Spinner } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
@@ -23,6 +23,79 @@ import { REVIEWS, ReviewCard, Stars } from "./LandingSections.jsx";
 const F = "'Inter',system-ui,sans-serif";
 const FD = "'Manrope','Inter',system-ui,sans-serif";
 
+// ─── Calendario incrustado ───────────────────────────────────────────────────
+// Calendly adentro de la página, no un salto a calendly.com (26-sept-2026,
+// Thiago). Es un paso menos, no se va del sitio, y sobre todo: cuando la
+// persona elige horario, Calendly avisa por postMessage y ahí marcamos el lead
+// como agendado. Sin el embed eso no se puede saber sin el plan pago.
+//
+// El script y el widget son de Calendly; el plan gratis los permite.
+function AgendaEmbed({ T, url, nombre, email, leadId, wa }) {
+  const box = React.useRef(null);
+  const [agendado, setAgendado] = useState(false);
+  const avisado = React.useRef(false);
+
+  useEffect(() => {
+    let cancelado = false;
+    const SRC = "https://assets.calendly.com/assets/external/widget.js";
+    const montar = () => {
+      if (cancelado || !box.current || !window.Calendly) return;
+      box.current.innerHTML = "";
+      window.Calendly.initInlineWidget({ url, parentElement: box.current, prefill: { name: nombre, email } });
+    };
+    if (window.Calendly) montar();
+    else {
+      const ya = document.querySelector(`script[src="${SRC}"]`);
+      if (ya) ya.addEventListener("load", montar);
+      else {
+        const sc = document.createElement("script");
+        sc.src = SRC; sc.async = true; sc.onload = montar;
+        document.head.appendChild(sc);
+      }
+    }
+    return () => { cancelado = true; };
+  }, [url, nombre, email]);
+
+  // Calendly avisa cada paso por postMessage; solo nos importa el agendado.
+  useEffect(() => {
+    const onMsg = async (e) => {
+      if (!/calendly\.com$/.test(String(e.origin || "").replace(/^https?:\/\//, "")) ) return;
+      if (e.data?.event !== "calendly.event_scheduled" || avisado.current) return;
+      avisado.current = true;
+      setAgendado(true);
+      pixelTrack("DemoAgendada", {}, leadId ? `acq_booked_${leadId}` : null);
+      if (leadId) { try { await apiPost("public", { lead_id: leadId }, { action: "demo-booked" }); } catch (_) {} }
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, [leadId]);
+
+  return (
+    <div style={{ maxWidth: 900, margin: "28px auto 60px" }}>
+      <div style={{ textAlign: "center", marginBottom: 14 }}>
+        <h1 style={{ fontSize: "clamp(24px, 3.2vw, 32px)", fontWeight: 800, letterSpacing: "-0.03em", margin: "0 0 8px" }}>
+          {agendado ? `Listo, ${String(nombre).split(" ")[0]}. Nos vemos.` : `Elegí tu horario, ${String(nombre).split(" ")[0]}`}
+        </h1>
+        <p style={{ fontSize: 15, color: T.textMd, lineHeight: 1.6, margin: 0 }}>
+          {agendado
+            ? <>Te llega la invitación con el link de Google Meet a <strong style={{ color: T.text }}>{email}</strong>.</>
+            : <>Ya tenemos tus datos. Falta solo esto: te llega la invitación a <strong style={{ color: T.text }}>{email}</strong>.</>}
+        </p>
+      </div>
+      {/* 700 px en compu. En celular Calendly apila día y horarios y necesita
+          más alto: con menos mete un scroll adentro del iframe y la gente no
+          encuentra el botón de confirmar. */}
+      <style>{`.rec-agenda{min-height:700px}@media(max-width:760px){.rec-agenda{min-height:1080px}}`}</style>
+      <div ref={box} className="rec-agenda" style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 18, overflow: "hidden" }}/>
+      <div style={{ textAlign: "center", marginTop: 14 }}>
+        <a href={wa} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13.5, color: T.textMd, fontWeight: 600 }}>
+          ¿Ningún horario te sirve? Escribinos por WhatsApp
+        </a>
+      </div>
+    </div>
+  );
+}
+
 export default function DemoPage() {
   const { T } = useTheme();
   const iS = InputStyle(T);
@@ -31,6 +104,8 @@ export default function DemoPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [listo, setListo] = useState(false);
+  // Id del lead guardado: con eso marcamos "agendó" cuando Calendly avisa.
+  const [leadId, setLeadId] = useState(null);
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
 
   const label = { display: "block", fontSize: 12.5, fontWeight: 600, color: T.textMd, marginBottom: 6, lineHeight: 1.4 };
@@ -54,14 +129,15 @@ export default function DemoPage() {
     // El pixel del navegador con el MISMO nombre que manda el servidor: Meta
     // deduplica por event_id y el que tenga el navegador bloqueado igual cuenta.
     pixelTrack("RegistroCalificado", {}, r?.id ? `acq_qualified_${r.id}` : null);
-    // Derecho al calendario (26-sept-2026, Thiago: "la persona va a buscar el
-    // horario y listo, ¿para qué se lo avisás?"). La pantalla de gracias era un
-    // clic de más entre el formulario y lo único que falta hacer. El evento del
-    // navegador ya salió, y el del servidor salió en el POST con el mismo
-    // event_id, así que irse de la página no pierde la conversión.
-    if (agenda) { window.location.href = agenda; return; }
+    // El calendario aparece acá mismo, incrustado (26-sept-2026, Thiago: vio la
+    // demo integrada de Talopay). Mejor que redirigir: es un paso menos, no se
+    // va del sitio, y cuando elige horario Calendly nos avisa por JavaScript —
+    // así sabemos quién llenó el formulario y NO reservó, que antes era un
+    // agujero negro.
+    if (agenda) { setLeadId(r?.id || null); setListo(true); window.scrollTo(0, 0); return; }
     // Sin Calendly cargado no hay a dónde mandarlo: ahí sí va la pantalla con
     // la salida por WhatsApp, que no puede quedar en la nada.
+    setLeadId(r?.id || null);
     setListo(true);
     window.scrollTo(0, 0);
   }
@@ -101,21 +177,22 @@ export default function DemoPage() {
         <div className="rec-demo-bg" aria-hidden="true"/>
         <div className="rec-demo-wrap" style={{ position: "relative", zIndex: 1 }}>
           {listo ? (
+            agenda ? (
+              <AgendaEmbed T={T} url={agenda} nombre={f.nombre} email={f.email} leadId={leadId} wa={wa}/>
+            ) : (
             <div style={{ maxWidth: 560, margin: "48px auto 80px", background: T.card, border: `1px solid ${T.border}`, borderRadius: 22, padding: "34px 28px", textAlign: "center", boxShadow: "0 30px 70px -30px rgba(0,0,0,.45)" }}>
               <div style={{ width: 56, height: 56, borderRadius: 99, margin: "0 auto 16px", background: T.accentSolid + "1a", border: `1px solid ${T.accentSolid}55`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
               </div>
               <h1 style={{ fontSize: 30, fontWeight: 800, letterSpacing: "-0.03em", margin: "0 0 10px" }}>Listo, {f.nombre.split(" ")[0]}.</h1>
               <p style={{ fontSize: 15, color: T.textMd, lineHeight: 1.6, margin: "0 0 22px" }}>
-                {AGENDA_URL
-                  ? <>Ya tenemos tus datos. Elegí el horario que te quede cómodo y listo: te llega la invitación a <strong style={{ color: T.text }}>{f.email}</strong>.</>
-                  : <>Ya tenemos tus datos. Te escribimos por WhatsApp al <strong style={{ color: T.text }}>{normalizeWhatsapp(f.whatsapp)}</strong> para coordinar la llamada. Si querés adelantarla, escribinos vos ahora mismo.</>}
+                Ya tenemos tus datos. Te escribimos por WhatsApp al <strong style={{ color: T.text }}>{normalizeWhatsapp(f.whatsapp)}</strong> para coordinar la llamada. Si querés adelantarla, escribinos vos ahora mismo.
               </p>
-              <a href={agenda || wa} target="_blank" rel="noopener noreferrer" style={{ ...BtnSolid(T), display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 24px", fontSize: 15.5, textDecoration: "none", borderRadius: 14 }}>
-                {AGENDA_URL ? "Elegir horario →" : "Escribir por WhatsApp"}
+              <a href={wa} target="_blank" rel="noopener noreferrer" style={{ ...BtnSolid(T), display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 24px", fontSize: 15.5, textDecoration: "none", borderRadius: 14 }}>
+                Escribir por WhatsApp
               </a>
-              {AGENDA_URL && <div style={{ marginTop: 14 }}><a href={wa} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13.5, color: T.textMd, fontWeight: 600 }}>o escribinos por WhatsApp</a></div>}
             </div>
+            )
           ) : (
             <>
               {/* Arriba: una explicación breve. Después, directo a los datos. Las
