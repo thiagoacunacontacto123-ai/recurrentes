@@ -384,7 +384,7 @@ export function WidgetLoop({ T, plan = SAMPLE_PLANS.cafe, merchant = HERO_MERCHA
         </div>
         <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 10, fontWeight: 800, color: T.accent, background: T.accentSolid + "18", borderRadius: 99, padding: "3px 9px", letterSpacing: 0.4, whiteSpace: "nowrap" }}><span style={{ width: 6, height: 6, borderRadius: 99, background: T.accentSolid }}/>EN VIVO</span>
       </div>
-      <div ref={boxRef} style={{ position: "relative", fontSize, lineHeight: 1.35, color: "#161616" }}>
+      <div ref={boxRef} style={{ position: "relative", fontSize, lineHeight: 1.35, color: "#161616", background: "#fff", borderRadius: 14, padding: 12 }}>
         <style>{css}</style>
         <div dangerouslySetInnerHTML={{ __html: html }}/>
         {!reduce && (
@@ -404,38 +404,44 @@ export function SubPageMock({ T, onDone, active = true }) {
   const doneRef = useRef(onDone); doneRef.current = onDone;
   useEffect(() => { if (reduce || !active) return; const t = setTimeout(() => doneRef.current?.(), 5200); return () => clearTimeout(t); }, [reduce, active]);
   const c = "#6b3f2a";
-  const row = (l, v, b) => <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: b ? "#111" : "#555", fontWeight: b ? 800 : 500 }}><span>{l}</span><span style={{ fontVariantNumeric: "tabular-nums" }}>{v}</span></div>;
+  // Réplica del checkout REAL de Recurrentes (mismo orden y campos que Checkout.jsx):
+  // Contacto · Entrega · Envío · Pagar, y el resumen a la derecha.
+  const Field = ({ l, v, flex = 1, ph }) => <div style={{ flex, minWidth: 0, border: "1px solid #dcdcdc", borderRadius: 8, padding: "6px 9px", background: "#fff" }}><div style={{ fontSize: 8.5, color: "#777" }}>{l}</div><div style={{ fontSize: 11, color: ph ? "#9a9a9a" : "#111", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v}</div></div>;
+  const H = ({ children }) => <div style={{ fontFamily: FD, fontSize: 13, fontWeight: 800, color: "#111", margin: "6px 0 2px" }}>{children}</div>;
+  const Ship = ({ l, on }) => <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 9px", border: `1px solid ${on ? c : "#e3e3e3"}`, background: on ? c + "10" : "#fff", borderRadius: 8, fontSize: 10.5, color: "#222" }}><span style={{ width: 12, height: 12, borderRadius: 99, border: `1.5px solid ${on ? c : "#bbb"}`, display: "grid", placeItems: "center", flexShrink: 0 }}>{on && <span style={{ width: 6, height: 6, borderRadius: 99, background: c }}/>}</span><span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{l}</span><b>Gratis</b></div>;
+  const row = (l, v, b) => <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: b ? 13 : 11, color: b ? "#111" : "#444", fontWeight: b ? 800 : 500 }}><span>{l}</span><span style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{v}</span></div>;
   return (
-    <div className="lm-card" style={{ padding: 0, boxShadow: "0 30px 70px -30px rgba(0,0,0,.5)", background: "#fff", color: "#111" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: "1px solid #eee" }}>
-        <img src={PRODUCT_ART.cafe} alt="" width="26" height="26" style={{ borderRadius: 6, objectFit: "cover" }}/>
-        <span style={{ fontFamily: "Georgia,serif", fontWeight: 700, fontSize: 16, color: c, letterSpacing: .5 }}>TOSTADO</span>
-        <span style={{ marginLeft: "auto", fontSize: 10.5, color: "#888" }}>Checkout seguro · Mercado Pago</span>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.1fr) minmax(0,.9fr)", gap: 0 }} className="lm-subpage-grid">
+    <div className="lm-card" style={{ padding: 0, boxShadow: "0 30px 70px -30px rgba(0,0,0,.5)", background: "#fff", color: "#111", overflow: "hidden" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.15fr) minmax(0,.85fr)" }} className="lm-subpage-grid">
         <style>{`@media(max-width:640px){.lm-subpage-grid{grid-template-columns:1fr!important;}}`}</style>
-        <div style={{ padding: 16, display: "grid", gap: 10 }}>
-          <div style={{ fontSize: 11, fontWeight: 800, color: "#888", letterSpacing: .6, textTransform: "uppercase" }}>Contacto</div>
-          <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: "9px 11px", fontSize: 12.5, color: "#111" }}>ana@ejemplo.com</div>
-          <div style={{ fontSize: 11, fontWeight: 800, color: "#888", letterSpacing: .6, textTransform: "uppercase", marginTop: 4 }}>Entrega</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: "9px 11px", fontSize: 12.5 }}>Ana Pérez</div>
-            <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: "9px 11px", fontSize: 12.5 }}>CP 1425</div>
-          </div>
-          <div style={{ border: "1px solid #ddd", borderRadius: 10, padding: "9px 11px", fontSize: 12.5 }}>Av. Santa Fe 3200 · Palermo, CABA</div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", border: `1.5px solid ${c}`, borderRadius: 10, padding: "9px 11px", fontSize: 12.5, background: c + "0d" }}><span><b>Andreani a domicilio</b><br/><span style={{ color: "#777", fontSize: 11 }}>2 a 4 días hábiles</span></span><b>{fmtARS(3900)}</b></div>
-          <button type="button" style={{ marginTop: 4, background: c, color: "#fff", border: "none", borderRadius: 12, padding: "13px 14px", fontFamily: FD, fontWeight: 800, fontSize: 14, cursor: "default" }}>Pagar {fmtARS(27800)} · cada mes</button>
+        <div style={{ padding: "14px 16px 16px", display: "grid", gap: 6, alignContent: "start" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 4 }}><span style={{ fontFamily: "Georgia,serif", fontWeight: 700, fontSize: 18, letterSpacing: 2, color: c }}>TOSTADO</span><span style={{ width: 40, height: 2, background: c, opacity: .5, alignSelf: "center" }}/></div>
+          <H>Contacto</H>
+          <Field l="Correo electrónico" v="ana.perez@gmail.com"/>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: "#333" }}><span style={{ width: 12, height: 12, borderRadius: 3, background: c, display: "grid", placeItems: "center", color: "#fff", fontSize: 9 }}>✓</span>Quiero recibir novedades de mi pedido por email y WhatsApp</div>
+          <H>Entrega</H>
+          <Field l="Nombre y apellido" v="Ana Pérez"/>
+          <div style={{ display: "flex", gap: 6 }}><Field l="Teléfono" v="11 5555 0000"/><Field l="DNI o CUIT" v="30123456"/></div>
+          <Field l="Calle y número" v="Av. Santa Fe 3200"/>
+          <div style={{ display: "flex", gap: 6 }}><Field l="C.P." v="1425" flex={.6}/><Field l="Localidad" v="Palermo"/><Field l="Provincia" v="CABA"/></div>
+          <H>Envío</H>
+          <Ship l="Andreani Punto de Retiro — PUNTO ANDREANI HOP ALMAFUERTE 3209" on/>
+          <Ship l="Andreani a domicilio"/>
+          <button type="button" style={{ marginTop: 6, background: c, color: "#fff", border: "none", borderRadius: 10, padding: "11px 12px", fontFamily: FD, fontWeight: 800, fontSize: 13, cursor: "default" }}>Pagar {fmtARS(23220)}</button>
         </div>
-        <div style={{ padding: 16, background: "#f6f3ef", borderLeft: "1px solid #eee", display: "grid", gap: 10, alignContent: "start" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "56px 1fr", gap: 10, alignItems: "center" }}>
-            <span style={{ width: 56, height: 56, borderRadius: 12, overflow: "hidden", border: "1px solid #e8e2da" }}><img src={PRODUCT_ART.cafe} alt="" width="56" height="56" style={{ display: "block", objectFit: "cover" }}/></span>
-            <span style={{ fontSize: 12.5, lineHeight: 1.4 }}><b>Café de especialidad · 2 bolsas</b><br/><span style={{ color: "#777" }}>Suscripción · te llega cada mes</span></span>
+        <div style={{ padding: "14px 14px 16px", background: "#f7f5f2", borderLeft: "1px solid #ece8e2", display: "grid", gap: 8, alignContent: "start" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "52px 1fr auto", gap: 8, alignItems: "start" }}>
+            <span style={{ width: 52, height: 52, borderRadius: 10, overflow: "hidden", border: "1px solid #e8e2da" }}><img src={PRODUCT_ART.cafe} alt="" width="52" height="52" style={{ display: "block", objectFit: "cover" }}/></span>
+            <span style={{ fontSize: 11.5, lineHeight: 1.35 }}><b>Café de especialidad · 2 bolsas</b><br/><span style={{ display: "inline-block", marginTop: 3, fontSize: 9, fontWeight: 700, color: c, background: c + "18", borderRadius: 99, padding: "2px 7px" }}>Suscripción</span><br/><span style={{ color: "#777", fontSize: 10 }}>Frecuencia: cada 30 días</span></span>
+            <b style={{ fontSize: 12 }}>{fmtARS(23220)}</b>
           </div>
-          {row("Subtotal", fmtARS(25800))}
-          {row("Ahorrás por suscribirte", "−" + fmtARS(1900))}
-          {row("Envío", fmtARS(3900))}
-          <div style={{ borderTop: "1px solid #e3ddd4", paddingTop: 8 }}>{row("Total por envío", fmtARS(27800), true)}</div>
-          <a href="#/tostado" style={{ marginTop: 6, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "11px 12px", borderRadius: 10, border: `1.5px solid ${c}`, color: c, fontWeight: 800, fontSize: 12.5, textDecoration: "none", background: "#fff" }}>Ver la tienda de ejemplo <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+          <div style={{ display: "flex", gap: 6 }}><div style={{ flex: 1, border: "1px solid #dcdcdc", borderRadius: 8, padding: "8px 9px", fontSize: 10.5, color: "#9a9a9a", background: "#fff" }}>Código de descuento</div><span style={{ border: "1px solid #dcdcdc", borderRadius: 8, padding: "8px 10px", fontSize: 10.5, color: "#999", background: "#f1f1f1" }}>Aplicar</span></div>
+          <div style={{ borderTop: "1px solid #e6e1da", paddingTop: 8, display: "grid", gap: 5 }}>
+            {row("Producto", fmtARS(23220))}
+            {row("Envío · Andreani Punto de Retiro", "Gratis")}
+            <div style={{ borderTop: "1px solid #e6e1da", paddingTop: 6 }}>{row("Total", <><span style={{ fontSize: 9, color: "#777", fontWeight: 600 }}>ARS </span>{fmtARS(23220)}</>, true)}</div>
+          </div>
+          <div style={{ fontSize: 9.5, color: "#777", lineHeight: 1.45 }}>Se cobra {fmtARS(23220)} ahora y se renueva automáticamente cada 30 días. Podés pausar o cancelar cuando quieras.</div>
         </div>
       </div>
     </div>
@@ -547,7 +553,7 @@ function DesignCard({ T, d }) {
       </div>
       <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: T.textSm }}>
         <span style={{ width: 10, height: 10, borderRadius: 99, background: d.color, boxShadow: `0 0 0 3px ${d.color}33` }}/>
-        Color, letra, bordes y textos: todo de la tienda. Trece diseños para elegir.
+        Color, letra, bordes, fotos y textos: todo de la tienda. Diseños 100% personalizables.
       </div>
     </div>
   );
@@ -570,7 +576,7 @@ export function StickyDesigns({ T }) {
             <div>
               <div className="lm-eyebrow">Se adapta a tu tienda</div>
               <h2 className="lm-h2">Un widget por marca,<br/>no una marca por widget</h2>
-              <p className="lm-sub">El botón de suscripción toma tus colores, tu letra y tus textos. Estos son cinco de los trece diseños, con datos de ejemplo.</p>
+              <p className="lm-sub">El botón de suscripción toma tus colores, tu letra, tus fotos y tus textos. Diseños 100% personalizables: estos son cinco, con datos de ejemplo.</p>
             </div>
             <div className="lm-progress" style={{ width: 160, marginBottom: 10 }}><i/></div>
           </div>
@@ -800,7 +806,7 @@ export function IntegrationsMarquee({ T }) {
       <div className="lm-wrap" style={{ textAlign: "center", marginBottom: 32 }} data-reveal="spin">
         <div className="lm-eyebrow">Integraciones</div>
         <h2 className="lm-h2">Se conecta con lo que ya usás</h2>
-        <p className="lm-sub" style={{ margin: "0 auto" }}>Shopify y Tiendanube como tienda, Mercado Pago como pasarela. Los envíos se cotizan con los correos que ya tenés configurados en tu tienda, y la orden sale lista para despachar.</p>
+        <p className="lm-sub" style={{ margin: "0 auto" }}>Conectás tu tienda y tu pasarela, nada más. Los envíos se cotizan con los correos que ya tenés configurados en tu tienda, y la orden sale lista para despachar.</p>
         <PartnerBadges T={T} style={{ justifyContent: "center", marginTop: 18 }}/>
       </div>
       <div className="lm-marquee" style={{ display: "grid", gap: 14 }}>
@@ -876,10 +882,10 @@ function WaPanel({ T, b = BRAND_DEFAULT }) {
   return (
     <div style={{ background: "#e5ddd5", borderRadius: 16, padding: 14, display: "flex", flexDirection: "column", gap: 8, fontFamily: F }}>
       <div style={{ fontSize: 11, color: "#555", textAlign: "center" }}>Recurrentes, en nombre de {b.name}</div>
-      {bub(<><b>{b.name}</b>: Hola Ana, mañana se cobra tu suscripción de {b.product} ({fmtARS(b.price)}). Si querés pausarla, entrá a tu portal.</>)}
+      {bub(<><b>{b.name}</b>: Hola Ana, dejaste tu suscripción de {b.product} sin terminar. Te guardamos el carrito: {b.name.toLowerCase()}.ar/suscribirme</>)}
+      {bub("Uy, me olvidé. Ya la pagué!", true)}
+      {bub(<><b>{b.name}</b>: Listo, suscripción activa. Mañana se cobra la primera cuota ({fmtARS(b.price)}) y tu pedido sale por Andreani.</>)}
       {bub(<><b>{b.name}</b>: Tu pago fue rechazado. Actualizá la tarjeta acá para no cortar la entrega: {b.name.toLowerCase()}.ar/portal</>)}
-      {bub("Listo, ya la cambié. Gracias!", true)}
-      {bub(<><b>{b.name}</b>: Pago aprobado. Tu pedido sale hoy por Andreani.</>)}
     </div>
   );
 }
@@ -895,13 +901,96 @@ function PanelPanel({ T }) {
     </div>
   );
 }
-const FEATURES = [
-  { t: "Widget en tu ficha, con tu marca", d: "Packs, descuento por suscribirse, regalos y frecuencia. Trece diseños, tus colores y tus fotos.", C: ({ T }) => <div style={{ background: "#fff", borderRadius: 16, padding: 14, color: "#111" }}><LiveWidget plan={SAMPLE_PLANS.pet} merchant={{ widget_variant: "v11", widget_color: "#2563eb", widget_radius: 12, widget_mode_default: "sub", widget_show_per_unit: true, widget_texts: { headline: "Que nunca falte" } }} mode="sub" idx={1} style={{ fontSize: 12.5 }}/></div> },
-  { t: "Checkout propio, envíos en vivo", d: "Cotiza con los correos que ya tenés en tu tienda, acepta cupones y muestra todo con tus colores.", C: CheckoutPanel },
-  { t: "Portal del cliente", d: "Pausa, cambia la dirección o la tarjeta y cancela sin escribirte. Menos WhatsApp para vos.", C: PortalPanel },
-  { t: "Avisos por WhatsApp y mail", d: "Próximo cobro, pago rechazado con link para arreglar la tarjeta, pedido en camino. Con tu nombre.", C: WaPanel },
-  { t: "Panel con todo lo que pasa", d: "Suscriptores, cobros, rechazos recuperados, carritos sin pagar. Y cada cobro creado como pedido en tu tienda.", C: PanelPanel },
+// ─── El panel, pantalla por pantalla (Thiago, 26-sept: "sección por sección,
+// en imagen, deslizable"). Maquetas del panel real con datos de ejemplo, en un
+// carril horizontal con scroll-snap (compu y celular). Nada de capturas con
+// datos de tiendas reales.
+// Marco que imita el panel real (src/ui/Shell.jsx): barra con logo, sidebar de 224 px
+// con secciones VENTAS / CATÁLOGO / CLIENTES, ítem activo con fondo acento al 20 %,
+// y abajo la píldora de la tienda activa.
+const PANEL_NAV = [["Analíticas"], ["Ventas", "Suscripciones", "Carritos abandonados", "Cobros"], ["Catálogo", "Planes", "Widget", "Carrito", "Checkout"], ["Clientes", "Retención", "Flujos de email", "Flujos de WhatsApp", "Portal del cliente"], ["Configuración"]];
+function Frame({ T, title, children }) {
+  const cur = title.split(" · ").pop();
+  return (
+    <div className="lm-card" style={{ padding: 0, display: "flex", flexDirection: "column", background: T.bg }}>
+      <div style={{ display: "grid", gridTemplateColumns: "148px 1fr", minHeight: 300 }} className="lm-tour-body">
+        <aside className="lm-tour-side" style={{ background: T.surface, borderRight: `1px solid ${T.border}`, display: "flex", flexDirection: "column", fontSize: 10.5 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 10px", borderBottom: `1px solid ${T.border}`, height: 36, boxSizing: "border-box" }}><RecLogo size={16}/><b style={{ fontSize: 11.5, color: T.text, letterSpacing: -.2 }}>Recurrentes</b></div>
+          <div style={{ padding: "6px 6px", display: "grid", gap: 1, alignContent: "start", flex: 1 }}>
+            {PANEL_NAV.map(([sec, ...items]) => (
+              <React.Fragment key={sec}>
+                {items.length ? <span style={{ padding: "7px 8px 2px", fontSize: 8, letterSpacing: .7, textTransform: "uppercase", fontWeight: 800, color: T.textSm }}>{sec}</span> : null}
+                {(items.length ? items : [sec]).map(n => { const on = cur === n; return <span key={n} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 8px", borderRadius: 7, background: on ? T.accentSolid + "20" : "transparent", color: on ? T.accent : T.textMd, fontWeight: on ? 700 : 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}><i style={{ width: 9, height: 9, borderRadius: 3, border: `1.5px solid currentColor`, opacity: on ? 1 : .55, flexShrink: 0 }}/>{n}</span>; })}
+              </React.Fragment>
+            ))}
+          </div>
+          <div style={{ margin: 6, padding: "6px 8px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.card, display: "flex", alignItems: "center", gap: 6, fontSize: 10 }}><span style={{ width: 16, height: 16, borderRadius: 5, background: "#6b3f2a", color: "#fff", display: "grid", placeItems: "center", fontSize: 8, fontWeight: 800 }}>T</span><b style={{ color: T.text, flex: 1 }}>Tostado</b><span style={{ color: T.textSm }}>▾</span></div>
+        </aside>
+        <div style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 14px", height: 36, borderBottom: `1px solid ${T.border}`, fontSize: 11.5 }}><b style={{ color: T.text, fontFamily: FD, fontSize: 13 }}>{cur}</b><span style={{ marginLeft: "auto", fontSize: 10, color: T.textSm }}>Tostado · tostado.ar</span></div>
+          <div style={{ padding: 14, minWidth: 0, fontSize: 12.5, color: T.text }}>{children}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+const Kpi = ({ T, l, v, d }) => <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, padding: "9px 11px" }}><div style={{ fontSize: 9.5, color: T.textSm, textTransform: "uppercase", fontWeight: 700, letterSpacing: .5 }}>{l}</div><div style={{ fontFamily: FD, fontSize: 19, fontWeight: 800, letterSpacing: -.5, color: T.text }}>{v}</div>{d && <div style={{ fontSize: 10.5, color: T.accent, fontWeight: 700 }}>{d}</div>}</div>;
+const Row = ({ T, cols, c }) => <div style={{ display: "grid", gridTemplateColumns: cols.map(() => "1fr").join(" "), gap: 8, padding: "7px 0", borderTop: `1px solid ${T.borderL || T.border}`, fontSize: 12 }}>{cols.map((x, i) => <span key={i} style={{ color: i === cols.length - 1 && c ? c : i ? T.textSm : T.text, fontWeight: i ? 500 : 700, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x}</span>)}</div>;
+const PANEL_SCREENS = [
+  { t: "Analíticas", d: "Lo que pasó hoy y el mes: suscriptores, ingresos recurrentes, cobros, rechazos recuperados, retención y ticket promedio.", C: ({ T }) => <>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 12 }}><Kpi T={T} l="Suscriptores" v="128" d="+9 este mes"/><Kpi T={T} l="MRR" v="$ 5,2M" d="+12%"/><Kpi T={T} l="Retención 3 meses" v="81%"/></div>
+      <div style={{ height: 70, display: "flex", alignItems: "flex-end", gap: 4 }}>{[30, 42, 38, 55, 48, 62, 58, 70, 66, 78, 74, 88].map((h, i) => <i key={i} style={{ flex: 1, height: h + "%", background: i === 11 ? T.accentSolid : T.accentSolid + "55", borderRadius: 3, display: "block" }}/>)}</div>
+      <div style={{ fontSize: 10.5, color: T.textSm, marginTop: 6 }}>Ingresos recurrentes por mes</div>
+    </> },
+  { t: "Ventas · Suscripciones", d: "Cada cliente con su plan, próximo cobro y estado. Pausás, cancelás o cambiás la dirección desde acá.", C: ({ T }) => <>
+      <Row T={T} cols={["Ana P.", "Café · 2 bolsas", "1 jul", "activa"]} c={T.accent}/><Row T={T} cols={["Julián R.", "Café · 1 bolsa", "3 jul", "pausada"]} c={T.yellow}/><Row T={T} cols={["Carla M.", "Café · 4 bolsas", "1 jul", "activa"]} c={T.accent}/><Row T={T} cols={["Diego S.", "Café · 2 bolsas", "hoy", "reintentando"]} c={T.red}/><Row T={T} cols={["Lucía F.", "Café · 1 bolsa", "12 jul", "activa"]} c={T.accent}/>
+    </> },
+  { t: "Ventas · Carritos abandonados", d: "Los checkouts que quedaron sin pagar, con el WhatsApp y el mail de recupero ya enviados. Lo primero que trabaja WhatsApp.", C: ({ T }) => <>
+      <Row T={T} cols={["ana.perez@…", "Café · 2 bolsas", "hace 40 min", "WhatsApp enviado"]} c={T.accent}/><Row T={T} cols={["mati.g@…", "Café · 1 bolsa", "hace 3 h", "mail enviado"]} c={T.yellow}/><Row T={T} cols={["sol.r@…", "Café · 4 bolsas", "ayer", "recuperado ✓"]} c={T.accent}/><Row T={T} cols={["fede.b@…", "Café · 2 bolsas", "ayer", "sin respuesta"]} c={T.textSm}/>
+      <div style={{ marginTop: 10, fontSize: 11, color: T.textSm }}>Recuperados este mes: <b style={{ color: T.accent }}>9 de 23</b> · {fmtARS(198000)}</div>
+    </> },
+  { t: "Ventas · Cobros", d: "Cada cobro de Mercado Pago con su pedido creado en la tienda. Si algo falla, lo ves y se reintenta.", C: ({ T }) => <>
+      <Row T={T} cols={["Pago 1 jul", fmtARS(21510), "Pedido #1042", "aprobado"]} c={T.accent}/><Row T={T} cols={["Pago 1 jul", fmtARS(11610), "Pedido #1043", "aprobado"]} c={T.accent}/><Row T={T} cols={["Pago 1 jul", fmtARS(40410), "—", "rechazado · reintento en 2 días"]} c={T.red}/><Row T={T} cols={["Pago 30 jun", fmtARS(21510), "Pedido #1039", "aprobado"]} c={T.accent}/>
+    </> },
+  { t: "Catálogo · Planes", d: "Un plan por producto: packs, frecuencia, descuento, regalos.", C: ({ T }) => <>
+      {[["Café de especialidad · 250 g", "3 packs · cada 30 días · 10% off"], ["Café de especialidad · 1 kg", "2 packs · cada 30 días · 12% off"], ["Cápsulas compatibles · x10", "3 packs · cada 15 días · regalo en el 1.º"]].map(([a, b]) => <div key={a} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "9px 0", borderTop: `1px solid ${T.borderL || T.border}` }}><span><b style={{ display: "block", fontSize: 12.5 }}>{a}</b><span style={{ fontSize: 11, color: T.textSm }}>{b}</span></span><span style={{ fontSize: 10.5, fontWeight: 800, color: T.accent, alignSelf: "center" }}>ACTIVO</span></div>)}
+    </> },
+  { t: "Catálogo · Widget", d: "El selector que ve tu cliente en la ficha: diseños 100% personalizables, con tus colores, fotos y textos. Lo ves en vivo mientras lo cambiás.", C: ({ T }) => <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 10 }}>
+      <div style={{ display: "grid", gap: 6, fontSize: 11 }}>{[["Diseño", "Foto + check"], ["Color", "#6b3f2a"], ["Bordes", "12 px"], ["Título", "Elegí tu pack"]].map(([a, b]) => <div key={a} style={{ display: "flex", justifyContent: "space-between", padding: "6px 8px", border: `1px solid ${T.border}`, borderRadius: 8 }}><span style={{ color: T.textSm }}>{a}</span><b style={{ color: T.text }}>{b}</b></div>)}</div>
+      <div style={{ background: "#fff", borderRadius: 10, padding: 8, color: "#111" }}><LiveWidget plan={SAMPLE_PLANS.cafe} merchant={{ widget_variant: "v13", widget_color: "#6b3f2a", widget_radius: 12, widget_mode_default: "sub", widget_show_per_unit: false, widget_texts: { headline: "Elegí tu pack" } }} mode="sub" idx={1} style={{ fontSize: 8.5 }}/></div>
+    </div> },
+  { t: "Catálogo · Carrito", d: "El carrito de la suscripción con tus textos y colores, y los productos para sumar (\"Sumá a tu suscripción\").", C: ({ T }) => <div style={{ background: "#fff", borderRadius: 10, padding: 12, color: "#111", fontSize: 11 }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", paddingBottom: 8, borderBottom: "1px solid #eee" }}><img src={PRODUCT_ART.cafe} alt="" width="34" height="34" style={{ borderRadius: 7, objectFit: "cover" }}/><span style={{ flex: 1 }}><b>Café de especialidad · 2 bolsas</b><br/><span style={{ color: "#777" }}>Te llega cada mes</span></span><b>{fmtARS(21510)}</b></div>
+      <div style={{ fontSize: 9.5, fontWeight: 800, color: "#777", letterSpacing: .5, textTransform: "uppercase", margin: "8px 0 6px" }}>Sumá a tu suscripción</div>
+      {[["Cápsulas compatibles · x10", 6900], ["Filtros de papel · x40", 3200]].map(([a, v]) => <div key={a} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderTop: "1px solid #f1f1f1" }}><span>{a}</span><span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}><span style={{ color: "#777" }}>{fmtARS(v)}</span><span style={{ border: "1px solid #6b3f2a", color: "#6b3f2a", borderRadius: 99, padding: "2px 8px", fontWeight: 700, fontSize: 10 }}>+ Agregar</span></span></div>)}
+      <div style={{ marginTop: 8, background: "#6b3f2a", color: "#fff", borderRadius: 8, padding: 8, textAlign: "center", fontWeight: 800 }}>Finalizar suscripción · {fmtARS(21510)}</div>
+    </div> },
+  { t: "Catálogo · Checkout", d: "Tu checkout con tus colores, logo y textos, y envíos cotizados en vivo. Lo ves en vivo mientras lo cambiás.", C: ({ T }) => <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 10 }}>
+      <div style={{ display: "grid", gap: 6, fontSize: 11 }}>{[["Color", "#6b3f2a"], ["Letra", "Serif"], ["Botón", "Pagar {{total}}"], ["Logo", "Sí"]].map(([a, b]) => <div key={a} style={{ display: "flex", justifyContent: "space-between", padding: "6px 8px", border: `1px solid ${T.border}`, borderRadius: 8 }}><span style={{ color: T.textSm }}>{a}</span><b style={{ color: T.text }}>{b}</b></div>)}</div>
+      <div style={{ background: "#fff", borderRadius: 10, padding: 10, color: "#111", fontSize: 11 }}><div style={{ fontFamily: "Georgia,serif", color: "#6b3f2a", fontWeight: 700, marginBottom: 6, letterSpacing: 1 }}>TOSTADO</div><div style={{ border: "1px solid #ddd", borderRadius: 6, padding: "5px 7px", marginBottom: 5 }}>ana.perez@gmail.com</div><div style={{ border: "1px solid #ddd", borderRadius: 6, padding: "5px 7px", marginBottom: 6 }}>Av. Santa Fe 3200 · CABA</div><div style={{ background: "#6b3f2a", color: "#fff", borderRadius: 7, padding: "7px", textAlign: "center", fontWeight: 800 }}>Pagar {fmtARS(23220)}</div></div>
+    </div> },
+  { t: "Clientes · Retención", d: "Antes de cancelar, el cliente puede pausar uno, dos o tres meses o cambiar de pack. Ves cuántos se quedaron.", C: ({ T }) => <>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 10 }}><Kpi T={T} l="Quisieron cancelar" v="14"/><Kpi T={T} l="Pausaron" v="9" d="64%"/><Kpi T={T} l="Cancelaron" v="5"/></div>
+      {[["Pausa de 1, 2 o 3 meses", true], ["Cambiar de pack en vez de cancelar", true], ["Descuento en el próximo cobro", false]].map(([a, on]) => <div key={a} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: `1px solid ${T.borderL || T.border}`, fontSize: 12 }}><span>{a}</span><i style={{ width: 30, height: 17, borderRadius: 99, background: on ? T.accentSolid : T.border, position: "relative" }}><b style={{ position: "absolute", top: 2, left: on ? 15 : 2, width: 13, height: 13, borderRadius: 99, background: "#fff" }}/></i></div>)}
+    </> },
+  { t: "Clientes · Flujos de email", d: "Mails automáticos con tu marca: carrito sin pagar primero, después próximo cobro, pago rechazado, bienvenida.", C: ({ T }) => <>
+      {[["Carrito sin pagar", "Mail a la 1 h · otro a las 24 h", true], ["Próximo cobro", "Mail 2 días antes", true], ["Pago rechazado", "Mail con link a la tarjeta", true], ["Bienvenida", "Mail al activar", false]].map(([a, b, on]) => <div key={a} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "9px 0", borderTop: `1px solid ${T.borderL || T.border}` }}><span><b style={{ display: "block", fontSize: 12.5 }}>{a}</b><span style={{ fontSize: 11, color: T.textSm }}>{b}</span></span><i style={{ width: 30, height: 17, borderRadius: 99, background: on ? T.accentSolid : T.border, position: "relative", flexShrink: 0 }}><b style={{ position: "absolute", top: 2, left: on ? 15 : 2, width: 13, height: 13, borderRadius: 99, background: "#fff" }}/></i></div>)}
+    </> },
+  { t: "Clientes · Flujos de WhatsApp", d: "Recupero de carritos por WhatsApp primero; después próximo cobro, pago rechazado y pedido en camino. Con el nombre de tu tienda.", C: ({ T }) => <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: 10 }}>
+      <div>{[["Carrito sin pagar", true], ["Próximo cobro", true], ["Pago rechazado", true], ["Pedido en camino", false]].map(([a, on]) => <div key={a} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderTop: `1px solid ${T.borderL || T.border}`, fontSize: 11.5 }}><span>{a}</span><i style={{ width: 26, height: 15, borderRadius: 99, background: on ? T.accentSolid : T.border, position: "relative" }}><b style={{ position: "absolute", top: 2, left: on ? 13 : 2, width: 11, height: 11, borderRadius: 99, background: "#fff" }}/></i></div>)}</div>
+      <WaPanel T={T} b={TOSTADO}/>
+    </div> },
+  { t: "Clientes · Portal del cliente", d: "Lo que ve tu cliente con su link: pausar, cambiar dirección o tarjeta, cancelar. Sin escribirte.", C: ({ T }) => <PortalPanel T={T} b={TOSTADO}/> },
 ];
+const TOUR = PANEL_SCREENS;
+// Capturas REALES del panel: cuando estén en public/landing/panel-<n>.png (las
+// manda Thiago desde la tienda RECURRENTES con casos simulados) se usan en vez
+// de la maqueta. Hasta entonces, maqueta.
+
+// "Todo lo que hace" = las 12 secciones del panel, en el MISMO orden del menú real, cada
+// una dentro del marco del panel (Thiago, 27-sept: "poné todos, y en orden").
+const FEATURES = PANEL_SCREENS.map(sc => ({ t: sc.t.split(" · ").pop(), d: sc.d, C: ({ T }) => <Frame T={T} title={sc.t}><sc.C T={T}/></Frame> }));
+
 function ScrollStack({ T, id, items, eyebrow, title, hideHead = false, panelMinH = 440 }) {
   const ref = useRef(null);
   const desktop = useDesktop();
@@ -928,7 +1017,7 @@ function ScrollStack({ T, id, items, eyebrow, title, hideHead = false, panelMinH
   // Thiago, 26-sept: "lo seleccionado debe quedar perfecto en el centro". Solo se
   // ve el paso activo (grande) con un stepper de números; el panel, al lado.
   return (
-    <section id={id} ref={ref} className="lm-pin lm-pin-all" style={{ height: pinned ? `${n * 75 + 40}vh` : "auto" }}>
+    <section id={id} ref={ref} className="lm-pin lm-pin-all" style={{ height: pinned ? `${n * (n > 8 ? 55 : 75) + 40}vh` : "auto" }}>
       <div ref={innerRef} className="lm-pin-inner lm-pin-fit" style={{ padding: pinned ? "24px 0" : "72px 0" }}>
         <div className="lm-wrap" style={{ width: "100%" }}>
           {!hideHead && <div data-reveal="spin" style={{ marginBottom: desktop ? 26 : 18, paddingTop: pinned && !desktop ? 0 : 8 }}>
@@ -968,7 +1057,7 @@ function ScrollStack({ T, id, items, eyebrow, title, hideHead = false, panelMinH
 }
 
 export function FeatureStack({ T, hideHead = false }) {
-  return <ScrollStack T={T} id="rec-funciones" items={FEATURES} eyebrow="Todo lo que hace" title={<>Todo lo que la suscripción necesita,<br/>en un solo lugar</>} hideHead={hideHead}/>;
+  return <ScrollStack T={T} id="rec-funciones" items={FEATURES} eyebrow="Todo lo que hace · el panel, sección por sección" title={<>Todo lo que la suscripción necesita,<br/>en un solo lugar</>} hideHead={hideHead} panelMinH={420}/>;
 }
 
 // ─── El proceso de compra, manejado por el scroll (Thiago, 26-sept: "que cada
@@ -984,69 +1073,13 @@ const JOURNEY = [
   { t: "Paga en el checkout con tu marca", d: "Contacto, dirección, envío cotizado en vivo con tus correos y el resumen. Todo con tu color y tu logo.", C: ({ T }) => <SubPageMock T={{ ...T, card: "#fff" }}/> },
   { t: "Mercado Pago cobra hoy, y cada período", d: "Cada mes, cada dos, cada quince días: lo que eligió. La plata entra en tu cuenta de MP. Si una tarjeta falla se reintenta y avisamos.", C: ({ T }) => <MpStep T={T} b={TOSTADO}/> },
   { t: "La orden aparece en tu tienda", d: "Con dirección, envío y stock descontado. La despachás como cualquier venta.", C: ({ T }) => <OrderStep T={T} b={TOSTADO}/> },
-  { t: "El cliente recibe el aviso", d: "Mail y WhatsApp con tu nombre: pedido en camino, próximo cobro, link a su portal.", C: ({ T }) => <WaPanel T={T} b={TOSTADO}/> },
+  { t: "El cliente recibe el aviso", d: "WhatsApp y mail con tu nombre: si dejó el carrito sin pagar lo recuperamos, y después pedido en camino, próximo cobro, link a su portal.", C: ({ T }) => <WaPanel T={T} b={TOSTADO}/> },
   { t: "Y gestiona su suscripción desde su portal", d: "Pausa, cambia la dirección o la tarjeta, cancela. Sin escribirte. Vos lo ves todo en tu panel.", C: ({ T }) => <PortalPanel T={T} b={TOSTADO}/> },
 ];
 export function BuyJourney({ T }) {
   return <ScrollStack T={T} id="rec-proceso" items={JOURNEY} eyebrow="Así compra tu cliente" title={<>Todo el proceso,<br/>a medida que bajás</>} panelMinH={540}/>;
 }
 
-// ─── El panel, pantalla por pantalla (Thiago, 26-sept: "sección por sección,
-// en imagen, deslizable"). Maquetas del panel real con datos de ejemplo, en un
-// carril horizontal con scroll-snap (compu y celular). Nada de capturas con
-// datos de tiendas reales.
-function Frame({ T, title, children }) {
-  return (
-    <div className="lm-card" style={{ padding: 0, display: "flex", flexDirection: "column" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: `1px solid ${T.border}`, background: T.surface }}>
-        <span style={{ display: "inline-flex", gap: 5 }}>{["#ff5f57", "#febc2e", "#28c840"].map(c => <i key={c} style={{ width: 9, height: 9, borderRadius: 99, background: c, display: "block" }}/>)}</span>
-        <span style={{ fontSize: 12, color: T.textSm, marginLeft: 6, fontFamily: MONO }}>recurrentesapp.com · {title}</span>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "118px 1fr", minHeight: 250 }} className="lm-tour-body">
-        {/* El menú REAL del panel (src/ui/Shell.jsx NAV): Analíticas · Ventas · Catálogo · Clientes · Configuración */}
-        <aside className="lm-tour-side" style={{ borderRight: `1px solid ${T.border}`, padding: "10px 8px", display: "grid", gap: 2, alignContent: "start", fontSize: 10.5, color: T.textSm }}>
-          {[["Analíticas"], ["Ventas", "Suscripciones", "Carritos abandonados", "Cobros"], ["Catálogo", "Planes", "Widget", "Carrito", "Checkout"], ["Clientes", "Retención", "Flujos de email", "Flujos de WhatsApp", "Portal del cliente"], ["Configuración"]].map(([sec, ...items]) => (
-            <React.Fragment key={sec}>
-              {items.length ? <span style={{ padding: "6px 6px 2px", fontSize: 8.5, letterSpacing: .6, textTransform: "uppercase", fontWeight: 800, color: T.textSm }}>{sec}</span> : null}
-              {(items.length ? items : [sec]).map(n => { const on = title.split(" · ").pop() === n || title === n; return <span key={n} style={{ padding: "4px 6px", borderRadius: 6, background: on ? T.accentSolid + "1a" : "transparent", color: on ? T.accent : T.textSm, fontWeight: on ? 800 : 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{n}</span>; })}
-            </React.Fragment>
-          ))}
-        </aside>
-        <div style={{ padding: 14, minWidth: 0, fontSize: 12.5, color: T.text }}>{children}</div>
-      </div>
-    </div>
-  );
-}
-const Kpi = ({ T, l, v, d }) => <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, padding: "9px 11px" }}><div style={{ fontSize: 9.5, color: T.textSm, textTransform: "uppercase", fontWeight: 700, letterSpacing: .5 }}>{l}</div><div style={{ fontFamily: FD, fontSize: 19, fontWeight: 800, letterSpacing: -.5, color: T.text }}>{v}</div>{d && <div style={{ fontSize: 10.5, color: T.accent, fontWeight: 700 }}>{d}</div>}</div>;
-const Row = ({ T, cols, c }) => <div style={{ display: "grid", gridTemplateColumns: cols.map(() => "1fr").join(" "), gap: 8, padding: "7px 0", borderTop: `1px solid ${T.borderL || T.border}`, fontSize: 12 }}>{cols.map((x, i) => <span key={i} style={{ color: i === cols.length - 1 && c ? c : i ? T.textSm : T.text, fontWeight: i ? 500 : 700, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x}</span>)}</div>;
-const TOUR = [
-  { t: "Analíticas", d: "Lo que pasó hoy y el mes: suscriptores, ingresos recurrentes, cobros, rechazos recuperados, retención y ticket promedio.", C: ({ T }) => <>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 12 }}><Kpi T={T} l="Suscriptores" v="128" d="+9 este mes"/><Kpi T={T} l="MRR" v="$ 5,2M" d="+12%"/><Kpi T={T} l="Cobros hoy" v="14"/></div>
-      <div style={{ height: 70, display: "flex", alignItems: "flex-end", gap: 4 }}>{[30, 42, 38, 55, 48, 62, 58, 70, 66, 78, 74, 88].map((h, i) => <i key={i} style={{ flex: 1, height: h + "%", background: i === 11 ? T.accentSolid : T.accentSolid + "55", borderRadius: 3, display: "block" }}/>)}</div>
-      <div style={{ fontSize: 10.5, color: T.textSm, marginTop: 6 }}>Ingresos recurrentes por mes</div>
-    </> },
-  { t: "Ventas · Suscripciones", d: "Cada cliente con su plan, próximo cobro y estado. Pausás, cancelás o cambiás la dirección desde acá.", C: ({ T }) => <>
-      <Row T={T} cols={["Ana P.", "Café · 2 bolsas", "1 jul", "activa"]} c={T.accent}/><Row T={T} cols={["Julián R.", "Sérum · 1 frasco", "3 jul", "pausada"]} c={T.yellow}/><Row T={T} cols={["Carla M.", "Alimento · 2 bolsas", "1 jul", "activa"]} c={T.accent}/><Row T={T} cols={["Diego S.", "Yerba · 4 kg", "hoy", "reintentando"]} c={T.red}/><Row T={T} cols={["Lucía F.", "Magnesio · 3", "12 jul", "activa"]} c={T.accent}/>
-    </> },
-  { t: "Ventas · Cobros", d: "Cada cobro de Mercado Pago con su pedido creado en la tienda. Si algo falla, lo ves y se reintenta.", C: ({ T }) => <>
-      <Row T={T} cols={["Pago 1 jul", fmtARS(21510), "Pedido #1042", "aprobado"]} c={T.accent}/><Row T={T} cols={["Pago 1 jul", fmtARS(36810), "Pedido #1043", "aprobado"]} c={T.accent}/><Row T={T} cols={["Pago 1 jul", fmtARS(35900), "—", "rechazado · reintento en 2 días"]} c={T.red}/><Row T={T} cols={["Pago 30 jun", fmtARS(42900), "Pedido #1039", "aprobado"]} c={T.accent}/>
-    </> },
-  { t: "Catálogo · Planes", d: "Un plan por producto: packs, frecuencia, descuento, regalos. Y trece diseños de widget.", C: ({ T }) => <>
-      {[["Café de especialidad · 250 g", "3 packs · cada 30 días · 10% off"], ["Sérum de vitamina C", "2 packs · cada 60 días · 15% off"], ["Alimento premium · 3 kg", "3 packs · cada 30 días · regalo en el 1.º"]].map(([a, b]) => <div key={a} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "9px 0", borderTop: `1px solid ${T.borderL || T.border}` }}><span><b style={{ display: "block", fontSize: 12.5 }}>{a}</b><span style={{ fontSize: 11, color: T.textSm }}>{b}</span></span><span style={{ fontSize: 10.5, fontWeight: 800, color: T.accent, alignSelf: "center" }}>ACTIVO</span></div>)}
-    </> },
-  { t: "Clientes · Flujos de email", d: "Mails y WhatsApp automáticos: carrito sin pagar, próximo cobro, pago rechazado, bienvenida. Con tu marca.", C: ({ T }) => <>
-      {[["Carrito sin pagar", "Mail a la 1 h · WhatsApp a las 24 h", true], ["Próximo cobro", "WhatsApp 2 días antes", true], ["Pago rechazado", "Mail + WhatsApp con link a la tarjeta", true], ["Bienvenida", "Mail al activar", false]].map(([a, b, on]) => <div key={a} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "9px 0", borderTop: `1px solid ${T.borderL || T.border}` }}><span><b style={{ display: "block", fontSize: 12.5 }}>{a}</b><span style={{ fontSize: 11, color: T.textSm }}>{b}</span></span><i style={{ width: 30, height: 17, borderRadius: 99, background: on ? T.accentSolid : T.border, position: "relative", flexShrink: 0 }}><b style={{ position: "absolute", top: 2, left: on ? 15 : 2, width: 13, height: 13, borderRadius: 99, background: "#fff" }}/></i></div>)}
-    </> },
-  { t: "Catálogo · Checkout", d: "Tu checkout con tus colores, logo y textos, y los productos para sumar a la suscripción. Lo ves en vivo mientras lo cambiás.", C: ({ T }) => <>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 10 }}>
-        <div style={{ display: "grid", gap: 6, fontSize: 11.5 }}>{[["Color", "#6b3f2a"], ["Letra", "Serif"], ["Botón", "Pagar {{total}} · cada mes"], ["Logo", "Sí"]].map(([a, b]) => <div key={a} style={{ display: "flex", justifyContent: "space-between", padding: "6px 8px", border: `1px solid ${T.border}`, borderRadius: 8 }}><span style={{ color: T.textSm }}>{a}</span><b style={{ color: T.text }}>{b}</b></div>)}</div>
-        <div style={{ background: "#fff", borderRadius: 10, padding: 10, color: "#111", fontSize: 11 }}><div style={{ fontFamily: "Georgia,serif", color: "#6b3f2a", fontWeight: 700, marginBottom: 6 }}>TOSTADO</div><div style={{ border: "1px solid #ddd", borderRadius: 6, padding: "5px 7px", marginBottom: 5 }}>ana@ejemplo.com</div><div style={{ border: "1px solid #ddd", borderRadius: 6, padding: "5px 7px", marginBottom: 6 }}>Av. Santa Fe 3200 · CABA</div><div style={{ background: "#6b3f2a", color: "#fff", borderRadius: 7, padding: "7px", textAlign: "center", fontWeight: 800 }}>Pagar {fmtARS(27800)} · cada mes</div></div>
-      </div>
-    </> },
-];
-// Capturas REALES del panel: cuando estén en public/landing/panel-<n>.png (las
-// manda Thiago desde la tienda RECURRENTES con casos simulados) se usan en vez
-// de la maqueta. Hasta entonces, maqueta.
 export const PANEL_SHOTS = {};
 export function PanelTour({ T }) {
   const ref = useRef(null);
@@ -1100,7 +1133,7 @@ export function ComparisonArena({ T, onDemo }) {
         <div data-reveal="flip" style={{ textAlign: "center", maxWidth: 760, margin: "0 auto 36px" }}>
           <div className="lm-eyebrow">Comparativa</div>
           <h2 className="lm-h2" style={{ color: "#fff" }}>Lo mismo, sin comisión<br/>y con más funciones</h2>
-          <p className="lm-sub" style={{ margin: "0 auto", color: "#A9C3B9" }}>Fácil Uno, Reval, Puentify, Recharge y Orquesty cobran un porcentaje de cada venta, además del abono. Nosotros no. Datos públicos de cada uno.</p>
+          <p className="lm-sub" style={{ margin: "0 auto", color: "#A9C3B9" }}>Orquesty, Fácil Uno, Reval, Puentify y Recharge cobran un porcentaje de cada venta, además del abono. Nosotros no. Datos públicos de cada uno.</p>
         </div>
         <div className="lm-arena-vs">{oth.map((c, k) => <button key={c.key} type="button" className={"lm-arena-pill " + (pick === k + 1 ? "on" : "")} onClick={() => setPick(k + 1)}><span className="lm-vs">vs </span>{c.title}</button>)}</div>
         <div className="lm-arena" data-reveal="rise">

@@ -139,6 +139,8 @@ export default function DemoPage() {
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const rootRef = React.useRef(null);
   useReveal(rootRef);
+  // Al entrar desde la landing (página larga) el scroll quedaba abajo: arriba siempre.
+  useEffect(() => { try { window.scrollTo(0, 0); } catch (_) {} }, []);
 
   const label = { display: "block", fontSize: 12.5, fontWeight: 600, color: T.textMd, marginBottom: 6, lineHeight: 1.4 };
   const campo = { marginBottom: 14 };

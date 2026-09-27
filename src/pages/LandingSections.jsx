@@ -404,7 +404,7 @@ function MetaMock({ T }) {
 export function DeepDivesSection({ T }) {
   const rows = [
     { eyebrow:"Widget", title:"Compra única o suscripción, en la misma página de producto", text:"Tu cliente elige cómo comprar sin salir del producto. Vos definís el descuento, la frecuencia y los packs.",
-      points:["Compra única o Suscripción, en la misma página de producto y con el botón de tu tema.","Packs x1 · x2 · x3 con precio tachado y etiqueta de \"más elegido\", en más de 10 diseños con tu color.","Descuento por suscribirse o solo en el primer cobro."], mock:<WidgetMock T={T}/> },
+      points:["Compra única o Suscripción, en la misma página de producto y con el botón de tu tema.","Packs x1 · x2 · x3 con precio tachado y etiqueta de \"más elegido\", en diseños 100% personalizables con tu color.","Descuento por suscribirse o solo en el primer cobro."], mock:<WidgetMock T={T}/> },
     { eyebrow:"Piloto automático", title:"Cada cobro aprobado se convierte en una orden", text:"Mercado Pago cobra en la fecha que corresponde y Recurrentes arma la orden en tu negocio, con todo lo que necesitás para despachar.",
       points:["Orden paga con dirección, envío y stock descontado.","El cliente recibe el mail de confirmación como en cualquier compra.","Sin planillas ni pedidos cargados a mano."], mock:<TimelineMock T={T}/> },
     { eyebrow:"Portal del suscriptor", title:"Tus clientes se gestionan solos", text:"Cada suscriptor tiene su link para ver su plan y hacer cambios sin escribirte.",
@@ -499,7 +499,7 @@ export function WhatsAppSection({ T }) {
 export function ExtrasSection({ T }) {
   const items = [
     ["M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82zM7 7h.01", "Cupones de descuento", "Porcentaje o monto fijo, para toda la suscripción."],
-    ["M4 4h16v16H4zM4 9h16M9 9v11", "Más de 10 diseños de widget", "Con tu color, tus fotos y tus textos."],
+    ["M4 4h16v16H4zM4 9h16M9 9v11", "Diseños de widget 100% personalizables", "Con tu color, tus fotos y tus textos."],
     ["M22 12h-6l-2 3h-4l-2-3H2", "Flujos de mails automáticos", "Checkout sin pagar, aviso de próximo cobro, pago rechazado y win-back, salen solos y con tu marca."],
     ["M18 20V10M12 20V4M6 20v-6", "Embudo a Meta", "Carrito, pago iniciado y primera compra por la API de Conversiones."],
     ["M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8z", "Equipo con permisos", "Cada persona ve solo las secciones que le habilitás."],
@@ -835,12 +835,12 @@ export const COMPARE_ROWS = [
     true, false, false],
   ["Suscribir una variante puntual", true, false, false, false, true, "?"],
   ["Diseños de widget listos para usar",
-    ["Más de 10 diseños con tus fotos", true], false, false, false, false,
+    ["100% personalizables, con tus fotos", true], false, false, false, false,
     ["3 modos", "toggle, selector, suscripción primero"]],
   ["Mails automáticos con tu marca", true, false, true, false,
     ["Sí", "en inglés"],
     ["Vía Klaviyo o Mailchimp", "integración aparte"]],
-  ["Avisos por WhatsApp al cliente", ["Sí", true], false, false, false, false, "?"],
+  ["Recupero de carritos y avisos por WhatsApp al cliente", ["Sí", true], false, false, false, false, "?"],
   ["Avisos por WhatsApp al comerciante", ["Sí", true], false, false, false, false, "?"],
   ["Portal del cliente: pausar, cancelar, cambiar dirección", true, false, true, true, true, true],
   ["Soporte en español por WhatsApp", ["Sí", true], true, true, true, false, ["Sí", "soporte incluido, canal no documentado"]]
@@ -901,7 +901,7 @@ export function ComparisonSection({ T }) {
     <section className="ls-sec-alt" id="rec-comparar">
       <div className="ls-wrap">
         <SectionHead T={T} eyebrow="Comparativa" title="Lo mismo, sin comisión y con más funciones"
-          sub="Casi todos cobran un porcentaje de cada venta que hacés, además del abono. Nosotros no cobramos comisión, los primeros 10 suscriptores son gratis y viene todo incluido: WhatsApp, mails con tu marca y más de 10 diseños de widget."/>
+          sub="Casi todos cobran un porcentaje de cada venta que hacés, además del abono. Nosotros no cobramos comisión, los primeros 10 suscriptores son gratis y viene todo incluido: recupero de carritos por WhatsApp, mails con tu marca y diseños de widget 100% personalizables."/>
         <div className="ls-cmp-wrap" style={{borderRadius:18,border:`1px solid ${T.border}`,background:T.card}}>
           <table className="ls-cmp">
             <thead>
@@ -958,12 +958,12 @@ export function RecLogoMini() {
 // Solo dueños de e-commerce, de nichos distintos, sin nombrar tiendas propias
 // (25-sept-2026, Thiago). `p` = plataforma, se muestra como etiqueta.
 export const REVIEWS = [
-  { q: "Antes cada venta la tenía que volver a ganar con pauta. Hoy el 38% de mis pedidos del mes entran solos, el día 1, sin que yo haga nada.", n: "Micaela G.", r: "Skincare natural", p: "Shopify", k: "38% de los pedidos, recurrentes" },
-  { q: "Cada cobro me arma la orden con el envío igual que una venta normal. Antes las cargaba a mano una por una; ahora solo despacho.", n: "Federico R.", r: "Café de especialidad", p: "Tiendanube", k: "Órdenes que se crean solas" },
-  { q: "El cliente elige el pack de 2 o 3 y paga menos por unidad. Me subió el ticket promedio un 27% sin tocar el precio del producto.", n: "Camila S.", r: "Yerba y mates", p: "Shopify", k: "+27% de ticket promedio" },
-  { q: "Los pagos rechazados se recuperan solos con el aviso. Eso era plata que perdía y de la que ni me enteraba.", n: "Joaquín M.", r: "Alimento para mascotas", p: "Shopify", k: "Cobros rechazados recuperados" },
-  { q: "Lo instalaron ellos en una llamada de 20 minutos con mis productos. Esa misma tarde tenía la primera suscripción cobrando.", n: "Valentina T.", r: "Suplementos deportivos", p: "Tiendanube", k: "Andando el mismo día" },
-  { q: "Mis clientes pausan o cambian la dirección desde su portal y no me escriben más por WhatsApp para eso. Y el carrito quedó con mis colores.", n: "Lucas P.", r: "Productos de limpieza ecológicos", p: "Shopify", k: "Cero soporte manual" },
+  { q: "Antes cada venta la tenía que volver a ganar con pauta. Hoy casi el 40% de los pedidos del mes entran solos, sin que yo haga nada más que despachar.", n: "Micaela G.", r: "Skincare natural", p: "Shopify", k: "Casi el 40% de los pedidos, recurrentes", photo: "/landing/rev-f1.jpg" },
+  { q: "Cada cobro me arma la orden con el envío igual que una venta normal. Antes las cargaba a mano una por una. Ahora abro Shopify y ya están.", n: "Federico R.", r: "Café de especialidad", p: "Tiendanube", k: "Órdenes que se crean solas", photo: "/landing/rev-m1.jpg" },
+  { q: "El cliente elige el pack de 2 o 3 y paga menos por unidad. Me subió el ticket promedio un 27% sin tocar el precio del producto.", n: "Camila S.", r: "Yerba y mates", p: "Shopify", k: "+27% de ticket promedio", photo: "/landing/rev-f2.jpg" },
+  { q: "Los carritos que quedaban sin pagar ahora vuelven solos con el WhatsApp. Era plata que perdía y de la que ni me enteraba.", n: "Joaquín M.", r: "Alimento para mascotas", p: "Shopify", k: "Carritos recuperados por WhatsApp", photo: "/landing/rev-m2.jpg" },
+  { q: "Lo instalaron ellos en una llamada de 20 minutos con mis productos. Esa misma tarde tenía la primera suscripción cobrando.", n: "Valentina T.", r: "Suplementos deportivos", p: "Tiendanube", k: "Andando el mismo día", photo: "/landing/rev-f3.jpg" },
+  { q: "Mis clientes pausan o cambian la dirección desde su portal y no me escriben más por WhatsApp para eso. Y el checkout quedó con mis colores.", n: "Lucas P.", r: "Productos de limpieza ecológicos", p: "Shopify", k: "Cero soporte manual", photo: "/landing/rev-m3.jpg" },
 ];
 export function Stars({ T, size = 13 }) {
   return (
@@ -985,7 +985,9 @@ export function ReviewCard({ T, r, i = 0, compact = false }) {
       {!compact && r.k && <div style={{fontFamily:"'Manrope','Inter',system-ui,sans-serif",fontSize:17,fontWeight:800,letterSpacing:-0.4,color:T.text,lineHeight:1.2}}>{r.k}</div>}
       <blockquote style={{margin:0,fontSize:compact ? 13.5 : 14.5,lineHeight:1.62,color:compact ? T.textMd : T.text,textWrap:"pretty"}}>“{r.q}”</blockquote>
       <figcaption style={{marginTop:"auto",display:"flex",alignItems:"center",gap:10,paddingTop:compact ? 6 : 10,borderTop:`1px solid ${T.borderL || T.border}`}}>
-        <span style={{width:34,height:34,borderRadius:99,background:REV_GRADS[i % REV_GRADS.length],color:"#fff",fontSize:13,fontWeight:800,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:"inset 0 0 0 1px rgba(255,255,255,.25)"}}>{r.n.slice(0,1)}</span>
+        {r.photo
+          ? <img src={r.photo} alt="" width="38" height="38" loading="lazy" style={{width:38,height:38,borderRadius:99,objectFit:"cover",flexShrink:0,boxShadow:"0 0 0 2px "+T.border}}/>
+          : <span style={{width:34,height:34,borderRadius:99,background:REV_GRADS[i % REV_GRADS.length],color:"#fff",fontSize:13,fontWeight:800,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:"inset 0 0 0 1px rgba(255,255,255,.25)"}}>{r.n.slice(0,1)}</span>}
         <span style={{minWidth:0}}>
           <span style={{display:"block",fontSize:13.5,fontWeight:800,color:T.text}}>{r.n}</span>
           <span style={{display:"block",fontSize:12,color:T.textSm}}>{r.r}</span>
