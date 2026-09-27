@@ -127,7 +127,7 @@ export function MotionStyle({ T }) {
       /* Carril "centrado" (Thiago, 27-sept: "que queden en el medio"): la primera tarjeta
          arranca centrada y la última termina centrada. --w ancho de tarjeta · --n cantidad ·
          --cw ancho del contenedor (.lm-wrap). */
-      .lm-track.lm-track-center{--cw:calc(min(1120px, 100vw) - 48px);transform:translateX(calc((var(--cw) - var(--w, 440px)) / 2 - var(--p,0) * (var(--w, 440px) + 28px) * (var(--n, 1) - 1)));}
+      .lm-track.lm-track-center{--cw:calc(min(1120px, 100vw) - 48px);transform:translateX(calc((var(--cw) - var(--w, 440px)) / 2 - var(--pp, var(--p,0)) * (var(--w, 440px) + 28px) * (var(--n, 1) - 1)));}
       .lm-progress{height:3px;border-radius:99px;background:${T.border};overflow:hidden;}
       .lm-progress > i{display:block;height:100%;width:calc(var(--p,0) * 100%);background:${T.accentSolid};transition:width .08s linear;}
       /* ── Marquee de integraciones ── */
@@ -154,7 +154,7 @@ export function MotionStyle({ T }) {
         .lm-pin:not(.lm-pin-all) .lm-pin-inner{position:static;height:auto;display:block;overflow:visible;}
         /* Celular: cada tarjeta pasa por el CENTRO de la pantalla (la primera arranca
            centrada y la última termina centrada). --w = ancho de tarjeta, --n = cantidad. */
-        .lm-pin-all .lm-track{--cw:calc(100vw - 32px);transform:translateX(calc((var(--cw) - var(--w, 86vw)) / 2 - var(--p,0) * (var(--w, 86vw) + 28px) * (var(--n, 1) - 1)))!important;overflow:visible;scroll-snap-type:none;padding:4px 0 8px;margin:0;}
+        .lm-pin-all .lm-track{--cw:calc(100vw - 32px);transform:translateX(calc((var(--cw) - var(--w, 86vw)) / 2 - var(--pp, var(--p,0)) * (var(--w, 86vw) + 28px) * (var(--n, 1) - 1)))!important;overflow:visible;scroll-snap-type:none;padding:4px 0 8px;margin:0;}
         .lm-pin-all .lm-progress{display:block;width:100px!important;}
         .lm-pin-all .lm-pin-inner{justify-content:center;padding:12px 0!important;}
         .lm-stepper{grid-auto-flow:column;gap:4px!important;}
@@ -567,6 +567,16 @@ function DesignCard({ T, d }) {
 // suscripción, como hicimos con G4U"). Maqueta de tostado.ar/suscripcion.
 function SubLandingMock({ T }) {
   const c = "#6b3f2a", cream = "#f6f1ea", ink = "#1f1511";
+  // Cuánto hay que recorrer adentro (alto del contenido menos la ventanita): lo lee JS y
+  // el scroll de la página lo mueve vía --pb (0..1) definido por la sección.
+  const viewRef = useRef(null), contentRef = useRef(null);
+  useEffect(() => {
+    const v = viewRef.current, ct = contentRef.current; if (!v || !ct) return;
+    const fit = () => { v.style.setProperty("--ov", Math.max(0, ct.scrollHeight - v.clientHeight) + "px"); };
+    fit(); const t = setTimeout(fit, 800);
+    window.addEventListener("resize", fit);
+    return () => { clearTimeout(t); window.removeEventListener("resize", fit); };
+  }, []);
   const merchant = useMemo(() => ({ widget_variant: "v13", widget_color: c, widget_radius: 12, widget_mode_default: "sub", widget_show_per_unit: true, widget_texts: { headline: "Elegí cuánto café querés por mes" } }), []);
   const F2 = "'Inter',system-ui,sans-serif";
   return (
@@ -576,7 +586,8 @@ function SubLandingMock({ T }) {
         <span style={{ fontSize: 12, color: T.textSm, marginLeft: 6, fontFamily: MONO }}>tostado.ar/suscripcion</span>
         <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 800, color: T.accent, background: T.accentSolid + "18", borderRadius: 99, padding: "2px 8px" }}>SOLO SUSCRIPCIÓN</span>
       </div>
-      <div className="lm-sublanding" style={{ background: cream, color: ink, fontFamily: F2, maxHeight: "min(62vh, 620px)", overflowY: "auto", scrollbarWidth: "thin" }}>
+      <div className="lm-sublanding" ref={viewRef} style={{ background: cream, color: ink, fontFamily: F2, height: "min(62vh, 640px)", overflow: "hidden" }}>
+       <div ref={contentRef} className="lm-sublanding-content" style={{ transform: "translateY(calc(-1 * var(--pb, 0) * var(--ov, 0px)))", willChange: "transform" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", borderBottom: "1px solid #e8e2da" }}><span style={{ fontFamily: "Georgia,serif", fontWeight: 700, fontSize: 17, letterSpacing: 2, color: c }}>TOSTADO</span><span style={{ fontSize: 11, color: "#6b5b52" }}>Cafés · <b style={{ color: c }}>Suscripción</b> · Equipos</span></div>
         <div style={{ display: "grid", gridTemplateColumns: "1.1fr .9fr", gap: 16, padding: 18, alignItems: "center" }} className="lm-sublanding-hero">
           <style>{`@media(max-width:640px){.lm-sublanding-hero{grid-template-columns:1fr!important}}`}</style>
@@ -599,6 +610,8 @@ function SubLandingMock({ T }) {
         <div style={{ padding: "0 18px 20px", display: "grid", gap: 8 }}>
           {[["¿Puedo pausar un mes?", "Sí, desde tu portal, sin escribirnos."], ["¿Cuándo se cobra?", "Hoy, y después cada 30 días, el mismo día."], ["¿Y si quiero cambiar de pack?", "Lo cambiás desde el portal antes del próximo cobro."]].map(([q, a]) => <div key={q} style={{ background: "#fff", border: "1px solid #e8e2da", borderRadius: 10, padding: "9px 12px", fontSize: 11.5 }}><b>{q}</b><div style={{ color: "#6b5b52", marginTop: 2 }}>{a}</div></div>)}
         </div>
+        <div style={{ padding: "0 18px 22px", textAlign: "center" }}><div style={{ background: c, color: "#fff", borderRadius: 12, padding: "12px 16px", fontFamily: "Georgia,serif", fontWeight: 700, fontSize: 14 }}>Empezar mi suscripción</div><div style={{ fontSize: 10.5, color: "#6b5b52", marginTop: 8 }}>Pago seguro con Mercado Pago · Cancelás cuando quieras</div></div>
+       </div>
       </div>
     </div>
   );
@@ -607,45 +620,44 @@ function SubLandingMock({ T }) {
 export function StickyDesigns({ T }) {
   const ref = useRef(null);
   const innerRef = useRef(null);
-  const desktop = useDesktop();
   const reduce = useReducedMotion();
-  const [opt, setOpt] = useState("widget"); // widget | pagina
-  const pinned = !reduce && opt === "widget"; // también en celular: pasa de derecha a izquierda mientras bajás
-  useScrollProgress(ref, { enabled: pinned });
+  const pinned = !reduce;
+  // Dos fases con el mismo scroll (Thiago, 27-sept): 0–50 % pasan los widgets,
+  // 50–100 % se recorre entera la página de suscripción. data-step 0/1 = fase.
+  useScrollProgress(ref, { enabled: pinned, steps: 2 });
   usePinFit(innerRef, pinned);
+  const [phase, setPhase] = useState(0);
+  useEffect(() => {
+    if (!pinned) return;
+    const el = ref.current; if (!el) return;
+    const mo = new MutationObserver(() => setPhase(Number(el.dataset.step || 0)));
+    mo.observe(el, { attributes: true, attributeFilter: ["data-step"] });
+    return () => mo.disconnect();
+  }, [pinned]);
   const n = DESIGNS.length;
-  // Recorrido: el ancho del carril menos lo que entra en pantalla, en px de tarjeta.
   return (
-    <section id="rec-disenos" ref={ref} className={"lm-pin " + (pinned ? "lm-pin-all" : "")} style={{ height: pinned ? `${n * 70 + 60}vh` : "auto" }}>
-      {/* El título va FUERA del bloque fijo (Thiago, 27-sept: "da igual el título, yo tengo
-          que ver el widget centrado"): se va con el scroll y lo fijo es solo el carril. */}
+    <section id="rec-disenos" ref={ref} className={"lm-pin " + (pinned ? "lm-pin-all" : "")} style={{ height: pinned ? `${n * 60 + 220}vh` : "auto", "--pa": "min(1, calc(var(--p, 0) * 2))", "--pb": "max(0, calc(var(--p, 0) * 2 - 1))" }}>
       <div className="lm-wrap" style={{ width: "100%", padding: "64px 24px 8px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 24, alignItems: "end", marginBottom: 18 }} data-reveal="tilt">
-            <div>
-              <div className="lm-eyebrow">Se adapta a tu tienda · dos formas</div>
-              <h2 className="lm-h2">{opt === "widget" ? <>Un widget por marca,<br/>no una marca por widget</> : <>Una página de suscripción,<br/>con tu marca y solo suscripción</>}</h2>
-              <p className="lm-sub">{opt === "widget" ? "El botón de suscripción vive en tu ficha de producto y toma tus colores, tu letra, tus fotos y tus textos. Diseños 100% personalizables: estos son cinco, con datos de ejemplo." : "Misma tienda, mismo producto, otra página: una landing solo de suscripción con el bundle, los beneficios y las preguntas. La armamos nosotros con tu marca."}</p>
-            </div>
-            {pinned && <div className="lm-progress" style={{ width: 160, marginBottom: 10 }}><i/></div>}
-          </div>
-          {/* Las dos opciones (Thiago, 27-sept) */}
-          <div style={{ display: "inline-flex", gap: 4, padding: 4, borderRadius: 99, background: T.card, border: `1px solid ${T.border}`, marginBottom: 6 }} role="tablist">
-            {[["widget", "1 · Widget en tu ficha"], ["pagina", "2 · Página de suscripción"]].map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={opt === k} onClick={() => setOpt(k)} style={{ fontFamily: F, fontSize: 13, fontWeight: 700, padding: "9px 16px", borderRadius: 99, border: "none", cursor: "pointer", background: opt === k ? T.accentSolid : "transparent", color: opt === k ? "#fff" : T.textMd, transition: "all .2s" }}>{l}</button>)}
-          </div>
+        <div data-reveal="tilt">
+          <div className="lm-eyebrow">Se adapta a tu tienda · dos formas</div>
+          <p className="lm-sub">El botón de suscripción vive en tu ficha de producto y toma tus colores, tu letra, tus fotos y tus textos. Diseños 100% personalizables. O, si preferís, una página entera de suscripción con tu marca. Seguí bajando: primero los widgets, después la página.</p>
+        </div>
       </div>
-      <div ref={innerRef} className={"lm-pin-inner " + (pinned ? "lm-pin-fit" : "")} style={pinned ? { padding: "12px 0" } : { position: "static", height: "auto", display: "block", overflow: "visible", padding: "16px 0 64px" }}>
-        {opt === "widget" ? (
-          <div className="lm-wrap" style={{ width: "100%", overflow: "visible" }}>
-            <div className="lm-track lm-track-center" style={{ "--w": "min(400px, 86vw)", "--n": n, alignItems: "flex-start" }}>
+      <div ref={innerRef} className={"lm-pin-inner " + (pinned ? "lm-pin-fit" : "")} style={pinned ? { padding: "8px 0 12px" } : { position: "static", height: "auto", display: "block", overflow: "visible", padding: "16px 0 64px" }}>
+        <div className="lm-wrap" style={{ width: "100%", marginBottom: 14 }}>
+          <h2 key={phase} className="lm-h2 lm-stack-active" style={{ fontSize: "clamp(22px,2.6vw,32px)", margin: 0 }}>{phase === 0 || !pinned ? <>Un widget por marca, <span style={{ color: T.textSm }}>no una marca por widget</span></> : <>O una página entera <span style={{ color: T.textSm }}>enfocada a suscripción</span></>}</h2>
+        </div>
+        <div style={{ display: "grid" }}>
+          <div className="lm-wrap lm-phase" style={{ width: "100%", overflow: "visible", gridArea: "1/1", opacity: pinned && phase === 1 ? 0 : 1, pointerEvents: pinned && phase === 1 ? "none" : "auto", transition: "opacity .45s" }}>
+            <div className="lm-track lm-track-center" style={{ "--w": "min(400px, 86vw)", "--n": n, "--pp": "var(--pa)", alignItems: "flex-start" }}>
               {DESIGNS.map((d) => <DesignCard key={d.key} T={T} d={d}/>)}
             </div>
           </div>
-        ) : (
-          <div className="lm-wrap" style={{ width: "100%" }}>
-            <div style={{ maxWidth: 860, margin: "0 auto" }} data-reveal="rise"><SubLandingMock T={T}/></div>
-            <div style={{ textAlign: "center", fontSize: 12.5, color: T.textSm, marginTop: 14 }}>Deslizá dentro de la página para recorrerla. El widget de arriba también puede sumarse a esta página, o usar las dos formas a la vez.</div>
+          <div className="lm-wrap lm-phase" style={{ width: "100%", gridArea: "1/1", opacity: !pinned || phase === 1 ? 1 : 0, pointerEvents: !pinned || phase === 1 ? "auto" : "none", transition: "opacity .45s", marginTop: pinned ? 0 : 40 }}>
+            <div style={{ maxWidth: 860, margin: "0 auto" }}><SubLandingMock T={T}/></div>
+            <div style={{ textAlign: "center", fontSize: 12.5, color: T.textSm, marginTop: 12 }}>Misma tienda, mismo producto, otra página: solo suscripción, con el bundle, los beneficios y las preguntas. La armamos nosotros con tu marca.</div>
           </div>
-        )}
+        </div>
       </div>
     </section>
   );
