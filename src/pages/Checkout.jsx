@@ -640,13 +640,15 @@ export default function Checkout() {
         // que paga con dinero en cuenta, al que no tiene la tarjeta a mano y al
         // que la tarjeta le rebota en el formulario.
         <>
-          {/* Un solo cuadro: la fila elegida es lo único pintado y los campos de
-              la tarjeta viven adentro, debajo de su fila (26-sept-2026, Thiago). */}
+          {/* Un cuadro por método, separados (26-sept-2026, Thiago). En el de la
+              tarjeta la fila elegida es lo único pintado y los campos viven
+              adentro, debajo de su fila. */}
+          <div className="rc-pay-methods">
           <div className="rc-opts">
             <label className={"rc-opt " + (payWith === "card" ? "on" : "")}>
               <input type="radio" name="rec-pay" checked={payWith === "card"} onChange={() => setPayWith("card")}/>
               <img src="/brand/mercadopago.png" alt="" style={{ width: 30, height: 30, borderRadius: 7, objectFit: "contain", flexShrink: 0 }}/>
-              <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0 }}><b style={{ fontWeight: 600 }}>Tarjeta de crédito o débito</b><div style={{ color: theme.text_muted, fontSize: 13 }}>{isService ? `La cuota se cobra sola ${freqTxt}.` : `Se cobra ${freqTxt}, sin que hagas nada.`}</div></div>
+              <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0 }}><b style={{ fontWeight: 600 }}>Tarjeta de crédito o débito</b><div style={{ color: theme.text_muted, fontSize: 13 }}>{isService ? `La cuota se cobra ${freqTxt} a la tarjeta que pongas acá. Cancelás cuando quieras.` : `Se cobra ${freqTxt} a la tarjeta que pongas acá. Cancelás cuando quieras.`}</div></div>
             </label>
             {payWith === "card" ? (
               <div className="rc-card-body">
@@ -664,11 +666,14 @@ export default function Checkout() {
                 {!cardReady ? <div style={{ fontSize: 12.5, color: theme.text_muted, marginTop: 8 }}>Cargando el formulario seguro de {providerLabel}…</div> : null}
               </div>
             ) : null}
+          </div>
+          <div className="rc-opts">
             <label className={"rc-opt " + (payWith === "mp" ? "on" : "")}>
               <input type="radio" name="rec-pay" checked={payWith === "mp"} onChange={() => setPayWith("mp")}/>
               <img src="/brand/mercadopago.png" alt="" style={{ width: 30, height: 30, borderRadius: 7, objectFit: "contain", flexShrink: 0 }}/>
               <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0 }}><b style={{ fontWeight: 600 }}>Con tu cuenta de {providerLabel}</b><div style={{ color: theme.text_muted, fontSize: 13 }}>Te redirigimos a la web de {providerLabel} para que pagues con los métodos que tengas guardados ahí.</div></div>
             </label>
+          </div>
           </div>
         </>
       ) : (
@@ -730,6 +735,7 @@ export default function Checkout() {
         /* Campos de tarjeta: cada uno es un iframe de Mercado Pago. No podemos
            usar la etiqueta flotante (no hay :placeholder-shown de un iframe), así
            que la etiqueta va fija arriba y el iframe ocupa el resto de la caja. */
+        .rc-pay-methods{display:flex;flex-direction:column;gap:12px}
         .rc-card-body{padding:14px 16px 4px;border-top:1px solid ${theme.border_soft};background:${theme.input_bg}}
         .rc-card-body .rc-f input{background:${theme.bg}}
         .rc-card-body .rc-mpf{background:${theme.bg}}
