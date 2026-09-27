@@ -158,6 +158,13 @@ export default function Checkout() {
   // eventos, no registra leads y el botón de pagar no paga. El diseñador también empuja
   // cambios en vivo por postMessage ({ type:"rec-checkout-theme", theme }).
   const isPreview = p.get("preview") === "1";
+  // ?embed=1 — el checkout vive DENTRO de la página del comercio (un iframe en
+  // su tienda), así el comprador nunca sale de su dominio. Cambia tres cosas:
+  // no ponemos nuestro encabezado ni nuestro pie (los pone la tienda), no
+  // forzamos el alto de la pantalla, y le avisamos al padre cuánto medimos para
+  // que el iframe crezca y no aparezca una barra de scroll adentro de otra
+  // (27-sept-2026, Thiago).
+  const isEmbed = p.get("embed") === "1";
   const [previewTheme, setPreviewTheme] = useState(() => { try { return isPreview && p.get("theme") ? JSON.parse(p.get("theme")) : null; } catch (_) { return null; } });
   useEffect(() => {
     if (!isPreview) return;
@@ -578,9 +585,28 @@ export default function Checkout() {
     }
   }
 
+  // Embebido: el iframe tiene que crecer con el contenido. Si no, el comprador
+  // termina con una barra de scroll adentro de otra, que es lo que hace que se
+  // note el iframe. Se mide con ResizeObserver y se manda al padre.
+  useEffect(() => {
+    if (!isEmbed) return;
+    let ultimo = 0;
+    const avisar = () => {
+      const alto = Math.ceil(document.documentElement.scrollHeight);
+      if (!alto || Math.abs(alto - ultimo) < 2) return;
+      ultimo = alto;
+      try { window.parent.postMessage({ type: "rec-checkout-height", height: alto }, "*"); } catch (_) {}
+    };
+    avisar();
+    const ro = new ResizeObserver(avisar);
+    ro.observe(document.body);
+    const t = setInterval(avisar, 1000);   // red de seguridad: fuentes, imágenes, iframes de MP
+    return () => { ro.disconnect(); clearInterval(t); };
+  }, [isEmbed]);
+
   const R = theme.radius;
   const font = theme.font_stack;
-  const pageBase = { minHeight: "100vh", background: theme.bg, color: theme.text, colorScheme: theme.dark ? "dark" : "light", fontFamily: font, boxSizing: "border-box" };
+  const pageBase = { minHeight: isEmbed ? 0 : "100vh", background: theme.bg, color: theme.text, colorScheme: theme.dark ? "dark" : "light", fontFamily: font, boxSizing: "border-box" };
   const loaderColor = colorParam || cachedColor || "#10b981";
 
   // Misma animación de carga que el tablero (logo girando), del color de la tienda.
@@ -801,7 +827,7 @@ export default function Checkout() {
       <style>{`
         @keyframes rc-spin{to{transform:rotate(360deg)}}
         .rc-ck *{box-sizing:border-box}
-        .rc-shell{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);min-height:100vh}
+        .rc-shell{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);min-height:${isEmbed ? "0" : "100vh"}}
         .rc-main{display:flex;justify-content:flex-end;padding:34px 40px 64px;min-width:0}
         .rc-main>div{width:100%;max-width:580px;min-width:0}
         .rc-side{background:${theme.summary_bg};border-left:1px solid ${theme.border_soft};padding:34px 40px 64px;min-width:0}
@@ -884,13 +910,14 @@ export default function Checkout() {
       <div className="rc-shell">
         <div className="rc-main">
           <div>
-            {/* Encabezado: logo + nombre (o el texto que puso la tienda) */}
-            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "22px 0 6px", minHeight: 56 }}>
+            {/* Encabezado: logo + nombre (o el texto que puso la tienda).
+                Embebido no va: arriba está el header de la tienda. */}
+            {isEmbed ? null : <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "22px 0 6px", minHeight: 56 }}>
               {logo ? <img src={logo} alt="" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover", flexShrink: 0 }}/> : null}
               {theme.header_logo
                 ? <img src={theme.header_logo} alt={storeName} style={{ display: "block", maxHeight: 48, maxWidth: 220, width: "auto", height: "auto", objectFit: "contain" }}/>
                 : <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: -0.2, overflowWrap: "anywhere" }}>{storeName}</div>}
-            </div>
+            </div>}
 
             {/* Celular: resumen desplegable arriba (como Shopify) */}
             <div className="rc-mobile-summary">
@@ -964,7 +991,7 @@ export default function Checkout() {
 
             <div className="rc-sec">{payBlock}</div>
 
-            <div className="rc-foot">
+            {isEmbed ? null : <div className="rc-foot">
               {backUrl ? <a href={backUrl}>← Volver a la tienda</a> : null}
               {theme.show_policies && theme.terms_url ? <a href={theme.terms_url} target="_blank" rel="noopener">Términos</a> : null}
               {theme.show_policies && theme.privacy_url ? <a href={theme.privacy_url} target="_blank" rel="noopener">Privacidad</a> : null}
@@ -978,7 +1005,7 @@ export default function Checkout() {
                 </svg>
                 <span style={{ fontWeight: 700, color: theme.text }}>Recurrentes</span>
               </a>
-            </div>
+            </div>}
           </div>
         </div>
 

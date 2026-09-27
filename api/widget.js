@@ -304,6 +304,55 @@ export default async function handler(req, res) {
   // ?view=checkout → sirve el CHECKOUT ON-STORE (página de Shopify del merchant),
   // en vez del widget del producto. Corre en el dominio de la tienda, así puede
   // pedir los envíos REALES por CP a Shopify (/cart/shipping_rates.json) y va a MP.
+  // ── Checkout adentro de la tienda (?view=embed) ─────────────────────────
+  // El comerciante crea una página en su tienda (ej. /pages/suscripcion) y pega:
+  //   <div id="recurrentes-checkout"></div>
+  //   <script src="https://<recurrentes>/api/widget?merchant=<uid>&view=embed"></script>
+  //
+  // Esto mete ahí el checkout REAL en un iframe. El comprador ve el dominio de
+  // la tienda, su header y su pie, y adentro nuestro checkout completo: tarjeta,
+  // tema, upsells, todo. Un solo checkout que mantener (27-sept-2026, Thiago).
+  //
+  // El widget del producto manda a esa página con ?merchant=&plan=&pack=…, así
+  // que acá simplemente se reenvía la query tal cual al checkout.
+  if (String(req.query.view || "") === "embed") {
+    res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=300, s-maxage=300, stale-while-revalidate=600");
+    const base = (process.env.APP_BASE_URL || "").replace(/\/+$/, "");
+    return res.send(`(function(){
+  "use strict";
+  var MERCHANT = ${JSON.stringify(merchantId)};
+  var BASE = ${JSON.stringify(base)};
+  var host = document.getElementById("recurrentes-checkout");
+  if (!host) { console.error("[Recurrentes] falta el <div id=recurrentes-checkout></div> en la página"); return; }
+
+  // Lo que viene en la URL de la página manda (plan, pack, variante, cupón…);
+  // el merchant lo ponemos nosotros para que no dependa de que lo pegue bien.
+  var q = new URLSearchParams(window.location.search);
+  q.set("merchant", MERCHANT);
+  q.set("embed", "1");
+  if (!q.get("src")) q.set("src", window.location.href);
+
+  var f = document.createElement("iframe");
+  f.src = BASE + "/#/checkout?" + q.toString();
+  f.title = "Checkout";
+  f.setAttribute("allow", "payment");
+  f.style.cssText = "width:100%;border:0;display:block;min-height:620px;";
+  f.scrolling = "no";
+  host.innerHTML = "";
+  host.appendChild(f);
+
+  // El iframe crece con su contenido: nada de una barra de scroll adentro de
+  // otra, que es lo que delata que es un iframe.
+  window.addEventListener("message", function (e) {
+    if (!e || !e.data || e.data.type !== "rec-checkout-height") return;
+    if (BASE && e.origin !== BASE) return;                 // solo le creemos al checkout
+    var h = parseInt(e.data.height, 10);
+    if (h > 200 && h < 20000) f.style.height = h + "px";
+  });
+})();`);
+  }
+
   // ── Una foto de pack, como archivo ──────────────────────────────────────
   // La manda el bundle en `assets` como URL. Se cachea un año: el `h` de la URL
   // cambia cuando la foto cambia, así que no hay forma de servir una vieja.
