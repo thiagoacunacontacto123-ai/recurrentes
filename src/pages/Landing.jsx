@@ -3,7 +3,7 @@ import { BtnSolid, BtnSecondary } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
 import { FREE_SUBSCRIBERS } from "../../shared/platform/pricing.js";
 import { SectionsStyle, FaqSection, BigFooter } from "./LandingSections.jsx";
-import { MotionStyle, useReveal, HeroWidgetLoop, StickyDesigns, HorizontalSteps, PriceWeapon, IntegrationsMarquee, ClosingCta, FeatureStack, ComparisonArena, PanelTour, BuyJourney /*, ReviewsBlock */ } from "./LandingMotion.jsx";
+import { MotionStyle, useReveal, HeroWidgetLoop, StickyDesigns, HorizontalSteps, PriceWeapon, IntegrationsMarquee, ClosingCta, FeatureStack, ComparisonArena, PanelTour, BuyJourney, PartnerBadges /*, ReviewsBlock */ } from "./LandingMotion.jsx";
 
 const F = "'Inter',system-ui,sans-serif";
 // Display (25-sept-2026, Thiago: "bien zarpado, estético"): Manrope apretada para los
@@ -389,10 +389,11 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
               <a href="#/tostado" style={{...BtnSecondary(T),padding:"14px 20px",fontSize:15,borderRadius:14,textDecoration:"none",display:"inline-flex",alignItems:"center",gap:8}}>Probar la tienda de ejemplo</a>
             </div>
             <div style={{marginTop:18,display:"flex",gap:"6px 16px",flexWrap:"wrap",fontSize:13,color:T.textSm}}>
-              {["Shopify y Tiendanube","0% de comisión por venta","Demo de 15 minutos, con casos reales"].map(t => (
+              {["0% de comisión por venta","Demo de 15 minutos, con casos reales"].map(t => (
                 <span key={t} style={{display:"inline-flex",alignItems:"center",gap:6}}><span style={{width:5,height:5,borderRadius:99,background:T.accentSolid}}/>{t}</span>
               ))}
             </div>
+            <PartnerBadges T={T} compact style={{marginTop:14}}/>
           </div>
 
           <div data-reveal="swing" className="lm-float">

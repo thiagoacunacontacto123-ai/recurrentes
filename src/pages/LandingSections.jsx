@@ -4,6 +4,7 @@ import { DS } from "../ui/theme.js";
 import { BtnSolid } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
 import { tierFor, FREE_SUBSCRIBERS, PRICING_TIERS, INSTALL_USD } from "../../shared/platform/pricing.js";
+import { PartnerBadges } from "./LandingMotion.jsx";
 // El precio más barato, sacado de la escala real: la landing no lo repite a mano.
 export const PRECIO_DESDE = PRICING_TIERS.find(t => t.usd > 0)?.usd ?? 0;
 
@@ -727,6 +728,7 @@ export function BigFooter({ T, onGo, onRegister }) {
             <p style={{fontSize:13.5,color:T.textSm,lineHeight:1.6,margin:"0 0 16px",maxWidth:300}}>Suscripciones con Mercado Pago para tiendas online de Argentina. Cada cobro crea el pedido en tu tienda.</p>
             <button onClick={onRegister} style={{...BtnSolid(T),padding:"10px 18px",fontSize:13.5,borderRadius:12}}>Pedir una demo</button>
             <a href="mailto:soporte@recurrentesapp.com" style={{display:"block",marginTop:14,fontSize:13,color:T.textMd,textDecoration:"none",fontWeight:600}}>soporte@recurrentesapp.com</a>
+            <PartnerBadges T={T} compact style={{marginTop:16}}/>
           </div>
           {cols.map(([title, items]) => (
             <div key={title}>

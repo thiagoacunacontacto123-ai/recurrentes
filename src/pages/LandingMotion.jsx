@@ -454,6 +454,29 @@ export function InteractiveWidget({ plan, merchant, initialMode = "once", onCta,
   );
 }
 
+// ─── Sellos de partner (Thiago, 26-sept: "somos partners, ponerlo por todos lados") ─
+// Tenemos cuenta de Partner en Shopify (la app se crea desde el Partner
+// Dashboard), app publicada en la tienda de apps de Tiendanube y aplicación en
+// Mercado Pago Developers. Los nombres son de cada empresa; no usamos sus logos.
+export const PARTNERS = [
+  { n: "Shopify", t: "Partner", c: "#96bf48" },
+  { n: "Tiendanube", t: "Partner", c: "#2c3ee6" },
+  { n: "Mercado Pago", t: "Partner", c: "#009ee3" },
+];
+export function PartnerBadges({ T, compact = false, tone = "auto", style = {} }) {
+  const dark = tone === "dark" || (tone === "auto" && T.isDark);
+  return (
+    <div style={{ display: "flex", gap: compact ? 8 : 10, flexWrap: "wrap", alignItems: "center", ...style }}>
+      {PARTNERS.map(p => (
+        <span key={p.n} title={`${p.n} ${p.t}`} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: compact ? "5px 10px" : "7px 12px", borderRadius: 99, border: `1px solid ${dark ? "rgba(255,255,255,.14)" : T.border}`, background: dark ? "rgba(255,255,255,.05)" : T.card, fontSize: compact ? 11.5 : 12.5, fontWeight: 700, color: dark ? "#EAF3EF" : T.text, whiteSpace: "nowrap" }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={p.c} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
+          {p.n} <span style={{ fontWeight: 600, color: dark ? "#A9C3B9" : T.textSm }}>{p.t}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 // ─── 2. Bloque fijo: distintos diseños y colores, pasando con el scroll ──
 const DESIGNS = [
   { key: "cafe", brand: "Tostado", niche: "Café de especialidad", variant: "v13", color: "#10b981", radius: 14, ink: "#0f1a14", mode: "sub", idx: 1, texts: { headline: "Elegí tu pack" } },
@@ -717,6 +740,7 @@ export function IntegrationsMarquee({ T }) {
         <div className="lm-eyebrow">Integraciones</div>
         <h2 className="lm-h2">Se conecta con lo que ya usás</h2>
         <p className="lm-sub" style={{ margin: "0 auto" }}>Shopify y Tiendanube como tienda, Mercado Pago como pasarela. Los envíos se cotizan con los correos que ya tenés configurados en tu tienda, y la orden sale lista para despachar.</p>
+        <PartnerBadges T={T} style={{ justifyContent: "center", marginTop: 18 }}/>
       </div>
       <div className="lm-marquee" style={{ display: "grid", gap: 14 }}>
         <div className="lm-marquee-row">{[...a, ...a].map((it, i) => <Chip key={it.n + i} T={T} it={it}/>)}</div>
@@ -1009,6 +1033,7 @@ export function ClosingCta({ T, onDemo, onLogin }) {
           <h2 style={{ fontFamily: FD, fontSize: "clamp(30px, 4vw, 50px)", fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1.04, margin: "0 auto 14px", maxWidth: 760, color: "#fff", textWrap: "balance" }}>Que te compren todos los meses sin tener que pedírselo</h2>
           <p style={{ fontSize: 16, color: "#A9C3B9", margin: "0 auto 28px", maxWidth: 520, lineHeight: 1.6 }}>En una demo de 20 minutos te mostramos cómo lo usan las tiendas que ya venden con Recurrentes y armamos cómo llevarlo a la tuya. Gratis hasta {FREE_SUBSCRIBERS} suscriptores.</p>
           <button onClick={onDemo} style={{ ...BtnSolid(T), display: "inline-flex", alignItems: "center", gap: 10, padding: "15px 26px", fontSize: 16, borderRadius: 14 }}>Pedir demo <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <PartnerBadges T={T} tone="dark" compact style={{ justifyContent: "center", marginTop: 22 }}/>
           {onLogin && <div style={{ fontSize: 13, color: "#A9C3B9", marginTop: 16 }}>¿Ya tenés cuenta? <button onClick={onLogin} style={{ background: "none", border: "none", color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: F, fontSize: 13, padding: 0, textDecoration: "underline", textUnderlineOffset: 3 }}>Iniciá sesión</button></div>}
         </div>
       </div>

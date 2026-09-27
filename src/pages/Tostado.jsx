@@ -4,7 +4,7 @@
 // REAL de Recurrentes funcionando (se cambia el modo y el pack). El botón de
 // "Suscribirme" muestra cómo sigue (checkout con la marca) y lleva a pedir demo.
 import React, { useEffect, useState } from "react";
-import { InteractiveWidget, SubPageMock, SAMPLE_PLANS, PRODUCT_ART } from "./LandingMotion.jsx";
+import { InteractiveWidget, SubPageMock, SAMPLE_PLANS, PRODUCT_ART, PartnerBadges } from "./LandingMotion.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
 
 const F = "'Inter',system-ui,sans-serif";
@@ -121,6 +121,7 @@ export default function TostadoStore() {
         <h2 style={{ fontFamily: "'Manrope','Inter',system-ui,sans-serif", fontSize: "clamp(26px,3.6vw,42px)", fontWeight: 800, letterSpacing: "-0.04em", margin: "0 auto 12px", maxWidth: 680, lineHeight: 1.06 }}>Así se ve la suscripción en una tienda.<br/>Ahora imaginalo con tus productos.</h2>
         <p style={{ color: "#A9C3B9", fontSize: 15.5, maxWidth: 520, margin: "0 auto 24px", lineHeight: 1.6 }}>Widget con tu marca, checkout propio, cobro en tu Mercado Pago y el pedido creado en tu tienda. En una demo de 15 minutos te lo mostramos andando.</p>
         <a href="#/demo" style={{ display: "inline-flex", alignItems: "center", gap: 10, background: "#10b981", color: "#fff", fontWeight: 800, fontSize: 15.5, padding: "14px 24px", borderRadius: 14, textDecoration: "none" }}>Pedir demo <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></a>
+        <PartnerBadges T={{ isDark: true }} tone="dark" compact style={{ justifyContent: "center", marginTop: 22 }}/>
         <div style={{ marginTop: 16, fontSize: 13 }}><a href="#/" style={{ color: "#A9C3B9" }}>← Volver a Recurrentes</a></div>
       </section>
 
