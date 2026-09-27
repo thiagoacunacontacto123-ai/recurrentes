@@ -649,7 +649,7 @@ export default function Checkout() {
             <label className={"rc-opt " + (payWith === "mp" ? "on" : "")}>
               <input type="radio" name="rec-pay" checked={payWith === "mp"} onChange={() => setPayWith("mp")}/>
               <img src="/brand/mercadopago.png" alt="" style={{ width: 30, height: 30, borderRadius: 7, objectFit: "contain", flexShrink: 0 }}/>
-              <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0 }}><b style={{ fontWeight: 600 }}>Con tu cuenta de {providerLabel}</b><div style={{ color: theme.text_muted, fontSize: 13 }}>Te llevamos a {providerLabel} y volvés.</div></div>
+              <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0 }}><b style={{ fontWeight: 600 }}>Con tu cuenta de {providerLabel}</b><div style={{ color: theme.text_muted, fontSize: 13 }}>Te redirigimos a la web de {providerLabel} para que pagues con los métodos que tengas guardados ahí.</div></div>
             </label>
           </div>
           {payWith === "card" ? (
