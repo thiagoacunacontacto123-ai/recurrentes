@@ -40,6 +40,18 @@ test("el script que se sirve trae la lectura del link", async () => {
   assert.match(js, /rec_modo=\(sub\|once\)/, "y después mira el link");
 });
 
+test("en modo PACKS el link también manda (Wellfresh está en packs)", async () => {
+  // El estado inicial de packs salía de `bundle.modeDefault`, que se calcula en
+  // el server y se cachea en la CDN: no sabía nada de la URL. Wellfresh probó
+  // el link y le arrancaba en compra única igual (27-sept-2026).
+  seedDoc(`merchants/${MID}`, luminaMerchant({ widget_mode_default: "once" }));
+  const js = await script();
+  assert.match(js, /mode: MODE_LINK \|\| \(bundle\.modeDefault === "once"/,
+    "el link pisa el default que vino en el bundle");
+  // Y sin link, sigue mandando el bundle: no le cambiamos el arranque a nadie.
+  assert.ok(!/mode: MODE_DEFAULT ===/.test(js), "no se reemplazó el default del bundle a lo bruto");
+});
+
 test("con Compra única por defecto, el link lo pasa a Suscripción", () => {
   assert.equal(modoConLink("once", "?rec_modo=sub"), "sub");
   assert.equal(modoConLink("once", "?utm_source=meta&rec_modo=sub"), "sub", "convive con los utm de la campaña");

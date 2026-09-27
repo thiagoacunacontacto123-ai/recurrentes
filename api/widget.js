@@ -482,9 +482,10 @@ export default async function handler(req, res) {
   // ?rec_modo=once al revés (27-sept-2026, Thiago). Sirve para mandar a una
   // campaña directo al modo que queremos vender, sin tocar la configuración.
   // Solo cambia cuál arranca elegida: el comprador puede cambiarla igual.
+  var MODE_LINK = null;
   try {
     var _m = /[?&]rec_modo=(sub|once)(&|$)/i.exec(location.search || "");
-    if (_m) MODE_DEFAULT = _m[1].toLowerCase();
+    if (_m) { MODE_LINK = _m[1].toLowerCase(); MODE_DEFAULT = MODE_LINK; }
   } catch (e) {}
   var CHECKOUT_FLOW = ${JSON.stringify(checkoutFlow)};
   var CHECKOUT_PAGE_PATH = ${JSON.stringify(checkoutPagePath)};
@@ -1448,7 +1449,9 @@ export default async function handler(req, res) {
       keepHidingForeign(form, watchExtra);
       watchVisible(host, watchExtra);
 
-      var state = { mode: bundle.modeDefault === "once" ? "once" : "sub", idx: parseInt(bundle.defaultIdx, 10) || 0 };
+      // El link gana sobre el default que vino en el bundle: ese se calcula en
+      // el server y se cachea en la CDN, así que no sabe nada de la URL.
+      var state = { mode: MODE_LINK || (bundle.modeDefault === "once" ? "once" : "sub"), idx: parseInt(bundle.defaultIdx, 10) || 0 };
       if (bundle.states[state.mode + ":" + state.idx] === undefined) state.idx = 0;
       var viaKeyboard = false;
       function packInfo(idx) { var list = bundle.packs || []; for (var i = 0; i < list.length; i++) if (list[i].idx === idx) return list[i]; return null; }
