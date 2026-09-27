@@ -14,16 +14,23 @@ import { db } from "./firebase.js";
 
 const col = (mid) => db().collection("merchants").doc(mid).collection("money_back");
 
-// Motivos, del más grave al más común. El texto es el que ve el comerciante.
+// Motivos. Solo entran los que significan que LA PLATA YA VOLVIÓ.
+//
+// Un reclamo ABIERTO (`in_mediation`) no va acá: esos a veces los gana el
+// comerciante (27-sept-2026, Thiago) y avisarle "no despaches" cuando todavía
+// puede quedarse con la plata es peor que no avisarle nada — pierde la venta
+// por las dudas. El aviso sale recién cuando MP deja el pago en `charged_back`
+// o `refunded`.
 export const MONEY_BACK_KINDS = {
   chargeback: { label: "Contracargo", detail: "El cliente desconoció el pago en su tarjeta y Mercado Pago le devolvió la plata." },
   fraud:      { label: "Fraude",      detail: "Mercado Pago marcó el pago como fraudulento y lo devolvió." },
-  claim:      { label: "Reclamo",     detail: "El cliente abrió un reclamo en Mercado Pago por este cobro." },
   refunded:   { label: "Devolución",  detail: "El pago se devolvió: puede haberlo hecho Mercado Pago o vos desde su panel." },
 };
 export const esMoneyBack = (k) => Object.prototype.hasOwnProperty.call(MONEY_BACK_KINDS, k);
 
-// ¿El estado de un pago de MP significa que la plata volvió?
+// ¿El estado de un pago de MP significa que la plata YA volvió?
+// `in_mediation` (reclamo abierto) devuelve null a propósito: todavía se puede
+// ganar, y hasta que se pierda el comerciante puede despachar tranquilo.
 export function kindFromPaymentStatus(status) {
   const s = String(status || "").toLowerCase();
   if (s === "charged_back") return "chargeback";

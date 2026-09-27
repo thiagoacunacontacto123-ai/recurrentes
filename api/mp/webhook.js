@@ -619,10 +619,19 @@ async function handleDispute(disputeId, kind, hintMid) {
     }
 
     await subRef.update(update);
-    // El cobro disputado ya generó su orden: el comercio tiene que cancelarla y
-    // NO despacharla. Es lo único que podemos hacer por él.
-    const subDoc = (await subRef.get()).data() || null;
-    await flagMoneyBack(merchantId, { paymentId: payment.id, kind, subscriberId, amount: payment.transaction_amount, sub: subDoc });
+    // El aviso de "no despaches" sale del ESTADO DEL PAGO, no del tipo de aviso
+    // que mandó MP: un reclamo abierto (`in_mediation`) todavía se puede ganar y
+    // ahí el comerciante puede despachar tranquilo. Recién cuando el pago queda
+    // en charged_back / refunded la plata se perdió de verdad.
+    const perdida = kindFromPaymentStatus(payment.status);
+    if (perdida) {
+      const subDoc = (await subRef.get()).data() || null;
+      await flagMoneyBack(merchantId, {
+        paymentId: payment.id,
+        kind: kind === "fraud" ? "fraud" : perdida,   // "fraude" dice más que "contracargo"
+        subscriberId, amount: payment.transaction_amount, sub: subDoc,
+      });
+    }
     console.log(`[mp-webhook] dispute ${kind} ${disputeId} → sub ${subscriberId} marcado ${newStatus}`);
     return;
   }

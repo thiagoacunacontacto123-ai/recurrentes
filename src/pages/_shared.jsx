@@ -197,9 +197,7 @@ export function MoneyBackAlert({ T, merchant, style = {} }) {
     toast("Listo, lo sacamos del cartel", "success");
   }
 
-  const KINDS = {
-    chargeback: "Contracargo", fraud: "Fraude", claim: "Reclamo", refunded: "Devolución",
-  };
+  const KINDS = { chargeback: "Contracargo", fraud: "Fraude", refunded: "Devolución" };
 
   return (
     <div style={{ display:"flex", gap:12, alignItems:"flex-start", padding:"13px 15px", borderRadius:DS.r.lg,
@@ -210,7 +208,7 @@ export function MoneyBackAlert({ T, merchant, style = {} }) {
           {items.length === 1 ? "Te devolvieron un cobro: no despaches ese pedido" : `Te devolvieron ${items.length} cobros: no despaches esos pedidos`}
         </div>
         <div style={{ fontSize:DS.font.sm, color:T.textMd, lineHeight:1.55, marginBottom:10 }}>
-          La plata volvió al cliente, pero la orden quedó paga en tu tienda. Cancelala vos: nosotros no tenemos permiso para cancelar órdenes.
+          La plata volvió al cliente, pero la orden quedó paga en tu tienda. Si todavía no la despachaste, cancelala; si ya salió, hablá con el cliente. Nosotros no podemos cancelarla por vos.
         </div>
         {items.map(it => {
           const url = shopifyOrderUrl(merchant?.shopify_shop, it.shopify_order_id);

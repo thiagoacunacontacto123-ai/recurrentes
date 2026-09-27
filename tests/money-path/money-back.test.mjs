@@ -46,16 +46,27 @@ test("el webhook de MP repite el evento: el comerciante ve UN aviso, no tres", a
   assert.equal(avisos.length, 1);
 });
 
-test("un reclamo que termina en contracargo sube de motivo; nunca baja", async () => {
+test("una devolución que después es contracargo sube de motivo; nunca baja", async () => {
   cobro("1000");
-  await MB.flagMoneyBack(MID, { paymentId: "1000", kind: "claim", subscriberId: "sub_1", sub });
-  assert.equal(rawGet(`merchants/${MID}/money_back/1000`).kind, "claim");
+  await MB.flagMoneyBack(MID, { paymentId: "1000", kind: "refunded", subscriberId: "sub_1", sub });
+  assert.equal(rawGet(`merchants/${MID}/money_back/1000`).kind, "refunded");
 
   await MB.flagMoneyBack(MID, { paymentId: "1000", kind: "chargeback", subscriberId: "sub_1", sub });
   assert.equal(rawGet(`merchants/${MID}/money_back/1000`).kind, "chargeback", "lo peor manda");
 
   await MB.flagMoneyBack(MID, { paymentId: "1000", kind: "refunded", subscriberId: "sub_1", sub });
   assert.equal(rawGet(`merchants/${MID}/money_back/1000`).kind, "chargeback", "no vuelve atrás");
+});
+
+test("un reclamo ABIERTO no avisa: esos a veces los gana el comerciante", async () => {
+  // Decirle "no despaches" cuando todavía puede quedarse con la plata le hace
+  // perder la venta por las dudas (27-sept-2026, Thiago).
+  assert.equal(MB.kindFromPaymentStatus("in_mediation"), null);
+  assert.equal(MB.kindFromPaymentStatus("pending"), null);
+  // Y "claim" dejó de ser un motivo válido: el aviso sale del estado del pago.
+  cobro("1500");
+  assert.equal(await MB.flagMoneyBack(MID, { paymentId: "1500", kind: "claim", subscriberId: "sub_1", sub }), null);
+  assert.equal(rawGet(`merchants/${MID}/money_back/1500`), undefined);
 });
 
 test("lo que ya resolvió no se vuelve a levantar solo", async () => {
@@ -73,7 +84,7 @@ test("lo que ya resolvió no se vuelve a levantar solo", async () => {
 test("la lista trae solo los abiertos, los nuevos primero", async () => {
   seedDoc(`merchants/${MID}/money_back/a`, { payment_id: "a", kind: "refunded", status: "open", created_at: "2026-09-20T10:00:00.000Z" });
   seedDoc(`merchants/${MID}/money_back/b`, { payment_id: "b", kind: "chargeback", status: "open", created_at: "2026-09-26T10:00:00.000Z" });
-  seedDoc(`merchants/${MID}/money_back/c`, { payment_id: "c", kind: "claim", status: "done", created_at: "2026-09-27T10:00:00.000Z" });
+  seedDoc(`merchants/${MID}/money_back/c`, { payment_id: "c", kind: "refunded", status: "done", created_at: "2026-09-27T10:00:00.000Z" });
   const items = await MB.listMoneyBack(MID);
   assert.deepEqual(items.map(i => i.payment_id), ["b", "a"]);
 });
