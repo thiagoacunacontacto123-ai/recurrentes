@@ -134,6 +134,52 @@ function AgendaEmbed({ T, url, nombre, email, leadId, wa }) {
   );
 }
 
+// Desplegable propio (27-sept-2026, Thiago: el <select> nativo del iPhone rompía la
+// estética). Mismo alto, borde y radio que los inputs; la lista se abre debajo, dentro
+// de la misma tarjeta. Vive fuera del componente para no perder estado en cada render.
+function Picker({ value, options, placeholder, onChange, style, T }) {
+  const [open, setOpen] = useState(false);
+  const ref = React.useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const esc = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", close); document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("pointerdown", close); document.removeEventListener("keydown", esc); };
+  }, [open]);
+  const cur = options.find((o) => o.id === value);
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button type="button" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((v) => !v)}
+        style={{ ...style, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, cursor: "pointer", textAlign: "left",
+          color: cur ? T.text : T.textSm, borderColor: open ? T.accentSolid : undefined }}>
+        <span>{cur ? cur.label : placeholder}</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"
+          style={{ flexShrink: 0, transform: open ? "rotate(180deg)" : "none", transition: "transform .15s", color: T.textMd }}><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      {open && (
+        <div role="listbox" style={{ position: "absolute", left: 0, right: 0, top: "calc(100% + 6px)", zIndex: 20, background: T.card, border: `1px solid ${T.border}`,
+          borderRadius: 12, padding: 6, boxShadow: "0 18px 40px -18px rgba(0,0,0,.6)", display: "grid", gap: 2 }}>
+          {options.map((o) => {
+            const sel = o.id === value;
+            return (
+              <button key={o.id} type="button" role="option" aria-selected={sel} onClick={() => { onChange(o.id); setOpen(false); }}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%", textAlign: "left", cursor: "pointer",
+                  padding: "10px 12px", borderRadius: 8, border: "none", fontFamily: "inherit", fontSize: 13.5, color: T.text,
+                  background: sel ? T.accentSolid + "22" : "transparent", fontWeight: sel ? 700 : 500 }}
+                onMouseEnter={(e) => { if (!sel) e.currentTarget.style.background = T.surface; }}
+                onMouseLeave={(e) => { if (!sel) e.currentTarget.style.background = "transparent"; }}>
+                <span>{o.label}</span>
+                {sel && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DemoPage() {
   const { T } = useTheme();
   const iS = InputStyle(T);
@@ -211,9 +257,10 @@ export default function DemoPage() {
           background-image:linear-gradient(${T.border} 1px,transparent 1px),linear-gradient(90deg,${T.border} 1px,transparent 1px);background-size:56px 56px;
           -webkit-mask-image:radial-gradient(ellipse 70% 60% at 30% 0%,#000 20%,transparent 100%);mask-image:radial-gradient(ellipse 70% 60% at 30% 0%,#000 20%,transparent 100%);opacity:.5;}
         .rec-demo-reviews{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;}
-        .rec-demo .rc-f.is-err input,.rec-demo .rc-f.is-err select{border-color:#d92d20!important;box-shadow:0 0 0 1px #d92d20!important;}
+        .rec-demo .rc-f.is-err input,.rec-demo .rc-f.is-err select,.rec-demo .rc-f.is-err > div > button{border-color:#d92d20!important;box-shadow:0 0 0 1px #d92d20!important;}
         .rec-demo .rc-f.is-err > label{color:#d92d20!important;}
         .rec-demo .rc-f.is-err .rec-demo-check{border-color:#d92d20!important;box-shadow:0 0 0 1px #d92d20;}
+        .rec-demo button:focus-visible{outline:2px solid ${T.accentSolid};outline-offset:2px;}
         .rec-demo .rc-fe{color:#d92d20;font-size:13px;line-height:1.35;margin-top:6px;padding-left:2px;}
         .ls-card{background:${T.card};border:1px solid ${T.border};border-radius:20px;position:relative;overflow:hidden;}
         @media(max-width:960px){
@@ -290,10 +337,7 @@ export default function DemoPage() {
                 {DEMO_PREGUNTAS.map((q) => (
                   <div key={q.id} className={"rc-f" + (errOf(q.id) ? " is-err" : "")} style={campo} onChange={() => fix(q.id)}>
                     <label style={label}>{q.label}</label>
-                    <select style={iS} value={f[q.id]} onChange={(e) => set(q.id, e.target.value)}>
-                      <option value="">Elegí una opción</option>
-                      {q.options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-                    </select>
+                    <Picker T={T} style={iS} value={f[q.id]} options={q.options} placeholder="Elegí una opción" onChange={(v) => { set(q.id, v); fix(q.id); }}/>
                     {errOf(q.id) && <div className="rc-fe" role="alert">{errOf(q.id)}</div>}
                   </div>
                 ))}
