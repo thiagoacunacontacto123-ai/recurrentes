@@ -287,7 +287,8 @@ async function handleDemoSlots(req, res) {
   } catch (e) {
     console.warn("[demo-slots]", e.message);
     // Si Google no responde, el navegador cae a Calendly: nadie se queda sin reservar.
-    return res.status(200).json({ enabled: false, slots: [], error: "calendar_unavailable" });
+    // `detail` = el motivo que dio Google (código y texto, sin credenciales), para configurar la delegación.
+    return res.status(200).json({ enabled: false, slots: [], error: "calendar_unavailable", detail: String(e.message || "").replace(/ya29\.[A-Za-z0-9_-]+/g, "…").slice(0, 300) });
   }
 }
 
