@@ -13,11 +13,12 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useTheme } from "../ui/theme.js";
 import { InputStyle, BtnSolid, Spinner } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
-import { apiPost } from "../lib/api.js";
+import { apiGet, apiPost } from "../lib/api.js";
 import { normalizeWhatsapp, EMAIL_RE } from "../../shared/platform/contact.js";
 import { readAttribution, pixelTrack } from "../lib/attribution.js";
 import { AGENDA_URL, waLink, agendaUrl } from "../lib/contacto.js";
 import { DEMO_PREGUNTAS, DEMO_CONFIRMACIONES, sanitizeDemoLead } from "../../shared/platform/demoLead.js";
+import { groupSlotsByDay, DEMO_TZ } from "../../shared/platform/demoSlots.js";
 import { REVIEWS, ReviewCard, Stars, BigFooter, SectionsStyle } from "./LandingSections.jsx";
 import { MotionStyle, useReveal, PartnerBadges } from "./LandingMotion.jsx";
 
@@ -180,6 +181,39 @@ function Picker({ value, options, placeholder, onChange, style, T }) {
   );
 }
 
+// Día y horario dentro del formulario (27-sept-2026, Thiago: "Calendly es tosco"). Los
+// horarios vienen de `public?action=demo-slots` (Google Calendar de Thiago menos lo
+// ocupado). Chips de días arriba, horarios del día elegido abajo; mismo estilo que el
+// resto del formulario. Vive fuera del componente para no perder estado en cada render.
+const fechaLargaAR = (iso) => {
+  try { return new Intl.DateTimeFormat("es-AR", { timeZone: DEMO_TZ, weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso)).replace(",", " a las"); }
+  catch (_) { return iso; }
+};
+function SlotPicker({ T, days, dia, setDia, start, setStart }) {
+  const d = days.find((x) => x.date === dia) || days[0];
+  const chip = (sel, extra = {}) => ({
+    border: `1.5px solid ${sel ? T.accentSolid : T.borderL}`, background: sel ? T.accentSolid + "22" : T.surface, color: sel ? T.text : T.textMd,
+    borderRadius: 10, padding: "9px 12px", fontSize: 13.5, fontWeight: sel ? 700 : 500, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", transition: "border-color .15s, background .15s", ...extra,
+  });
+  return (
+    <div>
+      <div className="rec-demo-days" style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 6, marginBottom: 10, scrollbarWidth: "none" }}>
+        {days.map((x) => (
+          <button key={x.date} type="button" onClick={() => { setDia(x.date); setStart(""); }} style={chip(x.date === (d && d.date), { flexShrink: 0, textTransform: "capitalize" })}>{x.label}</button>
+        ))}
+      </div>
+      {d && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))", gap: 8 }}>
+          {d.slots.map((sl) => (
+            <button key={sl.iso} type="button" onClick={() => setStart(sl.iso)} style={chip(sl.iso === start, { textAlign: "center", padding: "10px 6px" })}>{sl.label}</button>
+          ))}
+        </div>
+      )}
+      <div style={{ fontSize: 11.5, color: T.textSm, marginTop: 8 }}>Videollamada de 15 minutos · hora de Argentina</div>
+    </div>
+  );
+}
+
 export default function DemoPage() {
   const { T } = useTheme();
   const iS = InputStyle(T);
@@ -205,6 +239,19 @@ export default function DemoPage() {
   const [listo, setListo] = useState(false);
   // Id del lead guardado: con eso marcamos "agendó" cuando Calendly avisa.
   const [leadId, setLeadId] = useState(null);
+  // Horarios propios (Google Calendar). `slots.enabled` false → sigue el flujo de Calendly.
+  const [slots, setSlots] = useState({ loaded: false, enabled: false, days: [] });
+  const [dia, setDia] = useState("");
+  const [start, setStart] = useState("");
+  const [booked, setBooked] = useState(null);   // { meeting_at, meeting_url } cuando reservó acá
+  async function cargarSlots() {
+    const d = await apiGet("public", { action: "demo-slots" });
+    const days = d?.enabled ? groupSlotsByDay(d.slots || []) : [];
+    setSlots({ loaded: true, enabled: !!d?.enabled && days.length > 0, days });
+    if (days.length && !days.some((x) => x.date === dia)) setDia(days[0].date);
+    return days;
+  }
+  useEffect(() => { cargarSlots().catch(() => setSlots({ loaded: true, enabled: false, days: [] })); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
   const rootRef = React.useRef(null);
   useReveal(rootRef);
@@ -224,14 +271,35 @@ export default function DemoPage() {
     // las reglas, y el visitante ve el error antes de mandar.
     const { value, error: err, field } = sanitizeDemoLead({ ...f, ...oks }, { emailRe: EMAIL_RE, normalizeWhatsapp });
     if (err) { setError(err, field); scrollToError(); return; }
+    if (slots.enabled && !start) { setError("Elegí un día y un horario para la llamada.", "horario"); scrollToError(); return; }
     setLoading(true);
-    // apiPost NO lanza: devuelve { error } (ver src/lib/api.js).
-    const r = await apiPost("public", { ...value, attribution: readAttribution() }, { action: "demo-lead" });
+    // El lead se guarda UNA vez: si después falla la reserva (horario ocupado) y vuelve a
+    // intentar, no se duplica ni se manda dos veces el evento a Meta.
+    let id = leadId;
+    if (!id) {
+      // apiPost NO lanza: devuelve { error } (ver src/lib/api.js).
+      const r = await apiPost("public", { ...value, attribution: readAttribution() }, { action: "demo-lead" });
+      if (r?.error) { setLoading(false); setError(r.error, r.field || "_form"); scrollToError(); return; }
+      id = r?.id || null; setLeadId(id);
+      // El pixel del navegador con el MISMO nombre que manda el servidor: Meta
+      // deduplica por event_id y el que tenga el navegador bloqueado igual cuenta.
+      pixelTrack("RegistroCalificado", {}, id ? `acq_qualified_${id}` : null);
+    }
+    // Reserva directa en el calendario (sin Calendly): crea el evento con Meet e invita.
+    if (slots.enabled && id) {
+      const b = await apiPost("public", { lead_id: id, start }, { action: "demo-book" });
+      setLoading(false);
+      if (b?.error) {
+        if (b.code === "slot_taken" || b.field === "horario") { await cargarSlots().catch(() => {}); setStart(""); setError(b.error, "horario"); }
+        else setError(b.error, "_form");
+        scrollToError(); return;
+      }
+      pixelTrack("DemoAgendada", {}, `acq_booked_${id}`);
+      setBooked({ meeting_at: b.meeting_at || start, meeting_url: b.meeting_url || null });
+      setListo(true); window.scrollTo(0, 0); return;
+    }
     setLoading(false);
-    if (r?.error) { setError(r.error, r.field || "_form"); scrollToError(); return; }
-    // El pixel del navegador con el MISMO nombre que manda el servidor: Meta
-    // deduplica por event_id y el que tenga el navegador bloqueado igual cuenta.
-    pixelTrack("RegistroCalificado", {}, r?.id ? `acq_qualified_${r.id}` : null);
+    const r = { id };
     // El calendario aparece acá mismo, incrustado (26-sept-2026, Thiago: vio la
     // demo integrada de Talopay). Mejor que redirigir: es un paso menos, no se
     // va del sitio, y cuando elige horario Calendly nos avisa por JavaScript —
@@ -260,8 +328,10 @@ export default function DemoPage() {
         .rec-demo .rc-f.is-err input,.rec-demo .rc-f.is-err select,.rec-demo .rc-f.is-err > div > button{border-color:#d92d20!important;box-shadow:0 0 0 1px #d92d20!important;}
         .rec-demo .rc-f.is-err > label{color:#d92d20!important;}
         .rec-demo .rc-f.is-err .rec-demo-check{border-color:#d92d20!important;box-shadow:0 0 0 1px #d92d20;}
+        .rec-demo .rc-f.is-err .rec-demo-days button{border-color:#d92d20!important;}
+        .rec-demo-days::-webkit-scrollbar{display:none;}
         /* iOS hace zoom al enfocar un campo con letra menor a 16px (mismo arreglo que el checkout). */
-        .rec-demo-form input,.rec-demo-form select,.rec-demo-form .rc-f > div > button{font-size:16px!important;padding-top:12px!important;padding-bottom:12px!important;border-radius:10px!important;}
+        .rec-demo-form input,.rec-demo-form select,.rec-demo-form .rc-f > div > button[aria-haspopup]{font-size:16px!important;padding-top:12px!important;padding-bottom:12px!important;border-radius:10px!important;}
         .rec-demo button:focus-visible{outline:2px solid ${T.accentSolid};outline-offset:2px;}
         .rec-demo .rc-fe{color:#d92d20;font-size:13px;line-height:1.35;margin-top:6px;padding-left:2px;}
         .ls-card{background:${T.card};border:1px solid ${T.border};border-radius:20px;position:relative;overflow:hidden;}
@@ -278,7 +348,24 @@ export default function DemoPage() {
         <div className="rec-demo-bg" aria-hidden="true"/>
         <div className="rec-demo-wrap" style={{ position: "relative", zIndex: 1 }}>
           {listo ? (
-            agenda ? (
+            booked ? (
+            <div style={{ maxWidth: 560, margin: "48px auto 80px", background: T.card, border: `1px solid ${T.border}`, borderRadius: 22, padding: "34px 28px", textAlign: "center", boxShadow: "0 30px 70px -30px rgba(0,0,0,.45)" }}>
+              <div style={{ width: 56, height: 56, borderRadius: 99, margin: "0 auto 16px", background: T.accentSolid + "1a", border: `1px solid ${T.accentSolid}55`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <h1 style={{ fontSize: 30, fontWeight: 800, letterSpacing: "-0.03em", margin: "0 0 10px" }}>Listo, {f.nombre.split(" ")[0]}. Nos vemos.</h1>
+              <p style={{ fontSize: 15, color: T.textMd, lineHeight: 1.6, margin: "0 0 8px" }}>
+                <strong style={{ color: T.text, textTransform: "capitalize" }}>{fechaLargaAR(booked.meeting_at)}</strong>, 15 minutos por Google Meet.
+              </p>
+              <p style={{ fontSize: 14, color: T.textMd, lineHeight: 1.6, margin: "0 0 22px" }}>
+                Te llega la invitación con el link a <strong style={{ color: T.text }}>{f.email}</strong>{f.whatsapp ? <> y un recordatorio 2 horas antes.</> : "."}
+              </p>
+              <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+                {booked.meeting_url && <a href={booked.meeting_url} target="_blank" rel="noopener noreferrer" style={{ ...BtnSolid(T), display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 24px", fontSize: 15.5, textDecoration: "none", borderRadius: 14 }}>Abrir el link de Meet</a>}
+                <a href={wa} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "14px 24px", fontSize: 15.5, textDecoration: "none", borderRadius: 14, border: `1px solid ${T.border}`, color: T.text, fontWeight: 600 }}>Escribir por WhatsApp</a>
+              </div>
+            </div>
+            ) : agenda ? (
               <AgendaEmbed T={T} url={agenda} nombre={f.nombre} email={f.email} leadId={leadId} wa={wa}/>
             ) : (
             <div style={{ maxWidth: 560, margin: "48px auto 80px", background: T.card, border: `1px solid ${T.border}`, borderRadius: 22, padding: "34px 28px", textAlign: "center", boxShadow: "0 30px 70px -30px rgba(0,0,0,.45)" }}>
@@ -343,6 +430,16 @@ export default function DemoPage() {
                     {errOf(q.id) && <div className="rc-fe" role="alert">{errOf(q.id)}</div>}
                   </div>
                 ))}
+
+                {/* Día y horario (Google Calendar propio). Sin horarios → el paso queda afuera
+                    y después del envío aparece Calendly como antes. */}
+                {slots.enabled && (
+                  <div className={"rc-f" + (errOf("horario") ? " is-err" : "")} style={campo} onClick={() => fix("horario")}>
+                    <label style={label}>¿Cuándo te viene bien la llamada?</label>
+                    <SlotPicker T={T} days={slots.days} dia={dia} setDia={setDia} start={start} setStart={setStart}/>
+                    {errOf("horario") && <div className="rc-fe" role="alert">{errOf("horario")}</div>}
+                  </div>
+                )}
 
                 {/* Las dos casillas SON el filtro, no letra chica: el que no las
                     marca no manda el formulario y no nos come una llamada. */}
