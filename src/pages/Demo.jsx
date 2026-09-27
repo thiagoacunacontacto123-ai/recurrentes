@@ -18,7 +18,7 @@ import { normalizeWhatsapp, EMAIL_RE } from "../../shared/platform/contact.js";
 import { readAttribution, pixelTrack } from "../lib/attribution.js";
 import { AGENDA_URL, waLink, agendaUrl } from "../lib/contacto.js";
 import { DEMO_PREGUNTAS, DEMO_CONFIRMACIONES, sanitizeDemoLead } from "../../shared/platform/demoLead.js";
-import { REVIEWS, ReviewCard, Stars } from "./LandingSections.jsx";
+import { REVIEWS, ReviewCard, Stars, BigFooter, SectionsStyle } from "./LandingSections.jsx";
 import { MotionStyle, useReveal, PartnerBadges } from "./LandingMotion.jsx";
 
 const F = "'Inter',system-ui,sans-serif";
@@ -306,12 +306,9 @@ export default function DemoPage() {
         </div>
       </div>
 
-      <footer style={{ borderTop: `1px solid ${T.border}`, padding: "22px 0", fontSize: 12.5, color: T.textSm }}>
-        <div className="rec-demo-wrap" style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-          <span>© {new Date().getFullYear()} Recurrentes</span>
-          <span><a href="mailto:soporte@recurrentesapp.com" style={{ color: T.textSm }}>soporte@recurrentesapp.com</a> · <a href="#/terminos" style={{ color: T.textSm }}>Términos</a> · <a href="#/privacidad" style={{ color: T.textSm }}>Privacidad</a></span>
-        </div>
-      </footer>
+      {/* El mismo pie que la home (Thiago, 27-sept): links a las secciones, Inicio, redes. */}
+      <SectionsStyle T={T}/>
+      <BigFooter T={T} onRegister={() => { try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch (_) {} }}/>
     </div>
   );
 }
