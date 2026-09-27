@@ -107,3 +107,13 @@ test("mientras carga, el cargando es del color de la tienda", async () => {
   assert.match(js, /f\.style\.cssText = "width:100%;border:0;display:none/, "el iframe aparece recién cuando se pintó");
   assert.match(js, /setTimeout\(mostrar, 8000\)/, "y si el checkout nunca avisa, se muestra igual");
 });
+
+test("salir a Mercado Pago rompe el marco: no se carga adentro del iframe", async () => {
+  // MP responde con X-Frame-Options: adentro del iframe el comprador veía la
+  // hoja rota de Chrome con el carrito ya hecho (27-sept-2026, Wellfresh).
+  const js = (await embed()).body;
+  assert.match(js, /rec-checkout-redirect/);
+  assert.match(js, /if \(BASE && e\.origin !== BASE\) return;[\s\S]{0,200}rec-checkout-redirect|rec-checkout-redirect[\s\S]{0,200}e\.origin !== BASE/,
+    "solo le hacemos caso al checkout");
+  assert.match(js, /u\.indexOf\("https:\/\/"\) !== 0/, "y solo a una URL https");
+});

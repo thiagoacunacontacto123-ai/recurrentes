@@ -12,6 +12,10 @@ import React, { useEffect, useState } from "react";
 const POLL_MS = 3000;
 const MAX_POLLS = 60; // ~3 min: el primer cobro de MP se procesa async (~60s)
 
+// Adentro de la página de checkout de la tienda esto vive en un iframe: los
+// links tienen que sacar al comprador del marco, no navegar el recuadro.
+const enMarco = (() => { try { return window.top !== window.self; } catch (_) { return true; } })();
+
 export default function CheckoutSuccess() {
   const [portalToken, setPortalToken] = useState(null);
   const [phase, setPhase] = useState("confirming"); // confirming | active | pending
@@ -183,11 +187,11 @@ export default function CheckoutSuccess() {
 
         {storeUrl ? (
           <>
-            <a href={storeUrl} style={S.btn} className="tk-btn">Volver a la tienda</a>
-            {portalUrl && <a href={portalUrl} style={S.link}>Gestionar mi {kind}</a>}
+            <a href={storeUrl} target={enMarco ? "_top" : undefined} style={S.btn} className="tk-btn">Volver a la tienda</a>
+            {portalUrl && <a href={portalUrl} target={enMarco ? "_top" : undefined} style={S.link}>Gestionar mi {kind}</a>}
           </>
         ) : portalUrl ? (
-          <a href={portalUrl} style={S.btn} className="tk-btn">Gestionar mi {kind}</a>
+          <a href={portalUrl} target={enMarco ? "_top" : undefined} style={S.btn} className="tk-btn">Gestionar mi {kind}</a>
         ) : null}
 
         <p style={S.foot}>Cualquier duda, escribile a la tienda y te ayudan.</p>

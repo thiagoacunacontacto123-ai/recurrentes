@@ -378,6 +378,16 @@ export default async function handler(req, res) {
     var h = parseInt(e.data.height, 10);
     if (h > 200 && h < 20000) { f.style.height = h + "px"; mostrar(); }
   });
+
+  // Salir del marco: Mercado Pago no se deja abrir adentro de un iframe, así que
+  // cuando el checkout manda a pagar, la que navega es la página del comercio.
+  window.addEventListener("message", function (e) {
+    if (!e || !e.data || e.data.type !== "rec-checkout-redirect") return;
+    if (BASE && e.origin !== BASE) return;
+    var u = String(e.data.url || "");
+    if (u.indexOf("https://") !== 0) return;      // nada de javascript: ni rutas raras
+    window.location.href = u;
+  });
 })();`);
   }
 

@@ -165,6 +165,19 @@ export default function Checkout() {
   // que el iframe crezca y no aparezca una barra de scroll adentro de otra
   // (27-sept-2026, Thiago).
   const isEmbed = p.get("embed") === "1";
+  // Embebido: Mercado Pago no se deja abrir adentro de un iframe (responde con
+  // X-Frame-Options y el comprador ve la hoja rota de Chrome). Cualquier salida
+  // tiene que romper el marco. Se avisa al padre Y se intenta desde acá: con
+  // que ande una de las dos alcanza (27-sept-2026, Wellfresh).
+  const salirA = (url) => {
+    const u = String(url || "");
+    if (!u) return;
+    if (isEmbed) {
+      try { window.parent.postMessage({ type: "rec-checkout-redirect", url: u }, "*"); } catch (_) {}
+      try { if (window.top && window.top !== window.self) { window.top.location.href = u; return; } } catch (_) {}
+    }
+    window.location.href = u;
+  };
   const [previewTheme, setPreviewTheme] = useState(() => { try { return isPreview && p.get("theme") ? JSON.parse(p.get("theme")) : null; } catch (_) { return null; } });
   useEffect(() => {
     if (!isPreview) return;
@@ -578,7 +591,7 @@ export default function Checkout() {
         window.location.hash = `#/checkout-success?sub=${encodeURIComponent(d.subscriber_id)}&token=${encodeURIComponent(d.portal_token)}`;
         return;
       }
-      window.location.href = d.init_point;
+      salirA(d.init_point);
     } catch (e) {
       setFormErr(`No pudimos conectar con ${providerLabel}. Revisá tu conexión y reintentá.`);
       setSubmitting(false);
