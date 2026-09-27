@@ -337,7 +337,7 @@ export default async function handler(req, res) {
   f.src = BASE + "/#/checkout?" + q.toString();
   f.title = "Checkout";
   f.setAttribute("allow", "payment");
-  f.style.cssText = "width:100%;border:0;display:block;min-height:620px;";
+  f.style.cssText = "width:100%;border:0;display:block;min-height:620px;background:#fff;";
   f.scrolling = "no";
   host.innerHTML = "";
   host.appendChild(f);

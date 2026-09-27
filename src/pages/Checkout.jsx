@@ -604,6 +604,21 @@ export default function Checkout() {
     return () => { ro.disconnect(); clearInterval(t); };
   }, [isEmbed]);
 
+  // Embebido: el fondo de la página del navegador es el de la app (oscuro), y
+  // abajo del checkout quedaba una franja negra adentro del iframe. Acá manda el
+  // fondo del checkout de la tienda, y nada de alto mínimo de pantalla.
+  useEffect(() => {
+    if (!isEmbed) return;
+    const h = document.documentElement, b = document.body;
+    const antes = [h.style.background, b.style.background, b.style.margin, h.style.minHeight, b.style.minHeight];
+    h.style.background = theme.bg; b.style.background = theme.bg;
+    b.style.margin = "0"; h.style.minHeight = "0"; b.style.minHeight = "0";
+    return () => {
+      h.style.background = antes[0]; b.style.background = antes[1];
+      b.style.margin = antes[2]; h.style.minHeight = antes[3]; b.style.minHeight = antes[4];
+    };
+  }, [isEmbed, theme.bg]);
+
   const R = theme.radius;
   const font = theme.font_stack;
   const pageBase = { minHeight: isEmbed ? 0 : "100vh", background: theme.bg, color: theme.text, colorScheme: theme.dark ? "dark" : "light", fontFamily: font, boxSizing: "border-box" };

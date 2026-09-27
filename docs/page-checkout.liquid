@@ -16,9 +16,8 @@
     5. En el panel de Recurrentes, Widget → "Checkout en mi tienda" con el
        /pages/<handle> de esa página.
 
-  El checkout se pinta ACÁ MISMO, en el dominio de la tienda (view=checkout con
-  legacy=1): es el mismo formulario que corre en Lumina desde siempre, con los
-  envíos reales por CP de la tienda. Sin iframe.
+  Adentro va el checkout de verdad (el mismo de #/checkout: tarjeta, regalos,
+  upsells, tema de la tienda). Uno solo que mantener.
 
   No cambiar el id "recurrentes-checkout": ahí se monta el checkout.
 {%- endcomment -%}
@@ -93,4 +92,4 @@
   })();
 </script>
 
-<script src="https://www.recurrentesapp.com/api/widget?merchant=MERCHANT_ID&view=checkout&legacy=1" defer></script>
+<script src="https://www.recurrentesapp.com/api/widget?merchant=MERCHANT_ID&view=embed" defer></script>

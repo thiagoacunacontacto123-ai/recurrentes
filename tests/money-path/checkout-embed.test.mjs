@@ -58,6 +58,13 @@ test("no tapa la página: el iframe no trae scroll propio", async () => {
   assert.ok(!/height:\s*100vh/.test(js), "no fuerza el alto de la pantalla");
 });
 
+test("el iframe arranca en blanco, no en negro", async () => {
+  // El fondo de la app es oscuro; sin esto, mientras carga (y abajo del
+  // checkout) quedaba una franja negra adentro de la página del comercio.
+  const js = (await embed()).body;
+  assert.match(js, /background:#fff/);
+});
+
 test("se cachea en la CDN: es el mismo script para toda la tienda", async () => {
   const r = await embed();
   assert.match(String(r.headers["cache-control"]), /s-maxage=300/);
