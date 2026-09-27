@@ -321,9 +321,16 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 .pill{display:inline-flex;font-size:12px;font-weight:600;color:var(--wine);background:#f3d9e0;padding:3px 9px;border-radius:99px}
 .mob-sum{display:none}
 .err{background:#fde8e8;border:1px solid #f5b5b5;color:#b42318;font-size:14px;padding:11px 13px;border-radius:var(--r);margin-top:14px}
+.rec-top{background:#0C1A18;color:#cfe3da;font-size:12px;display:flex;align-items:center;justify-content:center;gap:14px;padding:7px 14px;flex-wrap:wrap;text-align:center}
+.rec-top b{color:#34d399}.rec-top a{color:#34d399;font-weight:700;text-decoration:none;white-space:nowrap}
+/* modo: suscripción (default) / compra única, como el widget de Wellfresh */
+.mode{display:inline-flex;gap:4px;padding:4px;border-radius:99px;background:#fff;border:1.5px solid var(--wine);margin:18px 0 6px}
+.mode button{font:inherit;font-size:13px;font-weight:700;padding:9px 16px;border-radius:99px;border:none;background:transparent;color:var(--wine);cursor:pointer}
+.mode button.on{background:var(--wine);color:#fff}.mode button small{font-weight:600;opacity:.8;margin-left:4px}
+body.once #freq,body.once .sep-freq,body.once .cfreq,body.once #cartSv,body.once #payFreq{display:none!important}
 /* loader */
 #ld{position:fixed;inset:0;background:#fff;z-index:100;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px}
-#ld svg{animation:spin 1.1s linear infinite;filter:drop-shadow(0 6px 18px rgba(80,3,34,.35))}
+#ld svg{animation:spin 1.1s linear infinite;filter:drop-shadow(0 6px 18px rgba(107,63,42,.35))}
 #ld div{font-size:13px;font-weight:600;color:#777;animation:pulse 1.6s ease-in-out infinite}
 @keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{50%{opacity:.5}}
 /* gracias */
@@ -374,11 +381,12 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 @media(max-width:420px){.g2{grid-template-columns:1fr}}
 </style>
 
-<div id="ld"><svg width="56" height="56" viewBox="0 0 32 32"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8a2d4d"/><stop offset="1" stop-color="#3b0218"/></linearGradient></defs><circle cx="16" cy="16" r="16" fill="url(#lg)"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><div>Abriendo el checkout seguro…</div></div>
+<div id="ld"><svg width="56" height="56" viewBox="0 0 32 32"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8a5a3c"/><stop offset="1" stop-color="#4a2a1c"/></linearGradient></defs><circle cx="16" cy="16" r="16" fill="url(#lg)"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><div>Abriendo el checkout seguro…</div></div>
 <div class="demo-tag"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#04140d" opacity=".18"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#04140d" stroke-width="2.8" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#04140d" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>demo.recurrentes para</span><img id="logoTag" alt="Tostado"></div>
 
 <!-- ════════ VISTA PRODUCTO ════════ -->
 <div id="v-prod">
+  <div class="rec-top"><span>Tienda de <b>ejemplo</b> de Recurrentes · la marca es inventada, el sistema es el real</span><a href="https://www.recurrentesapp.com/#/">← Volver a Recurrentes</a></div>
   <div class="mq" aria-hidden="true"><div id="mq"></div></div>
   <header class="hdr"><div class="wrap">
     <svg class="burger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
@@ -420,11 +428,12 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
         <li>🌱 Comercio directo con la finca · bolsa con válvula, 250 g</li>
       </ul>
 
-      <div class="sep">¡Ahorrá suscribiéndote y llevando más!</div>
+      <div class="mode" id="mode" role="tablist"><button type="button" data-m="sub" class="on">Suscripción <small>−15%</small></button><button type="button" data-m="once">Compra única</button></div>
+      <div class="sep" id="sepPacks">¡Ahorrá suscribiéndote y llevando más!</div>
       <div class="packs" id="packs"></div>
 
 
-      <div class="sep" style="margin-top:22px">¿Cada cuánto lo querés?</div>
+      <div class="sep sep-freq" style="margin-top:22px">¿Cada cuánto lo querés?</div>
       <div class="freq" id="freq"></div>
 
       <button class="cta" id="goCk" disabled>Suscribirme<small id="ctaSub">Elegí los productos de tu pack</small></button>
@@ -632,84 +641,84 @@ const A = {
    4,
    "Me llega el primero de cada mes y no tengo que pensar en comprar café nunca más. El tueste siempre parejo.",
    "2026-09-20",
-   "https://www.recurrentesapp.com/landing/rev-f1.jpg"
+   "https://www.recurrentesapp.com/landing/rev2-a.jpg"
   ],
   [
    "Martín",
    5,
    "Cambié de dirección cuando me mudé y el siguiente pedido llegó a la casa nueva. Sin escribir a nadie.",
    "2026-09-14",
-   "https://www.recurrentesapp.com/landing/rev-m1.jpg"
+   "https://www.recurrentesapp.com/landing/rev2-b.jpg"
   ],
   [
    "Lucía",
    5,
    "Lo pausé un mes cuando me fui de viaje y volvió solo. Así tiene que ser.",
    "2026-09-09",
-   "https://www.recurrentesapp.com/landing/rev-f2.jpg"
+   "https://www.recurrentesapp.com/landing/rev2-c.jpg"
   ],
   [
    "Joaquín",
    5,
    "El de Colombia tiene una acidez linda, nada quemado. Se nota que está recién tostado.",
    "2026-09-02",
-   "https://www.recurrentesapp.com/landing/rev-m2.jpg"
+   "https://www.recurrentesapp.com/landing/rev2-d.jpg"
   ],
   [
    "Valentina",
    4,
    "Pedí 2 bolsas por mes y me dura justo. El descuento ayuda, y el envío llegó en 2 días.",
    "2026-08-28",
-   "https://www.recurrentesapp.com/landing/rev-f3.jpg"
+   "https://www.recurrentesapp.com/landing/rev2-e.jpg"
   ],
   [
    "Lucas",
    5,
    "Probé el Etiopía por curiosidad y ahora es mi favorito. La fecha de tueste impresa es un detalle que valoro.",
    "2026-08-21",
-   "https://www.recurrentesapp.com/landing/rev-m3.jpg"
+   "https://www.recurrentesapp.com/landing/rev2-f.jpg"
   ],
   [
    "Sofía",
    5,
    "Primer pedido y ya me suscribí. La bolsa con válvula mantiene el aroma una semana entera.",
    "2026-08-15",
-   "https://www.recurrentesapp.com/landing/rev-f1.jpg"
+   "https://www.recurrentesapp.com/landing/rev2-a.jpg"
   ],
   [
    "Martín",
    5,
    "Punto de retiro Andreani a dos cuadras, gratis. Cero drama.",
    "2026-08-10",
-   "https://www.recurrentesapp.com/landing/rev-m1.jpg"
+   "https://www.recurrentesapp.com/landing/rev2-b.jpg"
   ],
   [
    "Lucía",
    4,
    "Muy buen café, y la atención por WhatsApp rapidísima cuando quise cambiar la molienda.",
    "2026-08-03",
-   "https://www.recurrentesapp.com/landing/rev-f2.jpg"
+   "https://www.recurrentesapp.com/landing/rev2-c.jpg"
   ],
   [
    "Joaquín",
    5,
    "Se lo regalé a mi papá por tres meses y ahora lo sigue pagando él. Dice que es el mejor que tomó.",
    "2026-07-27",
-   "https://www.recurrentesapp.com/landing/rev-m2.jpg"
+   "https://www.recurrentesapp.com/landing/rev2-d.jpg"
   ],
   [
    "Valentina",
    5,
    "El blend espresso rinde muy bien en la máquina, crema linda. Repetiría siempre.",
    "2026-07-19",
-   "https://www.recurrentesapp.com/landing/rev-f3.jpg"
+   "https://www.recurrentesapp.com/landing/rev2-e.jpg"
   ],
   [
    "Lucas",
    5,
    "Me gusta que se pueda pausar. Lo hice en enero y en febrero volvió sin hacer nada.",
    "2026-07-11",
-   "https://www.recurrentesapp.com/landing/rev-m3.jpg"
+   "https://www.recurrentesapp.com/landing/rev2-f.jpg"
   ]
  ],
  "review_summary": {
@@ -734,6 +743,7 @@ const A = {
 const $ = (s) => document.querySelector(s);
 const money = (n) => "$" + Math.round(n).toLocaleString("es-AR");
 const SUB_OFF = 0.15;
+const OFF = () => S.mode === "sub" ? SUB_OFF : 0; // compra única: sin descuento de suscripción
 const PACKS = [{ n: 1, label: "1 bolsa" }, { n: 2, label: "2 bolsas", badge: "Más elegido" }, { n: 4, label: "4 bolsas", badge: "Mejor precio" }];
 const FREQS = [{ id: 15, l: "Cada 15 días", s: "" }, { id: 30, l: "Cada mes", s: "" }, { id: 60, l: "Cada 2 meses", s: "" }];
 const BASE_UNIT = 12900; // bolsa de 250 g
@@ -741,7 +751,7 @@ const BASE_UNIT = 12900; // bolsa de 250 g
 // app de bundles de G4U (Thiago, 25-sept-2026). `A.main` lo define el assets.json; si falta, pan de molde.
 const MAIN_H = A.main || "finca-la-esperanza-250g";
 const ITEMS = A.items.filter(i => i.h !== "semana-keto" && !/^pack|-pack$/.test(i.h)).sort((a, b) => (a.h === MAIN_H ? -1 : 0) - (b.h === MAIN_H ? -1 : 0));
-const S = { pack: 1, freq: 30, slots: [], view: "prod", ship: null, pickSlot: null, packQty: 1, extras: {} }; // slots: handle por casillero (null = vacío)
+const S = { mode: "sub", pack: 1, freq: 30, slots: [], view: "prod", ship: null, pickSlot: null, packQty: 1, extras: {} }; // slots: handle por casillero (null = vacío)
 // Como en su tienda: el primer casillero ya trae el pan de molde (el producto de esta página).
 function initSlots() { S.slots = Array.from({ length: S.pack }, (_, i) => S.slots[i] || null); if (!S.slots[0]) S.slots[0] = MAIN_H; }
 initSlots();
@@ -770,16 +780,16 @@ function totals() {
   const missing = S.pack - selCount(); const packList = (listTotal + Math.max(0, missing) * BASE_UNIT) * S.packQty;
   const extrasTotal = extrasList().reduce((a, i) => a + i.price * i.q, 0);
   const est = packList + extrasTotal;
-  return { list: est, sub: Math.round(est * (1 - SUB_OFF)), saving: Math.round(est * SUB_OFF), packSub: Math.round(packList * (1 - SUB_OFF)), packList };
+  return { list: est, sub: Math.round(est * (1 - OFF())), saving: Math.round(est * OFF()), packSub: Math.round(packList * (1 - OFF())), packList };
 }
 function renderPacks() {
   $("#packs").innerHTML = PACKS.map(p => {
-    const list = p.n * BASE_UNIT, sub = Math.round(list * (1 - SUB_OFF));
+    const list = p.n * BASE_UNIT, sub = Math.round(list * (1 - OFF()));
     const on = S.pack === p.n;
     const slots = on ? `<div class="slots">${S.slots.map((h, i) => { const it = h && ITEMS.find(x => x.h === h); return it
       ? `<div class="slot"><span class="ic"><img src="${it.img}" alt=""></span><span class="nm">${it.title}<small>${money(it.price)} · ${it.sub.split(";")[0]}</small></span><button type="button" class="rm" data-slot="${i}" title="Sacar">✕</button></div>`
       : `<div class="slot"><span class="ic">🍞</span><button type="button" class="add" data-slot="${i}">Suma otro producto</button></div>`; }).join("")}</div>` : "";
-    return `<div class="pack ${on ? "on" : ""}" data-n="${p.n}">${p.badge ? `<span class="bd rose">${p.badge}</span>` : ""}<span class="rad"></span><span class="nm">${p.label}</span><span class="pr"><b>${money(sub)}</b><s>${money(list)}</s><small>−15% · desde ${money(sub / p.n)} c/u</small></span>${slots}</div>`;
+    return `<div class="pack ${on ? "on" : ""}" data-n="${p.n}">${p.badge ? `<span class="bd rose">${p.badge}</span>` : ""}<span class="rad"></span><span class="nm">${p.label}</span><span class="pr"><b>${money(sub)}</b>${S.mode === "sub" ? `<s>${money(list)}</s><small>−15% · desde ${money(sub / p.n)} c/u</small>` : `<small>desde ${money(sub / p.n)} c/u</small>`}</span>${slots}</div>`;
   }).join("");
 }
 $("#packs").addEventListener("click", e => {
@@ -791,7 +801,7 @@ $("#packs").addEventListener("click", e => {
 });
 // Modal "Elegí un producto" (misma lista que su tienda: foto, nombre, precio con el tachado)
 function openPick() {
-  $("#pkList").innerHTML = ITEMS.map(i => `<div class="pr-row"><img src="${i.img}" alt=""><div class="t"><b>${i.title} | ${i.sub}</b><div class="p">${money(i.price * (1 - SUB_OFF))}<s>${money(i.price)}</s></div></div><button type="button" class="sel" data-h="${i.h}">Selecciona</button></div>`).join("");
+  $("#pkList").innerHTML = ITEMS.map(i => `<div class="pr-row"><img src="${i.img}" alt=""><div class="t"><b>${i.title} | ${i.sub}</b><div class="p">${money(i.price * (1 - OFF()))}${OFF() ? `<s>${money(i.price)}</s>` : ""}</div></div><button type="button" class="sel" data-h="${i.h}">Selecciona</button></div>`).join("");
   $("#pkBg").style.display = "flex";
 }
 function closePick() { $("#pkBg").style.display = "none"; }
@@ -802,9 +812,14 @@ $("#freq").addEventListener("click", e => { const b = e.target.closest("button")
 function renderCta() {
   const t = totals(), left = S.pack - selCount(), ok = left === 0;
   $("#goCk").disabled = !ok;
-  $("#goCk").innerHTML = ok ? `<span class="l1">Suscribirme · ${money(t.sub)} ${freqTxt()}</span><small>Ahorrás ${money(t.saving)} en cada envío · envío ${t.sub >= 85000 ? "gratis" : "a cotizar"}</small>` : `Suscribirme<small>Sumá ${left} producto${left === 1 ? "" : "s"} más para completar tu pack de ${S.pack}</small>`;
+  const once = S.mode !== "sub";
+  $("#goCk").innerHTML = ok
+    ? (once ? `<span class="l1">Agregar al carrito · ${money(t.sub)}</span><small>Compra única · sin renovación · envío ${t.sub >= 30000 ? "gratis" : "a cotizar"}</small>` : `<span class="l1">Suscribirme · ${money(t.sub)} ${freqTxt()}</span><small>Ahorrás ${money(t.saving)} en cada envío · envío ${t.sub >= 30000 ? "gratis" : "a cotizar"}</small>`)
+    : `${once ? "Agregar al carrito" : "Suscribirme"}<small>Sumá ${left} producto${left === 1 ? "" : "s"} más para completar tu pack de ${S.pack}</small>`;
+  $("#sepPacks").textContent = once ? "Elegí tu pack" : "¡Ahorrá suscribiéndote y llevando más!";
 }
-function renderAll() { renderPacks(); renderFreq(); renderCta(); }
+function renderAll() { document.body.classList.toggle("once", S.mode !== "sub"); renderPacks(); renderFreq(); renderCta(); }
+$("#mode").addEventListener("click", e => { const b = e.target.closest("button[data-m]"); if (!b) return; S.mode = b.dataset.m; $("#mode").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); renderAll(); });
 renderAll();
 
 // ── testimonios (carrusel) + reseñas de Revie tal cual ──
@@ -886,15 +901,15 @@ function renderCart() {
   // Upsells: lo que no está en el pack, 3 sugerencias (como los "Sumá a tu pedido" de las tiendas).
   const inPack = new Set(S.slots.filter(Boolean));
   const ups = ITEMS.filter(i => !inPack.has(i.h) || S.extras[i.h]).slice(0, 3);
-  $("#cartBody").innerHTML = `<div class="cl"><img src="${A.gallery[0]}" alt=""><div class="t"><b>Pack Tostado · ${S.pack} ítem${S.pack > 1 ? "s" : ""}</b><span class="pill">Suscripción</span></div><div class="p">${money(t.packSub)}<s>${money(t.packList)}</s><em>−15% cada envío</em></div></div>
+  $("#cartBody").innerHTML = `<div class="cl"><img src="${A.gallery[0]}" alt=""><div class="t"><b>Pack Tostado · ${S.pack} ítem${S.pack > 1 ? "s" : ""}</b><span class="pill">${S.mode === "sub" ? "Suscripción" : "Compra única"}</span></div><div class="p">${money(t.packSub)}${S.mode === "sub" ? `<s>${money(t.packList)}</s><em>−15% cada envío</em>` : ""}</div></div>
     <div class="cfreq">${FREQS.map(f => `<button type="button" data-cf="${f.id}" class="${S.freq === f.id ? "on" : ""}">${f.l}</button>`).join("")}</div>
 
     <div class="cart-items">${chosen().map(i => `<div><span>${i.q * S.packQty} × ${i.title}</span><span>${money(i.price * i.q * S.packQty)}</span></div>`).join("")}</div>
     ${extrasList().length ? `<div class="cart-items" style="border-top-style:solid"><div style="font-weight:700;color:var(--ink)"><span>Extras en tu suscripción</span><span></span></div>${extrasList().map(i => `<div><span>${i.q} × ${i.title}</span><span>${money(i.price * i.q)}</span></div>`).join("")}</div>` : ""}
-    <div class="ups"><h4>Sumá a tu suscripción</h4>
-      ${ups.map(i => { const q = S.extras[i.h] || 0; return `<div class="up ${q ? "on" : ""}"><img src="${i.img}" alt=""><div class="t"><b>${i.title}</b><span>${money(i.price * (1 - SUB_OFF))}<s>${money(i.price)}</s></span></div>${q ? `<div class="stp"><button type="button" data-ex="${i.h}" data-d="-1">−</button><b>${q}</b><button type="button" data-ex="${i.h}" data-d="1">+</button></div>` : `<button type="button" class="ab" data-ex="${i.h}" data-d="1">+ Agregar</button>`}</div>`; }).join("")}
+    <div class="ups"><h4>${S.mode === "sub" ? "Sumá a tu suscripción" : "Sumá a tu pedido"}</h4>
+      ${ups.map(i => { const q = S.extras[i.h] || 0; return `<div class="up ${q ? "on" : ""}"><img src="${i.img}" alt=""><div class="t"><b>${i.title}</b><span>${money(i.price * (1 - OFF()))}${OFF() ? `<s>${money(i.price)}</s>` : ""}</span></div>${q ? `<div class="stp"><button type="button" data-ex="${i.h}" data-d="-1">−</button><b>${q}</b><button type="button" data-ex="${i.h}" data-d="1">+</button></div>` : `<button type="button" class="ab" data-ex="${i.h}" data-d="1">+ Agregar</button>`}</div>`; }).join("")}
     </div>`;
-  $("#cartTot").textContent = money(t.sub); $("#cartSv").textContent = `Estás ahorrando ${money(t.saving)} en cada envío` + (t.sub >= 85000 ? " · envío gratis" : "");
+  $("#cartGo").textContent = S.mode === "sub" ? "Finalizar suscripción" : "Finalizar compra"; $("#cartTot").textContent = money(t.sub); $("#cartSv").textContent = `Estás ahorrando ${money(t.saving)} en cada envío` + (t.sub >= 30000 ? " · envío gratis" : "");
   $(".badge-cart b").textContent = String(S.packQty + extrasList().reduce((a, i) => a + i.q, 0));
 }
 function openCart() { renderCart(); $("#cartBg").style.display = "block"; $("#cart").classList.add("open"); }
@@ -929,14 +944,14 @@ function summaryHtml() {
     <div class="line"><span>Envío</span><span>${S.ship == null ? '<span style="color:#6b6b6b;font-weight:400">Completá tu dirección</span>' : (shipPrice() === 0 ? "Gratis" : money(shipPrice()))}</span></div>
     <div style="border-top:1px solid #e8e8e8;margin:14px 0"></div>
     <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:17px;font-weight:600">Total</span><span><span style="font-size:12px;color:#6b6b6b;margin-right:8px">ARS</span><span style="font-size:22px;font-weight:700">${money(total)}</span></span></div>
-    <div style="font-size:12px;color:#6b6b6b;line-height:1.5;margin-top:10px">Se cobra ${money(total)} ahora y se renueva automáticamente ${freqTxt()}. Podés pausar o cancelar cuando quieras.</div>`;
+    <div style="font-size:12px;color:#6b6b6b;line-height:1.5;margin-top:10px">${S.mode === "sub" ? `Se cobra ${money(total)} ahora y se renueva automáticamente ${freqTxt()}. Podés pausar o cancelar cuando quieras.` : `Pago único de ${money(total)}. Si querés que te llegue todos los meses con 15% menos, elegí Suscripción.`}</div>`;
 }
 function renderCk() {
   $("#sumSide").innerHTML = summaryHtml(); $("#msBody").innerHTML = summaryHtml();
   const t = totals(); $("#msTot").textContent = money(t.sub + shipPrice());
-  $("#payBtn").textContent = `Pagar suscripción · ${money(t.sub + shipPrice())}`;
+  $("#payBtn").textContent = S.mode === "sub" ? `Pagar suscripción · ${money(t.sub + shipPrice())}` : `Pagar · ${money(t.sub + shipPrice())}`;
   $("#payFreq").textContent = `Se cobra ${freqTxt()}, sin que hagas nada.`;
-  $("#trFreq").textContent = `Envío automático ${freqTxt()} · Pago seguro con Mercado Pago`;
+  $("#trFreq").textContent = S.mode === "sub" ? `Envío automático ${freqTxt()} · Pago seguro con Mercado Pago` : "Pago seguro con Mercado Pago";
   const has = $("#ckZip").value.trim() || $("#ckProv").value;
   $("#shipHint").style.display = has ? "none" : "flex"; $("#ship").hidden = !has; // el hint tiene display:flex inline: `hidden` solo no alcanza
   if (has) { if (S.ship == null) S.ship = 0; $("#ship").innerHTML = SHIP().map((s, i) => `<label class="opt ${S.ship === i ? "on" : ""}"><input type="radio" name="sh" ${S.ship === i ? "checked" : ""} data-i="${i}"><span class="n"><b>${s.n}</b><small>${s.s}</small></span><b>${s.p === 0 ? "Gratis" : "$ " + s.p.toLocaleString("es-AR", { minimumFractionDigits: 2 })}</b></label>`).join(""); }

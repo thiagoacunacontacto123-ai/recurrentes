@@ -253,22 +253,33 @@ function useScrollProgress(ref, { enabled = true, steps = 0 } = {}) {
 // Escala su contenido para que entre entero en el espacio disponible (ancho y alto),
 // sin scroll interno: en celular un panel con scroll adentro se pelea con el scroll
 // de la página y "vibra" (Thiago, 27-sept).
-function FitBox({ children, maxH }) {
+function FitBox({ children, maxH, scale }) {
   const outer = useRef(null), inner = useRef(null);
-  const [st, setSt] = useState({ s: 1, h: null });
+  const [st, setSt] = useState({ s: scale || 1, h: null, w: null });
   useEffect(() => {
     const o = outer.current, i = inner.current; if (!o || !i) return;
     let raf = 0;
-    const fit = () => { raf = 0; const w = o.clientWidth, ih = i.offsetHeight, iw = i.offsetWidth; if (!w || !ih) return; const s = Math.min(1, w / iw, (maxH || 1e9) / ih); setSt(prev => (Math.abs(prev.s - s) < 0.005 && prev.h === Math.round(ih * s)) ? prev : { s, h: Math.round(ih * s) }); };
+    const fit = () => {
+      raf = 0;
+      const w = o.clientWidth; if (!w) return;
+      const cur = st.s || 1;
+      // Tamaño natural del contenido, medido a escala 1 (scrollWidth ya incluye lo que desborda).
+      const natW = Math.max(i.scrollWidth, i.offsetWidth), natH = i.scrollHeight;
+      let s = scale ? scale : Math.min(1, w / natW, maxH ? maxH / natH : 1);
+      if (!scale && natW <= w + 1 && (!maxH || natH <= maxH)) s = 1;
+      s = Math.max(0.3, Math.min(1, s));
+      const h = Math.round(natH * s);
+      setSt(prev => (Math.abs(prev.s - s) < 0.005 && prev.h === h) ? prev : { s, h: s < 1 ? h : null, w: s < 1 ? Math.round(w / s) : null });
+    };
     const onR = () => { if (!raf) raf = requestAnimationFrame(fit); };
     fit(); const t = setTimeout(fit, 600); const t2 = setTimeout(fit, 1800);
-    const ro = "ResizeObserver" in window ? new ResizeObserver(onR) : null; ro?.observe(i);
+    const ro = "ResizeObserver" in window ? new ResizeObserver(onR) : null; ro?.observe(o);
     window.addEventListener("resize", onR);
     return () => { clearTimeout(t); clearTimeout(t2); ro?.disconnect(); window.removeEventListener("resize", onR); if (raf) cancelAnimationFrame(raf); };
-  }, [maxH]);
+  }, [maxH, scale]);
   return (
-    <div ref={outer} style={{ width: "100%", height: st.h || "auto", overflow: "hidden", position: "relative" }}>
-      <div ref={inner} style={{ position: st.h ? "absolute" : "relative", left: 0, top: 0, width: st.s < 1 ? `${(100 / st.s).toFixed(2)}%` : "100%", transform: `scale(${st.s})`, transformOrigin: "top left" }}>{children}</div>
+    <div ref={outer} style={{ width: "100%", maxWidth: "100%", height: st.h || "auto", overflow: "hidden", position: "relative" }}>
+      <div ref={inner} style={{ position: st.h ? "absolute" : "relative", left: 0, top: 0, width: st.w ? st.w + "px" : "100%", transform: `scale(${st.s})`, transformOrigin: "top left" }}>{children}</div>
     </div>
   );
 }
@@ -444,8 +455,8 @@ export function SubPageMock({ T, onDone, active = true }) {
   return (
     <div className="lm-card" style={{ padding: 0, boxShadow: "0 30px 70px -30px rgba(0,0,0,.5)", background: "#fff", color: "#111", overflow: "hidden" }}>
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.15fr) minmax(0,.85fr)", flex: 1, alignItems: "stretch" }} className="lm-subpage-grid">
-        <style>{`@media(max-width:640px){.lm-subpage-grid{grid-template-columns:1fr!important;}}`}</style>
-        <div style={{ padding: "14px 16px 16px", display: "grid", gap: 6, alignContent: "center" }}>
+        <style>{`.lm-subpage-grid > *{min-width:0} .lm-subpage-grid > * > *{min-width:0;max-width:100%} .lm-subpage-grid > * > * > *{min-width:0} @media(max-width:640px){.lm-subpage-grid{grid-template-columns:1fr!important;}}`}</style>
+        <div style={{ padding: "14px 16px 16px", display: "grid", gap: 6, alignContent: "center", minWidth: 0, overflow: "hidden" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 4 }}><span style={{ fontFamily: "Georgia,serif", fontWeight: 700, fontSize: 18, letterSpacing: 2, color: c }}>TOSTADO</span><span style={{ width: 40, height: 2, background: c, opacity: .5, alignSelf: "center" }}/></div>
           <H>Contacto</H>
           <Field l="Correo electrónico" v="ana.perez@gmail.com"/>
@@ -460,7 +471,7 @@ export function SubPageMock({ T, onDone, active = true }) {
           <Ship l="Andreani a domicilio"/>
           <button type="button" style={{ marginTop: 6, background: c, color: "#fff", border: "none", borderRadius: 10, padding: "11px 12px", fontFamily: FD, fontWeight: 800, fontSize: 13, cursor: "default" }}>Pagar {fmtARS(23220)}</button>
         </div>
-        <div style={{ padding: "14px 14px 16px", background: "#f7f5f2", borderLeft: "1px solid #ece8e2", display: "grid", gap: 8, alignContent: "center" }}>
+        <div style={{ padding: "14px 14px 16px", background: "#f7f5f2", borderLeft: "1px solid #ece8e2", display: "grid", gap: 8, alignContent: "center", minWidth: 0, overflow: "hidden" }}>
           <div style={{ display: "grid", gridTemplateColumns: "52px 1fr auto", gap: 8, alignItems: "start" }}>
             <span style={{ width: 52, height: 52, borderRadius: 10, overflow: "hidden", border: "1px solid #e8e2da" }}><img src={PRODUCT_ART.cafe} alt="" width="52" height="52" style={{ display: "block", objectFit: "cover" }}/></span>
             <span style={{ fontSize: 11.5, lineHeight: 1.35 }}><b>Café de especialidad · 2 bolsas</b><br/><span style={{ display: "inline-block", marginTop: 3, fontSize: 9, fontWeight: 700, color: c, background: c + "18", borderRadius: 99, padding: "2px 7px" }}>Suscripción</span><br/><span style={{ color: "#777", fontSize: 10 }}>Frecuencia: cada 30 días</span></span>
@@ -551,7 +562,7 @@ export function PartnerBadges({ T, compact = false, tone = "auto", style = {} })
     <div style={{ display: "flex", gap: compact ? 8 : 10, flexWrap: "wrap", alignItems: "center", ...style }}>
       {PARTNERS.map(p => (
         <span key={p.n} title={`${p.n} ${p.t}`} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: compact ? "5px 10px" : "7px 12px", borderRadius: 99, border: `1px solid ${dark ? "rgba(255,255,255,.14)" : T.border}`, background: dark ? "rgba(255,255,255,.05)" : T.card, fontSize: compact ? 11.5 : 12.5, fontWeight: 700, color: dark ? "#EAF3EF" : T.text, whiteSpace: "nowrap" }}>
-          <img src={p.logo} alt="" width={compact ? 16 : 18} height={compact ? 16 : 18} style={{ display: "block", objectFit: "contain", borderRadius: 3 }}/>
+          <span style={{ width: compact ? 20 : 22, height: compact ? 20 : 22, borderRadius: 5, background: "#fff", display: "grid", placeItems: "center", flexShrink: 0 }}><img src={p.logo} alt="" width={compact ? 14 : 16} height={compact ? 14 : 16} style={{ display: "block", objectFit: "contain" }}/></span>
           {p.n} <span style={{ fontWeight: 600, color: dark ? "#A9C3B9" : T.textSm }}>{p.t}</span>
         </span>
       ))}
@@ -579,7 +590,7 @@ function DesignCard({ T, d }) {
           <span style={{ marginLeft: "auto", fontSize: 9.5, fontWeight: 700, opacity: .9, letterSpacing: .3, textTransform: "uppercase" }}>{d.variant === "v08" ? "Oscuro" : d.variant === "v05" ? "Tarjetas" : d.variant === "v11" ? "Foto" : d.variant === "v13" ? "Foto + check" : "Clásico"}</span>
         </div>
         <div style={{ padding: "8px 8px 6px", background: "#fff", color: "#161616" }}>
-          <LiveWidget plan={SAMPLE_PLANS[d.key]} merchant={merchant} mode={d.mode} idx={d.idx} style={{ fontSize: 9.5 }}/>
+          <FitBox scale={0.72}><LiveWidget plan={SAMPLE_PLANS[d.key]} merchant={merchant} mode={d.mode} idx={d.idx} style={{ fontSize: 12.5 }}/></FitBox>
         </div>
       </div>
       <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, fontSize: 11.5, color: T.textSm }}>
@@ -613,7 +624,7 @@ function SubLandingMock({ T }) {
         <span style={{ fontSize: 12, color: T.textSm, marginLeft: 6, fontFamily: MONO }}>tostado.ar/suscripcion</span>
         <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 800, color: T.accent, background: T.accentSolid + "18", borderRadius: 99, padding: "2px 8px" }}>SOLO SUSCRIPCIÓN</span>
       </div>
-      <div className="lm-sublanding" ref={viewRef} style={{ background: cream, color: ink, fontFamily: F2, height: "min(62vh, 640px)", overflow: "hidden" }}>
+      <div className="lm-sublanding" ref={viewRef} style={{ background: cream, color: ink, fontFamily: F2, height: "min(52vh, 520px)", overflow: "hidden" }}>
        <div ref={contentRef} className="lm-sublanding-content" style={{ transform: "translateY(calc(-1 * var(--pb, 0) * var(--ov, 0px)))", willChange: "transform" }}>
         <style>{`@media(max-width:900px){.lm-sublanding{height:auto!important;overflow:visible!important}.lm-sublanding-content{transform:none!important}.lm-sublanding-steps{grid-template-columns:1fr!important}}`}</style>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", borderBottom: "1px solid #e8e2da" }}><span style={{ fontFamily: "Georgia,serif", fontWeight: 700, fontSize: 17, letterSpacing: 2, color: c }}>TOSTADO</span><span style={{ fontSize: 11, color: "#6b5b52" }}>Cafés · <b style={{ color: c }}>Suscripción</b> · Equipos</span></div>
@@ -685,7 +696,7 @@ export function StickyDesigns({ T }) {
           </div>
           <div className="lm-wrap lm-phase" style={{ width: "100%", gridArea: pinned ? "1/1" : "auto", opacity: !pinned || phase === 1 ? 1 : 0, pointerEvents: !pinned || phase === 1 ? "auto" : "none", transition: "opacity .45s", marginTop: pinned ? 0 : 44 }}>
             {!pinned && <h2 className="lm-h2" style={{ fontSize: 24, margin: "0 0 14px" }} data-reveal="swing">O una página entera <span style={{ color: T.textSm }}>enfocada a suscripción</span></h2>}
-            <div style={{ maxWidth: 860, margin: "0 auto" }} data-reveal="rise"><SubLandingMock T={T}/></div>
+            <div style={{ maxWidth: 760, margin: "0 auto" }} data-reveal="rise"><SubLandingMock T={T}/></div>
             <div style={{ textAlign: "center", fontSize: 12.5, color: T.textSm, marginTop: 12 }}>Misma tienda, mismo producto, otra página: solo suscripción, con el bundle, los beneficios y las preguntas. La armamos nosotros con tu marca.</div>
           </div>
         </div>
@@ -908,7 +919,7 @@ export function IntegrationsMarquee({ T }) {
       <div className="lm-wrap" style={{ textAlign: "center", marginBottom: 32 }} data-reveal="spin">
         <div className="lm-eyebrow">Integraciones</div>
         <h2 className="lm-h2">Se conecta con lo que ya usás</h2>
-        <p className="lm-sub" style={{ margin: "0 auto" }}>Conectás tu tienda, tu pasarela y tu Meta Ads. Nada más. Los envíos se cotizan con los correos que ya tenés configurados en tu tienda, y la orden sale lista para despachar.</p>
+        <p className="lm-sub" style={{ margin: "0 auto" }}>Conectás tu tienda, tu pasarela y tu Meta Ads. Nada más. Los envíos se cotizan con los correos que ya tenés configurados en tu tienda, las automatizaciones salen desde nuestros mails y nuestro número de WhatsApp, y la orden queda lista en tu tienda para despachar como un pedido de toda la vida.</p>
         <PartnerBadges T={T} style={{ justifyContent: "center", marginTop: 18 }}/>
       </div>
       <div className="lm-marquee" style={{ display: "grid", gap: 14 }}>
@@ -1217,11 +1228,11 @@ function ScrollStack({ T, id, items, eyebrow, title, hideHead = false, panelMinH
               </div>
             </div>
           ) : (
-            <div style={{ display: "grid", gap: 24 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr)", gap: 24 }}>
               {items.map((f, i) => (
-                <div key={f.t} data-reveal="swing">
+                <div key={f.t} data-reveal="swing" style={{ minWidth: 0, maxWidth: "100%", overflow: "hidden" }}>
                   <div style={{ display: "flex", gap: 12, alignItems: "baseline" }}><span style={{ fontFamily: MONO, fontSize: 12, color: T.accent }}>0{i + 1}</span><div><div style={{ fontFamily: FD, fontSize: 18, fontWeight: 800, color: T.text }}>{f.t}</div><div style={{ fontSize: 13.5, color: T.textSm, lineHeight: 1.5, marginTop: 3 }}>{f.d}</div></div></div>
-                  <div style={{ marginTop: 12, maxWidth: 560 }}><f.C T={T}/></div>
+                  <div style={{ marginTop: 12, maxWidth: 560 }}><FitBox><f.C T={T}/></FitBox></div>
                 </div>
               ))}
             </div>
@@ -1293,24 +1304,25 @@ export function PanelTour({ T }) {
   usePinFit(innerRef, pinned);
   const n = TOUR.length;
   return (
-    <section id="rec-panel" ref={ref} className={"lm-pin " + (pinned ? "lm-pin-all" : "")} style={{ height: pinned ? `${n * 60 + 40}vh` : "auto" }}>
-      <div ref={innerRef} className={"lm-pin-inner " + (pinned ? "lm-pin-fit" : "")} style={pinned ? { padding: "24px 0" } : { position: "static", height: "auto", display: "block", overflow: "visible", padding: "72px 0 40px" }}>
-        <div className="lm-wrap" style={{ width: "100%" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 24, alignItems: "end", marginBottom: 22 }} data-reveal="flip">
-            <div>
-              <div className="lm-eyebrow">El panel, por dentro</div>
-              <h2 className="lm-h2">Pantalla por pantalla,<br/>así lo vas a usar</h2>
-              <p className="lm-sub">Seguí bajando y el panel va pasando. Capturas reales de nuestra tienda de pruebas.</p>
-            </div>
-            <div className="lm-progress" style={{ width: 160, marginBottom: 10 }}><i/></div>
+    <section id="rec-panel" ref={ref} className={"lm-pin " + (pinned ? "lm-pin-all" : "")} style={{ height: pinned ? `${n * 55 + 60}vh` : "auto" }}>
+      {/* El título va fuera de lo fijo (se va con el scroll); lo clavado y centrado es solo el carril. */}
+      <div className="lm-wrap" style={{ width: "100%", padding: "72px 24px 8px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 24, alignItems: "end" }} data-reveal="flip">
+          <div>
+            <div className="lm-eyebrow">El panel, por dentro</div>
+            <h2 className="lm-h2">Pantalla por pantalla,<br/>así lo vas a usar</h2>
+            <p className="lm-sub">Seguí bajando y el panel va pasando. Capturas reales de nuestra tienda de pruebas.</p>
           </div>
+          {pinned && <div className="lm-progress" style={{ width: 160, marginBottom: 10 }}><i/></div>}
         </div>
+      </div>
+      <div ref={innerRef} className={"lm-pin-inner " + (pinned ? "lm-pin-fit" : "")} style={pinned ? { padding: "12px 0" } : { position: "static", height: "auto", display: "block", overflow: "visible", padding: "16px 0 56px" }}>
         <div className="lm-wrap" style={{ width: "100%" }}>
-          <div className="lm-track lm-track-center" style={{ "--w": "min(640px, 86vw)", "--n": n, alignItems: "flex-start" }}>
+          <div className="lm-track lm-track-center" style={{ "--w": "min(560px, 84vw)", "--n": n, alignItems: "flex-start" }}>
             {TOUR.map((sc, i) => (
-              <div key={sc.t} className="lm-tour-item" style={{ flex: "0 0 min(640px, 86vw)" }}>
+              <div key={sc.t} className="lm-tour-item" style={{ flex: "0 0 min(560px, 84vw)" }}>
                 {PANEL_SHOTS[sc.t] ? <Shot T={T} title={sc.t}/> : <Frame T={T} title={sc.t}><sc.C T={T}/></Frame>}
-                <div style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "baseline" }}><span style={{ fontFamily: MONO, fontSize: 12, color: T.accent }}>0{i + 1}</span><div><div style={{ fontFamily: FD, fontSize: 16, fontWeight: 800, color: T.text }}>{sc.t}</div><div style={{ fontSize: 13, color: T.textSm, lineHeight: 1.5, marginTop: 2 }}>{sc.d}</div></div></div>
+                <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "baseline" }}><span style={{ fontFamily: MONO, fontSize: 12, color: T.accent }}>{String(i + 1).padStart(2, "0")}</span><div><div style={{ fontFamily: FD, fontSize: 15, fontWeight: 800, color: T.text }}>{sc.t}</div><div style={{ fontSize: 12.5, color: T.textSm, lineHeight: 1.5, marginTop: 2 }}>{sc.d}</div></div></div>
               </div>
             ))}
           </div>
@@ -1371,7 +1383,7 @@ export function ClosingCta({ T, onDemo, onLogin }) {
         <div style={{ position: "relative" }}>
           <RecLogo size={44} style={{ marginBottom: 18 }}/>
           <h2 style={{ fontFamily: FD, fontSize: "clamp(30px, 4vw, 50px)", fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1.04, margin: "0 auto 14px", maxWidth: 760, color: "#fff", textWrap: "balance" }}>Que te compren todos los meses sin tener que pedírselo</h2>
-          <p style={{ fontSize: 16, color: "#A9C3B9", margin: "0 auto 28px", maxWidth: 520, lineHeight: 1.6 }}>En una demo de 20 minutos te mostramos cómo lo usan las tiendas que ya venden con Recurrentes y armamos cómo llevarlo a la tuya. Gratis hasta {FREE_SUBSCRIBERS} suscriptores.</p>
+          <p style={{ fontSize: 16, color: "#A9C3B9", margin: "0 auto 28px", maxWidth: 520, lineHeight: 1.6 }}>En una demo de 15 minutos te mostramos cómo lo usan las tiendas que ya venden con Recurrentes y qué se podría armar en la tuya. Gratis hasta {FREE_SUBSCRIBERS} suscriptores.</p>
           <button onClick={onDemo} style={{ ...BtnSolid(T), display: "inline-flex", alignItems: "center", gap: 10, padding: "15px 26px", fontSize: 16, borderRadius: 14 }}>Pedir demo <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
           <PartnerBadges T={T} tone="dark" compact style={{ justifyContent: "center", marginTop: 22 }}/>
           {onLogin && <div style={{ fontSize: 13, color: "#A9C3B9", marginTop: 16 }}>¿Ya tenés cuenta? <button onClick={onLogin} style={{ background: "none", border: "none", color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: F, fontSize: 13, padding: 0, textDecoration: "underline", textUnderlineOffset: 3 }}>Iniciá sesión</button></div>}

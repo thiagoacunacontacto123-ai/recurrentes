@@ -716,7 +716,7 @@ export function BigFooter({ T, onGo, onRegister, darkMode, onToggleDark }) {
   const cols = [
     // 26-sept-2026 (Thiago): fuera la columna "Para". Las secciones viven también
     // como páginas propias (#/como-funciona, #/funciones…), con el mismo nav y pie.
-    ["Producto", [["Cómo funciona","#/como-funciona"],["Funciones","#/funciones"],["Diseños","#/funciones"],["Integraciones","#/integraciones"],["Precios","#/precios"],["Calculadora de comisión","#/calculadora"],["Tienda de ejemplo","/demos/tostado.html"]]],
+    ["Producto", [["Inicio","#/"],["Cómo funciona","#/como-funciona"],["Funciones","#/funciones"],["Diseños","#/funciones"],["Integraciones","#/integraciones"],["Precios","#/precios"],["Calculadora de comisión","#/calculadora"],["Tienda de ejemplo","/demos/tostado.html"]]],
     ["Recurrentes", [["Preguntas frecuentes","#/preguntas"],["Pedir demo","#/demo"],["Términos","#/terminos"],["Privacidad","#/privacidad"],["Soporte por WhatsApp","https://wa.me/5491164117974"],["soporte@recurrentesapp.com","mailto:soporte@recurrentesapp.com"]]],
   ];
   return (
@@ -736,8 +736,8 @@ export function BigFooter({ T, onGo, onRegister, darkMode, onToggleDark }) {
             <div key={title}>
               <div style={{fontSize:11,fontWeight:800,color:T.text,letterSpacing:0.6,textTransform:"uppercase",marginBottom:12}}>{title}</div>
               <div style={{display:"flex",flexDirection:"column",gap:9}}>
-                {items.map(([l, target]) => /^(#|https?:|mailto:)/.test(target)
-                  ? <a key={l} href={target} style={link} {...(target.startsWith("http") ? { target:"_blank", rel:"noreferrer" } : {})}>{l}</a>
+                {items.map(([l, target]) => /^(#|\/|https?:|mailto:)/.test(target)
+                  ? <a key={l} href={target} style={link} {...(target.startsWith("http") ? { target:"_blank", rel:"noreferrer" } : {})} onClick={target === "#/" ? () => { try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch (_) {} } : undefined}>{l}</a>
                   : <button key={l} style={link} onClick={() => onGo?.(target)}>{l}</button>)}
               </div>
             </div>
