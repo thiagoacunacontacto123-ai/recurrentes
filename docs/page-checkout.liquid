@@ -28,13 +28,16 @@
   .shopify-section-group-footer-group,
   .rec-ck-off { display: none !important; }
 
-  /* 2) La página, limpia */
+  /* 2) La página, limpia. display:block porque muchos temas ponen el body en
+     grid o flex y ahí lo nuestro se encoge al ancho del contenido (a Wellfresh
+     le quedaba una columna de 400 px en el medio de la pantalla). */
   html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
-  body { overflow-x: hidden; }
+  body { display: block !important; overflow-x: hidden; }
   main, #MainContent, .main-content, .shopify-section { margin: 0 !important; padding: 0 !important; }
 
   /* 3) Lo nuestro */
-  .rec-ck-page { max-width: 1180px; margin: 0 auto; padding: 0 16px 48px; }
+  .rec-ck-page { width: 100%; max-width: 1180px; margin: 0 auto; padding: 0 16px 48px;
+                 box-sizing: border-box; justify-self: stretch; grid-column: 1 / -1; flex: 1 1 auto; }
   .rec-ck-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px;
                 padding: 18px 0 14px; border-bottom: 1px solid #e7e7e7; }
   .rec-ck-bar a { text-decoration: none; color: inherit; }
