@@ -699,7 +699,7 @@ export default function Checkout() {
               tarjeta la fila elegida es lo único pintado y los campos viven
               adentro, debajo de su fila. */}
           <div className="rc-pay-methods">
-          <div className="rc-opts">
+          <div className={"rc-opts rc-pay-box" + (payWith === "card" ? " rc-sel" : "")}>
             <label className={"rc-opt " + (payWith === "card" ? "on" : "")}>
               <input type="radio" name="rec-pay" checked={payWith === "card"} onChange={() => setPayWith("card")}/>
               <img src="/brand/mercadopago.png" alt="" style={{ width: 30, height: 30, borderRadius: 7, objectFit: "contain", flexShrink: 0 }}/>
@@ -746,7 +746,7 @@ export default function Checkout() {
               </div>
             ) : null}
           </div>
-          <div className="rc-opts">
+          <div className={"rc-opts rc-pay-box" + (payWith === "mp" ? " rc-sel" : "")}>
             <label className={"rc-opt " + (payWith === "mp" ? "on" : "")}>
               <input type="radio" name="rec-pay" checked={payWith === "mp"} onChange={() => setPayWith("mp")}/>
               <img src="/brand/mercadopago.png" alt="" style={{ width: 30, height: 30, borderRadius: 7, objectFit: "contain", flexShrink: 0 }}/>
@@ -815,6 +815,12 @@ export default function Checkout() {
            usar la etiqueta flotante (no hay :placeholder-shown de un iframe), así
            que la etiqueta va fija arriba y el iframe ocupa el resto de la caja. */
         .rc-pay-methods{display:flex;flex-direction:column;gap:12px}
+        /* El borde de "elegido" rodea TODO el cuadro (el renglón y los campos de
+           la tarjeta), no solo el renglón. Pintado sigue estando únicamente el
+           renglón de arriba. Los métodos de ENVÍO no se tocan: ahí varias filas
+           viven en un mismo cuadro y el anillo tiene que marcar la fila. */
+        .rc-pay-box.rc-sel{box-shadow:inset 0 0 0 1px ${theme.color};border-color:${theme.color}}
+        .rc-pay-box .rc-opt.on{box-shadow:none}
         .rc-card-body{padding:14px 16px 4px;border-top:1px solid ${theme.border_soft};background:${theme.input_bg}}
         .rc-card-body .rc-f input{background:${theme.bg}}
         .rc-card-body .rc-mpf{background:${theme.bg}}
