@@ -6,7 +6,7 @@ import { DS, useT } from "../ui/theme.js";
 import { Btn, DSBadge, DSToggle, Spinner, PageHeader, Callout, Field, InputStyle, Hint, Loading, appConfirm, toast } from "../ui/components.jsx";
 import { KpiCard, Panel } from "../ui/charts.jsx";
 import { RowMenu } from "./_shared.jsx";
-import { FLOW_TRIGGERS, TRIGGER_BY_ID, FLOW_VARIABLES, CTA_OPTIONS, WAIT_UNIT_LABEL, FLOW_MAX_STEPS, defaultFlow, sanitizeFlow, flowSummary, fmtWait, renderVars, newStepId } from "../../shared/platform/flows.js";
+import { AUTO_EMAILS, FLOW_TRIGGERS, TRIGGER_BY_ID, FLOW_VARIABLES, CTA_OPTIONS, WAIT_UNIT_LABEL, FLOW_MAX_STEPS, defaultFlow, sanitizeFlow, flowSummary, fmtWait, renderVars, newStepId } from "../../shared/platform/flows.js";
 // Paso "whatsapp" (plantillas aprobadas de la Cloud API de Meta): solo si la tienda lo conectó.
 import { WA_FLOW_SUGGESTION, defaultWhatsappFlow } from "../../shared/platform/flows.js";
 import { WA_DEFAULT_LANG, WA_TEMPLATES } from "../../shared/platform/whatsapp.js";
@@ -116,9 +116,26 @@ export function FlowsPage({ merchant, onMerchantChange }) {
         <KpiCard T={T} loading={loading && !flows.length} label="En curso" value={fmtN(flows.reduce((a, f) => a + (Number(f.running) || 0), 0))} color={T.yellow} hint="esperando su próximo mail"/>
         <KpiCard T={T} loading={loading && !flows.length} label="Recuperados" value={fmtN(total(flows, "converted"))} valueColor={total(flows, "converted") ? T.green : T.text} color={T.green} hint="pagaron o actualizaron la tarjeta"/>
       </div>
-      <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, marginBottom:16 }}>
-        Aparte de estos flujos, Recurrentes sigue mandando los mails automáticos de <strong style={{ color:T.textMd }}>activación</strong>, <strong style={{ color:T.textMd }}>pago rechazado</strong> y <strong style={{ color:T.textMd }}>cancelación</strong>. Cada mail de un flujo trae el link para darse de baja.
-      </div>
+      {/* Estos tres salen solos y no se configuran. Antes esto era un renglón
+          gris al pie y nadie se enteraba de que existían: el cliente le
+          preguntaba al comercio si el mail de confirmación estaba puesto y el
+          comercio no lo podía ver (27-sept-2026, Thiago). */}
+      <Panel T={T} title="Mails automáticos" sub="Salen solos, sin que configures nada, y no se cobran. No se pueden apagar." flush style={{ marginBottom:16 }}>
+        {AUTO_EMAILS.map(m => (
+          <div key={m.id} style={{ display:"flex", alignItems:"flex-start", gap:14, padding:"13px 16px", borderTop:`1px solid ${T.borderL}`, flexWrap:"wrap" }}>
+            <div aria-hidden="true" style={{ width:40, height:40, borderRadius:11, background:T.surface, border:`1px solid ${T.borderL}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:19, flexShrink:0 }}>{m.icon}</div>
+            <div style={{ flex:"1 1 260px", minWidth:0 }}>
+              <div style={{ fontSize:13.5, fontWeight:700, color:T.text, display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                {m.name}
+                <span style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:10, fontWeight:700, color:T.green, background:T.green + "14", borderRadius:99, padding:"2px 8px" }}>
+                  <span style={{ width:6, height:6, borderRadius:"50%", background:T.green, boxShadow:`0 0 6px ${T.green}` }}/>Siempre activo
+                </span>
+              </div>
+              <div style={{ fontSize:11.5, color:T.textSm, marginTop:3, lineHeight:1.5 }}>{m.when} {m.says}</div>
+            </div>
+          </div>
+        ))}
+      </Panel>
       <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, margin:"-8px 0 16px" }}>
         ¿Querés avisar también por WhatsApp? <a href="#/dashboard/whatsapp" style={{ color:T.accent, fontWeight:700, textDecoration:"none" }}>Flujos de WhatsApp →</a>
       </div>

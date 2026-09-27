@@ -52,6 +52,26 @@ export const FLOW_VARIABLES = [
   { key:"link_checkout", label:"Link para retomar", sample:"https://tu-tienda.com/products/tu-producto" },
 ];
 
+// ── Mails que salen SOLOS, sin configurar nada ───────────────────────────
+// No pasan por el motor de flujos: salen del camino del cobro (sync.js para la
+// activación y el pago rechazado, public.js / subscribers.js para la baja).
+//
+// Están acá porque el comerciante no tenía forma de saber que existen: un
+// cliente de Wellfresh le preguntó si el mail de "pago confirmado" estaba
+// puesto, y estaba, pero en el panel no se veía por ningún lado (27-sept-2026,
+// Thiago). Van siempre prendidos y no se cobran.
+export const AUTO_EMAILS = [
+  { id: "activation", icon: "✅", name: "Pago confirmado",
+    when: "Apenas Mercado Pago confirma el primer pago y la suscripción queda activa.",
+    says: "Le confirma el pago, qué compró, cada cuánto se renueva y el link a su portal." },
+  { id: "payment_failed", icon: "⚠️", name: "Pago rechazado",
+    when: "Cuando Mercado Pago no pudo cobrar una renovación.",
+    says: "Le avisa que el cobro no salió y le deja el link para actualizar la tarjeta." },
+  { id: "cancellation", icon: "👋", name: "Suscripción cancelada",
+    when: "Cuando se da de baja, la cancele el cliente desde su portal o vos desde el panel.",
+    says: "Le confirma que no se le cobra más." },
+];
+
 export const CTA_OPTIONS = [
   { id:"none",     label:"Sin botón" },
   { id:"portal",   label:"Portal del cliente" },
