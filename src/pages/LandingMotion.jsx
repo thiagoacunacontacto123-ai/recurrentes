@@ -1167,8 +1167,17 @@ export const PANEL_SHOTS = {
   "Clientes · Portal del cliente": "/landing/panel-portal.jpg",
 };
 // Captura real dentro del marco del panel (barra + sidebar) para que se vea como el panel entero.
+// Solo la captura, con un marco fino tipo ventana (Thiago, 27-sept: "solamente las capturas").
 function Shot({ T, title }) {
-  return <Frame T={T} title={title} bare><img src={PANEL_SHOTS[title]} alt={title} loading="lazy" style={{ display: "block", width: "100%", borderRadius: 8 }}/></Frame>;
+  return (
+    <div className="lm-card" style={{ padding: 0, overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: `1px solid ${T.border}`, background: T.surface }}>
+        <span style={{ display: "inline-flex", gap: 5 }}>{["#ff5f57", "#febc2e", "#28c840"].map(x => <i key={x} style={{ width: 8, height: 8, borderRadius: 99, background: x, display: "block" }}/>)}</span>
+        <span style={{ fontSize: 11.5, color: T.textSm, marginLeft: 4, fontFamily: MONO }}>recurrentesapp.com · {title}</span>
+      </div>
+      <img src={PANEL_SHOTS[title]} alt={title} loading="lazy" style={{ display: "block", width: "100%" }}/>
+    </div>
+  );
 }
 export function PanelTour({ T }) {
   const ref = useRef(null);
