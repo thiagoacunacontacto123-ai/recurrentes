@@ -826,15 +826,11 @@ export default function Checkout() {
            renglón de arriba. Los métodos de ENVÍO no se tocan: ahí varias filas
            viven en un mismo cuadro y el anillo tiene que marcar la fila. */
         .rc-pay-box.rc-sel{box-shadow:inset 0 0 0 1px ${theme.color};border-color:${theme.color}}
-        .rc-pay-box .rc-card-clip{padding-bottom:0}
-        .rc-pay-box .rc-card-wrap.open .rc-card-clip{padding-bottom:10px}
         .rc-pay-box .rc-opt.on{box-shadow:none}
         .rc-card-wrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows .34s cubic-bezier(.4,0,.2,1)}
         .rc-card-wrap.open{grid-template-rows:1fr}
         .rc-card-clip{overflow:hidden;min-height:0}
-        /* Línea arriba Y abajo: el bloque blanco se lee como un cuadro adentro
-           del cuadro, no como un pedazo suelto. */
-        .rc-card-body{padding:14px 16px;border-top:1px solid ${theme.border_soft};border-bottom:1px solid ${theme.border_soft};background:${theme.input_bg}}
+        .rc-card-body{padding:14px 16px;border-top:1px solid ${theme.border_soft};background:${theme.input_bg}}
         .rc-card-body .rc-f input{background:${theme.bg}}
         .rc-card-body .rc-mpf{background:${theme.bg}}
         .rc-doc{display:grid;grid-template-columns:minmax(0,110px) minmax(0,1fr);gap:12px;margin-top:12px}
