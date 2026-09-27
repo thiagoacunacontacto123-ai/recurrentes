@@ -96,3 +96,14 @@ test("con página propia, el botón va a la página de la tienda", async () => {
   // Y no queda ningún destino al dominio nuestro salteando el helper.
   assert.ok(!/location\.href = API_BASE \+ "\/#\/checkout/.test(js), "todos los destinos pasan por ckUrl");
 });
+
+test("mientras carga, el cargando es del color de la tienda", async () => {
+  // Antes se veía un hueco en blanco entre el bundle y el checkout y parecía
+  // que el botón no había hecho nada (27-sept-2026, Thiago).
+  const js = (await embed()).body;
+  assert.match(js, /Abriendo el checkout seguro/);
+  assert.match(js, /rc-go 1\.1s linear infinite/, "el logo gira, como en el resto");
+  assert.ok(!/stop-color="#10b981"/.test(js), "no sale el verde nuestro: usa el de la tienda");
+  assert.match(js, /f\.style\.cssText = "width:100%;border:0;display:none/, "el iframe aparece recién cuando se pintó");
+  assert.match(js, /setTimeout\(mostrar, 8000\)/, "y si el checkout nunca avisa, se muestra igual");
+});
