@@ -7,7 +7,7 @@
 // que es lo único que mira emitFlowEvent en el camino del cobro.
 import { db, resolveMerchantAccess } from "./firebase.js";
 import { rateLimit } from "./ratelimit.js";
-import { sanitizeFlow, defaultFlow, FLOW_MAX_FLOWS } from "../../shared/platform/flows.js";
+import { sanitizeFlow, defaultFlow, sanitizeAutoEmails, AUTO_EMAIL_BY_ID, AUTO_EMAIL_TRIGGER, autoFlowId, autoFlowSystem, FLOW_MAX_FLOWS } from "../../shared/platform/flows.js";
 import { syncFlowsIndex, sendFlowTest } from "./flows.js";
 
 const flowsCol = (mid) => db().collection("merchants").doc(mid).collection("flows");
@@ -62,6 +62,53 @@ export async function flowsApi(ctx, action, req, res) {
       }));
       flows.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
       return res.json({ flows, max_flows: FLOW_MAX_FLOWS });
+    }
+
+    // Guardar un mail automático: el texto del mail AL INSTANTE y, si le colgó
+    // mails para más tarde, el flujo de sistema que los manda. Los dos en una
+    // sola llamada: para el comerciante es una sola pantalla.
+    if (action === "auto-email-save") {
+      const id = String(req.body?.id || "").trim();
+      const def = AUTO_EMAIL_BY_ID[id];
+      if (!def) return res.status(400).json({ error: "Ese mail automático no existe" });
+
+      const mRef = db().collection("merchants").doc(mid);
+      const m = (await mRef.get()).data() || {};
+
+      // 1) El texto del mail al instante (parcial; null lo devuelve al de fábrica).
+      const propio = req.body?.email === null ? null : {
+        ...(m.auto_emails || {}),
+        [id]: { subject: req.body?.email?.subject, body: req.body?.email?.body, cta_label: req.body?.email?.cta_label },
+      };
+      if (propio === null) {
+        const resto = Object.fromEntries(Object.entries(m.auto_emails || {}).filter(([k]) => k !== id));
+        await mRef.set({ auto_emails: Object.keys(resto).length ? resto : null }, { merge: true });
+      } else {
+        const r = sanitizeAutoEmails(propio);
+        if (r.error) return res.status(400).json({ error: r.error });
+        await mRef.set({ auto_emails: r.auto_emails }, { merge: true });
+      }
+
+      // 2) Los mails de después. Sin pasos, se borra el flujo.
+      const pasos = Array.isArray(req.body?.steps) ? req.body.steps : [];
+      const ref = flowsCol(mid).doc(autoFlowId(id));
+      const now = new Date().toISOString();
+      if (!pasos.length) {
+        await ref.delete().catch(() => {});
+      } else {
+        // Igual que cualquier flujo: sin mail de atención al cliente no sale.
+        if (!EMAIL_RE.test(String(m.email_reply_to || "").trim())) {
+          return res.status(400).json({ error: "Antes de agregar mails más tarde, cargá el mail de atención al cliente de tu tienda (arriba, en Flujos de email).", code: "support_email_required" });
+        }
+        const { flow, error } = sanitizeFlow({
+          name: def.name, trigger: AUTO_EMAIL_TRIGGER[id], active: true, system: autoFlowSystem(id), steps: pasos,
+        });
+        if (error) return res.status(400).json({ error });
+        const existe = (await ref.get()).exists;
+        await ref.set({ ...flow, updated_at: now, ...(existe ? {} : { created_at: now }) }, { merge: true });
+      }
+      await syncFlowsIndex(mid);
+      return res.json({ ok: true });
     }
 
     if (action === "flow-save") {

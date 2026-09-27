@@ -91,6 +91,17 @@ export const AUTO_EMAILS = [
 ];
 export const AUTO_EMAIL_BY_ID = Object.fromEntries(AUTO_EMAILS.map(m => [m.id, m]));
 
+// El mail al instante sale del camino del cobro (no del motor de flujos): es un
+// comprobante y no puede depender de un cron. Pero ENCIMA se le pueden colgar
+// mails más tarde —"a los 3 días contale cómo usarlo"— y esos sí son un flujo
+// de verdad, con su espera (27-sept-2026, Thiago: "que sean hermanitos").
+//
+// Viven en merchants/{mid}/flows/auto_<id> marcados con `system`, así no
+// aparecen sueltos en "Tus flujos": se editan desde el mismo mail automático.
+export const AUTO_EMAIL_TRIGGER = { activation: "activated", payment_failed: "payment_failed", cancellation: "cancelled" };
+export const autoFlowId = (id) => `auto_${id}`;
+export const autoFlowSystem = (id) => `auto:${id}`;
+
 // Variables de los mails automáticos. Son menos que las de un flujo: acá no hay
 // link de checkout ni fecha de próximo cobro, porque el mail sale en el momento.
 export const AUTO_EMAIL_VARIABLES = [
@@ -275,6 +286,9 @@ export function sanitizeFlow(input) {
   if (emails > FLOW_MAX_EMAILS) return { error: `Máximo ${FLOW_MAX_EMAILS} mails por flujo` };
   if (whatsapps > FLOW_MAX_WHATSAPP) return { error: `Máximo ${FLOW_MAX_WHATSAPP} WhatsApp por flujo` };
   const flow = { name, trigger: T.id, active: f.active === true, steps };
+  // Flujos de sistema (los mails de después de un automático): la marca viaja
+  // para que el panel sepa que no los tiene que listar sueltos.
+  if (typeof f.system === "string" && /^[a-z0-9:_-]{3,40}$/i.test(f.system)) flow.system = f.system;
   if (T.days) flow.days_before = Math.min(14, Math.max(1, Math.floor(Number(f.days_before) || 3)));
   return { flow };
 }

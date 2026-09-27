@@ -251,7 +251,11 @@ export default function Checkout() {
   const [docTypes, setDocTypes] = useState([{ id: "DNI", name: "DNI" }, { id: "CUIL", name: "CUIL" }, { id: "CUIT", name: "CUIT" }]);
   const [cardReady, setCardReady] = useState(false);
   const mpRef = useRef(null);
-  const cardForm = !isPreview && cfg?.card_form?.public_key ? cfg.card_form : null;
+  // La vista previa del diseñador TAMBIÉN muestra el formulario de tarjeta: si
+  // no, el comerciante prende el interruptor y sigue viendo el checkout viejo
+  // (27-sept-2026, Thiago). En preview no cobra nada igual: `pagar()` sale antes
+  // de tocar la tarjeta.
+  const cardForm = cfg?.card_form?.public_key ? cfg.card_form : null;
   const useCard = Boolean(cardForm) && payWith === "card";
 
   useEffect(() => {

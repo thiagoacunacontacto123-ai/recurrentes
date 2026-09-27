@@ -95,6 +95,48 @@ test("no se puede inventar un mail automático que no existe", async () => {
   assert.equal(rawGet(`merchants/${MID}`).auto_emails, undefined);
 });
 
+test("se le pueden colgar mails para más tarde, como cualquier flujo", async () => {
+  // El de arriba sale al instante y no depende de nada; estos salen después,
+  // por el motor de flujos (27-sept-2026, Thiago: "que sean hermanitos").
+  seedDoc(`merchants/${MID}`, luminaMerchant({ email_reply_to: "hola@tienda.test" }));
+  const guardarAuto = (b) => invoke(merchantApi, { method: "POST", query: { action: "auto-email-save" }, headers: { authorization: `Bearer test:${MID}` }, body: b });
+
+  let r = await guardarAuto({ id: "activation",
+    email: { subject: "Gracias {{nombre}}", body: "Ya está andando." },
+    steps: [
+      { type: "wait", amount: 3, unit: "days" },
+      { type: "email", subject: "¿Cómo te fue?", body: "Contanos qué te pareció {{producto}}.", cta: "portal" },
+    ] });
+  assert.equal(r.statusCode, 200, JSON.stringify(r.body));
+
+  const f = rawGet(`merchants/${MID}/flows/auto_activation`);
+  assert.equal(f.trigger, "activated", "cuelga del mismo momento que el mail al instante");
+  assert.equal(f.active, true, "no se puede pausar: es parte del obligatorio");
+  assert.equal(f.system, "auto:activation", "marcado como de sistema: no se lista suelto");
+  assert.equal(f.steps.length, 2);
+  assert.equal(f.steps[0].type, "wait");
+  assert.equal(f.steps[1].subject, "¿Cómo te fue?");
+  // Y el motor tiene que mirarlo.
+  assert.ok((rawGet(`merchants/${MID}`).flows_active_triggers || []).includes("activated"));
+  // El texto del mail al instante se guardó igual.
+  assert.equal(rawGet(`merchants/${MID}`).auto_emails.activation.subject, "Gracias {{nombre}}");
+
+  // Sin pasos, el flujo se borra: no queda un flujo fantasma activo.
+  r = await guardarAuto({ id: "activation", email: { subject: "Gracias", body: "Texto" }, steps: [] });
+  assert.equal(r.statusCode, 200);
+  assert.equal(rawGet(`merchants/${MID}/flows/auto_activation`), undefined);
+});
+
+test("sin mail de atención al cliente no se pueden agregar mails de después", async () => {
+  // Misma regla que cualquier flujo: saldrían sin a quién responderle.
+  seedDoc(`merchants/${MID}`, luminaMerchant({ email_reply_to: "" }));
+  const r = await invoke(merchantApi, { method: "POST", query: { action: "auto-email-save" }, headers: { authorization: `Bearer test:${MID}` },
+    body: { id: "activation", email: { subject: "a", body: "b" }, steps: [{ type: "wait", amount: 1, unit: "days" }, { type: "email", subject: "x", body: "y" }] } });
+  assert.equal(r.statusCode, 400);
+  assert.equal(r.body.code, "support_email_required");
+  assert.equal(rawGet(`merchants/${MID}/flows/auto_activation`), undefined);
+});
+
 test("editar solo el asunto deja el cuerpo de fábrica (es parcial)", () => {
   const t = resolveAutoEmail("activation", { auto_emails: { activation: { subject: "Solo el asunto" } } });
   assert.equal(t.subject, "Solo el asunto");

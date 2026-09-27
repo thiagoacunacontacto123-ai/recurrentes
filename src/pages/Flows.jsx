@@ -6,7 +6,7 @@ import { DS, useT } from "../ui/theme.js";
 import { Btn, DSBadge, DSToggle, Spinner, PageHeader, Callout, Field, InputStyle, Hint, Loading, appConfirm, toast } from "../ui/components.jsx";
 import { KpiCard, Panel } from "../ui/charts.jsx";
 import { RowMenu } from "./_shared.jsx";
-import { AUTO_EMAILS, AUTO_EMAIL_VARIABLES, resolveAutoEmail, FLOW_TRIGGERS, TRIGGER_BY_ID, FLOW_VARIABLES, CTA_OPTIONS, WAIT_UNIT_LABEL, FLOW_MAX_STEPS, defaultFlow, sanitizeFlow, flowSummary, fmtWait, renderVars, newStepId } from "../../shared/platform/flows.js";
+import { AUTO_EMAILS, AUTO_EMAIL_VARIABLES, resolveAutoEmail, autoFlowSystem, FLOW_TRIGGERS, TRIGGER_BY_ID, FLOW_VARIABLES, CTA_OPTIONS, WAIT_UNIT_LABEL, FLOW_MAX_STEPS, defaultFlow, sanitizeFlow, flowSummary, fmtWait, renderVars, newStepId } from "../../shared/platform/flows.js";
 // Paso "whatsapp" (plantillas aprobadas de la Cloud API de Meta): solo si la tienda lo conectó.
 import { WA_FLOW_SUGGESTION, defaultWhatsappFlow } from "../../shared/platform/flows.js";
 import { WA_DEFAULT_LANG, WA_TEMPLATES } from "../../shared/platform/whatsapp.js";
@@ -69,7 +69,7 @@ export function FlowsPage({ merchant, onMerchantChange }) {
     if (!silent) setLoading(true);
     const d = await apiGet("merchant", { action: "flows" }).catch(e => ({ error: e.message }));
     // Los flujos de sistema de WhatsApp (uno por plantilla) se manejan en "Flujos de WhatsApp".
-    if (d?.error) setErr(d.error); else { setFlows((d.flows || []).filter(f => !f.wa_template)); setErr(""); }
+    if (d?.error) setErr(d.error); else { setFlows(d.flows || []); setErr(""); }
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
@@ -93,15 +93,20 @@ export function FlowsPage({ merchant, onMerchantChange }) {
     load();
   }
 
+  const sistemaDe = (id) => flows.find(f => f.system === autoFlowSystem(id)) || null;
   if (editing) return <FlowEditor T={T} merchant={merchant} initial={editing} onBack={() => { setEditing(null); load(); }}/>;
-  if (autoEdit) return <AutoEmailEditor T={T} merchant={merchant} id={autoEdit} onBack={() => { setAutoEdit(null); onMerchantChange?.(); }}/>;
+  if (autoEdit) return <AutoEmailEditor T={T} merchant={merchant} id={autoEdit} flow={sistemaDe(autoEdit)} onBack={() => { setAutoEdit(null); load(); onMerchantChange?.(); }}/>;
 
-  const active = flows.filter(f => f.active).length;
-  const used = new Set(flows.map(f => f.trigger));
+  // Los de WhatsApp tienen su propia sección; los de sistema (mails de después
+  // de un automático) se editan desde su mail, no sueltos.
+  const propios = flows.filter(f => !f.wa_template && !f.system);
+  const sistema = Object.fromEntries(flows.filter(f => f.system).map(f => [f.system, f]));
+  const active = propios.filter(f => f.active).length;
+  const used = new Set(propios.map(f => f.trigger));
   const ideas = FLOW_TRIGGERS.filter(t => !used.has(t.id));
   // WhatsApp: sugerencia lista solo si la tienda tiene quién mande (número propio o de Recurrentes).
   const waOn = Boolean(merchant?.whatsapp_connected || merchant?.whatsapp_sender);
-  const hasWaFlow = flows.some(f => (f.steps || []).some(s => s.type === "whatsapp"));
+  const hasWaFlow = propios.some(f => (f.steps || []).some(s => s.type === "whatsapp"));
 
   return (
     <div>
@@ -113,16 +118,16 @@ export function FlowsPage({ merchant, onMerchantChange }) {
       {err && !loading && <Callout T={T} tone="danger" title="No pudimos cargar los flujos" style={{ marginBottom:16 }} right={<Btn T={T} variant="secondary" size="sm" onClick={load}>Reintentar</Btn>}>{err}</Callout>}
 
       <div className="kpi-grid" style={{ display:"grid", gap:10, marginBottom:12 }}>
-        <KpiCard T={T} loading={loading && !flows.length} label="Flujos activos" value={`${active} de ${flows.length}`} color={T.accentSolid} hint={active ? "mandando mails" : "ninguno activo todavía"}/>
-        <KpiCard T={T} loading={loading && !flows.length} label="Mails enviados" value={fmtN(total(flows, "sent"))} color={T.blue} hint="por todos tus flujos"/>
-        <KpiCard T={T} loading={loading && !flows.length} label="En curso" value={fmtN(flows.reduce((a, f) => a + (Number(f.running) || 0), 0))} color={T.yellow} hint="esperando su próximo mail"/>
-        <KpiCard T={T} loading={loading && !flows.length} label="Recuperados" value={fmtN(total(flows, "converted"))} valueColor={total(flows, "converted") ? T.green : T.text} color={T.green} hint="pagaron o actualizaron la tarjeta"/>
+        <KpiCard T={T} loading={loading && !flows.length} label="Flujos activos" value={`${active} de ${propios.length}`} color={T.accentSolid} hint={active ? "mandando mails" : "ninguno activo todavía"}/>
+        <KpiCard T={T} loading={loading && !flows.length} label="Mails enviados" value={fmtN(total(propios, "sent"))} color={T.blue} hint="por todos tus flujos"/>
+        <KpiCard T={T} loading={loading && !flows.length} label="En curso" value={fmtN(propios.reduce((a, f) => a + (Number(f.running) || 0), 0))} color={T.yellow} hint="esperando su próximo mail"/>
+        <KpiCard T={T} loading={loading && !flows.length} label="Recuperados" value={fmtN(total(propios, "converted"))} valueColor={total(propios, "converted") ? T.green : T.text} color={T.green} hint="pagaron o actualizaron la tarjeta"/>
       </div>
       <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, margin:"-8px 0 16px" }}>
         ¿Querés avisar también por WhatsApp? <a href="#/dashboard/whatsapp" style={{ color:T.accent, fontWeight:700, textDecoration:"none" }}>Flujos de WhatsApp →</a>
       </div>
 
-      {loading && !flows.length ? <Loading T={T}/> : (
+      {loading && !propios.length ? <Loading T={T}/> : (
         <>
           <Panel T={T} title="Tus flujos" sub="Los tres primeros salen solos y no se pueden apagar: son parte de la suscripción. El resto los activás o pausás vos." flush>
             {/* Obligatorios: salen desde que existe la app, pero el comercio no
@@ -140,7 +145,14 @@ export function FlowsPage({ merchant, onMerchantChange }) {
                     </span>
                     {merchant?.auto_emails?.[m.id] && <span style={{ fontSize:10, fontWeight:700, color:T.blue, background:T.blue + "18", borderRadius:99, padding:"2px 8px" }}>con tu texto</span>}
                   </div>
-                  <div style={{ fontSize:11.5, color:T.textSm, marginTop:3, lineHeight:1.5 }}>{m.when} {m.says}</div>
+                  <div style={{ fontSize:11.5, color:T.textSm, marginTop:3, lineHeight:1.5 }}>
+                    {m.when} {m.says}
+                    {(() => {
+                      const f = sistema[autoFlowSystem(m.id)];
+                      const n = f ? (f.steps || []).filter(s => s.type === "email").length : 0;
+                      return n ? <span style={{ color:T.accent, fontWeight:700 }}> · + {n} mail{n === 1 ? "" : "s"} después</span> : null;
+                    })()}
+                  </div>
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:"auto" }}>
                   {/* Prendido y trabado: no es una opción, es parte del producto.
@@ -153,7 +165,7 @@ export function FlowsPage({ merchant, onMerchantChange }) {
                 </div>
               </div>
             ))}
-            {flows.map(f => {
+            {propios.map(f => {
               const trig = TRIGGER_BY_ID[f.trigger] || {};
               const s = f.stats || {};
               return (
@@ -187,7 +199,7 @@ export function FlowsPage({ merchant, onMerchantChange }) {
             })}
           </Panel>
           {ideas.length > 0 && (
-            <Panel T={T} title={flows.length ? "Más flujos para activar" : "Empezá con uno de estos"} sub="Ya vienen escritos: los abrís, los ajustás a tu marca y los guardás." style={{ marginTop:16 }}>
+            <Panel T={T} title={propios.length ? "Más flujos para activar" : "Empezá con uno de estos"} sub="Ya vienen escritos: los abrís, los ajustás a tu marca y los guardás." style={{ marginTop:16 }}>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 230px), 1fr))", gap:10 }}>
                 {ORDERED.filter(id => !used.has(id)).map(id => <TriggerCard key={id} T={T} trig={TRIGGER_BY_ID[id]} onPick={() => setEditing(defaultFlow(id))}/>)}
               </div>
@@ -489,29 +501,39 @@ function FlowEditor({ T, merchant, initial, onBack }) {
 // No se pueden apagar, pero el texto es del comerciante (27-sept-2026, Thiago).
 // Guarda parcial en merchants.auto_emails.<id>; "Volver al texto original" borra
 // lo suyo y vuelve al de fábrica.
-function AutoEmailEditor({ T, merchant, id, onBack }) {
+function AutoEmailEditor({ T, merchant, id, flow, onBack }) {
   const def = AUTO_EMAILS.find(m => m.id === id);
   const actual = resolveAutoEmail(id, merchant) || {};
   const [subject, setSubject] = useState(actual.subject || "");
   const [body, setBody] = useState(actual.body || "");
   const [cta, setCta] = useState(actual.cta_label || "");
+  // Los mails DE DESPUÉS: pares espera + mail, igual que cualquier flujo.
+  const [steps, setSteps] = useState(() => (flow?.steps || []).map(s => ({ ...s })));
   const [saving, setSaving] = useState(false);
   const editado = Boolean(merchant?.auto_emails?.[id]);
   if (!def) return null;
 
-  const sinCambios = subject === actual.subject && body === actual.body && cta === (actual.cta_label || "");
+  const sinCambios = subject === actual.subject && body === actual.body && cta === (actual.cta_label || "") && !steps.length && !(flow?.steps || []).length;
+  const mails = steps.filter(s => s.type === "email");
+  const setStep = (i, patch) => setSteps(xs => xs.map((s, k) => k === i ? { ...s, ...patch } : s));
+  const agregarMail = () => setSteps(xs => [
+    ...xs,
+    { id: newStepId(), type: "wait", amount: 3, unit: "days" },
+    { id: newStepId(), type: "email", subject: "", body: "", cta: "portal", cta_label: "Ir a mi portal" },
+  ]);
+  // Se borra el mail Y su espera: un "esperá 3 días" suelto no significa nada.
+  const borrarMail = (i) => setSteps(xs => xs.filter((_, k) => k !== i && !(xs[k]?.type === "wait" && k === i - 1)));
 
   async function guardar(propio) {
     setSaving(true);
-    const anterior = merchant?.auto_emails || {};
-    const auto_emails = propio
-      ? { ...anterior, [id]: { subject: subject.trim(), body: body.trim(), cta_label: cta.trim() } }
-      : Object.fromEntries(Object.entries(anterior).filter(([k]) => k !== id));
-    const d = await apiPatch("merchant", { auto_emails: Object.keys(auto_emails).length ? auto_emails : null }, { action: "save-settings" })
-      .catch(e => ({ error: e.message }));
+    const d = await apiPost("merchant", {
+      id,
+      email: propio ? { subject: subject.trim(), body: body.trim(), cta_label: cta.trim() } : null,
+      steps: propio ? steps : [],
+    }, { action: "auto-email-save" }).catch(e => ({ error: e.message }));
     setSaving(false);
-    if (d?.error) return toast("No se pudo guardar: " + d.error, "error", 6000);
-    toast(propio ? "Guardado: sale con tu texto" : "Volvió al texto original", propio ? "success" : "warning");
+    if (d?.error) return toast("No se pudo guardar: " + d.error, "error", 7000);
+    toast(propio ? "Guardado" : "Volvió al texto original", propio ? "success" : "warning");
     onBack();
   }
 
@@ -540,6 +562,40 @@ function AutoEmailEditor({ T, merchant, id, onBack }) {
             <input value={cta} onChange={e => setCta(e.target.value)} maxLength={40} placeholder="Gestionar mi suscripción" style={InputStyle(T)}/>
           </Field>
           <Hint T={T}>El botón lleva al portal del cliente, donde pausa, cambia la dirección o cancela.</Hint>
+
+          <div style={{ marginTop:18, paddingTop:16, borderTop:`1px solid ${T.borderL}` }}>
+            <div style={{ fontSize:13.5, fontWeight:700, color:T.text }}>Y después…</div>
+            <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, marginTop:3, marginBottom:10 }}>
+              Podés colgarle más mails, con la espera que quieras. El de arriba sale siempre al instante; estos salen después.
+            </div>
+            {mails.map((m, mi) => {
+              const i = steps.indexOf(m);
+              const espera = steps[i - 1]?.type === "wait" ? steps[i - 1] : null;
+              return (
+                <div key={m.id} style={{ border:`1px solid ${T.borderL}`, borderRadius:10, padding:12, marginBottom:10 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:10 }}>
+                    <span style={{ fontSize:DS.font.sm, color:T.textSm }}>A los</span>
+                    <input type="number" min={1} max={60} value={espera?.amount ?? 3}
+                      onChange={e => setStep(i - 1, { amount: Math.max(1, Number(e.target.value) || 1) })}
+                      style={{ ...InputStyle(T), width:70, padding:"6px 8px", fontSize:12.5 }}/>
+                    <select value={espera?.unit || "days"} onChange={e => setStep(i - 1, { unit: e.target.value })}
+                      style={{ ...InputStyle(T), width:110, padding:"6px 8px", fontSize:12.5 }}>
+                      <option value="hours">horas</option><option value="days">días</option>
+                    </select>
+                    <Btn T={T} variant="secondary" size="sm" onClick={() => borrarMail(i)} style={{ marginLeft:"auto" }}>Quitar</Btn>
+                  </div>
+                  <Field T={T} label={`Asunto del mail ${mi + 2}`}>
+                    <input value={m.subject} onChange={e => setStep(i, { subject: e.target.value })} maxLength={150} style={InputStyle(T)}/>
+                  </Field>
+                  <Field T={T} label="Mensaje">
+                    <textarea value={m.body} onChange={e => setStep(i, { body: e.target.value })} maxLength={5000} rows={5}
+                      style={{ ...InputStyle(T), resize:"vertical", lineHeight:1.5 }}/>
+                  </Field>
+                </div>
+              );
+            })}
+            <Btn T={T} variant="secondary" size="sm" onClick={agregarMail} disabled={mails.length >= 3}>+ Agregar un mail después</Btn>
+          </div>
 
           <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:14, alignItems:"center" }}>
             <Btn T={T} variant="solid" disabled={saving || (!subject.trim() || !body.trim())} onClick={() => guardar(true)}>
