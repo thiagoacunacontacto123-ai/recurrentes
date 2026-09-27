@@ -153,7 +153,7 @@ export function MotionStyle({ T }) {
         .lm-pin:not(.lm-pin-all) .lm-pin-inner{position:static;height:auto;display:block;overflow:visible;}
         /* Celular: cada tarjeta pasa por el CENTRO de la pantalla (la primera arranca
            centrada y la última termina centrada). --w = ancho de tarjeta, --n = cantidad. */
-        .lm-pin:not(.lm-pin-all) .lm-track{transform:none!important;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:4px 16px 18px;margin:0 -16px;scrollbar-width:none;}
+        .lm-pin:not(.lm-pin-all) .lm-track{transform:none!important;overflow-x:auto;scroll-snap-type:none;-webkit-overflow-scrolling:touch;padding:4px 16px 18px;margin:0 -16px;scrollbar-width:none;}
         .lm-pin:not(.lm-pin-all) .lm-track::-webkit-scrollbar{display:none;}
         .lm-pin:not(.lm-pin-all) .lm-track > *{scroll-snap-align:center;}
         .lm-pin:not(.lm-pin-all) .lm-progress{display:none;}
@@ -299,6 +299,33 @@ function usePinFit(innerRef, enabled, dep) {
     window.addEventListener("resize", onR);
     return () => { clearTimeout(t1); clearTimeout(t2); window.removeEventListener("resize", onR); if (raf) cancelAnimationFrame(raf); };
   }, [innerRef, enabled]);
+}
+
+// Celular (Thiago, 27-sept): el carril se desliza solo hacia la izquierda mientras bajás,
+// SIN clavar nada (lo clavado vibraba). Se mueve el scrollLeft del carril según cuánto
+// avanzó la sección por la pantalla: entra por abajo → 0, sale por arriba → final.
+function useScrollDriveTrack(trackRef, enabled) {
+  useEffect(() => {
+    if (!enabled) return;
+    const el = trackRef.current; if (!el) return;
+    let raf = 0, touching = false;
+    const onTouch = (v) => () => { touching = v; };
+    const update = () => {
+      raf = 0; if (touching) return;
+      const r = el.getBoundingClientRect(), vh = window.innerHeight || 1;
+      const p = Math.min(1, Math.max(0, (vh - r.top) / (vh + r.height) ));
+      // Arranca al 15 % de la entrada y termina al 85 %: así se ve la primera y la última tarjeta.
+      const q = Math.min(1, Math.max(0, (p - 0.15) / 0.7));
+      const max = el.scrollWidth - el.clientWidth; if (max <= 0) return;
+      el.scrollLeft = q * max;
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    el.addEventListener("touchstart", onTouch(true), { passive: true });
+    el.addEventListener("touchend", onTouch(false), { passive: true });
+    update();
+    return () => { window.removeEventListener("scroll", onScroll); if (raf) cancelAnimationFrame(raf); };
+  }, [trackRef, enabled]);
 }
 
 function useMedia(query) {
@@ -661,7 +688,9 @@ export function StickyDesigns({ T }) {
   const innerRef = useRef(null);
   const reduce = useReducedMotion();
   const desktop = useDesktop();
-  const pinned = desktop && !reduce; // en celular: carrusel deslizable + la página debajo (sin sticky)
+  const pinned = desktop && !reduce; // en celular: carrusel que se desliza solo al bajar + la página debajo (sin sticky)
+  const trackRef = useRef(null);
+  useScrollDriveTrack(trackRef, !pinned && !reduce);
   // Dos fases con el mismo scroll (Thiago, 27-sept): 0–50 % pasan los widgets,
   // 50–100 % la página de suscripción: primero quieta arriba de todo (hasta el 60 %)
   // y después se recorre entera. data-step 0/1 = fase.
@@ -690,7 +719,7 @@ export function StickyDesigns({ T }) {
         </div>
         <div style={{ display: pinned ? "grid" : "block" }}>
           <div className="lm-wrap lm-phase" style={{ width: "100%", overflow: "visible", gridArea: pinned ? "1/1" : "auto", opacity: pinned && phase === 1 ? 0 : 1, pointerEvents: pinned && phase === 1 ? "none" : "auto", transition: "opacity .45s" }}>
-            <div className="lm-track lm-track-center" style={{ "--w": "min(330px, 82vw)", "--n": n, "--pp": "var(--pa)", alignItems: "flex-start" }}>
+            <div ref={trackRef} className="lm-track lm-track-center" style={{ "--w": "min(330px, 82vw)", "--n": n, "--pp": "var(--pa)", alignItems: "flex-start" }}>
               {DESIGNS.map((d) => <DesignCard key={d.key} T={T} d={d}/>)}
             </div>
           </div>
@@ -1302,9 +1331,11 @@ export function PanelTour({ T }) {
   const innerRef = useRef(null);
   const reduce = useReducedMotion();
   const desktop = useDesktop();
-  const pinned = desktop && !reduce; // en celular: carrusel deslizable
+  const pinned = desktop && !reduce; // en celular: carrusel que se desliza solo al bajar
   useScrollProgress(ref, { enabled: pinned });
   usePinFit(innerRef, pinned);
+  const trackRef = useRef(null);
+  useScrollDriveTrack(trackRef, !pinned && !reduce);
   const n = TOUR.length;
   return (
     <section id="rec-panel" ref={ref} className={"lm-pin " + (pinned ? "lm-pin-all" : "")} style={{ height: pinned ? `${n * 55 + 60}vh` : "auto" }}>
@@ -1321,7 +1352,7 @@ export function PanelTour({ T }) {
       </div>
       <div ref={innerRef} className={"lm-pin-inner " + (pinned ? "lm-pin-fit" : "")} style={pinned ? { padding: "12px 0" } : { position: "static", height: "auto", display: "block", overflow: "visible", padding: "16px 0 56px" }}>
         <div className="lm-wrap" style={{ width: "100%" }}>
-          <div className="lm-track lm-track-center" style={{ "--w": "min(560px, 84vw)", "--n": n, alignItems: "flex-start" }}>
+          <div ref={trackRef} className="lm-track lm-track-center" style={{ "--w": "min(560px, 84vw)", "--n": n, alignItems: "flex-start" }}>
             {TOUR.map((sc, i) => (
               <div key={sc.t} className="lm-tour-item" style={{ flex: "0 0 min(560px, 84vw)" }}>
                 {PANEL_SHOTS[sc.t] ? <Shot T={T} title={sc.t}/> : <Frame T={T} title={sc.t}><sc.C T={T}/></Frame>}
