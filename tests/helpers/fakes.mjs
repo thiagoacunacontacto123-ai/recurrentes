@@ -92,7 +92,9 @@ export function createFakeMp(router) {
   // deja simular lo que más pasa en la vida real: MP le dice que no a la tarjeta.
   router.on("POST", H_MP, /^\/preapproval$/, (call) => {
     const b = clone(call.json) || {};
-    mp.preapprovalsCreated.push({ token: bearer(call), body: clone(b) });
+    // El header del antifraude se guarda aparte: es lo que decide que MP no
+    // rechace una tarjeta buena, y se borra sin que se note.
+    mp.preapprovalsCreated.push({ token: bearer(call), body: clone(b), deviceId: call.headers["x-meli-session-id"] || null });
     if (mp.rejectCardToken && b.card_token_id) {
       return { status: 400, json: { message: "Invalid card_token_id", error: "bad_request", status: 400, cause: [{ code: 3034, description: "Invalid card token" }] } };
     }

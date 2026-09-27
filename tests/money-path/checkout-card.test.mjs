@@ -93,6 +93,22 @@ test("con tarjeta: se crea el preapproval autorizado contra el mismo plan ad-hoc
   assert.equal(sub.mp_paid_with_card_form, true);
 });
 
+test("va el Device ID en X-meli-session-id: sin eso MP rechaza tarjetas buenas por antifraude", async () => {
+  tiendaConTarjeta();
+  const r = await post(body({ card_token_id: "tok_abc123", device_id: "armor.9744fe1c-0e2b" }));
+  assert.equal(r.statusCode, 200, JSON.stringify(r.body));
+  assert.equal(W.mp.preapprovalsCreated[0].deviceId, "armor.9744fe1c-0e2b");
+  assert.equal(W.mp.preapprovalsCreated[0].body.device_id, undefined, "va en el header, no en el body");
+});
+
+test("sin Device ID (navegador que no lo dejó) se manda igual, sin el header", async () => {
+  tiendaConTarjeta();
+  const r = await post(body({ card_token_id: "tok_abc123" }));
+  assert.equal(r.statusCode, 200);
+  assert.equal(W.mp.preapprovalsCreated[0].deviceId, null);
+  assert.equal(r.body.authorized, true, "se crea igual: el header ayuda, no es obligatorio");
+});
+
 test("MP rechaza la tarjeta: NADIE queda colgado, vuelve el init_point para pagar en Mercado Pago", async () => {
   tiendaConTarjeta();
   W.mp.rejectCardToken = true;
