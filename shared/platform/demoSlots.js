@@ -68,7 +68,7 @@ export function groupSlotsByDay(slots) {
   for (const iso of slots) {
     const t = Date.parse(iso);
     const key = new Date(t + AR_OFFSET_MIN * 60000).toISOString().slice(0, 10);
-    if (!days.has(key)) days.set(key, { date: key, label: fDay.format(new Date(t)).replace(/\.$/, "").replace(/\./g, ""), slots: [] });
+    if (!days.has(key)) days.set(key, { date: key, label: fDay.format(new Date(t)).replace(/\./g, "").replace(",", ""), slots: [] });
     days.get(key).slots.push({ iso, label: fHour.format(new Date(t)) });
   }
   return [...days.values()];

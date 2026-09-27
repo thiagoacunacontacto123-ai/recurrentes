@@ -19,6 +19,7 @@
 // de TODOS los estados (modos × packs) se precalcula server-side en
 // `?view=bundle&plan=<id>` y el cliente sólo swapea innerHTML.
 import { buildBundleVM, planHasPacks, resolvePack, freqLabel, fmtARS } from "../shared/bundle/viewmodel.js";
+import { createHash } from "node:crypto";
 import { resolveCheckoutTheme } from "../shared/platform/checkoutTheme.js";
 import { resolveCartSettings, cartCss, cartShellHtml, cartBodyHtml, cartCtaText } from "../shared/bundle/cart.js";
 // Funciones compartidas que viajan al navegador dentro del template literal. Lo que se
@@ -66,6 +67,29 @@ export function resolveCheckoutShippingRates(m) {
 
 // Precalcula el selector de packs para TODOS los estados (modo × pack, máx 2×6).
 // El navegador no renderiza: sólo swapea `states[mode + ":" + idx]`.
+// ── Las fotos de los packs, fuera del JSON ───────────────────────────────────
+// El comerciante sube las fotos y se guardan como `data:image` en el plan.
+// Mandarlas adentro del JSON del bundle era el 70% del peso (130 KB de 185) y,
+// peor, NADA se pinta hasta que llega entero: el widget de Wellfresh tardaba
+// ~4 s en aparecer (27-sept-2026, Thiago).
+//
+// Ahora salen como URL propia (`view=img`): el JSON baja a ~50 KB y las fotos
+// viajan en paralelo como cualquier <img>, cacheadas para siempre. El cliente
+// no cambia: sustituye el token igual, solo que ahora le entra una URL en vez
+// de un data:image.
+const RE_DATA_IMG = /data:image\/[a-z+.-]+;base64,[A-Za-z0-9+\/=]+/g;
+function extraerFotos(json) {
+  const fotos = [], vistas = new Map();
+  const packed = json.replace(RE_DATA_IMG, (m) => {
+    if (!vistas.has(m)) { vistas.set(m, fotos.length); fotos.push(m); }
+    return "__RCIMG" + vistas.get(m) + "__";
+  });
+  return { packed, fotos };
+}
+// El `h` es lo que hace que el navegador se entere de que la foto cambió: la
+// URL es la misma pero el hash no, y la cachea un año sin miedo.
+const hashFoto = (s) => createHash("sha256").update(s).digest("hex").slice(0, 8);
+
 export function buildBundlePayload(plan, merchant) {
   const vm = buildBundleVM({ plan, merchant });
   const states = {};
@@ -266,11 +290,10 @@ export default async function handler(req, res) {
       if (!v2) return res.json(out);
       // v=2: las fotos subidas (data:image) van UNA sola vez en `assets`; en el JSON quedan
       // tokens __RCIMGn__ (el HTML repite la misma foto en cada estado: 54 copias = 1,9 MB).
-      const assets = [], seen = new Map();
-      const packed = JSON.stringify(out).replace(/data:image\/[a-z+.-]+;base64,[A-Za-z0-9+\/=]+/g, (m) => {
-        if (!seen.has(m)) { seen.set(m, assets.length); assets.push(m); }
-        return "__RCIMG" + seen.get(m) + "__";
-      });
+      const { packed, fotos } = extraerFotos(JSON.stringify(out));
+      const base = (process.env.APP_BASE_URL || "").replace(/\/+$/, "");
+      const assets = fotos.map((f, i) =>
+        `${base}/api/widget?merchant=${encodeURIComponent(merchantId)}&view=img&plan=${encodeURIComponent(plan.id)}&i=${i}&h=${hashFoto(f)}`);
       return res.json({ v: 2, assets, payload: packed });
     } catch (e) {
       console.error("[widget/bundle] error:", e.message);
@@ -281,6 +304,35 @@ export default async function handler(req, res) {
   // ?view=checkout → sirve el CHECKOUT ON-STORE (página de Shopify del merchant),
   // en vez del widget del producto. Corre en el dominio de la tienda, así puede
   // pedir los envíos REALES por CP a Shopify (/cart/shipping_rates.json) y va a MP.
+  // ── Una foto de pack, como archivo ──────────────────────────────────────
+  // La manda el bundle en `assets` como URL. Se cachea un año: el `h` de la URL
+  // cambia cuando la foto cambia, así que no hay forma de servir una vieja.
+  if (String(req.query.view || "") === "img") {
+    const planId = String(req.query.plan || "").trim().slice(0, 80);
+    const idx = parseInt(String(req.query.i || ""), 10);
+    if (!/^[A-Za-z0-9_-]+$/.test(planId) || !Number.isInteger(idx) || idx < 0 || idx > 50) return res.status(400).send("");
+    try {
+      const { db } = await import("./_lib/firebase.js");
+      const d = await db().collection("merchants").doc(merchantId).collection("plans").doc(planId).get();
+      if (!d.exists) return res.status(404).send("");
+      const plan = { id: d.id, ...d.data() };
+      if (!planHasPacks(plan)) return res.status(404).send("");
+      // Se rearma igual que en el bundle: mismo orden, mismo índice.
+      const { fotos } = extraerFotos(JSON.stringify({ bundle: buildBundlePayload(plan, merchantDoc || {}), plan_id: plan.id }));
+      const foto = fotos[idx];
+      if (!foto) return res.status(404).send("");
+      const corte = foto.indexOf(";base64,");
+      const mime = foto.slice(5, corte);
+      const bytes = Buffer.from(foto.slice(corte + 8), "base64");
+      res.setHeader("Content-Type", mime);
+      res.setHeader("Cache-Control", "public, max-age=31536000, s-maxage=31536000, immutable");
+      return res.status(200).send(bytes);
+    } catch (e) {
+      console.error("[widget/img] error:", e.message);
+      return res.status(500).send("");
+    }
+  }
+
   if (String(req.query.view || "") === "checkout") {
     // Cache corta para el checkout: así un deploy nuevo (ej. cambios de captura de
     // carrito) se propaga en ≤60s a la storefront, en vez de quedar 5 min viejo.
