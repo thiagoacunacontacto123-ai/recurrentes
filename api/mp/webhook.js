@@ -17,6 +17,7 @@ import { timingSafeEqualStr } from "../_lib/token.js";
 import { rateLimit, clientIp } from "../_lib/ratelimit.js";
 import { fetchWithTimeout } from "../_lib/http.js";
 import { disputeConfirmed } from "../_lib/webhookguard.js";
+import { flagMoneyBack, kindFromPaymentStatus } from "../_lib/moneyBack.js";
 import {
   syncSubscriber, fulfillCharge, notifyActivation, notifyRenewal, applyPaymentFailed, repriceAfterFirstCharge,
 } from "../_lib/sync.js";
@@ -302,6 +303,16 @@ async function processPaymentForMerchant(merchantId, merchant, payment) {
     // pago fallido lo deja como "pending" sin spam).
     if ((payment.status === "rejected" || payment.status === "cancelled") && subscriberId) {
       await markPaymentFailed(merchantId, merchant, payment, subscriberId);
+    }
+    // Devuelto o contracargado: si ese pago ya había creado la orden, la orden
+    // sigue paga en la tienda y nadie la cancela. Avisamos en el panel.
+    const vuelta = kindFromPaymentStatus(payment.status);
+    if (vuelta) {
+      let sub = null;
+      if (subscriberId) {
+        try { sub = (await db().collection("merchants").doc(merchantId).collection("subscribers").doc(subscriberId).get()).data() || null; } catch (_) {}
+      }
+      await flagMoneyBack(merchantId, { paymentId: payment.id, kind: vuelta, subscriberId, amount: payment.transaction_amount, sub });
     }
     console.log(`[mp-webhook] payment ${payment.id} status=${payment.status} — skip order creation`);
     return;
@@ -608,6 +619,10 @@ async function handleDispute(disputeId, kind, hintMid) {
     }
 
     await subRef.update(update);
+    // El cobro disputado ya generó su orden: el comercio tiene que cancelarla y
+    // NO despacharla. Es lo único que podemos hacer por él.
+    const subDoc = (await subRef.get()).data() || null;
+    await flagMoneyBack(merchantId, { paymentId: payment.id, kind, subscriberId, amount: payment.transaction_amount, sub: subDoc });
     console.log(`[mp-webhook] dispute ${kind} ${disputeId} → sub ${subscriberId} marcado ${newStatus}`);
     return;
   }

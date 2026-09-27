@@ -161,3 +161,84 @@ export function weekBucket(iso) {
   const label = idx === 0 ? "Esta semana" : idx === 1 ? "Próxima semana" : idx < 5 ? `En ${idx} semanas` : "Más adelante";
   return { idx: Math.min(idx, 5), label };
 }
+
+// ─── "Te devolvieron un cobro: no despaches ese pedido" ──────────────────────
+// Contracargo, reclamo perdido, fraude o devolución sobre un cobro que YA creó
+// la orden en la tienda. Nosotros no podemos cancelarla (el permiso de órdenes
+// alcanza para crearlas, no para cancelar las ajenas) y Mercado Pago tampoco le
+// avisa a la tienda: si el comercio no se entera, despacha lo que no cobró.
+//
+// Por eso es un cartel rojo arriba de todo y se queda hasta que él lo marque
+// resuelto. Backend: api/_lib/moneyBack.js.
+export function MoneyBackAlert({ T, merchant, style = {} }) {
+  const [items, setItems] = React.useState([]);
+  const [busy, setBusy] = React.useState(null);
+
+  React.useEffect(() => {
+    let vivo = true;
+    (async () => {
+      const { apiGet } = await import("../lib/api.js");
+      const d = await apiGet("merchant", { action: "money-back" }).catch(() => null);
+      if (vivo && Array.isArray(d?.items)) setItems(d.items);
+    })();
+    return () => { vivo = false; };
+  }, [merchant?.id]);
+
+  if (!items.length) return null;
+
+
+  async function resolver(it) {
+    setBusy(it.payment_id);
+    const { apiPost } = await import("../lib/api.js");
+    const d = await apiPost("merchant", { payment_id: it.payment_id }, { action: "money-back-done" }).catch(e => ({ error: e.message }));
+    setBusy(null);
+    if (d?.error) return toast("No se pudo: " + d.error, "error");
+    setItems(xs => xs.filter(x => x.payment_id !== it.payment_id));
+    toast("Listo, lo sacamos del cartel", "success");
+  }
+
+  const KINDS = {
+    chargeback: "Contracargo", fraud: "Fraude", claim: "Reclamo", refunded: "Devolución",
+  };
+
+  return (
+    <div style={{ display:"flex", gap:12, alignItems:"flex-start", padding:"13px 15px", borderRadius:DS.r.lg,
+      background:T.red + "12", border:`1px solid ${T.red}40`, marginBottom:16, ...style }}>
+      <div style={{ width:8, height:8, borderRadius:"50%", background:T.red, marginTop:7, flexShrink:0, boxShadow:`0 0 0 3px ${T.red}22` }}/>
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ fontSize:DS.font.base, fontWeight:DS.w.bold, color:T.red, marginBottom:4 }}>
+          {items.length === 1 ? "Te devolvieron un cobro: no despaches ese pedido" : `Te devolvieron ${items.length} cobros: no despaches esos pedidos`}
+        </div>
+        <div style={{ fontSize:DS.font.sm, color:T.textMd, lineHeight:1.55, marginBottom:10 }}>
+          La plata volvió al cliente, pero la orden quedó paga en tu tienda. Cancelala vos: nosotros no tenemos permiso para cancelar órdenes.
+        </div>
+        {items.map(it => {
+          const url = shopifyOrderUrl(merchant?.shopify_shop, it.shopify_order_id);
+          return (
+            <div key={it.payment_id} style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap",
+              padding:"8px 0", borderTop:`1px solid ${T.red}22` }}>
+              <span style={{ fontSize:10, fontWeight:800, color:T.red, background:T.red + "18", borderRadius:99, padding:"2px 8px", whiteSpace:"nowrap" }}>
+                {KINDS[it.kind] || "Devolución"}
+              </span>
+              <span style={{ fontSize:DS.font.sm, color:T.text, minWidth:0 }}>
+                {it.customer_name || it.customer_email || "Cliente"}
+                {it.product_title ? <span style={{ color:T.textSm }}> · {it.product_title}</span> : null}
+                {Number(it.amount_ars) > 0 ? <strong style={{ marginLeft:6 }}>{fmtARS(it.amount_ars)}</strong> : null}
+              </span>
+              <span style={{ marginLeft:"auto", display:"inline-flex", gap:8, alignItems:"center" }}>
+                {url
+                  ? <a href={url} target="_blank" rel="noopener noreferrer" style={{ fontSize:DS.font.sm, fontWeight:700, color:T.red, textDecoration:"underline", whiteSpace:"nowrap" }}>Abrir la orden →</a>
+                  : <span style={{ fontSize:DS.font.sm, color:T.textSm, whiteSpace:"nowrap" }}>{it.shopify_order_id ? orderLabel(it.shopify_order_id) : "Sin orden asociada"}</span>}
+                <button type="button" onClick={() => resolver(it)} disabled={busy === it.payment_id}
+                  style={{ fontSize:DS.font.sm, fontWeight:700, color:T.textMd, background:"none", border:`1px solid ${T.border}`,
+                    borderRadius:8, padding:"4px 10px", cursor:"pointer", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                  {busy === it.payment_id ? "…" : "Ya lo resolví"}
+                </button>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

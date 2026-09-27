@@ -121,6 +121,12 @@ export default async function handler(req, res) {
       const { growithLinkUrl } = await import("./_lib/growith.js");
       return res.json({ ok: true, url: growithLinkUrl(merchantId, { tenantId: String(req.query.tid || ""), storeName: String(req.query.name || "") }) });
     }
+    // Avisos de plata que volvió (contracargo / devolución sobre una orden ya
+    // creada): el cartel del panel para que no despache lo que no cobró.
+    if (gAction === "money-back") {
+      const { listMoneyBack } = await import("./_lib/moneyBack.js");
+      return res.json({ items: await listMoneyBack(merchantId) });
+    }
     if (gAction === "flows") return flowsApi(ctx, "flows", req, res);
     if (gAction === "whatsapp-templates" || gAction === "whatsapp-usage" || gAction === "whatsapp-flows") return whatsappApi(ctx, gAction, req, res);
     // Afiliados: del LOGIN (no de la tienda activa). Solo el dueño.
@@ -332,6 +338,11 @@ export default async function handler(req, res) {
     if (action === "save-klaviyo" || action === "klaviyo-test") return res.status(410).json({ error: "Klaviyo ya no está disponible: los mails los manda Recurrentes (Flujos de email)." });
     if (action === "disconnect-klaviyo")   return disconnectKlaviyo(merchantId, res);
     if (action === "save-widget-settings") return saveWidgetSettings(merchantId, req, res);
+    if (action === "money-back-done") {
+      const { resolveMoneyBack } = await import("./_lib/moneyBack.js");
+      const r = await resolveMoneyBack(merchantId, req.body?.payment_id);
+      return r?.error ? res.status(404).json(r) : res.json(r);
+    }
     if (action === "save-settings")        return saveSettings(merchantId, req, res);
     if (action === "import-shipping-rates") return importShippingRates(merchantId, req, res);
     if (action === "save-meta")            return saveMeta(merchantId, req, res);

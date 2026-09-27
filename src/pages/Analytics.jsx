@@ -6,6 +6,7 @@ import { Card, KPI, Btn, DSBadge, Spinner, DSTable, PageHeader, SubTabs, CardHea
 import { KpiCard, Segmented, AreaChart, BarList, Panel } from "../ui/charts.jsx";
 import DateRangePicker, { PRESETS_MESES, rangoDePreset, hoyAR } from "../ui/DateRangePicker.jsx";
 import { OnbEmpty } from "./Onboarding.jsx";
+import { MoneyBackAlert } from "./_shared.jsx";
 import { fetchErrors } from "./Charges.jsx";
 import { fmtARS, fmtPct, downloadCsv } from "./_shared.jsx";
 
@@ -114,6 +115,10 @@ export function AnalyticsPage({ merchant, goTab }) {
           <Btn T={T} variant="secondary" size="sm" onClick={exportCsv} disabled={monthly.length === 0} style={{ height:34 }}>⬇ CSV mensual</Btn>
           <Btn T={T} variant="secondary" size="sm" onClick={() => load()} disabled={loading} style={{ height:34 }}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>
         </>}/>
+
+      {/* Arriba de todo: un cobro devuelto que todavía tiene la orden paga en la
+          tienda es plata que se pierde si la despacha (27-sept-2026, Thiago). */}
+      <MoneyBackAlert T={T} merchant={merchant}/>
 
       {err && !loading && <Callout T={T} tone="danger" title="No pudimos cargar las métricas" style={{ marginBottom:16 }} right={<Btn T={T} variant="secondary" size="sm" onClick={() => load()}>Reintentar</Btn>}>{err}</Callout>}
       {a._fallback && !loading && <Callout T={T} tone="info" style={{ marginBottom:16 }}>El histórico mensual y los motivos de cancelación se habilitan cuando el backend de analíticas esté publicado. Mientras tanto ves las métricas básicas.</Callout>}

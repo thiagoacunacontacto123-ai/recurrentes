@@ -8,7 +8,7 @@ import DateRangePicker, { PRESETS_DIAS, rangoDePreset, hoyAR } from "../ui/DateR
 import ChargesCalendar from "../ui/ChargesCalendar.jsx";
 import { OnbEmpty } from "./Onboarding.jsx";
 import { TIPS } from "../lib/onboarding.js";
-import { MONO, fmtARS, fmtDateTime, ExtLink, mpPaymentUrl, shopifyOrderUrl, orderLabel, hashQuery } from "./_shared.jsx";
+import { MONO, fmtARS, fmtDateTime, ExtLink, mpPaymentUrl, shopifyOrderUrl, orderLabel, hashQuery, MoneyBackAlert } from "./_shared.jsx";
 
 // ─── Próximos cobros: GET /api/charges?view=upcoming con fallback a los subs
 // activos (next_charge_at ≤ 30 días) si el backend todavía no lo tiene.
@@ -66,7 +66,7 @@ const SearchIcon = ({ color }) => (
   <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="5" stroke={color} strokeWidth="1.6"/><path d="M11 11l3.5 3.5" stroke={color} strokeWidth="1.6" strokeLinecap="round"/></svg>
 );
 
-export function ChargesPage({ shop = null }) {
+export function ChargesPage({ shop = null, merchant = null }) {
   const T = useT();
   const iS = InputStyle(T);
   const [view, setView] = useState(() => { const v = hashQuery().get("view"); return ["processed", "upcoming", "errors"].includes(v) ? v : "processed"; });
@@ -187,6 +187,9 @@ export function ChargesPage({ shop = null }) {
       <PageHeader T={T} title="Cobros" subtitle="Lo que Mercado Pago cobró, lo que viene y lo que falló. Cada cobro OK genera una orden en tu negocio."
         right={<>
           <DateRangePicker T={T} since={range.since} until={range.until} onChange={pickRange}/>
+
+      {/* El cobro devuelto se ve donde el comercio mira la plata. */}
+      <MoneyBackAlert T={T} merchant={merchant}/>
           <Btn T={T} variant="secondary" size="sm" onClick={loadAll} disabled={loading} style={{ height:34 }}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>
         </>}/>
 

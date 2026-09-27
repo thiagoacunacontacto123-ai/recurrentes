@@ -381,7 +381,7 @@ export default function Dashboard({ user, onLogout }) {
               ) : t === "carritos" ? (
                 integrationsReady ? <SubscriptionsPage devMode={devMode} shop={shop} carts/> : needs("Carritos abandonados")
               ) : t === "cobros" ? (
-                integrationsReady ? <ChargesPage shop={shop}/> : needs("Cobros")
+                integrationsReady ? <ChargesPage shop={shop} merchant={merchant}/> : needs("Cobros")
               ) : t === "planes" ? (
                 integrationsReady ? <PlansTab merchant={merchant} onMerchantChange={reloadMerchant}/> : needs("Planes")
               ) : t === "widget" ? (
