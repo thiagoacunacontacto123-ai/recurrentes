@@ -78,7 +78,9 @@ export function SectionsStyle({ T }) {
         .ls-dd.flip > :first-child{order:0;}
         .ls-grid4{grid-template-columns:repeat(2,1fr);}
         .ls-reviews{grid-template-columns:repeat(2,minmax(0,1fr));}
-        .ls-foot{grid-template-columns:1fr 1fr;}
+        /* Pie en celular: la marca arriba a lo ancho y las dos columnas de links lado a lado. */
+        .ls-foot{grid-template-columns:1fr 1fr;gap:28px 20px;}
+        .ls-foot > :first-child{grid-column:1 / -1;}
       }
       @media(max-width:640px){
         .ls-two,.ls-grid4,.ls-reviews{grid-template-columns:1fr;}
