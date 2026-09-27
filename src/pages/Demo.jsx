@@ -325,7 +325,7 @@ export default function DemoPage() {
                 </div>
 <div className={"rc-f" + (errOf("whatsapp") ? " is-err" : "")} style={campo} onInput={() => fix("whatsapp")} onChange={() => fix("whatsapp")}>
                   <label style={label}>WhatsApp</label>
-                  <input style={iS} value={f.whatsapp} onChange={(e) => set("whatsapp", e.target.value)} placeholder="11 6411 7974" inputMode="tel" autoComplete="tel"/>
+                  <input style={iS} value={f.whatsapp} onChange={(e) => set("whatsapp", e.target.value)} placeholder="11 2345 6789" inputMode="tel" autoComplete="tel"/>
                   {errOf("whatsapp") && <div className="rc-fe" role="alert">{errOf("whatsapp")}</div>}
                 </div>
 <div className={"rc-f" + (errOf("email") ? " is-err" : "")} style={campo} onInput={() => fix("email")} onChange={() => fix("email")}>

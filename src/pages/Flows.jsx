@@ -313,7 +313,7 @@ function FlowEditor({ T, merchant, initial, onBack }) {
   async function testWa(step) {
     const chk = sanitizeFlow({ trigger: draft.trigger, steps: [step] });
     if (chk.error) return toast(chk.error, "warning", 6000);
-    const to = await appPrompt("Te mandamos la plantilla con datos de ejemplo. Tiene que estar aprobada por Meta.", merchant?.owner_whatsapp || "", { title:"¿A qué WhatsApp te mandamos la prueba?", okLabel:"Enviar prueba", placeholder:"11 6411 7974" });
+    const to = await appPrompt("Te mandamos la plantilla con datos de ejemplo. Tiene que estar aprobada por Meta.", merchant?.owner_whatsapp || "", { title:"¿A qué WhatsApp te mandamos la prueba?", okLabel:"Enviar prueba", placeholder:"11 2345 6789" });
     if (!to) return;
     setTesting(step.id);
     const d = await apiPost("merchant", { template: step.template, lang: step.lang, vars: step.vars, to }, { action: "whatsapp-test" });

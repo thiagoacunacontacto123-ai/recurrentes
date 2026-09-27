@@ -23,7 +23,7 @@ const OUT = join(__dirname, "preview.html");
 // ─── Datos de ejemplo (Lumina) ───────────────────────────────────────
 const SAMPLE_PLAN = {
   id: "plan_demo",
-  product_title: "Cápsulas LuminaLabs",
+  product_title: "Café de especialidad 250 g",
   pricing_mode: "packs",
   frequency_days: 60,
   frequency_scales_with_qty: true,

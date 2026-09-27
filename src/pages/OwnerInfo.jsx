@@ -20,7 +20,7 @@ export function OwnerInfoModal({ T, user, merchant, onSaved }) {
   async function save() {
     const owner_whatsapp = normalizeWhatsapp(wa);
     if (name.trim().length < 2) return setErr("Ingresá tu nombre.");
-    if (!owner_whatsapp) return setErr("Ingresá tu WhatsApp con código de área (ej: 11 6411 7974).");
+    if (!owner_whatsapp) return setErr("Ingresá tu WhatsApp con código de área (ej: 11 2345 6789).");
     if (!EMAIL_RE.test(email.trim())) return setErr("Ingresá un email de contacto válido.");
     setSaving(true); setErr("");
     const d = await apiPost("merchant", { owner_name: name.trim(), owner_whatsapp, contact_email: email.trim().toLowerCase(), attribution: readAttribution() }, { action: "save-owner" }).catch(e => ({ error: e.message }));
@@ -35,7 +35,7 @@ export function OwnerInfoModal({ T, user, merchant, onSaved }) {
         <div style={{ fontSize:18, fontWeight:800, color:T.text, letterSpacing:-0.3 }}>Completá tus datos</div>
         <div style={{ fontSize:DS.font.md, color:T.textSm, marginTop:4, marginBottom:16, lineHeight:1.5 }}>Es para ayudarte a dejar todo andando y avisarte si algo falla con tus cobros. No lo compartimos con nadie.</div>
         <Field T={T} label="Tu nombre"><input value={name} onChange={e => setName(e.target.value)} autoComplete="name" style={iS} autoFocus/></Field>
-        <Field T={T} label="WhatsApp"><input value={wa} onChange={e => setWa(e.target.value)} inputMode="tel" autoComplete="tel" placeholder="11 6411 7974" style={iS}/></Field>
+        <Field T={T} label="WhatsApp"><input value={wa} onChange={e => setWa(e.target.value)} inputMode="tel" autoComplete="tel" placeholder="11 2345 6789" style={iS}/></Field>
         <Hint T={T}>Con código de área, sin el 0 ni el 15. Si no sos de Argentina, poné el + y el código de tu país.</Hint>
         <Field T={T} label="Email de contacto"><input type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" style={iS} onKeyDown={e => { if (e.key === "Enter") save(); }}/></Field>
         {err && <div style={{ background:T.redBg, border:`1px solid ${T.red}55`, borderRadius:8, padding:"9px 12px", fontSize:13, color:T.red, marginBottom:12, lineHeight:1.45 }}>{err}</div>}

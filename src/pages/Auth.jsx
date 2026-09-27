@@ -133,7 +133,7 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
   function goAcceso() {
     const wa = normalizeWhatsapp(whatsapp);
     if (!nombre.trim()) return setError("Ingresá tu nombre.");
-    if (!wa) return setError("Ingresá tu WhatsApp con código de área (ej: 11 6411 7974).");
+    if (!wa) return setError("Ingresá tu WhatsApp con código de área (ej: 11 2345 6789).");
     if (!EMAIL_RE.test(email.trim())) return setError("Ingresá un email de contacto válido.");
     if (!volumen) return setError("Contanos cuánto vende tu tienda hoy.");
     if (!objetivo) return setError("Contanos qué buscás con las suscripciones.");
@@ -220,7 +220,7 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
       </div>
       <div style={{marginBottom:12}}>
         <label style={label}>WhatsApp</label>
-        <input style={iS} placeholder="11 6411 7974" value={whatsapp} onChange={e=>setWhatsapp(e.target.value)} onFocus={onFocus} onBlur={onBlur} autoComplete="tel" inputMode="tel"/>
+        <input style={iS} placeholder="11 2345 6789" value={whatsapp} onChange={e=>setWhatsapp(e.target.value)} onFocus={onFocus} onBlur={onBlur} autoComplete="tel" inputMode="tel"/>
       </div>
       <div style={{marginBottom:16}}>
         <label style={label}>Email de contacto</label>

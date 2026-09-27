@@ -1,3 +1,5 @@
+// Los `samples` de cada plantilla van al panel Y a Meta como ejemplo: NUNCA
+// una tienda ni una persona real (27-sept-2026, Thiago).
 // WhatsApp (Cloud API oficial de Meta) — definición compartida (api/ + src/).
 //
 // - normalizePhoneAR: teléfono → E.164 (+549… para celulares de Argentina).
@@ -160,7 +162,7 @@ export const WA_TEMPLATES = [
     body: "Hola {{1}}, dejaste a medio camino tu suscripción a {{2}} de {{3}}.\n\nSi querés retomarla, este es tu link: {{4}}\n\nSi ya la completaste, ignorá este mensaje.",
     footer: WA_FOOTER,
     vars: { "1": "nombre", "2": "producto", "3": "marca", "4": "link_checkout" },
-    samples: ["Ana", "Cápsulas LuminaLabs", "LuminaLabs", "https://www.recurrentesapp.com/#/checkout"],
+    samples: ["Ana", "Café de especialidad 250 g", "Tostado Café", "https://www.recurrentesapp.com/#/checkout"],
   },
   {
     name: "aviso_proximo_cobro", category: "UTILITY", lang: "es_AR", trigger: "upcoming_charge",
@@ -168,7 +170,7 @@ export const WA_TEMPLATES = [
     body: "Hola {{1}}, te escribimos de parte de {{2}}: el {{3}} se renueva tu suscripción a {{4}} por {{5}}.\n\nSi querés pausarla o cambiar algo: {{6}}\n\nEs un aviso automático, no hace falta que respondas.",
     footer: WA_FOOTER,
     vars: { "1": "nombre", "2": "marca", "3": "proximo_cobro", "4": "producto", "5": "monto", "6": "link_portal" },
-    samples: ["Ana", "LuminaLabs", "15 de octubre", "Cápsulas LuminaLabs", "$9.480", "https://www.recurrentesapp.com/#/portal"],
+    samples: ["Ana", "Tostado Café", "15 de octubre", "Café de especialidad 250 g", "$9.480", "https://www.recurrentesapp.com/#/portal"],
   },
   {
     name: "pago_rechazado", category: "UTILITY", lang: "es_AR", trigger: "payment_failed",
@@ -176,7 +178,7 @@ export const WA_TEMPLATES = [
     body: "Hola {{1}}, no pudimos cobrar la renovación de tu suscripción a {{2}} de {{3}}.\n\nPara no perderla, actualizá tu tarjeta desde tu portal: {{4}}\n\nSi ya lo resolviste, ignorá este mensaje.",
     footer: WA_FOOTER,
     vars: { "1": "nombre", "2": "producto", "3": "marca", "4": "link_portal" },
-    samples: ["Ana", "Cápsulas LuminaLabs", "LuminaLabs", "https://www.recurrentesapp.com/#/portal"],
+    samples: ["Ana", "Café de especialidad 250 g", "Tostado Café", "https://www.recurrentesapp.com/#/portal"],
   },
   {
     name: "suscripcion_activa", category: "UTILITY", lang: "es_AR", trigger: "activated",
@@ -184,7 +186,7 @@ export const WA_TEMPLATES = [
     body: "¡Hola {{1}}! Tu suscripción a {{2}} de {{3}} ya está activa. Tu próximo cobro es el {{4}}.\n\nDesde tu portal podés pausarla, cambiar la dirección o cancelarla cuando quieras: {{5}}\n\nGracias por sumarte.",
     footer: WA_FOOTER,
     vars: { "1": "nombre", "2": "producto", "3": "marca", "4": "proximo_cobro", "5": "link_portal" },
-    samples: ["Ana", "Cápsulas LuminaLabs", "LuminaLabs", "15 de octubre", "https://www.recurrentesapp.com/#/portal"],
+    samples: ["Ana", "Café de especialidad 250 g", "Tostado Café", "15 de octubre", "https://www.recurrentesapp.com/#/portal"],
   },
   {
     name: "renovacion_cobrada", category: "UTILITY", lang: "es_AR", trigger: "renewed",
@@ -192,7 +194,7 @@ export const WA_TEMPLATES = [
     body: "Hola {{1}}, te escribimos de parte de {{2}}: ya se cobró la renovación de tu suscripción a {{3}} por {{4}}. Tu próximo cobro es el {{5}}.\n\nTu portal, por si necesitás cambiar algo: {{6}}\n\nGracias por seguir con nosotros.",
     footer: WA_FOOTER,
     vars: { "1": "nombre", "2": "marca", "3": "producto", "4": "monto", "5": "proximo_cobro", "6": "link_portal" },
-    samples: ["Ana", "LuminaLabs", "Cápsulas LuminaLabs", "$9.480", "15 de noviembre", "https://www.recurrentesapp.com/#/portal"],
+    samples: ["Ana", "Tostado Café", "Café de especialidad 250 g", "$9.480", "15 de noviembre", "https://www.recurrentesapp.com/#/portal"],
   },
 ];
 export const WA_TEMPLATE_BY_NAME = Object.fromEntries(WA_TEMPLATES.map(t => [t.name, t]));
@@ -243,7 +245,7 @@ export const WA_MERCHANT_TEMPLATES = [
     body: "🎉 Nueva suscripción en {{1}}: {{2}} se suscribió a {{3}} por {{4}}.\n\nMirala en tu panel: {{5}}\n\nEs un aviso automático de Recurrentes.",
     footer: WA_MERCHANT_FOOTER,
     vars: { "1": "marca", "2": "nombre", "3": "producto", "4": "monto", "5": "link_panel" },
-    samples: ["LuminaLabs", "Ana", "Cápsulas LuminaLabs", "$9.480", ALERTS_PANEL_URL],
+    samples: ["Tostado Café", "Ana", "Café de especialidad 250 g", "$9.480", ALERTS_PANEL_URL],
   },
   {
     name: "aviso_comercio_pausa", event: "paused", category: "UTILITY", lang: "es_AR",
@@ -251,7 +253,7 @@ export const WA_MERCHANT_TEMPLATES = [
     body: "Se pausó una suscripción en {{1}}: la de {{2}} a {{3}}.\n\nMirala en tu panel: {{4}}\n\nEs un aviso automático de Recurrentes.",
     footer: WA_MERCHANT_FOOTER,
     vars: { "1": "marca", "2": "nombre", "3": "producto", "4": "link_panel" },
-    samples: ["LuminaLabs", "Ana", "Cápsulas LuminaLabs", ALERTS_PANEL_URL],
+    samples: ["Tostado Café", "Ana", "Café de especialidad 250 g", ALERTS_PANEL_URL],
   },
   {
     name: "aviso_comercio_baja", event: "cancelled", category: "UTILITY", lang: "es_AR",
@@ -259,7 +261,7 @@ export const WA_MERCHANT_TEMPLATES = [
     body: "Se canceló una suscripción en {{1}}: la de {{2}} a {{3}}.\n\nMirala en tu panel: {{4}}\n\nEs un aviso automático de Recurrentes.",
     footer: WA_MERCHANT_FOOTER,
     vars: { "1": "marca", "2": "nombre", "3": "producto", "4": "link_panel" },
-    samples: ["LuminaLabs", "Ana", "Cápsulas LuminaLabs", ALERTS_PANEL_URL],
+    samples: ["Tostado Café", "Ana", "Café de especialidad 250 g", ALERTS_PANEL_URL],
   },
   {
     name: "aviso_comercio_pago_rechazado", event: "payment_failed", category: "UTILITY", lang: "es_AR",
@@ -267,7 +269,7 @@ export const WA_MERCHANT_TEMPLATES = [
     body: "No se pudo cobrar una renovación en {{1}}: el pago de {{2}} por {{3}} ({{4}}) fue rechazado.\n\nMirala en tu panel: {{5}}\n\nEs un aviso automático de Recurrentes.",
     footer: WA_MERCHANT_FOOTER,
     vars: { "1": "marca", "2": "nombre", "3": "producto", "4": "monto", "5": "link_panel" },
-    samples: ["LuminaLabs", "Ana", "Cápsulas LuminaLabs", "$9.480", ALERTS_PANEL_URL],
+    samples: ["Tostado Café", "Ana", "Café de especialidad 250 g", "$9.480", ALERTS_PANEL_URL],
   },
   {
     name: "aviso_comercio_cobro", event: "renewed", category: "UTILITY", lang: "es_AR",
@@ -275,7 +277,7 @@ export const WA_MERCHANT_TEMPLATES = [
     body: "💰 Cobro en {{1}}: {{2}} pagó {{3}} de {{4}}. La orden ya está en tu tienda.\n\nMirala en tu panel: {{5}}\n\nEs un aviso automático de Recurrentes.",
     footer: WA_MERCHANT_FOOTER,
     vars: { "1": "marca", "2": "nombre", "3": "monto", "4": "producto", "5": "link_panel" },
-    samples: ["LuminaLabs", "Ana", "$9.480", "Cápsulas LuminaLabs", ALERTS_PANEL_URL],
+    samples: ["Tostado Café", "Ana", "$9.480", "Café de especialidad 250 g", ALERTS_PANEL_URL],
   },
 ];
 
@@ -295,7 +297,7 @@ export const WA_PLAN_TEMPLATES = [
     body: "Aviso sobre el estado de tu cuenta de Recurrentes: {{1}} llegó a {{2}} suscriptores activos, el máximo del plan gratis.\n\nCon el próximo suscriptor entrás en el período de tolerancia. Para seguir sin interrupciones, completá la activación del plan en tu panel: {{3}}\n\nEs un aviso automático de Recurrentes.",
     footer: WA_PLAN_FOOTER,
     vars: { "1": "marca", "2": "subs", "3": "link_panel" },
-    samples: ["LuminaLabs", "10", BILLING_PANEL_URL],
+    samples: ["Tostado Café", "10", BILLING_PANEL_URL],
   },
   // Redactadas como AVISO DE ESTADO DE CUENTA (categoría Utilidad). La primera
   // versión ("te damos 5 de regalo", "no pares de vender") Meta la reclasificó como
@@ -306,7 +308,7 @@ export const WA_PLAN_TEMPLATES = [
     body: "Aviso sobre el estado de tu cuenta de Recurrentes: {{1}} tiene {{2}} suscriptores activos y tu plan gratis incluye hasta {{3}}.\n\nEstás dentro del período de tolerancia de {{4}} suscriptores. Si lo superás sin tener un plan activo, el widget dejará de mostrarse en tu tienda y no entrarán suscripciones nuevas. Tus suscriptores actuales se siguen cobrando con normalidad.\n\nPara evitar la interrupción, completá la activación del plan en tu panel: {{5}}\n\nEs un aviso automático de Recurrentes.",
     footer: WA_PLAN_FOOTER,
     vars: { "1": "marca", "2": "subs", "3": "free", "4": "gracia", "5": "link_panel" },
-    samples: ["LuminaLabs", "11", "10", "5", BILLING_PANEL_URL],
+    samples: ["Tostado Café", "11", "10", "5", BILLING_PANEL_URL],
   },
 
   {
@@ -315,7 +317,7 @@ export const WA_PLAN_TEMPLATES = [
     body: "Aviso sobre el estado de tu cuenta de Recurrentes: {{1}} tiene {{2}} suscriptores activos y llegó al límite del período de tolerancia.\n\nCon la próxima suscripción, el widget dejará de mostrarse en tu tienda y no entrarán suscripciones nuevas. Tus suscriptores actuales se siguen cobrando con normalidad.\n\nPara evitar la interrupción, completá la activación del plan en tu panel: {{3}}\n\nEs un aviso automático de Recurrentes.",
     footer: WA_PLAN_FOOTER,
     vars: { "1": "marca", "2": "subs", "3": "link_panel" },
-    samples: ["LuminaLabs", "15", BILLING_PANEL_URL],
+    samples: ["Tostado Café", "15", BILLING_PANEL_URL],
   },
   {
     name: "aviso_plan_bloqueado", event: "plan_blocked", category: "UTILITY", lang: "es_AR",
@@ -323,7 +325,7 @@ export const WA_PLAN_TEMPLATES = [
     body: "Aviso sobre el estado de tu cuenta de Recurrentes: el widget de {{1}} está desactivado. La tienda llegó a {{2}} suscriptores activos sin un plan activo y no entran suscripciones nuevas. Tu página de producto quedó como estaba antes.\n\nTus suscriptores actuales se siguen cobrando con normalidad y cada cobro sigue generando su orden.\n\nPara reactivarlo, completá la activación del plan en tu panel: {{3}}\n\nEs un aviso automático de Recurrentes.",
     footer: WA_PLAN_FOOTER,
     vars: { "1": "marca", "2": "subs", "3": "link_panel" },
-    samples: ["LuminaLabs", "16", BILLING_PANEL_URL],
+    samples: ["Tostado Café", "16", BILLING_PANEL_URL],
   },
 ];
 export const WA_PLAN_TEMPLATE_BY_EVENT = Object.fromEntries(WA_PLAN_TEMPLATES.map(t => [t.event, t]));
@@ -340,7 +342,7 @@ export const WA_ADMIN_TEMPLATE = {
   body: "Recurrentes · aviso interno: {{1}}.\n\nTienda: {{2}}\nDetalle: {{3}}\n\nAbrir el panel: {{4}}\n\nEs un aviso automático para el equipo de Recurrentes.",
   footer: WA_ADMIN_FOOTER,
   vars: { "1": "evento", "2": "tienda", "3": "detalle", "4": "link_panel" },
-  samples: ["Pagó el plan", "LuminaLabs", "Starter · USD 49 · primer pago", "https://www.recurrentesapp.com/#/dashboard/admin"],
+  samples: ["Pagó el plan", "Tostado Café", "Starter · USD 49 · primer pago", "https://www.recurrentesapp.com/#/dashboard/admin"],
 };
 export const ADMIN_PANEL_URL = "https://www.recurrentesapp.com/#/dashboard/admin";
 
@@ -363,7 +365,7 @@ export const WA_ADMIN_TEMPLATES = [
     body: "Recurrentes · cobro del plan: {{1}} pagó su plan.\n\nDetalle: {{2}}\n\nAbrir el Admin: {{3}}\n\nAviso automático para el equipo de Recurrentes.",
     footer: WA_ADMIN_FOOTER,
     vars: AV,
-    samples: ["LuminaLabs", "Starter · USD 49 · primer pago", ADMIN_PANEL_URL],
+    samples: ["Tostado Café", "Starter · USD 49 · primer pago", ADMIN_PANEL_URL],
   },
   {
     name: "aviso_admin_rebote", event: "plan_past_due", category: "UTILITY", lang: "es_AR",
@@ -371,7 +373,7 @@ export const WA_ADMIN_TEMPLATES = [
     body: "Recurrentes · pago del plan rechazado: a {{1}} le rebotó el cobro del plan en Stripe.\n\nDetalle: {{2}}\n\nAbrir el Admin: {{3}}\n\nAviso automático para el equipo de Recurrentes.",
     footer: WA_ADMIN_FOOTER,
     vars: AV,
-    samples: ["LuminaLabs", "USD 49 · Stripe reintenta solo", ADMIN_PANEL_URL],
+    samples: ["Tostado Café", "USD 49 · Stripe reintenta solo", ADMIN_PANEL_URL],
   },
   {
     name: "aviso_admin_baja", event: "plan_cancelled", category: "UTILITY", lang: "es_AR",
@@ -379,7 +381,7 @@ export const WA_ADMIN_TEMPLATES = [
     body: "Recurrentes · baja del plan: {{1}} canceló su plan.\n\nDetalle: {{2}}\n\nAbrir el Admin: {{3}}\n\nAviso automático para el equipo de Recurrentes.",
     footer: WA_ADMIN_FOOTER,
     vars: AV,
-    samples: ["LuminaLabs", "Baja de la suscripción al plan en Stripe", ADMIN_PANEL_URL],
+    samples: ["Tostado Café", "Baja de la suscripción al plan en Stripe", ADMIN_PANEL_URL],
   },
   {
     name: "aviso_admin_gracia", event: "plan_grace", category: "UTILITY", lang: "es_AR",
@@ -387,7 +389,7 @@ export const WA_ADMIN_TEMPLATES = [
     body: "Recurrentes · estado de cuenta: {{1}} pasó los 10 suscriptores sin plan pago y está en el período de tolerancia.\n\nDetalle: {{2}}\n\nAbrir el Admin: {{3}}\n\nAviso automático para el equipo de Recurrentes.",
     footer: WA_ADMIN_FOOTER,
     vars: AV,
-    samples: ["LuminaLabs", "12 suscriptores activos sin plan pago", ADMIN_PANEL_URL],
+    samples: ["Tostado Café", "12 suscriptores activos sin plan pago", ADMIN_PANEL_URL],
   },
   {
     name: "aviso_admin_bloqueo", event: "plan_blocked", category: "UTILITY", lang: "es_AR",
@@ -395,7 +397,7 @@ export const WA_ADMIN_TEMPLATES = [
     body: "Recurrentes · estado de cuenta: el widget de {{1}} quedó desactivado por superar el límite sin plan pago.\n\nDetalle: {{2}}\n\nAbrir el Admin: {{3}}\n\nAviso automático para el equipo de Recurrentes.",
     footer: WA_ADMIN_FOOTER,
     vars: AV,
-    samples: ["LuminaLabs", "16 suscriptores activos sin plan pago", ADMIN_PANEL_URL],
+    samples: ["Tostado Café", "16 suscriptores activos sin plan pago", ADMIN_PANEL_URL],
   },
 ];
 // "Al borde" usa la misma plantilla que "en gracia" (cambia el detalle).

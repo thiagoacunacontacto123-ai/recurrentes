@@ -85,7 +85,7 @@ export function sanitizeDemoLead(input, { emailRe, normalizeWhatsapp } = {}) {
   const marca = txt(b.marca, 120);
   if (marca.length < 2) return { error: "Ingresá el nombre de tu marca o el link de tu tienda.", field: "marca" };
   const whatsapp = normalizeWhatsapp ? normalizeWhatsapp(b.whatsapp) : txt(b.whatsapp, 25);
-  if (!whatsapp) return { error: "Ingresá tu WhatsApp con código de área (ej: 11 6411 7974).", field: "whatsapp" };
+  if (!whatsapp) return { error: "Ingresá tu WhatsApp con código de área (ej: 11 2345 6789).", field: "whatsapp" };
   const email = txt(b.email, 160).toLowerCase();
   if (emailRe && !emailRe.test(email)) return { error: "Ingresá un email válido.", field: "email" };
 

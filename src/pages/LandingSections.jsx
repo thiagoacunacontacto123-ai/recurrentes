@@ -244,7 +244,7 @@ export function UseCasesSection({ T }) {
 // El bundle de Lumina, que es el que mejor muestra de qué se trata: tres packs
 // con su foto y la suscripción como un tilde aparte, a un clic. 23-sept-2026.
 const DEMO_PLAN = {
-  id: "demo", product_title: "Cápsulas LuminaLabs", frequency_days: 30,
+  id: "demo", product_title: "Cápsulas de magnesio", frequency_days: 30,
   frequency_scales_with_qty: false, discount_pct: 10, base_price_ars: 44990,
   // Escalera coherente: el precio por mes BAJA en cada pack (39.995 → 37.497 →
   // 34.998) y la suscripción descuenta 10% sobre el de lista. Con precios

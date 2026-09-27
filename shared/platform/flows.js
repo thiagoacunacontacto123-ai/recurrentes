@@ -37,9 +37,14 @@ export const FLOW_TRIGGERS = [
 export const TRIGGER_BY_ID = Object.fromEntries(FLOW_TRIGGERS.map(t => [t.id, t]));
 
 // Variables que el comerciante puede usar en asunto, mensaje y botón: {{nombre}}.
+//
+// Los `sample` salen en la VISTA PREVIA de todos los paneles: acá NUNCA va el
+// dato de una tienda real ni de una persona real (27-sept-2026, Thiago). Hasta
+// hoy el producto de ejemplo era "Cápsulas LuminaLabs" y todos los comercios
+// veían el producto de otra tienda en su propio panel.
 export const FLOW_VARIABLES = [
   { key:"nombre",        label:"Nombre",            sample:"Ana" },
-  { key:"producto",      label:"Producto",          sample:"Cápsulas LuminaLabs" },
+  { key:"producto",      label:"Producto",          sample:"Café de especialidad 250 g" },
   { key:"monto",         label:"Monto por cobro",   sample:"$9.480" },
   { key:"marca",         label:"Tu marca",          sample:"Tu marca" },
   { key:"proximo_cobro", label:"Fecha próximo cobro", sample:"15 de octubre" },

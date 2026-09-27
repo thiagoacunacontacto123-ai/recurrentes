@@ -84,7 +84,7 @@ export default function MerchantAlertsSection({ T, merchant, onChange }) {
         {enabled && (
           <div style={{ marginTop: 10 }}>
             <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMd, marginBottom: 6 }}>Tu WhatsApp</label>
-            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="11 6411 7974" inputMode="tel" style={{ ...iS, maxWidth: 260, marginBottom: 0 }} />
+            <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="11 2345 6789" inputMode="tel" style={{ ...iS, maxWidth: 260, marginBottom: 0 }} />
             <Hint T={T} style={{ marginTop: 4 }}>Con código de área. Si lo dejás vacío, usamos el WhatsApp de tu cuenta.</Hint>
           </div>
         )}
