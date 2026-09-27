@@ -640,35 +640,36 @@ export default function Checkout() {
         // que paga con dinero en cuenta, al que no tiene la tarjeta a mano y al
         // que la tarjeta le rebota en el formulario.
         <>
+          {/* Un solo cuadro: la fila elegida es lo único pintado y los campos de
+              la tarjeta viven adentro, debajo de su fila (26-sept-2026, Thiago). */}
           <div className="rc-opts">
             <label className={"rc-opt " + (payWith === "card" ? "on" : "")}>
               <input type="radio" name="rec-pay" checked={payWith === "card"} onChange={() => setPayWith("card")}/>
-              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke={theme.text_muted} strokeWidth="1.7" aria-hidden="true" style={{ flexShrink: 0 }}><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20"/></svg>
+              <img src="/brand/mercadopago.png" alt="" style={{ width: 30, height: 30, borderRadius: 7, objectFit: "contain", flexShrink: 0 }}/>
               <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0 }}><b style={{ fontWeight: 600 }}>Tarjeta de crédito o débito</b><div style={{ color: theme.text_muted, fontSize: 13 }}>{isService ? `La cuota se cobra sola ${freqTxt}.` : `Se cobra ${freqTxt}, sin que hagas nada.`}</div></div>
             </label>
+            {payWith === "card" ? (
+              <div className="rc-card-body">
+                {/* El titular arriba: es el único que se escribe en NUESTRA página.
+                    Los tres de abajo son iframes de Mercado Pago (Secure Fields):
+                    se escriben adentro de su página, no de la nuestra. */}
+                <Field label="Titular, como figura en la tarjeta" error={errs.cardholder} onFix={fix("cardholder")}>
+                  <input autoComplete="cc-name" placeholder=" " value={cardholder} onChange={e => setCardholder(e.target.value)}/>
+                </Field>
+                <div className="rc-mpf-wrap">
+                  <div className="rc-mpf rc-mpf-full"><span>Número de tarjeta</span><div id="rec-card-number"/></div>
+                  <div className="rc-mpf"><span>Vencimiento</span><div id="rec-card-exp"/></div>
+                  <div className="rc-mpf"><span>Código de seguridad</span><div id="rec-card-cvv"/></div>
+                </div>
+                {!cardReady ? <div style={{ fontSize: 12.5, color: theme.text_muted, marginTop: 8 }}>Cargando el formulario seguro de {providerLabel}…</div> : null}
+              </div>
+            ) : null}
             <label className={"rc-opt " + (payWith === "mp" ? "on" : "")}>
               <input type="radio" name="rec-pay" checked={payWith === "mp"} onChange={() => setPayWith("mp")}/>
               <img src="/brand/mercadopago.png" alt="" style={{ width: 30, height: 30, borderRadius: 7, objectFit: "contain", flexShrink: 0 }}/>
               <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0 }}><b style={{ fontWeight: 600 }}>Con tu cuenta de {providerLabel}</b><div style={{ color: theme.text_muted, fontSize: 13 }}>Te redirigimos a la web de {providerLabel} para que pagues con los métodos que tengas guardados ahí.</div></div>
             </label>
           </div>
-          {payWith === "card" ? (
-            <div style={{ marginTop: 14 }}>
-              {/* Los tres de abajo son iframes de Mercado Pago: escribís adentro de
-                  su página, no de la nuestra. Nosotros nunca vemos la tarjeta. */}
-              <div className="rc-mpf-wrap">
-                <div className="rc-mpf rc-mpf-full"><span>Número de tarjeta</span><div id="rec-card-number"/></div>
-                <div className="rc-mpf"><span>Vencimiento</span><div id="rec-card-exp"/></div>
-                <div className="rc-mpf"><span>Código de seguridad</span><div id="rec-card-cvv"/></div>
-              </div>
-              <div style={{ marginTop: 12 }}>
-                <Field label="Titular, como figura en la tarjeta" error={errs.cardholder} onFix={fix("cardholder")}>
-                  <input autoComplete="cc-name" placeholder=" " value={cardholder} onChange={e => setCardholder(e.target.value)}/>
-                </Field>
-              </div>
-              {!cardReady ? <div style={{ fontSize: 12.5, color: theme.text_muted, marginTop: 6 }}>Cargando el formulario seguro de {providerLabel}…</div> : null}
-            </div>
-          ) : null}
         </>
       ) : (
         /* Sin el formulario propio: una sola opción, se ve elegida como un método de envío. */
@@ -729,6 +730,9 @@ export default function Checkout() {
         /* Campos de tarjeta: cada uno es un iframe de Mercado Pago. No podemos
            usar la etiqueta flotante (no hay :placeholder-shown de un iframe), así
            que la etiqueta va fija arriba y el iframe ocupa el resto de la caja. */
+        .rc-card-body{padding:14px 16px 4px;border-top:1px solid ${theme.border_soft};background:${theme.input_bg}}
+        .rc-card-body .rc-f input{background:${theme.bg}}
+        .rc-card-body .rc-mpf{background:${theme.bg}}
         .rc-mpf-wrap{display:grid;grid-template-columns:1fr 1fr;gap:12px}
         .rc-mpf{position:relative;border:1px solid ${theme.border};border-radius:${R}px;background:${theme.input_bg};height:52px;padding:7px 13px 6px;min-width:0;overflow:hidden}
         .rc-mpf-full{grid-column:1 / -1}
