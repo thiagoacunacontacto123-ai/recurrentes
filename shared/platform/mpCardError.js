@@ -68,9 +68,11 @@ const DECLINE = [
   [/max_attempts/i,                             "Llegaste al límite de intentos con esa tarjeta. Probá con otra."],
   [/duplicated/i,                               "Ese pago ya se hizo. Revisá tu correo antes de reintentar."],
   [/not_supported|invalid_payment_type/i,       "Esa tarjeta no sirve para suscripciones. Probá con una de crédito."],
-  // Antifraude: la tarjeta puede estar perfecta y MP igual decir que no. Pasa
-  // sobre todo con la tarjeta del propio dueño de la tienda.
-  [/CC_VAL_433|high_risk|blacklist/i,           "Mercado Pago no aprobó esta tarjeta por seguridad. Probá con otra tarjeta de crédito, o pagá con tu cuenta de Mercado Pago."],
+  // CC_VAL_433 es lo que devuelve la API, pero el panel de MP lo explica: lo
+  // rechazó el BANCO EMISOR, no Mercado Pago (caso Naranja X, 27-sept-2026).
+  // Decir "Mercado Pago no lo aprobó" manda al cliente a reclamarle a quien no
+  // fue, y encima suena a que la tienda es sospechosa.
+  [/CC_VAL_433|high_risk|blacklist/i,           "El banco de tu tarjeta rechazó el pago. Probá con otra tarjeta, llamá a tu banco, o pagá con tu cuenta de Mercado Pago."],
   [/bad_filled|invalid_card|card token|token/i, "Revisá los datos de la tarjeta: número, vencimiento y código."],
 ];
 
@@ -92,7 +94,7 @@ const REASONS = [
   [/max_attempts/i,                             "Demasiados intentos"],
   [/duplicated/i,                               "Pago duplicado"],
   [/not_supported|invalid_payment_type/i,       "No admitida para suscripciones"],
-  [/CC_VAL_433|high_risk|blacklist/i,           "Rechazada por seguridad de Mercado Pago"],
+  [/CC_VAL_433|high_risk|blacklist/i,           "El banco de la tarjeta la rechazó"],
   [/bad_filled|invalid_card|card token|token/i, "Datos de la tarjeta mal"],
 ];
 export function mpDeclineReason(crudo) {
