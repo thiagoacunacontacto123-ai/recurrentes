@@ -927,12 +927,12 @@ export default function Checkout() {
           <div>
             {/* Encabezado: logo + nombre (o el texto que puso la tienda).
                 Embebido no va: arriba está el header de la tienda. */}
-            {isEmbed ? null : <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "22px 0 6px", minHeight: 56 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "22px 0 6px", minHeight: 56 }}>
               {logo ? <img src={logo} alt="" style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover", flexShrink: 0 }}/> : null}
               {theme.header_logo
                 ? <img src={theme.header_logo} alt={storeName} style={{ display: "block", maxHeight: 48, maxWidth: 220, width: "auto", height: "auto", objectFit: "contain" }}/>
                 : <div style={{ fontSize: 20, fontWeight: 600, letterSpacing: -0.2, overflowWrap: "anywhere" }}>{storeName}</div>}
-            </div>}
+            </div>
 
             {/* Celular: resumen desplegable arriba (como Shopify) */}
             <div className="rc-mobile-summary">
@@ -1006,7 +1006,7 @@ export default function Checkout() {
 
             <div className="rc-sec">{payBlock}</div>
 
-            {isEmbed ? null : <div className="rc-foot">
+            <div className="rc-foot">
               {backUrl ? <a href={backUrl}>← Volver a la tienda</a> : null}
               {theme.show_policies && theme.terms_url ? <a href={theme.terms_url} target="_blank" rel="noopener">Términos</a> : null}
               {theme.show_policies && theme.privacy_url ? <a href={theme.privacy_url} target="_blank" rel="noopener">Privacidad</a> : null}
@@ -1020,7 +1020,7 @@ export default function Checkout() {
                 </svg>
                 <span style={{ fontWeight: 700, color: theme.text }}>Recurrentes</span>
               </a>
-            </div>}
+            </div>
           </div>
         </div>
 

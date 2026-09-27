@@ -7,7 +7,8 @@
 //   1. El script se sirve y arma el iframe apuntando a NUESTRO checkout, con el
 //      merchant puesto por nosotros (no depende de que lo pegue bien).
 //   2. Solo le cree la altura al checkout, no a cualquiera que postee al padre.
-//   3. Embebido no se pinta nuestro encabezado ni nuestro pie: los pone la tienda.
+//   3. Embebido se ve EXACTAMENTE igual que en nuestro dominio: el encabezado
+//      y el pie del checkout van también (la página del comercio no agrega nada).
 import "../helpers/register.mjs";
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";

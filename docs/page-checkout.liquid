@@ -3,21 +3,24 @@
 
   Qué hace: deja la página con NUESTRO checkout y nada más. Tapa el header, el
   pie, popups, barras pegajosas y cualquier cosa que el tema meta después de
-  cargar, igual que el checkout de Shopify. El dominio, el logo y los colores
-  siguen siendo los de la tienda.
+  cargar, igual que el checkout de Shopify. El dominio sigue siendo el de la
+  tienda.
+
+  Adentro va el checkout de verdad (el mismo de #/checkout, con su encabezado,
+  su pie y su tema): uno solo que mantener. Acá NO se agrega nada alrededor —
+  ni logo ni "seguir comprando" — porque el checkout ya los trae.
 
   Cómo se instala (una vez por tienda):
     1. Online Store → Themes → ⋯ → Edit code
     2. Templates → Add a new template → tipo "page", formato "liquid",
        nombre: recurrentes-checkout      (queda page.recurrentes-checkout.liquid)
+       (o, más rápido: una sección "Custom Liquid" en la página, y esconder las
+       demás secciones de esa plantilla)
     3. Pegar TODO esto y reemplazar MERCHANT_ID por el id de la tienda.
     4. Pages → crear la página (ej. "Suscripción") → Template: recurrentes-checkout
        → Content: VACÍO → Visibility: Visible.
     5. En el panel de Recurrentes, Widget → "Checkout en mi tienda" con el
        /pages/<handle> de esa página.
-
-  Adentro va el checkout de verdad (el mismo de #/checkout: tarjeta, regalos,
-  upsells, tema de la tienda). Uno solo que mantener.
 
   No cambiar el id "recurrentes-checkout": ahí se monta el checkout.
 {%- endcomment -%}
@@ -35,35 +38,13 @@
   body { display: block !important; overflow-x: hidden; }
   main, #MainContent, .main-content, .shopify-section { margin: 0 !important; padding: 0 !important; }
 
-  /* 3) Lo nuestro */
-  .rec-ck-page { width: 100%; max-width: 1180px; margin: 0 auto; padding: 0 16px 48px;
+  /* 3) El checkout, de punta a punta: el ancho lo maneja él, como en nuestro
+     dominio. Nada de max-width acá o el resumen gris no llega al borde. */
+  .rec-ck-page { width: 100% !important; max-width: none; margin: 0; padding: 0;
                  box-sizing: border-box; justify-self: stretch; grid-column: 1 / -1; flex: 1 1 auto; }
-  .rec-ck-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px;
-                padding: 18px 0 14px; border-bottom: 1px solid #e7e7e7; }
-  .rec-ck-bar a { text-decoration: none; color: inherit; }
-  .rec-ck-logo img { height: 34px; width: auto; display: block; }
-  .rec-ck-logo span { font-weight: 700; font-size: 18px; letter-spacing: -.01em; }
-  .rec-ck-back { font-size: 14px; color: #666; white-space: nowrap; }
-  .rec-ck-back:hover { color: #111; }
-  @media (max-width: 600px) {
-    .rec-ck-page { padding: 0 0 32px; }
-    .rec-ck-bar { padding: 14px 16px 12px; }
-    .rec-ck-logo img { height: 28px; }
-  }
 </style>
 
 <div class="rec-ck-page" id="rec-ck-page">
-  <div class="rec-ck-bar">
-    <a class="rec-ck-logo" href="/">
-      {%- if settings.logo != blank -%}
-        <img src="{{ settings.logo | image_url: width: 400 }}" alt="{{ shop.name | escape }}">
-      {%- else -%}
-        <span>{{ shop.name }}</span>
-      {%- endif -%}
-    </a>
-    <a class="rec-ck-back" href="/">&larr; Seguir comprando</a>
-  </div>
-
   <div id="recurrentes-checkout"></div>
 </div>
 
