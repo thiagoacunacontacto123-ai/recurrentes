@@ -559,15 +559,16 @@ function MiniWidgetStep({ T }) {
   const merchant = useMemo(() => ({ widget_variant: "v06", widget_color: T.accentSolid, widget_radius: 12, widget_mode_default: "sub", widget_show_per_unit: false, widget_texts: { headline: "Elegí tu pack" } }), [T.accentSolid]);
   return <div style={{ background: "#fff", borderRadius: 14, padding: 12, color: "#111" }}><LiveWidget plan={SAMPLE_PLANS.supl} merchant={merchant} mode="sub" idx={1} style={{ fontSize: 12 }}/></div>;
 }
-function MpStep({ T }) {
+const BRAND_DEFAULT = { name: "Nodo", product: "Cápsulas de magnesio × 3", sub: "Pack 3 frascos · suscripción", price: 42900, art: null, color: "#7c3aed", freq: "cada mes" };
+function MpStep({ T, b = BRAND_DEFAULT }) {
   return (
     <div style={{ background: "#fff", borderRadius: 14, padding: 16, color: "#111", fontFamily: F }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
         <img src="/brand/mercadopago.png" alt="" style={{ width: 34, height: 34, objectFit: "contain", borderRadius: 8 }} onError={(e) => { e.currentTarget.style.display = "none"; }}/>
-        <div><div style={{ fontWeight: 800, fontSize: 14 }}>Mercado Pago</div><div style={{ fontSize: 12, color: "#6b6b6b" }}>Suscripción · cobro automático</div></div>
+        <div><div style={{ fontWeight: 800, fontSize: 14 }}>Mercado Pago</div><div style={{ fontSize: 12, color: "#6b6b6b" }}>Suscripción de {b.name} · cobro automático</div></div>
         <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800, color: "#1f7a3e", background: "#e7f6ec", borderRadius: 99, padding: "3px 9px" }}>APROBADO</span>
       </div>
-      {[["1 de mayo", "Pago n.º 1", fmtARS(42900)], ["1 de junio", "Pago n.º 2", fmtARS(42900)], ["1 de julio", "Pago n.º 3", fmtARS(42900)]].map(([d, l, v], i) => (
+      {[["1 de mayo", "Pago n.º 1", fmtARS(b.price)], ["1 de junio", "Pago n.º 2", fmtARS(b.price)], ["1 de julio", "Pago n.º 3", fmtARS(b.price)]].map(([d, l, v], i) => (
         <div key={l} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, padding: "9px 0", borderTop: i ? "1px solid #eee" : "none", fontSize: 13 }}>
           <span><b style={{ display: "block" }}>{l}</b><span style={{ color: "#6b6b6b", fontSize: 12 }}>{d} · tarjeta terminada en 4421</span></span>
           <b style={{ fontVariantNumeric: "tabular-nums" }}>{v}</b>
@@ -577,17 +578,17 @@ function MpStep({ T }) {
     </div>
   );
 }
-function OrderStep({ T }) {
+function OrderStep({ T, b = BRAND_DEFAULT }) {
   return (
     <div style={{ background: "#fff", borderRadius: 14, padding: 16, color: "#111", fontFamily: F }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <div><div style={{ fontWeight: 800, fontSize: 14 }}>Pedido #1042</div><div style={{ fontSize: 12, color: "#6b6b6b" }}>Creado por Recurrentes · etiqueta RECURRENTE</div></div>
+        <div><div style={{ fontWeight: 800, fontSize: 14 }}>Pedido #1042 · {b.name}</div><div style={{ fontSize: 12, color: "#6b6b6b" }}>Creado por Recurrentes · etiqueta RECURRENTE</div></div>
         <span style={{ fontSize: 11, fontWeight: 800, color: "#1f7a3e", background: "#e7f6ec", borderRadius: 99, padding: "3px 9px" }}>PAGADO</span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "44px 1fr auto", gap: 10, alignItems: "center", padding: "10px 0", borderTop: "1px solid #eee", borderBottom: "1px solid #eee", fontSize: 13 }}>
-        <span style={{ width: 44, height: 44, borderRadius: 10, background: "linear-gradient(135deg,#a78bfa,#6d28d9)" }}/>
-        <span><b style={{ display: "block" }}>Cápsulas de magnesio × 3</b><span style={{ color: "#6b6b6b", fontSize: 12 }}>Pack 3 frascos · suscripción</span></span>
-        <b>{fmtARS(42900)}</b>
+        {b.art ? <img src={b.art} alt="" width="44" height="44" style={{ borderRadius: 10, objectFit: "cover" }}/> : <span style={{ width: 44, height: 44, borderRadius: 10, background: "linear-gradient(135deg,#a78bfa,#6d28d9)" }}/>}
+        <span><b style={{ display: "block" }}>{b.product}</b><span style={{ color: "#6b6b6b", fontSize: 12 }}>{b.sub}</span></span>
+        <b>{fmtARS(b.price)}</b>
       </div>
       <div style={{ display: "grid", gap: 6, marginTop: 12, fontSize: 12.5, color: "#444" }}>
         <div>📦 Envío: Andreani a domicilio · Palermo, CABA</div>
@@ -821,10 +822,10 @@ function CheckoutPanel({ T }) {
     </div>
   );
 }
-function PortalPanel({ T }) {
+function PortalPanel({ T, b = null }) {
   return (
     <div style={{ background: "#fff", color: "#111", borderRadius: 16, padding: 16, fontFamily: F }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}><img src={PRODUCT_ART.mate} alt="" width="40" height="40" style={{ borderRadius: 8, objectFit: "cover" }}/><div><b style={{ fontSize: 14 }}>Yerba orgánica · 2 kg</b><div style={{ fontSize: 12, color: "#666" }}>Cebado · activa · próximo cobro 1 de julio</div></div><span style={{ marginLeft: "auto", fontSize: 10.5, fontWeight: 800, color: "#1f7a3e", background: "#e7f6ec", borderRadius: 99, padding: "3px 9px" }}>ACTIVA</span></div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}><img src={b ? b.art : PRODUCT_ART.mate} alt="" width="40" height="40" style={{ borderRadius: 8, objectFit: "cover" }}/><div><b style={{ fontSize: 14 }}>{b ? b.product : "Yerba orgánica · 2 kg"}</b><div style={{ fontSize: 12, color: "#666" }}>{b ? b.name : "Cebado"} · activa · próximo cobro 1 de julio</div></div><span style={{ marginLeft: "auto", fontSize: 10.5, fontWeight: 800, color: "#1f7a3e", background: "#e7f6ec", borderRadius: 99, padding: "3px 9px" }}>ACTIVA</span></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         {[["Pausar", "1, 2 o 3 meses"], ["Cambiar dirección", "el próximo sale a la nueva"], ["Cambiar tarjeta", "sin volver a suscribirse"], ["Cancelar", "cuando quiera, sin escribirte"]].map(([t, d]) => <div key={t} style={{ border: "1px solid #e5e5e5", borderRadius: 10, padding: "10px 12px" }}><b style={{ fontSize: 12.5, display: "block" }}>{t}</b><span style={{ fontSize: 11, color: "#777" }}>{d}</span></div>)}
       </div>
@@ -832,15 +833,15 @@ function PortalPanel({ T }) {
     </div>
   );
 }
-function WaPanel({ T }) {
-  const b = (t, me) => <div style={{ alignSelf: me ? "flex-end" : "flex-start", maxWidth: "88%", background: me ? "#d9fdd3" : "#fff", borderRadius: 12, padding: "8px 11px", fontSize: 12.5, lineHeight: 1.45, color: "#111", boxShadow: "0 1px 1px rgba(0,0,0,.08)" }}>{t}</div>;
+function WaPanel({ T, b = BRAND_DEFAULT }) {
+  const bub = (t, me) => <div style={{ alignSelf: me ? "flex-end" : "flex-start", maxWidth: "88%", background: me ? "#d9fdd3" : "#fff", borderRadius: 12, padding: "8px 11px", fontSize: 12.5, lineHeight: 1.45, color: "#111", boxShadow: "0 1px 1px rgba(0,0,0,.08)" }}>{t}</div>;
   return (
     <div style={{ background: "#e5ddd5", borderRadius: 16, padding: 14, display: "flex", flexDirection: "column", gap: 8, fontFamily: F }}>
-      <div style={{ fontSize: 11, color: "#555", textAlign: "center" }}>Recurrentes, en nombre de Nodo</div>
-      {b(<><b>Nodo</b>: Hola Ana, mañana se cobra tu suscripción de Cápsulas de magnesio × 3 ({fmtARS(42900)}). Si querés pausarla, entrá a tu portal.</>)}
-      {b(<><b>Nodo</b>: Tu pago fue rechazado. Actualizá la tarjeta acá para no cortar la entrega: nodo.ar/portal</>)}
-      {b("Listo, ya la cambié. Gracias!", true)}
-      {b(<><b>Nodo</b>: Pago aprobado. Tu pedido sale hoy por Andreani.</>)}
+      <div style={{ fontSize: 11, color: "#555", textAlign: "center" }}>Recurrentes, en nombre de {b.name}</div>
+      {bub(<><b>{b.name}</b>: Hola Ana, mañana se cobra tu suscripción de {b.product} ({fmtARS(b.price)}). Si querés pausarla, entrá a tu portal.</>)}
+      {bub(<><b>{b.name}</b>: Tu pago fue rechazado. Actualizá la tarjeta acá para no cortar la entrega: {b.name.toLowerCase()}.ar/portal</>)}
+      {bub("Listo, ya la cambié. Gracias!", true)}
+      {bub(<><b>{b.name}</b>: Pago aprobado. Tu pedido sale hoy por Andreani.</>)}
     </div>
   );
 }
@@ -931,16 +932,17 @@ export function FeatureStack({ T, hideHead = false }) {
 // parte del comprar se anime a medida que baja"). Widget REAL en cada estado,
 // después el checkout con la marca, el cobro en MP, la orden y el aviso.
 const JOURNEY_MERCHANT = { widget_variant: "v13", widget_color: "#6b3f2a", widget_radius: 12, widget_mode_default: "once", widget_mode_order: "once_first", widget_show_per_unit: true, widget_texts: { headline: "Elegí tu pack", sub_label: "Suscribirme y ahorrar", sub_hint: "Te llega solo cada mes · pausás o cancelás cuando quieras", cta_once: "Agregar al carrito" } };
-const JW = ({ mode, idx }) => <div style={{ background: "#fff", borderRadius: 16, padding: 14, color: "#111" }}><LiveWidget plan={SAMPLE_PLANS.cafe} merchant={JOURNEY_MERCHANT} mode={mode} idx={idx} style={{ fontSize: 12.5 }}/></div>;
+const TOSTADO = { name: "Tostado", product: "Café de especialidad · 2 bolsas", sub: "Pack 2 bolsas · suscripción", price: 21510, art: PRODUCT_ART.cafe, color: "#6b3f2a", freq: "cada mes" };
+const JW = ({ mode, idx }) => <div style={{ background: "#fff", borderRadius: 16, padding: 12, color: "#111" }}><LiveWidget plan={SAMPLE_PLANS.cafe} merchant={JOURNEY_MERCHANT} mode={mode} idx={idx} style={{ fontSize: 11.5 }}/></div>;
 const JOURNEY = [
   { t: "Entra a tu ficha de producto", d: "El widget vive abajo del precio, con tus colores. Arranca en compra única, como siempre.", C: () => <JW mode="once" idx={1}/> },
-  { t: "Toca “Suscribirme y ahorrar”", d: "Ve el descuento por suscribirse, cada cuánto le llega y que puede pausar o cancelar cuando quiera.", C: () => <JW mode="sub" idx={1}/> },
-  { t: "Elige el pack", d: "Dos, cuatro bolsas. Mejor precio por unidad y, si querés, un regalo en el primer envío.", C: () => <JW mode="sub" idx={2}/> },
+  { t: "Toca “Suscribirme y ahorrar”", d: "Ve el descuento por suscribirse, cada cuánto le llega y que puede pausar o cancelar cuando quiera.", C: () => <JW mode="sub" idx={0}/> },
+  { t: "Elige el pack", d: "Una, dos bolsas. Mejor precio por unidad y, si querés, un regalo en el primer envío.", C: () => <JW mode="sub" idx={1}/> },
   { t: "Paga en el checkout con tu marca", d: "Contacto, dirección, envío cotizado en vivo con tus correos y el resumen. Todo con tu color y tu logo.", C: ({ T }) => <SubPageMock T={{ ...T, card: "#fff" }}/> },
-  { t: "Mercado Pago cobra hoy, y cada período", d: "Cada mes, cada dos, cada quince días: lo que eligió. La plata entra en tu cuenta de MP. Si una tarjeta falla se reintenta y avisamos.", C: MpStep },
-  { t: "La orden aparece en tu tienda", d: "Con dirección, envío y stock descontado. La despachás como cualquier venta.", C: OrderStep },
-  { t: "El cliente recibe el aviso", d: "Mail y WhatsApp con tu nombre: pedido en camino, próximo cobro, link a su portal.", C: WaPanel },
-  { t: "Y gestiona su suscripción desde su portal", d: "Pausa, cambia la dirección o la tarjeta, cancela. Sin escribirte. Vos lo ves todo en tu panel.", C: PortalPanel },
+  { t: "Mercado Pago cobra hoy, y cada período", d: "Cada mes, cada dos, cada quince días: lo que eligió. La plata entra en tu cuenta de MP. Si una tarjeta falla se reintenta y avisamos.", C: ({ T }) => <MpStep T={T} b={TOSTADO}/> },
+  { t: "La orden aparece en tu tienda", d: "Con dirección, envío y stock descontado. La despachás como cualquier venta.", C: ({ T }) => <OrderStep T={T} b={TOSTADO}/> },
+  { t: "El cliente recibe el aviso", d: "Mail y WhatsApp con tu nombre: pedido en camino, próximo cobro, link a su portal.", C: ({ T }) => <WaPanel T={T} b={TOSTADO}/> },
+  { t: "Y gestiona su suscripción desde su portal", d: "Pausa, cambia la dirección o la tarjeta, cancela. Sin escribirte. Vos lo ves todo en tu panel.", C: ({ T }) => <PortalPanel T={T} b={TOSTADO}/> },
 ];
 export function BuyJourney({ T }) {
   return <ScrollStack T={T} id="rec-proceso" items={JOURNEY} eyebrow="Así compra tu cliente" title={<>Todo el proceso,<br/>a medida que bajás</>} panelMinH={540}/>;

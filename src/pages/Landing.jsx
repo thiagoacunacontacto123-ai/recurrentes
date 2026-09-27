@@ -343,11 +343,10 @@ export function LandingShell({ T, darkMode, onToggleDark, onLogin, active, child
 
       {children}
 
-      {sticky && <StickyCta T={T} onRegister={irDemo} onToggle={setStickyOn}/>}
 
       {/* WhatsApp de Thiago, abajo a la derecha: la gente toca y le habla (18-sept). */}
       <a href={`https://wa.me/5491164117974?text=${encodeURIComponent("Hola! Vi Recurrentes y quiero saber más para mi tienda.")}`} target="_blank" rel="noopener noreferrer" aria-label="Escribinos por WhatsApp"
-        className="rec-wa-fab" style={{position:"fixed",right:18,bottom:stickyOn ? 84 : 18,zIndex:90,width:56,height:56,borderRadius:"50%",background:"#25D366",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 10px 28px rgba(37,211,102,0.45)",textDecoration:"none"}}>
+        className="rec-wa-fab" style={{position:"fixed",right:18,bottom:18,zIndex:90,width:56,height:56,borderRadius:"50%",background:"#25D366",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 10px 28px rgba(37,211,102,0.45)",textDecoration:"none"}}>
         <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.5 14.4c-.3-.1-1.8-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-.3-.1-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.6c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.9-2.2c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.1.2 2.1 3.2 5.1 4.5.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.4.2-.7.2-1.3.2-1.4-.1-.2-.3-.3-.6-.4zM12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2z"/></svg>
       </a>
 
@@ -377,7 +376,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
               <span style={{background:`linear-gradient(135deg, ${T.accentSolid}, #34d399 60%, #a7f3d0)`,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent"}}>sin volver a vender.</span>
             </h1>
             <p style={{fontSize:18,color:T.textMd,lineHeight:1.6,margin:"0 0 26px",maxWidth:460,textWrap:"pretty"}}>
-              Suscripciones para e-commerce con Mercado Pago. Tu cliente se suscribe una vez, elige cada cuánto recibirlo, y cada cobro crea el pedido en tu tienda. <strong style={{color:T.text}}>Vos solo despachás.</strong>
+              Suscripciones para e-commerce con Mercado Pago. Tu cliente se suscribe una vez y cada cobro crea el pedido en tu tienda. <strong style={{color:T.text}}>Vos solo despachás.</strong>
             </p>
             <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
               <button onClick={irDemo} className="rec-btn-xl" style={{...BtnSolid(T)}}>
