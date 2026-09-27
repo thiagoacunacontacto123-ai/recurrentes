@@ -412,9 +412,9 @@ export function SubPageMock({ T, onDone, active = true }) {
   const row = (l, v, b) => <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: b ? 13 : 11, color: b ? "#111" : "#444", fontWeight: b ? 800 : 500 }}><span>{l}</span><span style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{v}</span></div>;
   return (
     <div className="lm-card" style={{ padding: 0, boxShadow: "0 30px 70px -30px rgba(0,0,0,.5)", background: "#fff", color: "#111", overflow: "hidden" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.15fr) minmax(0,.85fr)" }} className="lm-subpage-grid">
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.15fr) minmax(0,.85fr)", flex: 1, alignItems: "stretch" }} className="lm-subpage-grid">
         <style>{`@media(max-width:640px){.lm-subpage-grid{grid-template-columns:1fr!important;}}`}</style>
-        <div style={{ padding: "14px 16px 16px", display: "grid", gap: 6, alignContent: "start" }}>
+        <div style={{ padding: "14px 16px 16px", display: "grid", gap: 6, alignContent: "center" }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 4 }}><span style={{ fontFamily: "Georgia,serif", fontWeight: 700, fontSize: 18, letterSpacing: 2, color: c }}>TOSTADO</span><span style={{ width: 40, height: 2, background: c, opacity: .5, alignSelf: "center" }}/></div>
           <H>Contacto</H>
           <Field l="Correo electrónico" v="ana.perez@gmail.com"/>
@@ -429,7 +429,7 @@ export function SubPageMock({ T, onDone, active = true }) {
           <Ship l="Andreani a domicilio"/>
           <button type="button" style={{ marginTop: 6, background: c, color: "#fff", border: "none", borderRadius: 10, padding: "11px 12px", fontFamily: FD, fontWeight: 800, fontSize: 13, cursor: "default" }}>Pagar {fmtARS(23220)}</button>
         </div>
-        <div style={{ padding: "14px 14px 16px", background: "#f7f5f2", borderLeft: "1px solid #ece8e2", display: "grid", gap: 8, alignContent: "start" }}>
+        <div style={{ padding: "14px 14px 16px", background: "#f7f5f2", borderLeft: "1px solid #ece8e2", display: "grid", gap: 8, alignContent: "center" }}>
           <div style={{ display: "grid", gridTemplateColumns: "52px 1fr auto", gap: 8, alignItems: "start" }}>
             <span style={{ width: 52, height: 52, borderRadius: 10, overflow: "hidden", border: "1px solid #e8e2da" }}><img src={PRODUCT_ART.cafe} alt="" width="52" height="52" style={{ display: "block", objectFit: "cover" }}/></span>
             <span style={{ fontSize: 11.5, lineHeight: 1.35 }}><b>Café de especialidad · 2 bolsas</b><br/><span style={{ display: "inline-block", marginTop: 3, fontSize: 9, fontWeight: 700, color: c, background: c + "18", borderRadius: 99, padding: "2px 7px" }}>Suscripción</span><br/><span style={{ color: "#777", fontSize: 10 }}>Frecuencia: cada 30 días</span></span>
@@ -613,8 +613,9 @@ export function StickyDesigns({ T }) {
   // Recorrido: el ancho del carril menos lo que entra en pantalla, en px de tarjeta.
   return (
     <section id="rec-disenos" ref={ref} className={"lm-pin " + (pinned ? "lm-pin-all" : "")} style={{ height: pinned ? `${n * 70 + 60}vh` : "auto" }}>
-      <div ref={innerRef} className={"lm-pin-inner " + (pinned ? "lm-pin-fit" : "")} style={pinned ? { padding: "24px 0" } : { position: "static", height: "auto", display: "block", overflow: "visible", padding: "64px 0" }}>
-        <div className="lm-wrap" style={{ width: "100%" }}>
+      {/* El título va FUERA del bloque fijo (Thiago, 27-sept: "da igual el título, yo tengo
+          que ver el widget centrado"): se va con el scroll y lo fijo es solo el carril. */}
+      <div className="lm-wrap" style={{ width: "100%", padding: "64px 24px 8px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 24, alignItems: "end", marginBottom: 18 }} data-reveal="tilt">
             <div>
               <div className="lm-eyebrow">Se adapta a tu tienda · dos formas</div>
@@ -624,10 +625,11 @@ export function StickyDesigns({ T }) {
             {pinned && <div className="lm-progress" style={{ width: 160, marginBottom: 10 }}><i/></div>}
           </div>
           {/* Las dos opciones (Thiago, 27-sept) */}
-          <div style={{ display: "inline-flex", gap: 4, padding: 4, borderRadius: 99, background: T.card, border: `1px solid ${T.border}`, marginBottom: 22 }} role="tablist">
+          <div style={{ display: "inline-flex", gap: 4, padding: 4, borderRadius: 99, background: T.card, border: `1px solid ${T.border}`, marginBottom: 6 }} role="tablist">
             {[["widget", "1 · Widget en tu ficha"], ["pagina", "2 · Página de suscripción"]].map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={opt === k} onClick={() => setOpt(k)} style={{ fontFamily: F, fontSize: 13, fontWeight: 700, padding: "9px 16px", borderRadius: 99, border: "none", cursor: "pointer", background: opt === k ? T.accentSolid : "transparent", color: opt === k ? "#fff" : T.textMd, transition: "all .2s" }}>{l}</button>)}
           </div>
-        </div>
+      </div>
+      <div ref={innerRef} className={"lm-pin-inner " + (pinned ? "lm-pin-fit" : "")} style={pinned ? { padding: "12px 0" } : { position: "static", height: "auto", display: "block", overflow: "visible", padding: "16px 0 64px" }}>
         {opt === "widget" ? (
           <div className="lm-wrap" style={{ width: "100%", overflow: "visible" }}>
             <div className="lm-track lm-track-center" style={{ "--w": "min(400px, 86vw)", "--n": n, alignItems: "flex-start" }}>
