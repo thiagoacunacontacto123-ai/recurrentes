@@ -255,7 +255,7 @@ export default function Checkout() {
   const useCard = Boolean(cardForm) && payWith === "card";
 
   useEffect(() => {
-    if (!useCard) return;
+    if (!cardForm) return;
     let vivo = true, campos = [];
     (async () => {
       try {
@@ -296,7 +296,7 @@ export default function Checkout() {
       }
     })();
     return () => { vivo = false; setCardReady(false); for (const c of campos) { try { c.unmount(); } catch (_) {} } };
-  }, [useCard, cardForm?.public_key]);
+  }, [cardForm?.public_key]);
 
   // Cargar el plan activo (por id o por producto) + qué pedir según el negocio.
   useEffect(() => {
@@ -706,7 +706,12 @@ export default function Checkout() {
               <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0, flex: 1 }}><b style={{ fontWeight: 600 }}>Tarjeta de crédito o débito</b><div style={{ color: theme.text_muted, fontSize: 13 }}>{isService ? `La cuota se cobra ${freqTxt} a la tarjeta que pongas acá.` : `Se cobra ${freqTxt} a la tarjeta que pongas acá.`}</div></div>
               <CardBrands/>
             </label>
-            {payWith === "card" ? (
+            {/* El desglose no se desmonta: se pliega. Así lo que ya escribiste
+                sigue ahí si vas y volvés, y los iframes de Mercado Pago no se
+                tienen que rearmar cada vez. La animación es el truco de grid
+                0fr→1fr: se anima solo, sin alturas fijas inventadas. */}
+            <div className={"rc-card-wrap" + (payWith === "card" ? " open" : "")} aria-hidden={payWith !== "card"}>
+              <div className="rc-card-clip">
               <div className="rc-card-body">
                 {/* El titular arriba: es el único que se escribe en NUESTRA página.
                     Los tres de abajo son iframes de Mercado Pago (Secure Fields):
@@ -744,7 +749,8 @@ export default function Checkout() {
                     no sabía por qué. */}
                 {errs.card ? <div className="rc-fe" data-f="card" role="alert" style={{ marginTop: 8 }}>{errs.card}</div> : null}
               </div>
-            ) : null}
+              </div>
+            </div>
           </div>
           <div className={"rc-opts rc-pay-box" + (payWith === "mp" ? " rc-sel" : "")}>
             <label className={"rc-opt " + (payWith === "mp" ? "on" : "")}>
@@ -820,8 +826,15 @@ export default function Checkout() {
            renglón de arriba. Los métodos de ENVÍO no se tocan: ahí varias filas
            viven en un mismo cuadro y el anillo tiene que marcar la fila. */
         .rc-pay-box.rc-sel{box-shadow:inset 0 0 0 1px ${theme.color};border-color:${theme.color}}
+        .rc-pay-box .rc-card-clip{padding-bottom:0}
+        .rc-pay-box .rc-card-wrap.open .rc-card-clip{padding-bottom:10px}
         .rc-pay-box .rc-opt.on{box-shadow:none}
-        .rc-card-body{padding:14px 16px;border-top:1px solid ${theme.border_soft};background:${theme.input_bg}}
+        .rc-card-wrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows .34s cubic-bezier(.4,0,.2,1)}
+        .rc-card-wrap.open{grid-template-rows:1fr}
+        .rc-card-clip{overflow:hidden;min-height:0}
+        /* Línea arriba Y abajo: el bloque blanco se lee como un cuadro adentro
+           del cuadro, no como un pedazo suelto. */
+        .rc-card-body{padding:14px 16px;border-top:1px solid ${theme.border_soft};border-bottom:1px solid ${theme.border_soft};background:${theme.input_bg}}
         .rc-card-body .rc-f input{background:${theme.bg}}
         .rc-card-body .rc-mpf{background:${theme.bg}}
         .rc-doc{display:grid;grid-template-columns:minmax(0,110px) minmax(0,1fr);gap:12px;margin-top:12px}
