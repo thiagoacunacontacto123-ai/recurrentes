@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Cómo vender por suscripción en tu ecommerce (Argentina) | Recurrentes</title>
-<meta name="description" content="Guía para pasar tu ecommerce a un modelo de suscripción en Argentina: qué productos sirven, cómo elegir la frecuencia y el descuento, y cómo se cobra en automático.">
-<link rel="canonical" href="https://www.recurrentesapp.com/suscripciones-ecommerce">
+<title>Meta Ads para vender suscripciones: Conversions API y eventos del checkout | Recurrentes</title>
+<meta name="description" content="Conectás tu pixel y Recurrentes manda AddToCart, InitiateCheckout y Purchase por la Conversions API, deduplicados y con el monto real. Meta aprende quién se suscribe.">
+<link rel="canonical" href="https://www.recurrentesapp.com/meta-ads-suscripciones-conversions-api">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <meta name="theme-color" content="#10b981">
 <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png">
@@ -14,9 +14,9 @@
 <meta property="og:image" content="https://www.recurrentesapp.com/landing/panel-analiticas.jpg">
 <meta property="og:site_name" content="Recurrentes">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Cómo vender por suscripción en tu ecommerce (Argentina) | Recurrentes">
-<meta property="og:description" content="Guía para pasar tu ecommerce a un modelo de suscripción en Argentina: qué productos sirven, cómo elegir la frecuencia y el descuento, y cómo se cobra en automático.">
-<meta property="og:url" content="https://www.recurrentesapp.com/suscripciones-ecommerce">
+<meta property="og:title" content="Meta Ads para vender suscripciones: Conversions API y eventos del checkout | Recurrentes">
+<meta property="og:description" content="Conectás tu pixel y Recurrentes manda AddToCart, InitiateCheckout y Purchase por la Conversions API, deduplicados y con el monto real. Meta aprende quién se suscribe.">
+<meta property="og:url" content="https://www.recurrentesapp.com/meta-ads-suscripciones-conversions-api">
 <meta property="og:locale" content="es_AR">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -93,8 +93,8 @@ footer .soc{display:inline-flex;gap:14px}
 footer .soc a{color:var(--ac);display:inline-flex;align-items:center;gap:6px;padding:0}
 @media(max-width:900px){.hero .wrap{grid-template-columns:1fr;gap:28px}.grid,.grid3,.otras{grid-template-columns:1fr}footer .cols{grid-template-columns:1fr 1fr}footer .cols>:first-child{grid-column:1/-1}.hero{padding:40px 0 28px}section{padding:44px 0}.wrap{padding:0 16px}}</style>
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Recurrentes","alternateName":"Recurrentes App","url":"https://www.recurrentesapp.com","applicationCategory":"BusinessApplication","operatingSystem":"Web","description":"Suscripciones con cobro recurrente por Mercado Pago para tiendas Shopify y Tiendanube en Argentina. Cada cobro genera la orden en la tienda automáticamente.","inLanguage":"es-AR","areaServed":{"@type":"Country","name":"Argentina"},"offers":{"@type":"Offer","price":"0","priceCurrency":"USD","description":"Gratis hasta 10 suscriptores activos. Desde USD 99 por mes, sin comisión por venta."},"publisher":{"@type":"Organization","name":"Recurrentes","url":"https://www.recurrentesapp.com","email":"soporte@recurrentesapp.com","logo":"https://www.recurrentesapp.com/icon-512.png","sameAs":["https://www.linkedin.com/company/recurrentes-app","https://www.instagram.com/recurrentes.app/"]}}</script>
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Recurrentes","item":"https://www.recurrentesapp.com/"},{"@type":"ListItem","position":2,"name":"Cómo vender por suscripción en tu ecommerce","item":"https://www.recurrentesapp.com/suscripciones-ecommerce"}]}</script>
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"¿Necesito cambiar de plataforma?","acceptedAnswer":{"@type":"Answer","text":"No. Funciona sobre tu Shopify o tu Tiendanube actual."}},{"@type":"Question","name":"¿Y si mi producto no se consume?","acceptedAnswer":{"@type":"Answer","text":"La suscripción no va a funcionar. Antes de armarla, mirá qué porcentaje de tus clientes ya te vuelve a comprar solo: si es menos del 10%, primero hay que trabajar la recompra."}}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Recurrentes","item":"https://www.recurrentesapp.com/"},{"@type":"ListItem","position":2,"name":"Tu pixel se entera de cada suscripción","item":"https://www.recurrentesapp.com/meta-ads-suscripciones-conversions-api"}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"¿Sirve con el pixel que ya tengo en Shopify?","acceptedAnswer":{"@type":"Answer","text":"Sí. Es el mismo pixel; Recurrentes le suma los eventos del checkout de suscripción, que Shopify no ve porque el checkout es nuestro."}},{"@type":"Question","name":"¿Se duplican los eventos con los del navegador?","acceptedAnswer":{"@type":"Answer","text":"No. Van con el mismo event_id y Meta se queda con uno."}},{"@type":"Question","name":"¿Y Google Ads?","acceptedAnswer":{"@type":"Answer","text":"Hoy los eventos van a Meta. Google Ads está en el radar."}}]}</script>
 </head>
 <body>
 <header><div class="wrap">
@@ -104,9 +104,9 @@ footer .soc a{color:var(--ac);display:inline-flex;align-items:center;gap:6px;pad
 
 <div class="hero"><div class="bg"></div><div class="wrap">
   <div>
-    <p class="eyebrow">Recurrentes · suscripciones para tu tienda</p>
-    <h1>Cómo vender por suscripción en tu ecommerce</h1>
-    <p class="lead">Si tus clientes te vuelven a comprar el mismo producto cada mes o cada dos, estás pagando publicidad dos veces por la misma venta. Una suscripción convierte esa recompra en algo que pasa solo. Esto es lo que hay que resolver para hacerlo en Argentina.</p>
+    <p class="eyebrow">Meta Ads</p>
+    <h1>Tu pixel se entera de cada suscripción</h1>
+    <p class="lead">Si vendés suscripciones con pauta, Meta tiene que saber cuándo alguien se suscribe, no solo cuándo compra una vez. Recurrentes le manda los eventos del checkout desde el servidor, así nada se pierde por bloqueadores ni por iOS.</p>
     <p style="margin-top:22px"><a class="cta big" href="/#/demo">Pedir una demo →</a></p>
     <div class="badges">
   <span class="badge"><i><img src="/brand/shopify-bag.svg" alt=""></i>Shopify <small>Partner</small></span>
@@ -119,10 +119,10 @@ footer .soc a{color:var(--ac);display:inline-flex;align-items:center;gap:6px;pad
 
 <section><div class="wrap">
   <div class="grid">
-    <div class="card"><span class="n">01</span><h3>Qué productos sirven</h3><p>Los que se consumen y se terminan en un plazo previsible: suplementos, café, cosmética, productos de limpieza, alimento para mascotas, higiene personal. La pregunta que ordena todo es cada cuánto se le acaba a tu cliente: esa es la frecuencia de la suscripción.</p></div>
-    <div class="card"><span class="n">02</span><h3>Qué descuento poner</h3><p>Entre 10% y 20% suele alcanzar. El cliente no se suscribe solo por el precio: se suscribe por no quedarse sin el producto. Un descuento más alto te come el margen sin mover la conversión, y encima te ata a venderle barato para siempre.</p></div>
-    <div class="card"><span class="n">03</span><h3>Cómo se cobra sin que hagas nada</h3><p>Con la suscripción de Mercado Pago. El cliente autoriza una vez el cobro recurrente y, en cada período, Mercado Pago le debita y avisa. Recurrentes escucha ese aviso y crea la orden en tu tienda, con dirección y envío, lista para despachar.</p></div>
-    <div class="card"><span class="n">04</span><h3>Qué mirar después</h3><p>Los tres números de una suscripción son cuántos se suman por mes, cuántos se van (churn) y cuánto factura cada uno antes de irse. Si se van más de los que entran, el problema casi nunca es el precio: es la frecuencia mal elegida o un producto que no se consume tan rápido como creías.</p></div>
+    <div class="card"><span class="n">01</span><h3>Tres eventos, del servidor</h3><p>AddToCart al abrir el checkout, InitiateCheckout al dejar el mail y Purchase al pagar, con el valor real del pack. Van por la Conversions API y también desde el navegador, deduplicados por event_id.</p></div>
+    <div class="card"><span class="n">02</span><h3>Optimizá por suscriptores</h3><p>Con Purchase bien reportado podés pedirle a Meta que optimice por compras de suscripción, que valen muchas veces más que una venta suelta.</p></div>
+    <div class="card"><span class="n">03</span><h3>Sin configurar nada raro</h3><p>Pegás el ID del pixel y el token en Integraciones. Listo. El resto lo hace Recurrentes en cada checkout.</p></div>
+    <div class="card"><span class="n">04</span><h3>Todo lo demás también</h3><p>Los mismos eventos alimentan tus públicos: quien dejó el carrito, quien pagó, quien canceló.</p></div>
   </div>
 </div></section>
 
@@ -146,8 +146,9 @@ footer .soc a{color:var(--ac);display:inline-flex;align-items:center;gap:6px;pad
 <section class="alt"><div class="wrap narrow">
   <p class="eyebrow">Preguntas frecuentes</p>
   <h2 style="margin-bottom:22px">Lo que todos preguntan</h2>
-  <details open><summary>¿Necesito cambiar de plataforma?</summary><p>No. Funciona sobre tu Shopify o tu Tiendanube actual.</p></details>
-  <details><summary>¿Y si mi producto no se consume?</summary><p>La suscripción no va a funcionar. Antes de armarla, mirá qué porcentaje de tus clientes ya te vuelve a comprar solo: si es menos del 10%, primero hay que trabajar la recompra.</p></details>
+  <details open><summary>¿Sirve con el pixel que ya tengo en Shopify?</summary><p>Sí. Es el mismo pixel; Recurrentes le suma los eventos del checkout de suscripción, que Shopify no ve porque el checkout es nuestro.</p></details>
+  <details><summary>¿Se duplican los eventos con los del navegador?</summary><p>No. Van con el mismo event_id y Meta se queda con uno.</p></details>
+  <details><summary>¿Y Google Ads?</summary><p>Hoy los eventos van a Meta. Google Ads está en el radar.</p></details>
 </div></section>
 
 <section><div class="wrap">
@@ -155,13 +156,13 @@ footer .soc a{color:var(--ac);display:inline-flex;align-items:center;gap:6px;pad
   <div class="otras">
     <a href="/suscripciones-shopify">Suscripciones en Shopify, cobrando con Mercado Pago</a>
     <a href="/suscripciones-tiendanube">Suscripciones en Tiendanube, con Mercado Pago</a>
+    <a href="/suscripciones-ecommerce">Cómo vender por suscripción en tu ecommerce</a>
     <a href="/alternativa-a-puentify">¿Buscás una alternativa a Puentify?</a>
     <a href="/suscripciones-mercado-pago">Suscripciones con Mercado Pago</a>
     <a href="/cobro-recurrente-mercado-pago">Cómo funciona el cobro recurrente de Mercado Pago</a>
     <a href="/debito-automatico-para-mi-tienda">Débito automático para tu tienda online</a>
     <a href="/shopify-suscripciones-mercado-pago">Shopify + suscripciones + Mercado Pago</a>
     <a href="/tiendanube-suscripciones-mercado-pago">Tiendanube + suscripciones + Mercado Pago</a>
-    <a href="/suscripciones-argentina">Suscripciones en Argentina: el panorama real</a>
   </div>
 </div></section>
 
