@@ -136,7 +136,7 @@ test("si rebota en el reintento, también se lo decimos (no lo mandamos a MP cal
   const r = await post(body({ card_token_id: "tok_malo" }));
   assert.equal(r.body.reused, true);
   assert.equal(r.body.card_declined, true);
-  assert.match(r.body.card_error, /banco de tu tarjeta/i);
+  assert.match(r.body.card_error, /Esperá un minuto/i);
   assert.ok(r.body.init_point, "y le queda Mercado Pago como salida");
 });
 
@@ -147,7 +147,7 @@ test("MP rechaza la tarjeta: se le DICE por qué y le queda Mercado Pago como sa
   assert.equal(r.statusCode, 200, "la respuesta es 200: el comprador tiene por dónde seguir");
   assert.equal(r.body.authorized, undefined, "no mentimos: no quedó autorizada");
   assert.equal(r.body.card_declined, true, "el checkout se entera de que rebotó");
-  assert.match(r.body.card_error, /banco de tu tarjeta/i, "y le dice el motivo, no 'error 400'");
+  assert.match(r.body.card_error, /Esperá un minuto/i, "le dice que espere: reintentar al toque lo vuelve a rechazar");
   assert.match(r.body.card_error, /otra tarjeta|Mercado Pago/i, "siempre con una salida");
   assert.ok(!/CC_VAL|HTTP 400|preapproval/.test(r.body.card_error), "sin códigos internos de MP");
   assert.ok(/mercadopago\.com/.test(r.body.init_point), "le queda el checkout de MP");
@@ -264,7 +264,7 @@ test("el panel dice POR QUÉ rebotó, corto y en tercera persona", () => {
   // El carrito abandonado porque reboto la tarjeta no es lo mismo que el que se
   // fue solo: a ese cliente lo podés llamar.
   const crudo = 'MP POST /preapproval: HTTP 400 CC_VAL_433 Credit card validation has failed — {"message":"CC_VAL_433..."}';
-  assert.equal(mpDeclineReason(crudo), "El banco de la tarjeta la rechazó");
+  assert.equal(mpDeclineReason(crudo), "Rechazada por riesgo (Mercado Pago)");
   assert.equal(mpDeclineReason("cc_rejected_insufficient_amount"), "Sin fondos");
   assert.equal(mpDeclineReason("cc_rejected_call_for_authorize"), "El banco pidió autorizarla");
   assert.equal(mpDeclineReason("algo raro"), "Rechazada por Mercado Pago");
