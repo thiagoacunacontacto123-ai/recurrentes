@@ -97,7 +97,10 @@ export function MotionStyle({ T }) {
       @media(max-width:900px){
         .lm-arena{grid-template-columns:1.1fr 1fr 1fr;}
         .lm-arena .lm-arena-oth:not(.pick){display:none!important;}
-        .lm-arena-vs{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:16px;}
+        .lm-arena-vs{display:flex;gap:5px;flex-wrap:nowrap;justify-content:center;margin-bottom:16px;overflow-x:auto;scrollbar-width:none;padding:0 2px;}
+        .lm-arena-vs::-webkit-scrollbar{display:none;}
+        .lm-arena-pill{font-size:11.5px;padding:7px 9px;white-space:nowrap;flex:0 0 auto;letter-spacing:-.1px;}
+        .lm-arena-pill .lm-vs{display:none;}
         .lm-arena-c{min-height:0;padding:12px 10px;font-size:12.5px;}
       }
       .lm-arena-pill{font-family:${F};font-size:12.5px;font-weight:700;padding:7px 12px;border-radius:99px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:#cfe3da;cursor:pointer;}
@@ -1078,7 +1081,7 @@ export function ComparisonArena({ T, onDemo }) {
           <h2 className="lm-h2" style={{ color: "#fff" }}>Lo mismo, sin comisión<br/>y con más funciones</h2>
           <p className="lm-sub" style={{ margin: "0 auto", color: "#A9C3B9" }}>Fácil Uno, Reval, Puentify, Recharge y Orquesty cobran un porcentaje de cada venta, además del abono. Nosotros no. Datos públicos de cada uno.</p>
         </div>
-        <div className="lm-arena-vs">{oth.map((c, k) => <button key={c.key} type="button" className={"lm-arena-pill " + (pick === k + 1 ? "on" : "")} onClick={() => setPick(k + 1)}>vs {c.title}</button>)}</div>
+        <div className="lm-arena-vs">{oth.map((c, k) => <button key={c.key} type="button" className={"lm-arena-pill " + (pick === k + 1 ? "on" : "")} onClick={() => setPick(k + 1)}><span className="lm-vs">vs </span>{c.title}</button>)}</div>
         <div className="lm-arena" data-reveal="rise">
           <div className="lm-arena-h" style={{ color: "#8fa69c", fontSize: 11, letterSpacing: .6, textTransform: "uppercase", alignSelf: "end" }}>Qué mirar</div>
           <div className="lm-arena-h lm-arena-rec" style={{ color: "#fff", display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}><RecLogoMini/> Recurrentes</div>
