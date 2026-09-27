@@ -743,8 +743,9 @@ export function BigFooter({ T, onGo, onRegister, darkMode, onToggleDark }) {
             </div>
           ))}
         </div>
-        <div style={{borderTop:`1px solid ${T.border}`,marginTop:32,paddingTop:18,fontSize:12,color:T.textSm,display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-          <span>© {new Date().getFullYear()} Recurrentes · Desarrollado y codeado con <span aria-label="amor" style={{color:T.accent}}>♥</span> en Buenos Aires, Argentina</span>
+        <div className="ls-foot-bottom" style={{borderTop:`1px solid ${T.border}`,marginTop:32,paddingTop:18,fontSize:12,color:T.textSm,display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+          <span>© {new Date().getFullYear()} Recurrentes · Desarrollado y <br className="rec-foot-br"/>codeado con <span aria-label="amor" style={{color:T.accent}}>♥</span> en Buenos Aires, Argentina</span>
+          <style>{`.rec-foot-br{display:none} @media(max-width:640px){.rec-foot-br{display:inline} .ls-foot-bottom{padding-right:72px;padding-bottom:10px}}`}</style>
           <span style={{display:"inline-flex",gap:16,alignItems:"center"}}>
             {SOCIAL.map(([label, href, path]) => (
               <a key={label} href={href} aria-label={label} title={label} {...(href.startsWith("http") ? { target:"_blank", rel:"noreferrer" } : {})} style={{color:T.accent,display:"inline-flex",alignItems:"center",gap:6,textDecoration:"none",fontSize:12}}>
