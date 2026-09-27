@@ -79,6 +79,7 @@ const LIST_FIELDS = [
   "created_at", "is_store", "ownerUid", "deleted", "teamUids", "archived_at", "internal", "ownerEmail",
   "plan", "plan_activated", "plan_activated_at", "plan_requested", "plan_requested_at",
   "legacy_pricing", "pricing_note",   // descuento de por vida (Admin → tarjeta del comercio)
+  "mp_checkout_api", "mp_public_key", // tarjeta dentro del checkout: prendido + si puede
   "billing_cache", "business_type", "channel", "payment_provider",
   "shopify_token", "mp_access_token", "mp_email", "klaviyo_api_key", "flows_enabled", "flows_active_triggers",
   "dev_mode", "analytics_cache.data.mrr",
@@ -255,6 +256,10 @@ function rowOf(m, s, ownerEmails = {}) {
     // Descuento de por vida que le prometimos a mano (0 = precio de lista).
     discount_pct: discountPct(m),
     pricing_note: m.pricing_note || null,
+    // Tarjeta adentro del checkout (Checkout API de MP). `puede` = tiene la
+    // public key, que solo deja el OAuth de Mercado Pago.
+    card_checkout: m.mp_checkout_api === true,
+    card_checkout_ready: typeof m.mp_public_key === "string" && m.mp_public_key.length > 10,
     tier_usd: billing.plan_usd,
     tier_label: billing.plan_label,
     // Próximo pago a Recurrentes: cada 30 días desde el PRIMER pago (la activación
@@ -542,6 +547,24 @@ async function existingMerchant(req, res) {
   return { id, ref, m: snap.data() || {} };
 }
 
+// Prender/apagar la tarjeta adentro del checkout de una tienda, sin tener que
+// entrar como ella (27-sept-2026, Thiago: "pasá todos esos checkouts").
+// Exige la public key igual que el panel del comercio: sin ella el formulario no
+// se puede pintar y el interruptor quedaría mintiendo.
+async function setCardCheckout(admin, req, res) {
+  const quiere = req.body?.on === true;
+  const t = await existingMerchant(req, res);
+  if (!t) return;
+  const { id, ref, m } = t;
+  if (quiere && !m.mp_public_key) {
+    return res.status(400).json({ error: "Esa tienda no tiene la Public Key de Mercado Pago: tiene que reconectar MP (el token pegado a mano no la trae)." });
+  }
+  await ref.set({ mp_checkout_api: quiere }, { merge: true });
+  await audit(admin, "set_card_checkout", id, { to: quiere });
+  _cache = null;
+  return res.json({ ok: true, card_checkout: quiere });
+}
+
 // Descuento de POR VIDA sobre el precio de lista de cualquier tramo. Thiago se
 // lo promete a mano a algunos comercios (a Glow Derm, 50% para siempre) y hasta
 // hoy no había forma de dejarlo cargado: se guarda en el mismo `legacy_pricing`
@@ -781,6 +804,7 @@ export async function adminHandler(req, res) {
     } else if (req.method === "POST") {
       if (action === "admin-set-plan") return await setPlan(admin, req, res);
       if (action === "admin-set-pricing") return await setPricing(admin, req, res);
+      if (action === "admin-set-card-checkout") return await setCardCheckout(admin, req, res);
       // Crea en Meta las plantillas que faltan (quedan en revisión).
       if (action === "admin-wa-templates-sync") return res.json(await (await import("./waTemplates.js")).syncPlatformTemplates());
       // Registra el número de Recurrentes en la Cloud API (paso que WhatsApp Manager no hace:

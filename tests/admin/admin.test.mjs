@@ -358,5 +358,32 @@ put("merchants/old", { email: "old@x.com", created_at: ago(35), plan: "free" });
   ok(w("abc") === null && w("") === null, "vacío o inválido → null");
 }
 
+// ─── 9) Precio de por vida y tarjeta en el checkout, desde la ficha ──────────
+{
+  // Descuento que Thiago promete a mano (a Glow Derm, 50% para siempre).
+  let r = await call(stats, { method: "POST", query: { action: "admin-set-pricing" }, body: { merchant_id: "newbie", discount_pct: 50, note: "se lo prometí en la llamada" }, token: "t-admin" });
+  ok(r.status === 200 && doc("merchants/newbie").legacy_pricing === 0.5, "50% → paga la mitad de cualquier tramo", r);
+  ok(doc("merchants/newbie").pricing_note === "se lo prometí en la llamada", "queda el motivo, para acordarse");
+
+  r = await call(stats, { method: "POST", query: { action: "admin-set-pricing" }, body: { merchant_id: "newbie", discount_pct: 95 }, token: "t-admin" });
+  ok(r.status === 400 && doc("merchants/newbie").legacy_pricing === 0.5, "95% → 400 y no toca nada (para eso está beta)", r);
+
+  r = await call(stats, { method: "POST", query: { action: "admin-set-pricing" }, body: { merchant_id: "newbie", discount_pct: 0 }, token: "t-admin" });
+  ok(r.status === 200 && !doc("merchants/newbie").legacy_pricing, "0 → vuelve a precio de lista", r);
+
+  r = await call(stats, { method: "POST", query: { action: "admin-set-pricing" }, body: { merchant_id: "newbie", discount_pct: 50 }, token: "t-lumina" });
+  ok(r.status === 403, "un comercio común no se hace descuentos a sí mismo");
+
+  // Tarjeta adentro del checkout: sin public key no se puede prender.
+  r = await call(stats, { method: "POST", query: { action: "admin-set-card-checkout" }, body: { merchant_id: "newbie", on: true }, token: "t-admin" });
+  ok(r.status === 400 && doc("merchants/newbie").mp_checkout_api !== true, "sin Public Key → 400 y queda apagada", r);
+
+  put("merchants/conpk", { email: "pk@x.com", created_at: ago(5), mp_public_key: "APP_USR-0000aaaa-1111-2222-3333-444455556666" });
+  r = await call(stats, { method: "POST", query: { action: "admin-set-card-checkout" }, body: { merchant_id: "conpk", on: true }, token: "t-admin" });
+  ok(r.status === 200 && doc("merchants/conpk").mp_checkout_api === true, "con Public Key → prendida", r);
+  r = await call(stats, { method: "POST", query: { action: "admin-set-card-checkout" }, body: { merchant_id: "conpk", on: false }, token: "t-admin" });
+  ok(r.status === 200 && doc("merchants/conpk").mp_checkout_api === false, "apagar siempre se puede", r);
+}
+
 console.log(fails ? `\n${fails} test(s) fallaron` : "\nTodo OK");
 process.exit(fails ? 1 : 0);

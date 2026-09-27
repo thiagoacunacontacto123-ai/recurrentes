@@ -9,7 +9,7 @@ import { FREE_SUBSCRIBERS } from "../../shared/platform/pricing.js";
 import ReactDOM from "react-dom";
 import { apiGet, apiPost, getAdminAs, setAdminAs } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
-import { Btn, DSBadge, DSTable, PageHeader, Callout, Loading, InputStyle, CellStack, toast, appConfirm } from "../ui/components.jsx";
+import { Btn, DSBadge, DSTable, DSToggle, PageHeader, Callout, Loading, InputStyle, CellStack, Spinner, toast, appConfirm } from "../ui/components.jsx";
 import { KpiCard, Segmented, Panel, BarList, AreaChart } from "../ui/charts.jsx";
 import { MONO, fmtARS, fmtAgo, fmtDateOnly, fmtDateTime, copyText } from "./_shared.jsx";
 import { CHANNELS, PAYMENT_PROVIDERS, BUSINESS_TYPES } from "../../shared/platform/profile.js";
@@ -659,6 +659,8 @@ function MerchantPanel({ id, onClose, onChanged }) {
   const [err, setErr] = useState("");
   const [plan, setPlan] = useState("none");
   const [note, setNote] = useState("");
+  const [disc, setDisc] = useState("0");
+  const [discNote, setDiscNote] = useState("");
   const [busy, setBusy] = useState("");
 
   const load = useCallback(async () => {
@@ -666,6 +668,8 @@ function MerchantPanel({ id, onClose, onChanged }) {
     if (!r || r.error) { setErr(r?.error || "No pudimos cargar el comercio."); return; }
     setErr(""); setD(r);
     setPlan(r.merchant.plan_activated || (r.merchant.beta ? "beta" : "none"));
+    setDisc(String(r.merchant.discount_pct || 0));
+    setDiscNote(r.merchant.pricing_note || "");
   }, [id]);
   useEffect(() => { setD(null); setErr(""); load(); }, [load]);
   useEffect(() => {
@@ -692,6 +696,27 @@ function MerchantPanel({ id, onClose, onChanged }) {
     } catch (e) { toast(e.message, "error"); }
     finally { setBusy(""); }
   }
+  // Descuento de por vida: se aplica a cualquier tramo, hoy y cuando crezca.
+  // Si ya está pagando, el cron de Stripe le baja el precio en <24 h.
+  async function saveDiscount() {
+    setBusy("discount");
+    try {
+      const r = await apiPost("stats", { merchant_id: id, discount_pct: Number(disc), note: discNote.trim() }, { action: "admin-set-pricing" });
+      if (!r || r.error) throw new Error(r?.error || "No se pudo guardar");
+      toast(Number(disc) > 0 ? `${r.discount_pct}% de descuento de por vida` : "Vuelve a precio de lista", "success");
+      await load(); onChanged?.();
+    } catch (e) { toast(e.message, "error", 7000); }
+    finally { setBusy(""); }
+  }
+  async function toggleCardCheckout(on) {
+    setBusy("card");
+    const r = await apiPost("stats", { merchant_id: id, on }, { action: "admin-set-card-checkout" });
+    setBusy("");
+    if (!r || r.error) return toast(r?.error || "No se pudo guardar", "error", 7000);
+    toast(on ? "Tarjeta prendida en su checkout" : "Vuelve a pagar solo en Mercado Pago", on ? "success" : "warning");
+    await load(); onChanged?.();
+  }
+
   async function saveNote() {
     if (!note.trim()) return;
     setBusy("note");
@@ -827,6 +852,38 @@ function MerchantPanel({ id, onClose, onChanged }) {
                     {PLAN_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                   </select>
                   <Btn T={T} variant="primary" size="sm" disabled={busy === "plan"} onClick={savePlan}>{busy === "plan" ? "Guardando…" : "Guardar plan"}</Btn>
+                </div>
+              </Section>
+
+              <Section T={T} title="Precio y checkout">
+                <Row T={T} k="Descuento de por vida">{m.discount_pct ? `${m.discount_pct}% · paga el ${100 - m.discount_pct}% de cada tramo` : "—  (precio de lista)"}</Row>
+                {m.pricing_note && <Row T={T} k="Motivo">{m.pricing_note}</Row>}
+                <div style={{ display:"flex", gap:8, marginTop:8, alignItems:"center", flexWrap:"wrap" }}>
+                  <input type="number" min={0} max={90} value={disc} onChange={e => setDisc(e.target.value)} aria-label="Descuento en por ciento"
+                    style={{ ...InputStyle(T), width:90, padding:"8px 10px", fontSize:12.5 }}/>
+                  <span style={{ fontSize:12.5, color:T.textSm }}>%</span>
+                  <input value={discNote} onChange={e => setDiscNote(e.target.value)} maxLength={200} placeholder="Motivo (ej: se lo prometí en la llamada)"
+                    style={{ ...InputStyle(T), flex:"1 1 180px", padding:"8px 10px", fontSize:12.5 }}/>
+                  <Btn T={T} variant="primary" size="sm" disabled={busy === "discount"} onClick={saveDiscount}>{busy === "discount" ? "Guardando…" : "Guardar"}</Btn>
+                </div>
+                <div style={{ fontSize:11.5, color:T.textSm, marginTop:6, lineHeight:1.5 }}>
+                  Vale para cualquier tramo, ahora y cuando crezca. 0 vuelve a precio de lista. Si ya está pagando, Stripe le baja el precio dentro de las 24 h.
+                </div>
+
+                <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:14, paddingTop:12, borderTop:`1px solid ${T.borderL}`, flexWrap:"wrap" }}>
+                  <div style={{ flex:"1 1 220px", minWidth:0 }}>
+                    <div style={{ fontSize:12.5, fontWeight:700, color:T.text }}>Tarjeta adentro del checkout</div>
+                    <div style={{ fontSize:11.5, color:T.textSm, marginTop:2, lineHeight:1.5 }}>
+                      {m.card_checkout_ready
+                        ? "Pone la tarjeta sin salir del checkout. La opción de pagar con la cuenta de Mercado Pago le sigue apareciendo abajo."
+                        : "No se puede: esta tienda no tiene la Public Key de Mercado Pago. Tiene que reconectar MP."}
+                    </div>
+                  </div>
+                  {busy === "card"
+                    ? <Spinner size={14} color={T.textMd}/>
+                    : m.card_checkout_ready
+                      ? <DSToggle T={T} active={!!m.card_checkout} onToggle={() => toggleCardCheckout(!m.card_checkout)}/>
+                      : <span style={{ fontSize:11, fontWeight:700, color:T.textSm, background:T.textSm + "18", borderRadius:99, padding:"3px 9px" }}>sin clave</span>}
                 </div>
               </Section>
 
