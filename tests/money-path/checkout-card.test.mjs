@@ -110,6 +110,36 @@ test("sin Device ID (navegador que no lo dejó) se manda igual, sin el header", 
   assert.equal(r.body.authorized, true, "se crea igual: el header ayuda, no es obligatorio");
 });
 
+test("el que vuelve con la MISMA compra también paga con tarjeta (no se va a MP)", async () => {
+  // El atajo de "misma compra" reusa el plan ad-hoc y devolvía el init_point
+  // viejo sin tocar la tarjeta: el comprador que se equivocaba en un número y
+  // reintentaba terminaba en Mercado Pago igual (27-sept-2026, Thiago).
+  tiendaConTarjeta();
+  const uno = await post(body());                       // primer intento, eligió MP
+  assert.equal(uno.statusCode, 200, JSON.stringify(uno.body));
+  assert.equal(W.mp.plansCreated.length, 1);
+
+  const dos = await post(body({ card_token_id: "tok_abc123" }));   // vuelve, ahora con tarjeta
+  assert.equal(dos.statusCode, 200, JSON.stringify(dos.body));
+  assert.equal(dos.body.reused, true, "efectivamente tomó el atajo");
+  assert.equal(W.mp.plansCreated.length, 1, "no crea otro plan ad-hoc");
+  assert.equal(dos.body.authorized, true, "pero SÍ le cobró con la tarjeta");
+  assert.equal(W.mp.preapprovalsCreated.length, 1);
+  assert.equal(W.mp.preapprovalsCreated[0].body.preapproval_plan_id, uno.body.preapproval_plan_id, "contra el plan que ya existía");
+  assert.equal(rawGet(`merchants/${MID}/subscribers/${dos.body.subscriber_id}`).mp_preapproval_id, dos.body.preapproval_id);
+});
+
+test("si rebota en el reintento, también se lo decimos (no lo mandamos a MP callados)", async () => {
+  tiendaConTarjeta();
+  await post(body());
+  W.mp.rejectCardToken = true;
+  const r = await post(body({ card_token_id: "tok_malo" }));
+  assert.equal(r.body.reused, true);
+  assert.equal(r.body.card_declined, true);
+  assert.match(r.body.card_error, /por seguridad/i);
+  assert.ok(r.body.init_point, "y le queda Mercado Pago como salida");
+});
+
 test("MP rechaza la tarjeta: se le DICE por qué y le queda Mercado Pago como salida", async () => {
   tiendaConTarjeta();
   W.mp.rejectCardToken = true;   // CC_VAL_433: el antifraude de MP

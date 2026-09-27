@@ -862,6 +862,53 @@ export default async function handler(req, res) {
     });
   }
 
+  // ─── Tarjeta en NUESTRO checkout (Checkout API de MP) ────────────────────
+  // Detrás de bandera por tienda (`mp_checkout_api`), apagada por defecto.
+  // El navegador tokenizó la tarjeta con la public key de la tienda y nos mandó
+  // el `card_token_id`; con eso creamos el preapproval YA AUTORIZADO contra el
+  // plan ad-hoc. De ahí para abajo no cambia nada: el webhook, el cron, la
+  // conciliación y la orden siguen resolviendo por mp_preapproval_plan_id /
+  // external_reference igual que siempre.
+  //
+  // Mandamos el body mínimo del flujo "con plan asociado": el monto, la
+  // frecuencia y el back_url ya viven en el plan; repetirlos es pedirle a MP
+  // que los cruce y falle.
+  //
+  // Acá SÍ va payer_email (el flujo con redirección lo omite a propósito,
+  // porque MP exige que coincida con la cuenta con la que se loguea el
+  // cliente). Con tarjeta no hay login: el mail es simplemente el del comprador.
+  //
+  // Es una función porque hay DOS caminos que tienen que pasar por acá: el plan
+  // recién creado y el que se reusa cuando el comprador vuelve con la misma
+  // compra. Cuando esto vivía solo en el primero, el que reintentaba se iba
+  // derecho a Mercado Pago sin que le tomáramos la tarjeta (27-sept-2026).
+  const cobrarConTarjeta = async (planId) => {
+    if (merchant.mp_checkout_api !== true || !cardTokenId || !planId) return { authorized: null, cardDeclined: null };
+    try {
+      const pre = await mpCreatePreapproval(merchant.mp_access_token, {
+        preapproval_plan_id: planId,
+        card_token_id: cardTokenId,
+        payer_email: email,
+        external_reference: `${merchantId}:${subscriberId}`,
+        status: "authorized",
+      }, { deviceId });
+      if (pre && pre.id) {
+        await subRef.update({ mp_preapproval_id: pre.id, mp_paid_with_card_form: true });
+        return { authorized: pre, cardDeclined: null };
+      }
+      return { authorized: null, cardDeclined: null };
+    } catch (e) {
+      // No lo guardamos en `mp_last_error` del merchant: casi siempre es la
+      // tarjeta del comprador, no un problema de la tienda, y le llenaría el
+      // panel de alertas falsas. Sí queda en el SUSCRIPTOR, si no no hay forma
+      // de saber por qué MP dijo que no.
+      const detalle = e?.message || String(e);
+      console.error("[checkout/init] preapproval con tarjeta falló:", { merchantId, subscriberId, detail: detalle });
+      await subRef.update({ mp_card_error: String(detalle).slice(0, 500), mp_card_error_at: new Date().toISOString() }).catch(() => {});
+      return { authorized: null, cardDeclined: mpCardErrorText(e) };
+    }
+  };
+
   // Si reusamos una sub real con el MISMO monto y frecuencia, reusamos también su
   // plan MP (no creamos otro).
   const prevPlanId = existing?.mp_preapproval_plan_id || null;
@@ -872,6 +919,7 @@ export default async function handler(req, res) {
     && (existing?.plan_snapshot?.pack_index ?? null) === (pack ? pack.idx : null));
   if (sameCharge) {
     await subRef.update({ portal_token: portalToken });
+    const reuso = await cobrarConTarjeta(prevPlanId);
     await trackCheckoutStarted(merchantId, merchant, subRef, { ...subData, portal_token: portalToken, mp_init_point: existing.mp_init_point }, existing, { stage: "checkout", plan, blocking: hasBlocking });
     return res.json({
       ok: true,
@@ -880,6 +928,8 @@ export default async function handler(req, res) {
       preapproval_plan_id: prevPlanId,
       portal_token: portalToken,
       reused: true,
+      ...(reuso.authorized ? { authorized: true, preapproval_id: reuso.authorized.id } : {}),
+      ...(reuso.cardDeclined ? { card_declined: true, card_error: reuso.cardDeclined } : {}),
     });
   }
 
@@ -952,53 +1002,7 @@ export default async function handler(req, res) {
     ...(prevPlanId && prevPlanId !== preapprovalPlan.id ? { mp_preapproval_plan_id_prev: prevPlanId } : {}),
   });
 
-  // ─── Tarjeta en NUESTRO checkout (Checkout API de MP) ────────────────────
-  // Detrás de bandera por tienda (`mp_checkout_api`), apagada por defecto.
-  // El navegador tokenizó la tarjeta con la public key de la tienda y nos mandó
-  // el `card_token_id`; con eso creamos el preapproval YA AUTORIZADO contra el
-  // MISMO plan ad-hoc de arriba. De ahí para abajo no cambia nada: el webhook,
-  // el cron, la conciliación y la orden siguen resolviendo por
-  // mp_preapproval_plan_id / external_reference igual que siempre.
-  //
-  // Mandamos el body mínimo del flujo "con plan asociado": el monto, la
-  // frecuencia y el back_url ya viven en el plan; repetirlos es pedirle a MP
-  // que los cruce y falle.
-  //
-  // Acá SÍ va payer_email (el flujo con redirección lo omite a propósito,
-  // porque MP exige que coincida con la cuenta con la que se loguea el
-  // cliente). Con tarjeta no hay login: el mail es simplemente el del comprador.
-  //
-  // REGLA: si esto falla por lo que sea (tarjeta de débito que MP no toma,
-  // token vencido, fondos, MP caído) NO se le corta la compra a nadie —
-  // devolvemos el init_point de siempre y paga en Mercado Pago como hasta hoy.
-  let authorized = null, cardDeclined = null;
-  if (merchant.mp_checkout_api === true && cardTokenId) {
-    try {
-      const pre = await mpCreatePreapproval(merchant.mp_access_token, {
-        preapproval_plan_id: preapprovalPlan.id,
-        card_token_id: cardTokenId,
-        payer_email: email,
-        external_reference: `${merchantId}:${subscriberId}`,
-        status: "authorized",
-      }, { deviceId });
-      if (pre && pre.id) {
-        authorized = pre;
-        await subRef.update({ mp_preapproval_id: pre.id, mp_paid_with_card_form: true });
-      }
-    } catch (e) {
-      // Se loguea y se sigue por el camino de siempre. No lo guardamos en
-      // `mp_last_error` del merchant: casi siempre es la tarjeta del comprador,
-      // no un problema de la tienda, y le llenaría el panel de alertas falsas.
-      //
-      // Sí queda en el SUSCRIPTOR: sin esto el respaldo es mudo y no hay forma
-      // de saber por qué MP dijo que no (el comprador solo ve que lo mandamos a
-      // Mercado Pago). No se muestra en ningún lado del panel ni del checkout.
-      const detalle = e?.message || String(e);
-      cardDeclined = mpCardErrorText(e);
-      console.error("[checkout/init] preapproval con tarjeta falló:", { merchantId, subscriberId, detail: detalle });
-      await subRef.update({ mp_card_error: String(detalle).slice(0, 500), mp_card_error_at: new Date().toISOString() }).catch(() => {});
-    }
-  }
+  const { authorized, cardDeclined } = await cobrarConTarjeta(preapprovalPlan.id);
 
   // Meta "pago iniciado" (InitiateCheckout): si el lead ya lo mandó al dejar el mail,
   // lleva el mismo event_id y Meta lo deduplica. El "Purchase" sale server-side
