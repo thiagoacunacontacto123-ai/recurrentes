@@ -1290,7 +1290,9 @@ function Shot({ T, title }) {
         <span style={{ display: "inline-flex", gap: 5 }}>{["#ff5f57", "#febc2e", "#28c840"].map(x => <i key={x} style={{ width: 8, height: 8, borderRadius: 99, background: x, display: "block" }}/>)}</span>
         <span style={{ fontSize: 11.5, color: T.textSm, marginLeft: 4, fontFamily: MONO }}>recurrentesapp.com · {title}</span>
       </div>
-      <img src={PANEL_SHOTS[title]} alt={title} loading="lazy" style={{ display: "block", width: "100%" }}/>
+      {/* Alto fijo y recorte arriba: todas las tarjetas miden lo mismo y el bloque se centra bien
+          (con alto variable y carga diferida, el sticky se medía antes de que llegara la imagen). */}
+      <img src={PANEL_SHOTS[title]} alt={title} style={{ display: "block", width: "100%", aspectRatio: "16 / 9.4", objectFit: "cover", objectPosition: "top left" }}/>
     </div>
   );
 }

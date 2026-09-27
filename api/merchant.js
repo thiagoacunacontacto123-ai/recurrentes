@@ -207,6 +207,10 @@ export default async function handler(req, res) {
         // Tema del checkout hosteado: lo guardado (parcial) + el resuelto para la vista previa.
         checkout_theme: (merchant.checkout_theme && typeof merchant.checkout_theme === "object") ? merchant.checkout_theme : null,
         checkout_upsells: Array.isArray(merchant.checkout_upsells) ? merchant.checkout_upsells : [],
+        // Cobrar con tarjeta dentro de nuestro checkout: prendido, y si la tienda
+        // tiene la public key (sin ella el interruptor no se puede prender).
+        mp_checkout_api: merchant.mp_checkout_api === true,
+        mp_has_public_key: typeof merchant.mp_public_key === "string" && merchant.mp_public_key.length > 10,
         checkout_theme_resolved: resolveCheckoutTheme(merchant.checkout_theme, { widgetColor: merchant.widget_color }),
         // "templates" (diseñador) | "custom" (desarrollo a medida). Vacío = según la cuenta.
         widget_source: merchant.widget_source || "",
@@ -821,6 +825,15 @@ async function saveSettings(merchantId, req, res) {
     if (b.checkout_upsells != null && !Array.isArray(b.checkout_upsells)) return bad("checkout_upsells debe ser una lista");
     const ids = [...new Set((b.checkout_upsells || []).map(x => String(x || "").trim()).filter(x => /^[A-Za-z0-9_-]{4,64}$/.test(x)))].slice(0, 4);
     out.checkout_upsells = ids;
+  }
+  // Formulario de tarjeta en el checkout propio (Checkout API de MP). Solo el
+  // dueño, solo con MP conectado por OAuth (es de ahí que sale la public key: el
+  // token pegado a mano no la trae). Sin public key el interruptor no hace nada,
+  // así que lo rechazamos con un texto que dice qué hacer.
+  if ("mp_checkout_api" in b) {
+    const quiere = b.mp_checkout_api === true;
+    if (quiere && !(await getCur()).mp_public_key) return bad("Para cobrar con tarjeta en tu checkout necesitamos la Public Key de Mercado Pago. Reconectá Mercado Pago desde Integraciones y queda cargada sola.");
+    out.mp_checkout_api = quiere;
   }
   if ("cart_settings" in b) {
     const r = sanitizeCartSettings(b.cart_settings);
