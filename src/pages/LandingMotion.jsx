@@ -114,7 +114,7 @@ export function MotionStyle({ T }) {
         @keyframes lmFloat{from{transform:translateY(28px)}to{transform:translateY(-28px)}}
       }
       /* ── Bloque fijo manejado por el scroll (desktop) ── */
-      .lm-pin{position:relative;}
+      .lm-pin{position:relative;overflow-x:clip;}
       .lm-pin-inner{position:sticky;top:0;height:100vh;height:100svh;display:flex;flex-direction:column;justify-content:center;overflow:hidden;box-sizing:border-box;padding:48px 0;}
       /* Bloque clavado que mide lo que su contenido (el top lo pone JS para centrarlo). */
       .lm-pin-inner.lm-pin-fit{height:auto;overflow:visible;}
@@ -143,6 +143,8 @@ export function MotionStyle({ T }) {
       /* ── Celular: nada fijo; carrusel con snap y todo apilado ── */
       @media(max-width:900px){
         .lm-pin:not(.lm-pin-all) .lm-pin-inner{position:static;height:auto;display:block;overflow:visible;}
+        .lm-pin-all .lm-track{transform:translateX(calc(var(--p,0) * var(--travel,0px)))!important;overflow:visible;scroll-snap-type:none;padding:4px 0 8px;margin:0;}
+        .lm-pin-all .lm-progress{display:block;width:100px!important;}
         .lm-pin-all .lm-pin-inner{justify-content:center;padding:12px 0!important;}
         .lm-stepper{grid-auto-flow:column;gap:4px!important;}
         .lm-stepper-n{width:28px;height:24px;font-size:10px;}
@@ -230,6 +232,22 @@ function useScrollProgress(ref, { enabled = true, steps = 0 } = {}) {
     window.addEventListener("resize", onScroll);
     return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); if (raf) cancelAnimationFrame(raf); };
   }, [ref, enabled, steps]);
+}
+
+// Bloque clavado que mide lo que su contenido: el `top` del sticky se calcula con
+// el alto real para que quede centrado en la pantalla (Thiago, 27-sept).
+function usePinFit(innerRef, enabled, dep) {
+  useEffect(() => {
+    if (!enabled) return;
+    const el = innerRef.current; if (!el) return;
+    let raf = 0;
+    const fit = () => { raf = 0; const h = el.offsetHeight, vh = window.innerHeight; el.style.top = Math.max(0, Math.round((vh - h) / 2)) + "px"; };
+    const onR = () => { if (!raf) raf = requestAnimationFrame(fit); };
+    fit();
+    const ro = "ResizeObserver" in window ? new ResizeObserver(onR) : null; ro?.observe(el);
+    window.addEventListener("resize", onR);
+    return () => { ro?.disconnect(); window.removeEventListener("resize", onR); if (raf) cancelAnimationFrame(raf); };
+  }, [innerRef, enabled, dep]);
 }
 
 function useMedia(query) {
@@ -527,14 +545,17 @@ function DesignCard({ T, d }) {
 }
 export function StickyDesigns({ T }) {
   const ref = useRef(null);
+  const innerRef = useRef(null);
   const desktop = useDesktop();
   const reduce = useReducedMotion();
-  useScrollProgress(ref, { enabled: desktop && !reduce });
+  const pinned = !reduce; // también en celular: pasa de derecha a izquierda mientras bajás
+  useScrollProgress(ref, { enabled: pinned });
+  usePinFit(innerRef, pinned);
   const n = DESIGNS.length;
   // Recorrido: el ancho del carril menos lo que entra en pantalla, en px de tarjeta.
   return (
-    <section id="rec-disenos" ref={ref} className="lm-pin" style={{ height: desktop && !reduce ? `${n * 70 + 60}vh` : "auto", background: T.surface, borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}` }}>
-      <div className="lm-pin-inner" style={{ padding: desktop ? 0 : "64px 0" }}>
+    <section id="rec-disenos" ref={ref} className="lm-pin lm-pin-all" style={{ height: pinned ? `${n * 70 + 60}vh` : "auto" }}>
+      <div ref={innerRef} className="lm-pin-inner lm-pin-fit" style={{ padding: pinned ? "24px 0" : "64px 0" }}>
         <div className="lm-wrap" style={{ width: "100%" }}>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 24, alignItems: "end", marginBottom: 26 }} data-reveal="tilt">
             <div>
@@ -545,7 +566,7 @@ export function StickyDesigns({ T }) {
             <div className="lm-progress" style={{ width: 160, marginBottom: 10 }}><i/></div>
           </div>
         </div>
-        <div className="lm-wrap" style={{ width: "100%", overflow: desktop ? "visible" : "hidden" }}>
+        <div className="lm-wrap" style={{ width: "100%", overflow: "visible" }}>
           {/* --travel: cuánto se corre el carril de punta a punta (lo que sobra del ancho) */}
           <div className="lm-track" style={{ "--travel": `calc(-1 * ((min(440px, 86vw) + 28px) * ${n} - 100%))`, alignItems: "flex-start" }}>
             {DESIGNS.map((d) => <DesignCard key={d.key} T={T} d={d}/>)}
@@ -888,17 +909,7 @@ function ScrollStack({ T, id, items, eyebrow, title, hideHead = false, panelMinH
   // con un hueco abajo) y se centra en la pantalla: el `top` del sticky se calcula
   // con el alto real del contenido.
   const innerRef = useRef(null);
-  useEffect(() => {
-    if (!pinned) return;
-    const el = innerRef.current; if (!el) return;
-    let raf = 0;
-    const fit = () => { raf = 0; const h = el.offsetHeight, vh = window.innerHeight; el.style.top = Math.max(0, Math.round((vh - h) / 2)) + "px"; };
-    const onR = () => { if (!raf) raf = requestAnimationFrame(fit); };
-    fit();
-    const ro = "ResizeObserver" in window ? new ResizeObserver(onR) : null; ro?.observe(el);
-    window.addEventListener("resize", onR);
-    return () => { ro?.disconnect(); window.removeEventListener("resize", onR); if (raf) cancelAnimationFrame(raf); };
-  }, [pinned, step]);
+  usePinFit(innerRef, pinned, step);
   // Thiago, 26-sept: "lo seleccionado debe quedar perfecto en el centro". Solo se
   // ve el paso activo (grande) con un stepper de números; el panel, al lado.
   return (
@@ -1015,13 +1026,15 @@ const TOUR = [
 export const PANEL_SHOTS = {};
 export function PanelTour({ T }) {
   const ref = useRef(null);
-  const desktop = useDesktop();
+  const innerRef = useRef(null);
   const reduce = useReducedMotion();
-  useScrollProgress(ref, { enabled: desktop && !reduce });
+  const pinned = !reduce;
+  useScrollProgress(ref, { enabled: pinned });
+  usePinFit(innerRef, pinned);
   const n = TOUR.length;
   return (
-    <section id="rec-panel" ref={ref} className="lm-pin" style={{ height: desktop && !reduce ? `${n * 60 + 40}vh` : "auto" }}>
-      <div className="lm-pin-inner" style={{ padding: desktop ? 0 : "72px 0 40px" }}>
+    <section id="rec-panel" ref={ref} className="lm-pin lm-pin-all" style={{ height: pinned ? `${n * 60 + 40}vh` : "auto" }}>
+      <div ref={innerRef} className="lm-pin-inner lm-pin-fit" style={{ padding: pinned ? "24px 0" : "72px 0 40px" }}>
         <div className="lm-wrap" style={{ width: "100%" }}>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 24, alignItems: "end", marginBottom: 22 }} data-reveal="flip">
             <div>
