@@ -558,35 +558,88 @@ function DesignCard({ T, d }) {
     </div>
   );
 }
+// Opción 2 de "Se adapta a tu tienda": la PÁGINA DE SUSCRIPCIÓN propia (Thiago,
+// 27-sept: "misma tienda, mismo producto, otra landing solo con el bundle de
+// suscripción, como hicimos con G4U"). Maqueta de tostado.ar/suscripcion.
+function SubLandingMock({ T }) {
+  const c = "#6b3f2a", cream = "#f6f1ea", ink = "#1f1511";
+  const merchant = useMemo(() => ({ widget_variant: "v13", widget_color: c, widget_radius: 12, widget_mode_default: "sub", widget_show_per_unit: true, widget_texts: { headline: "Elegí cuánto café querés por mes" } }), []);
+  const F2 = "'Inter',system-ui,sans-serif";
+  return (
+    <div className="lm-card" style={{ padding: 0, overflow: "hidden", boxShadow: "0 30px 70px -30px rgba(0,0,0,.5)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", borderBottom: `1px solid ${T.border}`, background: T.surface }}>
+        <span style={{ display: "inline-flex", gap: 5 }}>{["#ff5f57", "#febc2e", "#28c840"].map(x => <i key={x} style={{ width: 9, height: 9, borderRadius: 99, background: x, display: "block" }}/>)}</span>
+        <span style={{ fontSize: 12, color: T.textSm, marginLeft: 6, fontFamily: MONO }}>tostado.ar/suscripcion</span>
+        <span style={{ marginLeft: "auto", fontSize: 10, fontWeight: 800, color: T.accent, background: T.accentSolid + "18", borderRadius: 99, padding: "2px 8px" }}>SOLO SUSCRIPCIÓN</span>
+      </div>
+      <div className="lm-sublanding" style={{ background: cream, color: ink, fontFamily: F2, maxHeight: "min(62vh, 620px)", overflowY: "auto", scrollbarWidth: "thin" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", borderBottom: "1px solid #e8e2da" }}><span style={{ fontFamily: "Georgia,serif", fontWeight: 700, fontSize: 17, letterSpacing: 2, color: c }}>TOSTADO</span><span style={{ fontSize: 11, color: "#6b5b52" }}>Cafés · <b style={{ color: c }}>Suscripción</b> · Equipos</span></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1.1fr .9fr", gap: 16, padding: 18, alignItems: "center" }} className="lm-sublanding-hero">
+          <style>{`@media(max-width:640px){.lm-sublanding-hero{grid-template-columns:1fr!important}}`}</style>
+          <div>
+            <div style={{ fontSize: 10.5, fontWeight: 800, color: c, letterSpacing: .8, textTransform: "uppercase", marginBottom: 8 }}>Club de café · envío gratis</div>
+            <div style={{ fontFamily: "Georgia,serif", fontSize: 26, lineHeight: 1.08, fontWeight: 700, letterSpacing: -.4 }}>Tu café de especialidad, <em>todos los meses</em>, sin pensarlo.</div>
+            <div style={{ fontSize: 12.5, color: "#5a4a42", lineHeight: 1.55, margin: "10px 0 12px" }}>Lo tostamos el lunes, te llega en la semana. Elegís las bolsas, pausás cuando viajás y cancelás cuando quieras.</div>
+            <div style={{ display: "flex", gap: "6px 14px", flexWrap: "wrap", fontSize: 11.5, color: "#4a3b34" }}>{["10% menos que comprando suelto", "Tueste de la semana", "Pausá o cancelá desde tu portal"].map(t => <span key={t} style={{ display: "inline-flex", gap: 5, alignItems: "center" }}><span style={{ color: c, fontWeight: 800 }}>✓</span>{t}</span>)}</div>
+          </div>
+          <div style={{ borderRadius: 16, overflow: "hidden", aspectRatio: "1/1", background: "#e8e2da" }}><img src={PRODUCT_ART.cafe} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}/></div>
+        </div>
+        <div style={{ padding: "0 18px 18px" }}>
+          <div style={{ background: "#fff", border: "1px solid #e8e2da", borderRadius: 16, padding: 12 }}>
+            <LiveWidget plan={SAMPLE_PLANS.cafe} merchant={merchant} mode="sub" idx={1} style={{ fontSize: 11.5 }}/>
+          </div>
+        </div>
+        <div style={{ padding: "0 18px 18px", display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
+          {[["1", "Elegís tus bolsas", "1, 2 o 4 por mes."], ["2", "Te llega cada mes", "Tostado esa semana."], ["3", "Lo manejás vos", "Pausá, cambiá, cancelá."]].map(([n, t, d]) => <div key={n} style={{ background: "#fff", border: "1px solid #e8e2da", borderRadius: 12, padding: "10px 12px" }}><div style={{ fontFamily: "Georgia,serif", fontSize: 20, color: c, fontWeight: 700 }}>{n}</div><b style={{ fontSize: 12, display: "block", marginTop: 2 }}>{t}</b><span style={{ fontSize: 11, color: "#6b5b52" }}>{d}</span></div>)}
+        </div>
+        <div style={{ padding: "0 18px 20px", display: "grid", gap: 8 }}>
+          {[["¿Puedo pausar un mes?", "Sí, desde tu portal, sin escribirnos."], ["¿Cuándo se cobra?", "Hoy, y después cada 30 días, el mismo día."], ["¿Y si quiero cambiar de pack?", "Lo cambiás desde el portal antes del próximo cobro."]].map(([q, a]) => <div key={q} style={{ background: "#fff", border: "1px solid #e8e2da", borderRadius: 10, padding: "9px 12px", fontSize: 11.5 }}><b>{q}</b><div style={{ color: "#6b5b52", marginTop: 2 }}>{a}</div></div>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function StickyDesigns({ T }) {
   const ref = useRef(null);
   const innerRef = useRef(null);
   const desktop = useDesktop();
   const reduce = useReducedMotion();
-  const pinned = !reduce; // también en celular: pasa de derecha a izquierda mientras bajás
+  const [opt, setOpt] = useState("widget"); // widget | pagina
+  const pinned = !reduce && opt === "widget"; // también en celular: pasa de derecha a izquierda mientras bajás
   useScrollProgress(ref, { enabled: pinned });
   usePinFit(innerRef, pinned);
   const n = DESIGNS.length;
   // Recorrido: el ancho del carril menos lo que entra en pantalla, en px de tarjeta.
   return (
-    <section id="rec-disenos" ref={ref} className="lm-pin lm-pin-all" style={{ height: pinned ? `${n * 70 + 60}vh` : "auto" }}>
-      <div ref={innerRef} className="lm-pin-inner lm-pin-fit" style={{ padding: pinned ? "24px 0" : "64px 0" }}>
+    <section id="rec-disenos" ref={ref} className={"lm-pin " + (pinned ? "lm-pin-all" : "")} style={{ height: pinned ? `${n * 70 + 60}vh` : "auto" }}>
+      <div ref={innerRef} className={"lm-pin-inner " + (pinned ? "lm-pin-fit" : "")} style={pinned ? { padding: "24px 0" } : { position: "static", height: "auto", display: "block", overflow: "visible", padding: "64px 0" }}>
         <div className="lm-wrap" style={{ width: "100%" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 24, alignItems: "end", marginBottom: 26 }} data-reveal="tilt">
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 24, alignItems: "end", marginBottom: 18 }} data-reveal="tilt">
             <div>
-              <div className="lm-eyebrow">Se adapta a tu tienda</div>
-              <h2 className="lm-h2">Un widget por marca,<br/>no una marca por widget</h2>
-              <p className="lm-sub">El botón de suscripción toma tus colores, tu letra, tus fotos y tus textos. Diseños 100% personalizables: estos son cinco, con datos de ejemplo.</p>
+              <div className="lm-eyebrow">Se adapta a tu tienda · dos formas</div>
+              <h2 className="lm-h2">{opt === "widget" ? <>Un widget por marca,<br/>no una marca por widget</> : <>Una página de suscripción,<br/>con tu marca y solo suscripción</>}</h2>
+              <p className="lm-sub">{opt === "widget" ? "El botón de suscripción vive en tu ficha de producto y toma tus colores, tu letra, tus fotos y tus textos. Diseños 100% personalizables: estos son cinco, con datos de ejemplo." : "Misma tienda, mismo producto, otra página: una landing solo de suscripción con el bundle, los beneficios y las preguntas. La armamos nosotros con tu marca."}</p>
             </div>
-            <div className="lm-progress" style={{ width: 160, marginBottom: 10 }}><i/></div>
+            {pinned && <div className="lm-progress" style={{ width: 160, marginBottom: 10 }}><i/></div>}
+          </div>
+          {/* Las dos opciones (Thiago, 27-sept) */}
+          <div style={{ display: "inline-flex", gap: 4, padding: 4, borderRadius: 99, background: T.card, border: `1px solid ${T.border}`, marginBottom: 22 }} role="tablist">
+            {[["widget", "1 · Widget en tu ficha"], ["pagina", "2 · Página de suscripción"]].map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={opt === k} onClick={() => setOpt(k)} style={{ fontFamily: F, fontSize: 13, fontWeight: 700, padding: "9px 16px", borderRadius: 99, border: "none", cursor: "pointer", background: opt === k ? T.accentSolid : "transparent", color: opt === k ? "#fff" : T.textMd, transition: "all .2s" }}>{l}</button>)}
           </div>
         </div>
-        <div className="lm-wrap" style={{ width: "100%", overflow: "visible" }}>
-          {/* --travel: cuánto se corre el carril de punta a punta (lo que sobra del ancho) */}
-          <div className="lm-track lm-track-center" style={{ "--w": "min(400px, 86vw)", "--n": n, alignItems: "flex-start" }}>
-            {DESIGNS.map((d) => <DesignCard key={d.key} T={T} d={d}/>)}
+        {opt === "widget" ? (
+          <div className="lm-wrap" style={{ width: "100%", overflow: "visible" }}>
+            <div className="lm-track lm-track-center" style={{ "--w": "min(400px, 86vw)", "--n": n, alignItems: "flex-start" }}>
+              {DESIGNS.map((d) => <DesignCard key={d.key} T={T} d={d}/>)}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="lm-wrap" style={{ width: "100%" }}>
+            <div style={{ maxWidth: 860, margin: "0 auto" }} data-reveal="rise"><SubLandingMock T={T}/></div>
+            <div style={{ textAlign: "center", fontSize: 12.5, color: T.textSm, marginTop: 14 }}>Deslizá dentro de la página para recorrerla. El widget de arriba también puede sumarse a esta página, o usar las dos formas a la vez.</div>
+          </div>
+        )}
       </div>
     </section>
   );
