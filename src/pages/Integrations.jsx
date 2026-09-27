@@ -22,7 +22,7 @@ import { WhatsAppRow } from "./WhatsAppIntegration.jsx";
 // embedded=true: sin PageHeader (Configuración ya pone el título).
 
 const F = "'Inter',system-ui,sans-serif";
-const BRAND = { shopify:"#95BF47", tiendanube:"#00a0e3", impultienda:"#111827", link:"#10b981", mercadopago:"#00B1EA", mobbex:"#6f2cf5", stripe:"#635BFF", whop:"#FA4616", meta:"#1877F2", klaviyo:"#232426" };
+const BRAND = { growith:"#7c3aed", shopify:"#95BF47", tiendanube:"#00a0e3", impultienda:"#111827", link:"#10b981", mercadopago:"#00B1EA", mobbex:"#6f2cf5", stripe:"#635BFF", whop:"#FA4616", meta:"#1877F2", klaviyo:"#232426" };
 
 // Dominio de Shopify: completa .myshopify.com y detecta si pegaron el dominio propio.
 function parseShop(raw) {
@@ -502,6 +502,34 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
     if (d?.error) return toast("Error: " + d.error, "error", 6000);
     toast("Meta conectado", "success"); setModal(null); onChange?.();
   }
+  // ── Growith (la app de gestión de Thiago): vinculación por código firmado ──
+  // Vincular manda al dueño a growithapp.com con un código de 10 min; Growith lo canjea
+  // server-to-server y desde ahí lee las comisiones exactas de cada cobro. Si el dueño
+  // viene DESDE Growith ("Vincular" allá), la URL trae growith_tid/growith_name y acá
+  // se le muestra el pedido para confirmarlo con un clic.
+  const growithOk = Boolean(m.growith_linked);
+  const [growithReq] = useState(() => {
+    try {
+      const q = new URLSearchParams((window.location.hash.split("?")[1] || window.location.search.slice(1)) || "");
+      const tid = q.get("growith_tid"); if (!tid) return null;
+      return { tid: String(tid).slice(0, 120), name: String(q.get("growith_name") || "").slice(0, 120) };
+    } catch (_) { return null; }
+  });
+  async function linkGrowith(req) {
+    if (m.role && m.role !== "owner") { toast("Solo el dueño de la tienda puede vincular Growith.", "error"); return; }
+    setBusy("growith");
+    const d = await apiGet("merchant", { action: "growith-code", tid: req?.tid || "", name: req?.name || "" });
+    setBusy("");
+    if (d?.error || !d?.url) { toast("Error: " + (d?.error || "no se pudo generar el código"), "error"); return; }
+    window.location.href = d.url;
+  }
+  async function unlinkGrowith() {
+    const ok = await appConfirm("Growith deja de leer las comisiones de tus cobros. Podés volver a vincular cuando quieras.", { title:"¿Desvincular Growith?", danger:true, okLabel:"Desvincular" });
+    if (!ok) return;
+    const d = await apiPatch("merchant", {}, { action: "growith-unlink" });
+    if (d?.error) toast("Error: " + d.error, "error"); else { toast("Growith desvinculado", "warning"); setOpen(null); onChange?.(); }
+  }
+
   async function disconnectMeta() {
     const ok = await appConfirm("Las suscripciones nuevas dejan de reportarse a Meta.", { title:"¿Desvincular Meta?", danger:true, okLabel:"Desvincular" });
     if (!ok) return;
@@ -634,6 +662,28 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
         {/* ── Mensajes (WhatsApp Cloud API, WhatsAppIntegration.jsx) ── */}
         <GroupTitle T={T}>Mensajes</GroupTitle>
         <WhatsAppRow T={T} merchant={m} onChange={onChange} ui={{ Row, Modal, Steps, CopyCode, A, S, btnStyles }}/>
+
+        {/* ── Gestión: Growith (misma casa) ── */}
+        <GroupTitle T={T}>Gestión</GroupTitle>
+        {growithReq && !growithOk && (
+          <div style={{ margin:"10px 0 4px", padding:"12px 14px", borderRadius:12, background:T.accentSolid + "14", border:`1px solid ${T.accentSolid}55`, display:"flex", gap:12, alignItems:"center", flexWrap:"wrap" }}>
+            <div style={{ flex:"1 1 220px", fontSize:DS.font.md, color:T.text, lineHeight:1.5 }}>
+              <S T={T}>Growith{growithReq.name ? ` · ${growithReq.name}` : ""}</S> pide vincularse con esta tienda para leer las comisiones exactas de tus cobros. Se vincula con un clic y volvés a Growith.
+            </div>
+            <button type="button" style={b.solid} disabled={busy === "growith"} onClick={() => linkGrowith(growithReq)}>{busy === "growith" ? "Vinculando…" : "Vincular con Growith"}</button>
+          </div>
+        )}
+        <Row T={T} id="growith" label="Growith" optional connected={growithOk} open={open === "growith"} onToggle={() => toggle("growith")}
+          connectLabel="Vincular"
+          sub={growithOk
+            ? `Vinculado${m.growith_store_name ? ` con ${m.growith_store_name}` : ""} · Growith lee la comisión real de Mercado Pago de cada cobro`
+            : "Si usás Growith para tus márgenes: lee la comisión exacta de Mercado Pago de cada cobro de suscripción y muestra las dos apps vinculadas."}
+          onConnect={() => linkGrowith(null)} onDisconnect={unlinkGrowith}>
+          <div style={{ fontSize:DS.font.md, color:T.textMd, lineHeight:1.6, marginBottom:12 }}>
+            Growith consulta los cobros de esta tienda con una clave de <S T={T}>solo lectura</S>: fecha, monto, comisión de Mercado Pago y número de pedido. Nada del cliente. Vinculado el {fmtDateShort(m.growith_linked_at)}.
+          </div>
+          <a href="https://www.growithapp.com" target="_blank" rel="noreferrer" style={{ ...b.ghost, textDecoration:"none", display:"inline-block" }}>Abrir Growith</a>
+        </Row>
         <div style={{ height:8 }}/>
       </div>
 

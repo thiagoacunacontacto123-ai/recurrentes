@@ -148,8 +148,10 @@ export default async function handler(req, res) {
   if (action === "demo-lead") return handleDemoLead(req, res);
   if (action === "demo-booked") return handleDemoBooked(req, res);
   if (action === "demo-slots") return handleDemoSlots(req, res);
+  // Vinculación con Growith (_lib/growith.js): canje del código, lectura de cobros, baja.
+  if (action === "growith-link" || action === "growith-charges" || action === "growith-me" || action === "growith-unlink") return handleGrowith(action, req, res);
   if (action === "demo-book") return handleDemoBook(req, res);
-  return res.status(400).json({ error: "action debe ser plan | sub | discount | unsub | update-address | pause-offer | demo-lead | demo-booked | demo-slots | demo-book" });
+  return res.status(400).json({ error: "action debe ser plan | sub | discount | unsub | update-address | pause-offer | demo-lead | demo-booked | demo-slots | demo-book | growith-*" });
 }
 
 // ─── action=demo-lead ───────────────────────────────────────────
@@ -349,6 +351,35 @@ async function handleDemoBook(req, res) {
     await trackDemoBooked({ ...lead, id }, { req });
   } catch (e) { console.warn("[demo-book] acquisition:", e.message); }
   return res.status(200).json({ ok: true, meeting_at: iso, meeting_url: ev.meetUrl || null });
+}
+
+
+// ─── action=growith-* ────────────────────────────────────────────────────────
+// Server-to-server con Growith (la app de gestión de Thiago). Ver _lib/growith.js.
+async function handleGrowith(action, req, res) {
+  const G = await import("./_lib/growith.js");
+  if (action === "growith-link") {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    const rl = await rateLimit(`ghlink:${clientIp(req)}`, { limit: 30, windowSec: 3600 });
+    if (!rl.ok) return res.status(429).json({ error: "Demasiados intentos." });
+    const r = await G.growithLink(req.body || {});
+    if (r.error) return res.status(r.status || 400).json({ error: r.error });
+    return res.status(200).json({ ok: true, api_key: r.api_key, merchant: r.merchant });
+  }
+  const m = await G.growithAuth(req);
+  if (!m) return res.status(401).json({ error: "api_key inválida o tienda desvinculada", code: "unauthorized" });
+  if (action === "growith-me") return res.status(200).json({ ok: true, merchant: { id: m.id, store_name: m.store_name || m.shop_name || "", linked_at: m.growith_linked_at || null } });
+  if (action === "growith-charges") {
+    if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(200).json({ ok: true, ...(await G.growithCharges(m, { from: req.query.from, to: req.query.to })) });
+  }
+  if (action === "growith-unlink") {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    await G.growithUnlink(m.id);
+    return res.status(200).json({ ok: true });
+  }
+  return res.status(400).json({ error: "action" });
 }
 
 // Mismas claves que guarda la landing para el resto del embudo (attribution.js).

@@ -115,6 +115,12 @@ export default async function handler(req, res) {
     // "Activar en mi tienda": link del producto a abrir + qué avisó el widget (_lib/widgetVerify.js).
     if (gAction === "widget-verify-url") return widgetVerifyUrlAction(merchantId, req, res);
     if (gAction === "widget-verify-status") return widgetVerifyStatusAction(merchantId, req, res);
+    // Vincular con Growith: código firmado de 10 min + URL a la que mandar al dueño (_lib/growith.js).
+    if (gAction === "growith-code") {
+      if (ctx.role && ctx.role !== "owner") return res.status(403).json({ error: "Solo el dueño de la tienda puede vincular Growith." });
+      const { growithLinkUrl } = await import("./_lib/growith.js");
+      return res.json({ ok: true, url: growithLinkUrl(merchantId, { tenantId: String(req.query.tid || ""), storeName: String(req.query.name || "") }) });
+    }
     if (gAction === "flows") return flowsApi(ctx, "flows", req, res);
     if (gAction === "whatsapp-templates" || gAction === "whatsapp-usage" || gAction === "whatsapp-flows") return whatsappApi(ctx, gAction, req, res);
     // Afiliados: del LOGIN (no de la tienda activa). Solo el dueño.
@@ -192,6 +198,10 @@ export default async function handler(req, res) {
         ...mpConnectionStatus(merchant),
         // Meta CAPI: solo flags/pixel (nunca el token)
         meta_pixel_id: merchant.meta_pixel_id || null,
+        // Growith (gestión): vinculada o no, y con qué tienda de Growith. La api_key nunca sale.
+        growith_linked: !!merchant.growith_linked_at,
+        growith_store_name: merchant.growith_store_name || null,
+        growith_linked_at: merchant.growith_linked_at || null,
         meta_connected: !!(merchant.meta_pixel_id && merchant.meta_capi_token),
         meta_connected_at: merchant.meta_connected_at || null,
         // Settings del widget (UX del toggle Sub/Única)
@@ -333,6 +343,12 @@ export default async function handler(req, res) {
     if (action === "mp-oauth-start")       return mpOauthStart(ctx, req, res);
     if (action === "disconnect-mp")        return disconnect(merchantId, "mp", res);
     if (action === "disconnect-shopify")   return disconnect(merchantId, "shopify", res);
+    if (action === "growith-unlink") {
+      if (ctx.role && ctx.role !== "owner") return res.status(403).json({ error: "Solo el dueño de la tienda puede desvincular Growith." });
+      const { growithUnlink } = await import("./_lib/growith.js");
+      await growithUnlink(merchantId);
+      return res.json({ ok: true });
+    }
     if (action === "plan-request")         return planRequest(ctx, merchantId, req, res);
     if (action === "saas-checkout")        return saasCheckout(ctx, merchantId, req, res);
     if (action === "saas-portal")          return saasPortal(ctx, merchantId, req, res);

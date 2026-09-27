@@ -228,10 +228,14 @@ function useScrollProgress(ref, { enabled = true, steps = 0 } = {}) {
     const el = ref.current;
     if (!el || !enabled) return;
     let raf = 0;
+    // Alto de pantalla FIJO mientras no cambie el ancho: en celular la barra del navegador
+    // se esconde y aparece al scrollear y cambia innerHeight en cada gesto; con eso el
+    // divisor cambiaba y --p iba y volvía → el carril "rebotaba" (Thiago, 27-sept).
+    let vh = window.innerHeight || 1, lastW = window.innerWidth;
     const update = () => {
       raf = 0;
+      if (window.innerWidth !== lastW) { lastW = window.innerWidth; vh = window.innerHeight || 1; }
       const r = el.getBoundingClientRect();
-      const vh = window.innerHeight || 1;
       const total = Math.max(1, r.height - vh);
       const p = Math.min(1, Math.max(0, -r.top / total));
       el.style.setProperty("--p", p.toFixed(4));
