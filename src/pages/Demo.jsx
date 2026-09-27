@@ -109,7 +109,7 @@ function AgendaEmbed({ T, url, nombre, email, leadId, wa }) {
         <p style={{ fontSize: 15, color: T.textMd, lineHeight: 1.6, margin: 0 }}>
           {agendado
             ? <>Te llega la invitación con el link de Google Meet a <strong style={{ color: T.text }}>{email}</strong>.</>
-            : <>Ya tenemos tus datos. Falta solo esto: te llega la invitación a <strong style={{ color: T.text }}>{email}</strong>.</>}
+            : <>Ya tenemos tus datos. Ahora solo elegí el horario para la llamada.</>}
         </p>
       </div>
       {/* ALTO FIJO, no min-height: el iframe de Calendly se estira al alto del
