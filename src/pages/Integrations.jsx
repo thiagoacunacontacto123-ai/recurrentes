@@ -461,6 +461,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
 
   // ── Mercado Pago ──
   const [mpToken, setMpToken] = useState("");
+  const [mpPk, setMpPk] = useState("");
   const [mpPaste, setMpPaste] = useState(false);   // pegar el token (alternativa a la conexión automática)
   const mpTokenOk = /^(APP_USR-|TEST-)/.test(mpToken.trim());
   const mpOauth = m.mp_method === "oauth";
@@ -476,10 +477,10 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
   async function saveMpToken() {
     if (!mpTokenOk) return toast("El Access Token empieza con APP_USR- (o TEST- para pruebas)", "warning");
     setBusy("mp");
-    const d = await apiPatch("merchant", { access_token: mpToken.trim() }, { action: "save-mp-token" });
+    const d = await apiPatch("merchant", { access_token: mpToken.trim(), ...(mpPk.trim() ? { public_key: mpPk.trim() } : {}) }, { action: "save-mp-token" });
     setBusy("");
     if (d?.error) return toast("Error: " + d.error, "error", 6000);
-    toast("Mercado Pago conectado", "success"); setMpToken(""); setModal(null); onChange?.();
+    toast("Mercado Pago conectado", "success"); setMpToken(""); setMpPk(""); setModal(null); onChange?.();
   }
   async function disconnectMP() {
     const ok = await appConfirm("Se borra el token de nuestra base. Las suscripciones siguen cobrándose en Mercado Pago, pero no vamos a poder procesarlas hasta que vuelvas a conectar.", { title:"¿Desvincular Mercado Pago?", danger:true, okLabel:"Desvincular" });
@@ -736,7 +737,14 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
             <input type="password" value={mpToken} onChange={e => setMpToken(e.target.value)} placeholder="APP_USR-… o TEST-…" style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} autoFocus disabled={busy === "mp"}/>
           </Field>
           {mpToken.trim() && !mpTokenOk && <Hint T={T} style={{ color:T.red }}>Ese no parece un Access Token: empieza con APP_USR- (o TEST-).</Hint>}
-          <Hint T={T}>Lo guardamos cifrado y nunca lo mostramos de vuelta.</Hint>
+          {/* La Public Key es pública por diseño (vive en el navegador del
+              comprador) y es lo único que habilita cobrar con tarjeta dentro de
+              nuestro checkout. El OAuth la trae sola; acá hay que pegarla. */}
+          <Field T={T} label="Public Key (opcional)">
+            <input value={mpPk} onChange={e => setMpPk(e.target.value)} placeholder="APP_USR-… o TEST-…" style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} disabled={busy === "mp"}/>
+          </Field>
+          <Hint T={T}>Está en la misma pantalla que el Access Token. Con ella tus clientes pueden pagar con la tarjeta sin salir de tu checkout; sin ella, completan el pago en Mercado Pago.</Hint>
+          <Hint T={T}>El Access Token lo guardamos cifrado y nunca lo mostramos de vuelta.</Hint>
           </>}
         </Modal>
       )}

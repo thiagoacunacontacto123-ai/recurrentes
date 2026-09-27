@@ -239,6 +239,27 @@ test("el error del tokenizador dice QUÉ campo está mal, no 'revisá todo'", ()
   for (const [err] of casos) assert.ok(!/E30|cc_rejected|\bcode\b/i.test(mpTokenErrorText(err)));
 });
 
+test("se puede pegar la Public Key a mano (el token pegado no la trae)", async () => {
+  // Sin esto, una tienda conectada con token pegado nunca podía usar el
+  // formulario de tarjeta — ni con credenciales TEST para probar.
+  seedDoc(`merchants/${MID}`, luminaMerchant({ mp_public_key: "" }));
+  const guardarTok = (b) => invoke(merchantApi, { method: "PATCH", query: { action: "save-mp-token" }, headers: { authorization: `Bearer test:${MID}` }, body: b });
+
+  let r = await guardarTok({ access_token: MP_TOKEN, public_key: "no-es-una-clave" });
+  assert.equal(r.statusCode, 400);
+  assert.match(r.body.error, /Public Key/i);
+
+  r = await guardarTok({ access_token: MP_TOKEN, public_key: PK });
+  assert.equal(r.statusCode, 200, JSON.stringify(r.body));
+  assert.equal(rawGet(`merchants/${MID}`).mp_public_key, PK);
+
+  // Sin public key sigue andando: el cobro se completa en Mercado Pago.
+  seedDoc(`merchants/${MID}`, luminaMerchant({ mp_public_key: "" }));
+  r = await guardarTok({ access_token: MP_TOKEN });
+  assert.equal(r.statusCode, 200, JSON.stringify(r.body));
+  assert.equal(rawGet(`merchants/${MID}`).mp_public_key, "");
+});
+
 test("el panel dice POR QUÉ rebotó, corto y en tercera persona", () => {
   // El carrito abandonado porque reboto la tarjeta no es lo mismo que el que se
   // fue solo: a ese cliente lo podés llamar.

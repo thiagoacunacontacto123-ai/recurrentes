@@ -9,7 +9,7 @@
 //          shopify_domains / store_domain (respeta manual) / store_name (si vacío) /
 //          shop_name / shop_email / shop_currency / shop_country / shop_timezone.
 //          Devuelve { ok, shop:{…}, patch:{…} }.
-//   PATCH  ?action=save-mp-token  body { access_token }
+//   PATCH  ?action=save-mp-token  body { access_token, public_key? }
 //          → guarda el access_token de MP del merchant (modo paste, manual).
 //            Valida contra /users/me antes de persistir; si el token no es
 //            legítimo tira 400 sin escribir nada.
@@ -1228,8 +1228,16 @@ async function saveDiscountCodes(merchantId, req, res) {
 
 // Modo manual (pegar token). Sigue vigente además del OAuth.
 async function saveMpToken(merchantId, req, res) {
-  const { access_token } = req.body || {};
+  const { access_token, public_key } = req.body || {};
   if (!access_token?.trim()) return res.status(400).json({ error: "Falta access_token" });
+  // La Public Key es PÚBLICA por diseño (va en el navegador) y es lo único que
+  // habilita el formulario de tarjeta. El OAuth la trae sola; el que pega el
+  // token a mano la tiene que pegar también. Opcional: sin ella todo lo demás
+  // funciona igual, solo que el cobro se completa en Mercado Pago.
+  const pk = String(public_key || "").trim();
+  if (pk && !/^(APP_USR|TEST)-[\w-]{10,}$/.test(pk)) {
+    return res.status(400).json({ error: "Esa no parece una Public Key: empieza con APP_USR- (o TEST-) y está en la misma pantalla que el Access Token." });
+  }
 
   let me;
   try {
@@ -1246,6 +1254,7 @@ async function saveMpToken(merchantId, req, res) {
       mp_country: me.country_id || null,
       mp_connected_at: new Date().toISOString(),
       mp_method: "manual",
+      ...(pk ? { mp_public_key: pk } : {}),
       mp_disconnected_at: null,
       // Token pegado: se descarta lo de OAuth (si no, el cron lo "renovaría" con el refresh viejo).
       mp_refresh_token: FieldValue.delete(),

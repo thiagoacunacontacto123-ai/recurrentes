@@ -25,6 +25,8 @@ export function createFakeMp(router) {
     preapprovalUpdates: [],         // [{ id, token, body }]
     hiddenFromSearch: new Set(),    // ids de pago que la búsqueda de MP todavía no indexó
     nextPlan: 1,
+    userId: 123456789,
+    userEmail: "tienda@mp.test",
     addPayment(p, token) { mp.payments.set(String(p.id), { ...clone(p), _token: token }); return p; },
     addPreapproval(p, token) { mp.preapprovals.set(String(p.id), { ...clone(p), _token: token }); return p; },
     addAuthorizedPayment(ap, token) { mp.authorizedPayments.set(String(ap.id), { ...clone(ap), _token: token }); return ap; },
@@ -35,6 +37,12 @@ export function createFakeMp(router) {
   const notFound = (what) => ({ status: 404, json: { message: `${what} not found`, error: "not_found", status: 404, cause: [] } });
   const byDate = (desc) => (a, b) => (Date.parse(a.date_created || 0) - Date.parse(b.date_created || 0)) * (desc ? -1 : 1);
 
+  // La cuenta detrás del token: MP lo usa para validar que el token sirva.
+  router.on("GET", H_MP, /^\/users\/me$/, (call) => {
+    const tok = bearer(call);
+    if (!tok) return { status: 401, json: { message: "invalid token", status: 401 } };
+    return { json: { id: mp.userId, email: mp.userEmail, country_id: "AR", site_id: "MLA", nickname: "TIENDA_TEST" } };
+  });
   router.on("GET", H_MP, /^\/v1\/payments\/search$/, (call) => {
     const q = call.query;
     let list = [...mp.payments.values()].filter(p => owns(p, call) && !mp.hiddenFromSearch.has(String(p.id)));
