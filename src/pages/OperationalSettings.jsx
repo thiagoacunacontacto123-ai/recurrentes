@@ -133,6 +133,7 @@ export function WidgetThemeCard({ merchant, onChange, bare = false }) {
   }
   const path = (m.widget_checkout_page_path || "").trim() || CHECKOUT_PAGE_PATH_DEFAULT;
   const savedFlow = m.widget_checkout_flow || "redirect";
+  const savedPath = (m.widget_checkout_page_path || "").trim();
   const savedHide = (m.widget_hide_selector || "").trim();
   const label = { fontSize:10, fontWeight:700, color:T.textSm, textTransform:"uppercase", letterSpacing:0.6, margin:"2px 0 8px" };
   const Option = ({ id, title, desc }) => {
@@ -172,11 +173,17 @@ export function WidgetThemeCard({ merchant, onChange, bare = false }) {
           interruptor a propósito: cada venta tiene que ser igual a una venta común. */}
       {!open ? (
         <ul style={{ margin:0, paddingLeft:18, display:"flex", flexDirection:"column", gap:6, fontSize:DS.font.md, color:T.textMd, lineHeight:1.5 }}>
-          <li>Al tocar Suscribirme, el cliente completa sus datos en el checkout de Recurrentes, con los envíos y precios de tu tienda. No hay que crear ninguna página.</li>
+          <li>{savedPath
+            ? <>Al tocar Suscribirme, el cliente completa sus datos en <code style={{ fontFamily:MONO, color:T.text }}>{savedPath}</code>, en tu propio dominio.</>
+            : <>Al tocar Suscribirme, el cliente completa sus datos en el checkout de Recurrentes, con los envíos y precios de tu tienda. No hay que crear ninguna página.</>}</li>
           <li>{savedHide ? <>Además escondemos del tema: <code style={{ fontFamily:MONO, color:T.text }}>{savedHide}</code></> : "Cuando elige Suscripción escondemos el botón de compra normal del tema (lo estándar)."}</li>
         </ul>
       ) : (
         <>
+          <Field T={T} label="Checkout en tu dominio (opcional)">
+            <input value={pagePath} onChange={e => setPagePath(e.target.value)} style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} placeholder="/pages/checkout-suscripcion"/>
+          </Field>
+          <Hint T={T}>Si armaste una página en tu tienda con el checkout pegado, poné acá su dirección: el botón Suscribirme va a llevar ahí en vez de a recurrentesapp.com. Es el mismo checkout, servido en tu dominio. Vacío = el nuestro.</Hint>
           <Field T={T} label="Botones del tema a esconder (opcional)">
             <input value={hideSel} onChange={e => setHideSel(e.target.value)} style={{ ...iS, fontFamily:MONO, fontSize:DS.font.md }} placeholder=".product-form__buttons, .shopify-payment-button"/>
           </Field>

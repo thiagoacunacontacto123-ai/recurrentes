@@ -12,7 +12,7 @@
 import "../helpers/register.mjs";
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { createWorld, loadApi, MID, luminaMerchant } from "../helpers/world.mjs";
+import { createWorld, loadApi, MID, luminaMerchant, capsulasPlan } from "../helpers/world.mjs";
 import { invoke } from "../helpers/http.mjs";
 import { seedDoc } from "../helpers/fake-firestore.mjs";
 
@@ -75,4 +75,24 @@ test("sin el div, avisa en la consola y no rompe la página del comercio", async
   const js = (await embed()).body;
   assert.match(js, /console\.error\(/);
   assert.match(js, /if \(!host\)[\s\S]{0,140}return;/, "sale sin tocar nada más");
+});
+
+// ── A dónde manda el botón "Suscribirme" ───────────────────────────────────
+// Sin página propia sigue yendo al checkout de Recurrentes (lo de siempre, y
+// nadie tiene la página todavía). Con página propia, al dominio de la tienda.
+test("sin página propia, el botón sigue yendo al checkout de Recurrentes", async () => {
+  seedDoc(`merchants/${MID}/plans/plan_1`, capsulasPlan());
+  const js = (await invoke(widget, { method: "GET", query: { merchant: MID } })).body;
+  assert.match(js, /var CHECKOUT_ON_STORE = false/);
+  assert.match(js, /return API_BASE \+ "\/#\/checkout\?" \+ qs/);
+});
+
+test("con página propia, el botón va a la página de la tienda", async () => {
+  seedDoc(`merchants/${MID}`, luminaMerchant({ widget_checkout_page_path: "pages/checkout-suscripcion" }));
+  seedDoc(`merchants/${MID}/plans/plan_1`, capsulasPlan());
+  const js = (await invoke(widget, { method: "GET", query: { merchant: MID } })).body;
+  assert.match(js, /var CHECKOUT_ON_STORE = true/);
+  assert.match(js, /var CHECKOUT_PAGE_PATH = "\/pages\/checkout-suscripcion"/, "le pone la barra de adelante");
+  // Y no queda ningún destino al dominio nuestro salteando el helper.
+  assert.ok(!/location\.href = API_BASE \+ "\/#\/checkout/.test(js), "todos los destinos pasan por ckUrl");
 });

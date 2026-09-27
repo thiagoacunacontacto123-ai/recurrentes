@@ -177,6 +177,9 @@ export default async function handler(req, res) {
   // Path de la PÁGINA de checkout on-store que el merchant creó en Shopify (con el
   // embed pegado). El botón del producto redirige ahí, en el dominio de la tienda.
   let checkoutPagePath = "/pages/suscripcion-form";
+  // true solo si el comercio guardó su página (Widget → "Checkout en mi tienda").
+  // Sin eso, el botón sigue yendo al checkout de Recurrentes, como siempre.
+  let checkoutOnStore = false;
   // Tarifas de envío del checkout (editables por el merchant). Sólo name/price/eta/code.
   // [] = sin lista → el embed ofrece el envío del plan (code PLAN).
   let checkoutShippingRates = [];
@@ -213,7 +216,11 @@ export default async function handler(req, res) {
       if (typeof m.widget_disclaimer_text === "string") widgetDisclaimerText = m.widget_disclaimer_text;
       if (!hideSelector && typeof m.widget_hide_selector === "string") hideSelector = m.widget_hide_selector;
       // widget_checkout_flow "inline" ya no existe (16-sept): un solo checkout, el de Recurrentes.
-      if (typeof m.widget_checkout_page_path === "string" && m.widget_checkout_page_path.trim()) checkoutPagePath = m.widget_checkout_page_path.trim();
+      if (typeof m.widget_checkout_page_path === "string" && m.widget_checkout_page_path.trim()) {
+        const raw = m.widget_checkout_page_path.trim();
+        checkoutPagePath = raw.startsWith("/") ? raw : "/" + raw;
+        checkoutOnStore = true;
+      }
       checkoutShippingRates = resolveCheckoutShippingRates(m);
       liveShippingQuotes = true; // siempre en vivo, sin interruptor: cada venta igual a una venta común
     }
@@ -538,6 +545,14 @@ export default async function handler(req, res) {
   } catch (e) {}
   var CHECKOUT_FLOW = ${JSON.stringify(checkoutFlow)};
   var CHECKOUT_PAGE_PATH = ${JSON.stringify(checkoutPagePath)};
+  var CHECKOUT_ON_STORE = ${checkoutOnStore ? "true" : "false"};
+  // A dónde va "Suscribirme". Por defecto, el checkout de Recurrentes. Si la
+  // tienda armó su página con el embed pegado, va ahí: es el MISMO checkout,
+  // servido en el dominio de la tienda (27-sept-2026, Wellfresh).
+  function ckUrl(qs) {
+    if (CHECKOUT_ON_STORE) return CHECKOUT_PAGE_PATH + (CHECKOUT_PAGE_PATH.indexOf("?") >= 0 ? "&" : "?") + qs;
+    return API_BASE + "/#/checkout?" + qs;
+  }
   var WIDGET_COLOR = ${JSON.stringify(widgetColor)};
   var CART_DRAWER = ${cartDrawer ? "true" : "false"};
   var CART_THEME = ${JSON.stringify(cart.theme)};
@@ -657,7 +672,7 @@ export default async function handler(req, res) {
   }
   // Suscribirse en Tiendanube: checkout de Recurrentes (#/checkout) con plan + cantidad.
   function tnCheckoutUrl(plan, qty) {
-    return API_BASE + "/#/checkout?merchant=" + encodeURIComponent(MERCHANT_ID) + "&plan=" + encodeURIComponent(plan.id) + "&qty=" + (parseInt(qty, 10) || 1) + fbCheckoutQs();
+    return ckUrl("merchant=" + encodeURIComponent(MERCHANT_ID) + "&plan=" + encodeURIComponent(plan.id) + "&qty=" + (parseInt(qty, 10) || 1) + fbCheckoutQs());
   }
 
   // ─── Detección del cliente logueado en Shopify ────────────────
@@ -1826,9 +1841,9 @@ export default async function handler(req, res) {
         // Un solo checkout para todas las tiendas: el de Recurrentes. El server
         // resuelve precio, cantidad y frecuencia del pack por su índice.
         setBusy(true, "Abriendo el checkout…");
-        window.location.href = API_BASE + "/#/checkout?merchant=" + encodeURIComponent(MERCHANT_ID) +
+        window.location.href = ckUrl("merchant=" + encodeURIComponent(MERCHANT_ID) +
           "&plan=" + encodeURIComponent(plan.id) + "&pack=" + encodeURIComponent(state.idx) +
-          (variantId ? "&variant=" + encodeURIComponent(variantId) : "") + fbCheckoutQs();
+          (variantId ? "&variant=" + encodeURIComponent(variantId) : "") + fbCheckoutQs());
       }
       function addToCart() {
         // La del selector primero: si el cliente cambió de sabor, va ese.
@@ -2018,14 +2033,14 @@ export default async function handler(req, res) {
           // 16-sept). La página on-store de Shopify (/pages/suscripcion-form) deja
           // de usarse: menos pasos de instalación y una sola experiencia que
           // mantenemos nosotros (envíos en vivo, marca, etc.).
-          window.location.href = API_BASE + "/#/checkout?merchant=" + encodeURIComponent(MERCHANT_ID) +
+          window.location.href = ckUrl("merchant=" + encodeURIComponent(MERCHANT_ID) +
             "&plan=" + encodeURIComponent(plan.id) +
             "&qty=" + q +
             "&freq_days=" + encodeURIComponent(plan.frequency_days || 30) +
             // La del SELECTOR primero (22-sept): un plan cubre todas las
             // variantes del producto, así que el que elige frutilla se lleva
             // frutilla. La del plan queda de respaldo.
-            "&variant=" + encodeURIComponent(variantId || plan.shopify_variant_id || "") + fbCheckoutQs();
+            "&variant=" + encodeURIComponent(variantId || plan.shopify_variant_id || "") + fbCheckoutQs());
           return;
         }
         startSubscribe(plan, subPanel);
