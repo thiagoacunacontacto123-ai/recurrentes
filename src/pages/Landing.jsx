@@ -6,6 +6,7 @@ import { PricingTable } from "./Billing.jsx";
 import { FREE_SUBSCRIBERS } from "../../shared/platform/pricing.js";
 import { SectionsStyle, ProblemSection, DeepDivesSection, TrustSection, FaqSection, BigFooter, VideoSection, ComparisonSection, ReviewsSection, WhatsAppSection } from "./LandingSections.jsx";
 import { LANDING_VIDEOS } from "../lib/landingMedia.js";
+import { MotionStyle, useReveal, HeroWidgetLoop, StickyDesigns, HorizontalSteps, PriceWeapon, IntegrationsMarquee, ClosingCta /*, ReviewsBlock */ } from "./LandingMotion.jsx";
 
 const F = "'Inter',system-ui,sans-serif";
 // Display (25-sept-2026, Thiago: "bien zarpado, estético"): Manrope apretada para los
@@ -223,7 +224,7 @@ function StickyCta({ T, onRegister, onToggle }) {
       <div style={{maxWidth:1100, margin:"0 auto", display:"flex", alignItems:"center", gap:14}}>
         <div className="rec-sticky-txt" style={{flex:1, minWidth:0}}>
           <div style={{fontSize:14, fontWeight:800, color:T.text, lineHeight:1.25}}>Te mostramos demos reales andando, en 15 minutos</div>
-          <div style={{fontSize:12, color:T.textSm, lineHeight:1.35, marginTop:1}}>Tiendas que ya venden por suscripción · 0% de comisión por venta.</div>
+          <div className="hide-mobile" style={{fontSize:12, color:T.textSm, lineHeight:1.35, marginTop:1}}>Tiendas que ya venden por suscripción · 0% de comisión por venta.</div>
         </div>
         <button onClick={onRegister} style={{...BtnSolid(T), padding:"12px 22px", fontSize:14.5, whiteSpace:"nowrap", flexShrink:0}}>
           Pedir una demo
@@ -245,6 +246,9 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
   const [stickyOn, setStickyOn] = React.useState(false);
   const irLogin = () => { if (onLogin) onLogin(); else window.location.hash = "#/login"; };
   const ir = (id) => () => { try { document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }); } catch (_) {} };
+  // Reveal al entrar en pantalla (IntersectionObserver) para todo [data-reveal] de la landing.
+  const rootRef = React.useRef(null);
+  useReveal(rootRef);
 
   const PASOS = [
     { n:"1", t:"Conectá tu tienda y Mercado Pago", d:"Tiendanube en un clic, Shopify en dos pasos, Mercado Pago en un clic. Diez minutos, sin código." },
@@ -253,7 +257,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
   ];
 
   return (
-    <div className="rec-landing-root" style={{fontFamily:F,background:T.bg,minHeight:"100vh",color:T.text}}>
+    <div ref={rootRef} className="rec-landing-root" style={{fontFamily:F,background:T.bg,minHeight:"100vh",color:T.text}}>
       <style>{`
         .rec-landing-root h1,.rec-landing-root h2,.rec-landing-root h3{font-family:${FD};}
         .rec-land-hero{display:grid;grid-template-columns:0.9fr 1.18fr;gap:44px;align-items:center;position:relative;}
@@ -307,10 +311,10 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
             <span style={{fontWeight:800,fontSize:18,letterSpacing:-0.3}}>Recurrentes</span>
           </a>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            {[["Integraciones","rec-tiendas"],["Funciones","rec-funciones"],["Comparar","rec-comparar"],["Precios","rec-precios"],["Reseñas","rec-resenas"]].map(([l,id])=>(
+            {[["Cómo funciona","rec-como-funciona"],["Diseños","rec-disenos"],["Precios","rec-precios"],["Integraciones","rec-tiendas"],["Preguntas","rec-faq"]].map(([l,id])=>(
               <button key={id} onClick={ir(id)} className="hide-mobile rec-nav-link">{l}</button>
             ))}
-            <button onClick={onToggleDark} title={darkMode?"Modo claro":"Modo oscuro"} aria-label={darkMode?"Modo claro":"Modo oscuro"} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:8,color:T.textMd,cursor:"pointer",padding:"6px 8px",display:"flex",alignItems:"center"}}>
+            <button onClick={onToggleDark} className="hide-mobile" title={darkMode?"Modo claro":"Modo oscuro"} aria-label={darkMode?"Modo claro":"Modo oscuro"} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:8,color:T.textMd,cursor:"pointer",padding:"6px 8px",display:"flex",alignItems:"center"}}>
               {darkMode
                 ?<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
                 :<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>}
@@ -322,7 +326,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
       </nav>
 
       {/* Hero + panel de conectores (id rec-tiendas: el nav apunta acá) */}
-      <section id="rec-tiendas" className="rec-land-wrap rec-hero-sec" style={{paddingBottom:24,position:"relative"}}>
+      <section id="rec-hero" className="rec-land-wrap rec-hero-sec" style={{paddingBottom:24,position:"relative"}}>
         <div className="rec-hero-bg" aria-hidden="true"/>
         <style>{`
           .rec-flow-grid{display:grid;grid-template-columns:minmax(0,1fr) 72px minmax(0,1fr) 72px minmax(0,1.2fr);column-gap:10px;align-items:stretch;}
@@ -351,7 +355,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
           }
         `}</style>
         <div className="rec-land-hero">
-          <div>
+          <div data-reveal>
             <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"5px 12px",borderRadius:20,background:T.accentSolid+"16",border:`1px solid ${T.accentSolid}44`,color:T.accent,fontSize:11,fontWeight:700,letterSpacing:0.4,marginBottom:20,textTransform:"uppercase"}}>
               <span style={{width:7,height:7,borderRadius:99,background:T.accentSolid,boxShadow:`0 0 0 3px ${T.accentSolid}33`}}/>
               <RotatingWords T={T}/>
@@ -378,34 +382,9 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
 
           </div>
 
-          {/* Panel de conectores: la explicación y el mapa visual, todo junto.
-              Reemplaza a la sección "Todo se conecta" que estaba más abajo
-              (Thiago, 17-sept): así el video pasa a ser lo segundo que se ve. */}
-          <div style={{position:"relative"}}>
-            <div style={{position:"absolute",inset:-36,background:`radial-gradient(circle at 60% 35%, ${T.accentSolid}26 0%, transparent 62%)`,filter:"blur(30px)",pointerEvents:"none"}}/>
-            <div style={{position:"relative",background:T.card,border:`1px solid ${T.border}`,borderRadius:20,padding:"18px 18px 16px",boxShadow:"0 26px 64px rgba(0,0,0,0.28)"}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:14}}>
-                <div style={{fontSize:11,fontWeight:800,color:T.textSm,letterSpacing:0.6,textTransform:"uppercase"}}>Todo se conecta</div>
-                <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:10,fontWeight:800,color:T.accent,background:T.accentSolid+"18",borderRadius:99,padding:"3px 9px",letterSpacing:0.4}}>
-                  <span style={{width:6,height:6,borderRadius:99,background:T.accentSolid}}/>EN VIVO
-                </span>
-              </div>
-              <FlowMap T={T} compact/>
-              {/* Los avisos del hero viven acá (Thiago, 17-sept): aprovecha el
-                  espacio libre del panel y el texto de la izquierda queda limpio. */}
-              <div style={{marginTop:14,paddingTop:13,borderTop:`1px solid ${T.borderL || T.border}`,display:"flex",gap:"8px 16px",flexWrap:"wrap",fontSize:12,fontWeight:600,color:T.textMd}}>
-                {[`Gratis hasta ${FREE_SUBSCRIBERS} suscriptores`,"Listo en 10 minutos","Cancelás cuando quieras"].map(t=>(
-                  <span key={t} style={{display:"inline-flex",alignItems:"center",gap:6}}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={T.accent} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}><polyline points="20 6 9 17 4 12"/></svg>{t}
-                  </span>
-                ))}
-              </div>
-              <div style={{marginTop:10,display:"flex",gap:"6px 14px",flexWrap:"wrap",fontSize:11,color:T.textSm}}>
-                {[["Disponible",T.accentSolid],["Próximamente",T.yellow],["En el radar",T.textSm]].map(([l,c])=>(
-                  <span key={l} style={{display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:7,height:7,borderRadius:99,background:c}}/>{l}</span>
-                ))}
-              </div>
-            </div>
+          {/* El widget REAL en loop: el comprador elige pack y activa la suscripción. */}
+          <div data-reveal="right" className="lm-float">
+            <HeroWidgetLoop T={T}/>
           </div>
         </div>
 
@@ -427,68 +406,21 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         </div>
       </section>
 
-      {/* Orden 22-sept-2026 (Thiago, sobre la estructura de Reval y Puentify):
-          dolor → cómo funciona → qué incluye → prueba → precios → objeciones.
-          La comparativa baja: antes iba segunda y se comparaba sin saber qué
-          hacemos. Los precios suben: son nuestra ventaja (los otros no publican
-          o arrancan en USD 99 + comisión). */}
+      {/* 26-sept-2026: landing con movimiento (LandingMotion.jsx). Orden:
+          diseños que pasan con el scroll → cómo funciona (horizontal) → precio
+          como arma + calculadora → integraciones → preguntas → cierre.
+          Las secciones viejas (ProblemSection, DeepDives, Video, Comparación,
+          Reseñas inventadas…) siguen en LandingSections.jsx pero no se montan. */}
+      <MotionStyle T={T}/>
       <SectionsStyle T={T}/>
-
-      {/* 1 · El dolor: cada venta cuesta como la primera. */}
-      {/* (rubros, mes de ejemplo y calculadora siguen fuera de la home) (Rubros, mes de ejemplo, calculadora y extras
-          siguen en LandingSections.jsx, fuera de la home para que sea más corta.) */}
-      <ProblemSection T={T}/>
-      <DeepDivesSection T={T}/>
-      {/* WhatsApp automático: un poco más abajo en la home (Thiago, 18-sept). */}
-      <WhatsAppSection T={T}/>
-
-      {/* Empezá en tres pasos */}
-      <section id="rec-como-funciona" style={{background:T.surface,borderTop:`1px solid ${T.border}`,borderBottom:`1px solid ${T.border}`,padding:"72px 0"}}>
-        <div className="rec-land-wrap">
-          <div style={{fontFamily:"IBM Plex Mono, ui-monospace, monospace",fontSize:12,color:T.accent,letterSpacing:2.2,textTransform:"uppercase",textAlign:"center",marginBottom:14}}>Cómo funciona</div>
-          <h2 style={{fontSize:"clamp(30px, 3.4vw, 42px)",fontWeight:800,letterSpacing:"-0.035em",lineHeight:1.08,textAlign:"center",margin:"0 0 12px",textWrap:"balance"}}>Tres pasos y tu tienda cobra sola</h2>
-          <p style={{fontSize:16,color:T.textSm,textAlign:"center",maxWidth:520,margin:"0 auto 40px",lineHeight:1.6}}>En unos 10 minutos tu negocio acepta suscripciones. Sin código. Y si preferís, lo dejamos andando nosotros en la demo.</p>
-          <div className="rec-land-pasos">
-            {PASOS.map(p=>(
-              <div key={p.n} className="rec-paso rec-land-card">
-                <div className="rec-paso-n" aria-hidden="true">{p.n}</div>
-                <div style={{width:36,height:36,borderRadius:12,background:T.accentSolid+"1a",border:`1px solid ${T.accentSolid}55`,color:T.accent,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14,marginBottom:16,fontFamily:FD}}>{p.n}</div>
-                <div style={{fontSize:17,fontWeight:700,marginBottom:8,letterSpacing:-0.3,fontFamily:FD}}>{p.t}</div>
-                <div style={{fontSize:14,color:T.textSm,lineHeight:1.6}}>{p.d}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Interés: el video (panel por dentro, en la tienda, precios). */}
-      <SectionsStyle T={T}/>
-      <VideoSection T={T} videos={LANDING_VIDEOS}/>
-
-      <TrustSection T={T}/>
-
-      {/* Precios */}
-      <section id="rec-precios" className="rec-land-wrap" style={{padding:"64px 24px"}}>
-        <div style={{fontFamily:"IBM Plex Mono, ui-monospace, monospace",fontSize:12,color:T.accent,letterSpacing:2.2,textTransform:"uppercase",textAlign:"center",marginBottom:14}}>Precios</div>
-        <h2 style={{fontSize:"clamp(30px, 3.4vw, 42px)",fontWeight:800,letterSpacing:"-0.035em",lineHeight:1.08,textAlign:"center",margin:"0 0 12px",textWrap:"balance"}}>Pagás según tus suscriptores</h2>
-        <p style={{fontSize:15,color:T.textSm,textAlign:"center",maxWidth:560,margin:"0 auto 12px",lineHeight:1.6}}>Los primeros {FREE_SUBSCRIBERS} suscriptores son gratis. Después, el plan sube solo según cuántos clientes tenés cobrando. Todo lo demás está incluido.</p>
-        <div style={{display:"flex",justifyContent:"center",marginBottom:28}}>
-          <span style={{display:"inline-flex",alignItems:"center",gap:8,padding:"5px 12px",borderRadius:20,background:T.accentSolid+"16",border:`1px solid ${T.accentSolid}44`,color:T.accent,fontSize:11,fontWeight:700,letterSpacing:0.4,textTransform:"uppercase"}}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            Gratis hasta {FREE_SUBSCRIBERS} suscriptores
-          </span>
-        </div>
-        <PricingTable T={T}/>
-        <p style={{fontSize:12,color:T.textSm,textAlign:"center",margin:"22px auto 0",maxWidth:600,lineHeight:1.6}}>Precios en dólares · sin contrato, cancelás cuando quieras · suscriptor activo = cliente con su suscripción cobrando (los pausados y cancelados no cuentan).</p>
-      </section>
-
-      {/* Reseñas: entre precios y preguntas (Thiago, 17-sept). */}
-      <ReviewsSection T={T}/>
-
-      {/* La comparativa, DESPUÉS de precios: cierra objeciones de quien ya
-          entendió qué hacemos y cuánto sale. */}
-      <ComparisonSection T={T}/>
-
+      <StickyDesigns T={T}/>
+      <HorizontalSteps T={T}/>
+      <PriceWeapon T={T} onDemo={irDemo}/>
+      <IntegrationsMarquee T={T}/>
+      {/* Reseñas: bloque preparado en LandingMotion.jsx (ReviewsBlock). Se monta
+          cuando haya clientes reales en RESENAS_REALES; hasta entonces, nada
+          inventado en la home.
+          <ReviewsBlock T={T}/> */}
       <FaqSection T={T}/>
 
       {/* Barra fija con el CTA, como las de las tiendas de dropshipping: aparece
@@ -505,16 +437,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
 }
         .rec-wa-fab{transition:bottom .28s cubic-bezier(.4,0,.2,1),transform .15s ease}`}</style>
 
-      {/* CTA final */}
-      <section className="rec-land-wrap" style={{paddingTop:72,paddingBottom:72}}>
-        <div className="rec-cta-final">
-          <RecLogo size={44} style={{marginBottom:18}}/>
-          <h2 style={{fontSize:"clamp(30px, 4vw, 48px)",fontWeight:800,letterSpacing:"-0.04em",lineHeight:1.04,margin:"0 auto 14px",maxWidth:720,color:"#fff",textWrap:"balance"}}>Que te compren todos los meses sin tener que pedírselo</h2>
-          <p style={{fontSize:16,color:"#A9C3B9",margin:"0 auto 28px",maxWidth:500,lineHeight:1.6}}>En 15 minutos te mostramos tiendas vendiendo por suscripción y cómo se aplicaría a la tuya. Después, los primeros {FREE_SUBSCRIBERS} suscriptores son gratis.</p>
-          <button onClick={irDemo} className="rec-btn-xl" style={{...BtnSolid(T)}}>Pedir una demo <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
-          <div style={{fontSize:13,color:"#A9C3B9",marginTop:16}}>¿Ya tenés cuenta? <button onClick={irLogin} style={{background:"none",border:"none",color:"#fff",fontWeight:600,cursor:"pointer",fontFamily:F,fontSize:13,padding:0,textDecoration:"underline",textUnderlineOffset:3}}>Iniciá sesión</button></div>
-        </div>
-      </section>
+      <ClosingCta T={T} onDemo={irDemo} onLogin={irLogin}/>
 
       <BigFooter T={T} onGo={(id) => ir(id)()} onRegister={irDemo}/>
     </div>
