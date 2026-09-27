@@ -268,7 +268,7 @@ export function LandingShell({ T, darkMode, onToggleDark, onLogin, active, child
       <style>{`
         .rec-landing-root h1,.rec-landing-root h2,.rec-landing-root h3{font-family:${FD};}
         .rec-land-hero{display:grid;grid-template-columns:0.9fr 1.18fr;gap:44px;align-items:start;position:relative;}
-        .rec-land-hero > :first-child{padding-top:36px;}
+        .rec-land-hero > :first-child{padding-top:8px;}
         .rec-hero-bg{position:absolute;inset:-40px -24px 0;pointer-events:none;z-index:0;
           background-image:linear-gradient(${T.border} 1px,transparent 1px),linear-gradient(90deg,${T.border} 1px,transparent 1px);
           background-size:56px 56px;
@@ -283,7 +283,7 @@ export function LandingShell({ T, darkMode, onToggleDark, onLogin, active, child
         .rec-btn-xl{display:inline-flex;align-items:center;gap:10px;padding:15px 26px;border-radius:14px;font-size:16px;font-weight:700;letter-spacing:-.1px;box-shadow:0 12px 30px -10px ${T.accentSolid}99;transition:transform .15s,box-shadow .15s;}
         .rec-btn-xl:hover{transform:translateY(-1px);box-shadow:0 16px 36px -10px ${T.accentSolid}aa;}
         .rec-land-wrap{max-width:1180px;margin:0 auto;padding:0 24px;}
-        .rec-hero-sec{padding-top:56px;}
+        .rec-hero-sec{padding-top:20px;}
         .rec-page-head{padding-block:72px 24px;}
         .rec-page-head h1{font-family:${FD};font-size:clamp(34px,4.6vw,60px);font-weight:800;letter-spacing:-.045em;line-height:1.02;margin:0 0 16px;text-wrap:balance;}
         .rec-page-head p{font-size:17px;color:${T.textMd};line-height:1.6;max-width:640px;margin:0;}
