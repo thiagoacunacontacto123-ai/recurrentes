@@ -986,7 +986,13 @@ export default async function handler(req, res) {
       // Se loguea y se sigue por el camino de siempre. No lo guardamos en
       // `mp_last_error` del merchant: casi siempre es la tarjeta del comprador,
       // no un problema de la tienda, y le llenaría el panel de alertas falsas.
-      console.error("[checkout/init] preapproval con tarjeta falló, cae al init_point:", { merchantId, subscriberId, detail: e?.message || String(e) });
+      //
+      // Sí queda en el SUSCRIPTOR: sin esto el respaldo es mudo y no hay forma
+      // de saber por qué MP dijo que no (el comprador solo ve que lo mandamos a
+      // Mercado Pago). No se muestra en ningún lado del panel ni del checkout.
+      const detalle = e?.message || String(e);
+      console.error("[checkout/init] preapproval con tarjeta falló, cae al init_point:", { merchantId, subscriberId, detail: detalle });
+      await subRef.update({ mp_card_error: String(detalle).slice(0, 500), mp_card_error_at: new Date().toISOString() }).catch(() => {});
     }
   }
 
