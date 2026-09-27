@@ -475,9 +475,9 @@ export function InteractiveWidget({ plan, merchant, initialMode = "once", onCta,
 // Dashboard), app publicada en la tienda de apps de Tiendanube y aplicación en
 // Mercado Pago Developers. Los nombres son de cada empresa; no usamos sus logos.
 export const PARTNERS = [
-  { n: "Shopify", t: "Partner", c: "#96bf48" },
-  { n: "Tiendanube", t: "Partner", c: "#2c3ee6" },
-  { n: "Mercado Pago", t: "Partner", c: "#009ee3" },
+  { n: "Shopify", t: "Partner", c: "#96bf48", logo: "/brand/shopify-bag.svg" },
+  { n: "Tiendanube", t: "Partner", c: "#2c3ee6", logo: "/brand/tiendanube.png" },
+  { n: "Mercado Pago", t: "Partner", c: "#009ee3", logo: "/brand/mercadopago.png" },
 ];
 export function PartnerBadges({ T, compact = false, tone = "auto", style = {} }) {
   const dark = tone === "dark" || (tone === "auto" && T.isDark);
@@ -485,7 +485,7 @@ export function PartnerBadges({ T, compact = false, tone = "auto", style = {} })
     <div style={{ display: "flex", gap: compact ? 8 : 10, flexWrap: "wrap", alignItems: "center", ...style }}>
       {PARTNERS.map(p => (
         <span key={p.n} title={`${p.n} ${p.t}`} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: compact ? "5px 10px" : "7px 12px", borderRadius: 99, border: `1px solid ${dark ? "rgba(255,255,255,.14)" : T.border}`, background: dark ? "rgba(255,255,255,.05)" : T.card, fontSize: compact ? 11.5 : 12.5, fontWeight: 700, color: dark ? "#EAF3EF" : T.text, whiteSpace: "nowrap" }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={p.c} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
+          <img src={p.logo} alt="" width={compact ? 16 : 18} height={compact ? 16 : 18} style={{ display: "block", objectFit: "contain", borderRadius: 3 }}/>
           {p.n} <span style={{ fontWeight: 600, color: dark ? "#A9C3B9" : T.textSm }}>{p.t}</span>
         </span>
       ))}

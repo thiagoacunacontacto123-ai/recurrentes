@@ -267,7 +267,8 @@ export function LandingShell({ T, darkMode, onToggleDark, onLogin, active, child
     <div ref={rootRef} className="rec-landing-root" style={{fontFamily:F,background:T.bg,minHeight:"100vh",color:T.text}}>
       <style>{`
         .rec-landing-root h1,.rec-landing-root h2,.rec-landing-root h3{font-family:${FD};}
-        .rec-land-hero{display:grid;grid-template-columns:0.9fr 1.18fr;gap:44px;align-items:center;position:relative;}
+        .rec-land-hero{display:grid;grid-template-columns:0.9fr 1.18fr;gap:44px;align-items:start;position:relative;}
+        .rec-land-hero > :first-child{padding-top:36px;}
         .rec-hero-bg{position:absolute;inset:-40px -24px 0;pointer-events:none;z-index:0;
           background-image:linear-gradient(${T.border} 1px,transparent 1px),linear-gradient(90deg,${T.border} 1px,transparent 1px);
           background-size:56px 56px;
