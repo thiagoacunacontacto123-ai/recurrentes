@@ -116,39 +116,38 @@ export function FlowsPage({ merchant, onMerchantChange }) {
         <KpiCard T={T} loading={loading && !flows.length} label="En curso" value={fmtN(flows.reduce((a, f) => a + (Number(f.running) || 0), 0))} color={T.yellow} hint="esperando su próximo mail"/>
         <KpiCard T={T} loading={loading && !flows.length} label="Recuperados" value={fmtN(total(flows, "converted"))} valueColor={total(flows, "converted") ? T.green : T.text} color={T.green} hint="pagaron o actualizaron la tarjeta"/>
       </div>
-      {/* Estos tres salen solos y no se configuran. Antes esto era un renglón
-          gris al pie y nadie se enteraba de que existían: el cliente le
-          preguntaba al comercio si el mail de confirmación estaba puesto y el
-          comercio no lo podía ver (27-sept-2026, Thiago). */}
-      <Panel T={T} title="Mails automáticos" sub="Salen solos, sin que configures nada, y no se cobran. No se pueden apagar." flush style={{ marginBottom:16 }}>
-        {AUTO_EMAILS.map(m => (
-          <div key={m.id} style={{ display:"flex", alignItems:"flex-start", gap:14, padding:"13px 16px", borderTop:`1px solid ${T.borderL}`, flexWrap:"wrap" }}>
-            <div aria-hidden="true" style={{ width:40, height:40, borderRadius:11, background:T.surface, border:`1px solid ${T.borderL}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:19, flexShrink:0 }}>{m.icon}</div>
-            <div style={{ flex:"1 1 260px", minWidth:0 }}>
-              <div style={{ fontSize:13.5, fontWeight:700, color:T.text, display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
-                {m.name}
-                <span style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:10, fontWeight:700, color:T.green, background:T.green + "14", borderRadius:99, padding:"2px 8px" }}>
-                  <span style={{ width:6, height:6, borderRadius:"50%", background:T.green, boxShadow:`0 0 6px ${T.green}` }}/>Siempre activo
-                </span>
-              </div>
-              <div style={{ fontSize:11.5, color:T.textSm, marginTop:3, lineHeight:1.5 }}>{m.when} {m.says}</div>
-            </div>
-          </div>
-        ))}
-      </Panel>
       <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, margin:"-8px 0 16px" }}>
         ¿Querés avisar también por WhatsApp? <a href="#/dashboard/whatsapp" style={{ color:T.accent, fontWeight:700, textDecoration:"none" }}>Flujos de WhatsApp →</a>
       </div>
 
-      {loading && !flows.length ? <Loading T={T}/> : flows.length === 0 ? (
-        <Panel T={T} title="Empezá con uno de estos" sub="Vienen con los mails escritos: los revisás, los ajustás a tu marca y los activás.">
-          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 230px), 1fr))", gap:10 }}>
-            {ORDERED.map(id => <TriggerCard key={id} T={T} trig={TRIGGER_BY_ID[id]} onPick={() => setEditing(defaultFlow(id))}/>)}
-          </div>
-        </Panel>
-      ) : (
+      {loading && !flows.length ? <Loading T={T}/> : (
         <>
-          <Panel T={T} title="Tus flujos" sub="Activá o pausá cada uno. Los números son desde que lo creaste." flush>
+          <Panel T={T} title="Tus flujos" sub="Los tres primeros salen solos y no se pueden apagar: son parte de la suscripción. El resto los activás o pausás vos." flush>
+            {/* Obligatorios: salen desde que existe la app, pero el comercio no
+                los veía en ningún lado y sus clientes le preguntaban si estaban
+                puestos (27-sept-2026, Thiago). Mismo renglón que un flujo, con
+                el interruptor prendido y trabado. */}
+            {AUTO_EMAILS.map(m => (
+              <div key={m.id} style={{ display:"flex", alignItems:"center", gap:14, padding:"13px 16px", borderTop:`1px solid ${T.borderL}`, flexWrap:"wrap" }}>
+                <div aria-hidden="true" style={{ width:40, height:40, borderRadius:11, background:T.surface, border:`1px solid ${T.borderL}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:19, flexShrink:0 }}>{m.icon}</div>
+                <div style={{ flex:"1 1 220px", minWidth:0 }}>
+                  <div style={{ fontSize:13.5, fontWeight:700, color:T.text, display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+                    {m.name}
+                    <span style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:10, fontWeight:700, color:T.green, background:T.green + "14", borderRadius:99, padding:"2px 8px" }}>
+                      <span style={{ width:6, height:6, borderRadius:"50%", background:T.green, boxShadow:`0 0 6px ${T.green}` }}/>Activo
+                    </span>
+                  </div>
+                  <div style={{ fontSize:11.5, color:T.textSm, marginTop:3, lineHeight:1.5 }}>{m.when} {m.says}</div>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:"auto" }}>
+                  {/* Prendido y trabado: no es una opción, es parte del producto. */}
+                  <div role="img" aria-label="Siempre activo" title="Este mail sale siempre: es parte de la suscripción."
+                    style={{ width:44, height:24, borderRadius:20, background:T.accentSolid, opacity:.55, position:"relative", cursor:"not-allowed", flexShrink:0 }}>
+                    <div style={{ position:"absolute", top:3, left:22, width:18, height:18, borderRadius:"50%", background:"#fff", boxShadow:"0 1px 4px rgba(0,0,0,0.3)" }}/>
+                  </div>
+                </div>
+              </div>
+            ))}
             {flows.map(f => {
               const trig = TRIGGER_BY_ID[f.trigger] || {};
               const s = f.stats || {};
@@ -183,7 +182,7 @@ export function FlowsPage({ merchant, onMerchantChange }) {
             })}
           </Panel>
           {ideas.length > 0 && (
-            <Panel T={T} title="Más flujos para activar" sub="Ya vienen escritos: los abrís, los ajustás y los guardás." style={{ marginTop:16 }}>
+            <Panel T={T} title={flows.length ? "Más flujos para activar" : "Empezá con uno de estos"} sub="Ya vienen escritos: los abrís, los ajustás a tu marca y los guardás." style={{ marginTop:16 }}>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 230px), 1fr))", gap:10 }}>
                 {ORDERED.filter(id => !used.has(id)).map(id => <TriggerCard key={id} T={T} trig={TRIGGER_BY_ID[id]} onPick={() => setEditing(defaultFlow(id))}/>)}
               </div>

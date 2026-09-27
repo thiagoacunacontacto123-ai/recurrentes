@@ -44,19 +44,34 @@ export const PRICING_TIERS = [
   { id: "ultra",      label: "Ultra",      usd: 5999, min: 20001, max: null },
 ];
 
-// ── Precio heredado (22-sept-2026, Thiago) ───────────────────────────────
-// Los precios se duplicaron. Las tiendas que ya estaban antes del aumento
-// pagan la MITAD del precio nuevo: es lo que les habíamos prometido cuando
-// entraron, y no se les cambia el trato de un día para el otro.
+// ── Precio de por vida de una tienda (22-sept-2026 / 27-sept-2026, Thiago) ──
+// `legacy_pricing` es el FACTOR que paga esa tienda sobre el precio de lista:
+// 1 = lista, 0.5 = mitad. Nació cuando se duplicaron los precios (las tiendas
+// anteriores al aumento pagan la mitad: es el trato que tenían), y ahora es
+// también el descuento de por vida que Thiago promete a mano desde el Admin
+// —a Glow Derm le prometió 50% para siempre en todos los planes—.
 //
-// Se marca con `legacy_pricing: 0.5` en el doc del merchant (o cualquier
-// factor entre 0 y 1). Sin el campo, paga el precio de lista.
+// Es de POR VIDA a propósito: se aplica a cualquier tramo, hoy y cuando crezca.
+// Sin el campo, paga precio de lista.
 export const LEGACY_FACTOR_DEFAULT = 0.5;
+// Tope: un 100% de descuento no es un descuento, es una tienda gratis — para eso
+// está `plan: "beta"` / `internal`, que además la sacan de los agregados.
+export const MAX_DISCOUNT_PCT = 90;
 
 /** Factor de precio de una tienda: 1 = lista, 0.5 = mitad. */
 export function priceFactor(merchant) {
   const f = Number(merchant?.legacy_pricing);
   return Number.isFinite(f) && f > 0 && f <= 1 ? f : 1;
+}
+
+/** El mismo factor, como descuento en % para mostrar y para el Admin. 0 = sin descuento. */
+export const discountPct = (merchant) => Math.round((1 - priceFactor(merchant)) * 100);
+/** % → factor. 50 => 0.5. Fuera de rango o 0 => null (sin descuento, se borra el campo). */
+export function factorFromPct(pct) {
+  const n = Math.round(Number(pct) || 0);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  if (n > MAX_DISCOUNT_PCT) return undefined;   // inválido: lo rechaza el caller
+  return Math.round((1 - n / 100) * 100) / 100;
 }
 
 /** Lo que paga ESA tienda por un tramo, con su descuento heredado aplicado. */

@@ -7,10 +7,38 @@
 // que es lo único que mira emitFlowEvent en el camino del cobro.
 import { db, resolveMerchantAccess } from "./firebase.js";
 import { rateLimit } from "./ratelimit.js";
-import { sanitizeFlow, FLOW_MAX_FLOWS } from "../../shared/platform/flows.js";
+import { sanitizeFlow, defaultFlow, FLOW_MAX_FLOWS } from "../../shared/platform/flows.js";
 import { syncFlowsIndex, sendFlowTest } from "./flows.js";
 
 const flowsCol = (mid) => db().collection("merchants").doc(mid).collection("flows");
+
+// El recupero de carritos viene PRENDIDO de fábrica en toda tienda nueva: es el
+// flujo que más plata devuelve y nadie lo prende solo (27-sept-2026, Thiago).
+//
+// Se siembra UNA vez por tienda (`flows_seeded_at`): si el comerciante después
+// lo pausa o lo borra, no se lo volvemos a meter. Y solo sale ACTIVO si tiene
+// cargado el mail de atención al cliente — sin eso, el mail saldría sin a quién
+// responderle, que es la regla de todos los flujos.
+async function sembrarFlujosPorDefecto(mid) {
+  try {
+    const mRef = db().collection("merchants").doc(mid);
+    const m = (await mRef.get()).data() || {};
+    if (m.flows_seeded_at) return;
+    const now = new Date().toISOString();
+    // Tienda que ya armó algo: no le tocamos nada, solo marcamos que ya pasamos.
+    if (!(await flowsCol(mid).limit(1).get()).empty) { await mRef.set({ flows_seeded_at: now }, { merge: true }); return; }
+
+    const puedeMandar = EMAIL_RE.test(String(m.email_reply_to || m.shop_email || "").trim());
+    const { flow } = sanitizeFlow({ ...defaultFlow("checkout_started"), active: puedeMandar });
+    if (!flow) { await mRef.set({ flows_seeded_at: now }, { merge: true }); return; }
+    await flowsCol(mid).add({ ...flow, created_at: now, updated_at: now, seeded: true });
+    await mRef.set({ flows_seeded_at: now }, { merge: true });
+    if (puedeMandar) await syncFlowsIndex(mid);
+  } catch (e) {
+    // Sembrar es una comodidad: si falla, la tienda abre Flujos igual.
+    console.warn("[flows] no pude sembrar el flujo por defecto:", e?.message || e);
+  }
+}
 const runsCol = (mid) => db().collection("merchants").doc(mid).collection("flow_runs");
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -25,6 +53,7 @@ export async function flowsApi(ctx, action, req, res) {
   }
   try {
     if (action === "flows") {
+      await sembrarFlujosPorDefecto(mid);
       const snap = await flowsCol(mid).get();
       const flows = await Promise.all(snap.docs.map(async (d) => {
         let running = 0;

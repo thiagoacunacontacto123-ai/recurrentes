@@ -48,7 +48,7 @@ import { db, requireAdmin } from "./firebase.js";
 import { acquisitionSummary, ownPixel } from "./acquisition.js";
 import { merchantProfile, CHANNELS, PAYMENT_PROVIDERS, BUSINESS_TYPES } from "../../shared/platform/profile.js";
 import { buildSetup, SETUP_STEP_IDS } from "../../shared/platform/setup.js";
-import { PRICING_TIERS, TIER_BY_ID, BILLABLE_STATUSES, tierRank } from "../../shared/platform/pricing.js";
+import { PRICING_TIERS, TIER_BY_ID, BILLABLE_STATUSES, tierRank, discountPct, factorFromPct, MAX_DISCOUNT_PCT } from "../../shared/platform/pricing.js";
 import { buildBilling, activatedTierId, isBeta, isInternal, PLAN_BY_ID } from "./plans_saas.js";
 import { adminEmails } from "./adminAuth.js";
 import { klaviyoEnabled } from "./klaviyo.js";
@@ -78,6 +78,7 @@ const LIST_FIELDS = [
   "email", "store_name", "shop_name", "shopify_shop", "owner_name", "owner_whatsapp", "contact_email",
   "created_at", "is_store", "ownerUid", "deleted", "teamUids", "archived_at", "internal", "ownerEmail",
   "plan", "plan_activated", "plan_activated_at", "plan_requested", "plan_requested_at",
+  "legacy_pricing", "pricing_note",   // descuento de por vida (Admin → tarjeta del comercio)
   "billing_cache", "business_type", "channel", "payment_provider",
   "shopify_token", "mp_access_token", "mp_email", "klaviyo_api_key", "flows_enabled", "flows_active_triggers",
   "dev_mode", "analytics_cache.data.mrr",
@@ -251,6 +252,9 @@ function rowOf(m, s, ownerEmails = {}) {
     beta: billing.plan === "beta",
     plan_activated: activatedTierId(m),
     plan_activated_at: m.plan_activated_at || null,
+    // Descuento de por vida que le prometimos a mano (0 = precio de lista).
+    discount_pct: discountPct(m),
+    pricing_note: m.pricing_note || null,
     tier_usd: billing.plan_usd,
     tier_label: billing.plan_label,
     // Próximo pago a Recurrentes: cada 30 días desde el PRIMER pago (la activación
@@ -538,6 +542,37 @@ async function existingMerchant(req, res) {
   return { id, ref, m: snap.data() || {} };
 }
 
+// Descuento de POR VIDA sobre el precio de lista de cualquier tramo. Thiago se
+// lo promete a mano a algunos comercios (a Glow Derm, 50% para siempre) y hasta
+// hoy no había forma de dejarlo cargado: se guarda en el mismo `legacy_pricing`
+// que ya usaban las tiendas anteriores al aumento de precios (27-sept-2026).
+//
+// 0 saca el descuento. El tope es MAX_DISCOUNT_PCT: un 100% no es un descuento,
+// es una tienda gratis, y para eso está el plan "beta" (que además la saca de
+// los agregados del Admin).
+async function setPricing(admin, req, res) {
+  const pct = Math.round(Number(req.body?.discount_pct));
+  if (!Number.isFinite(pct) || pct < 0) return res.status(400).json({ error: "Poné un descuento entre 0 y " + MAX_DISCOUNT_PCT + "." });
+  const factor = factorFromPct(pct);
+  if (factor === undefined) {
+    return res.status(400).json({ error: `El descuento va de 1 a ${MAX_DISCOUNT_PCT}%. Para no cobrarle nada, poné la tienda en beta.` });
+  }
+  const t = await existingMerchant(req, res);
+  if (!t) return;
+  const { id, ref, m } = t;
+  const nota = String(req.body?.note || "").trim().slice(0, 200);
+  const now = new Date().toISOString();
+  const patch = factor === null
+    ? { legacy_pricing: FieldValue.delete(), pricing_note: FieldValue.delete(), pricing_updated_at: now }
+    : { legacy_pricing: factor, pricing_note: nota || null, pricing_updated_at: now };
+  await ref.set(patch, { merge: true });
+  await audit(admin, "set_pricing", id, { from: discountPct(m), to: pct, note: nota || null });
+  _cache = null;
+  // Si ya está pagando, el cron `sync-saas-tiers` le alinea el precio en Stripe
+  // dentro de las próximas 24 h (compara el precio, no solo el tramo).
+  return res.json({ ok: true, discount_pct: pct, note: nota || null });
+}
+
 // plan: tramo pago → plan_activated (y deja de ser beta) · "beta" → plan:"beta" ·
 // "none" → saca lo activado (una cuenta vieja sigue siendo beta por fecha).
 async function setPlan(admin, req, res) {
@@ -745,6 +780,7 @@ export async function adminHandler(req, res) {
       if (action === "admin-wa-templates") return res.json(await (await import("./waTemplates.js")).listPlatformTemplates());
     } else if (req.method === "POST") {
       if (action === "admin-set-plan") return await setPlan(admin, req, res);
+      if (action === "admin-set-pricing") return await setPricing(admin, req, res);
       // Crea en Meta las plantillas que faltan (quedan en revisión).
       if (action === "admin-wa-templates-sync") return res.json(await (await import("./waTemplates.js")).syncPlatformTemplates());
       // Registra el número de Recurrentes en la Cloud API (paso que WhatsApp Manager no hace:

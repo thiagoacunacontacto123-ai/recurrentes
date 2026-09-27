@@ -117,6 +117,9 @@ async function activatePlan({ mid, sub, subId, customer, tier, key, now = new Da
   const cur = (await ref.get()).data() || {};
   await ref.set({
     saas_stripe_customer_id: customer, saas_stripe_subscription_id: subId, saas_stripe_price_tier: tier,
+    // Lo que realmente le cobra Stripe hoy: con esto el cron detecta un cambio
+    // de descuento aunque el tramo no se mueva.
+    saas_stripe_price_usd: tierPriceFor(TIER_BY_ID[tier], cur),
     saas_status: "active", saas_last_paid_at: now, saas_current_period_end: tsIso(sub?.current_period_end),
     plan_activated: tier || cur.plan_activated || null, plan_activated_at: cur.plan_activated_at || now,
     plan_requested: null, plan_requested_at: null,
@@ -281,13 +284,20 @@ export async function syncSaasTiers({ countActive }) {
         if (!m.saas_cancel_at_period_end) { await stripe("POST", `/v1/subscriptions/${subId}`, { cancel_at_period_end: "true" }); await d.ref.set({ saas_cancel_at_period_end: true }, { merge: true }); out.to_free++; }
         continue;
       }
-      if (tier.id === current && !m.saas_cancel_at_period_end) continue;
+      // No alcanza con comparar el TRAMO: si a esa tienda le cambiamos el
+      // descuento de por vida desde el Admin, el tramo es el mismo pero el
+      // precio no, y Stripe seguiría cobrando el viejo para siempre
+      // (27-sept-2026). Por eso se compara también el importe.
+      const usd = tierPriceFor(tier, m);
+      const usdActual = Number(m.saas_stripe_price_usd);
+      const mismoPrecio = Number.isFinite(usdActual) ? usdActual === usd : true;
+      if (tier.id === current && mismoPrecio && !m.saas_cancel_at_period_end) continue;
       const sub = await stripe("GET", `/v1/subscriptions/${subId}`);
       const item = sub.items?.data?.[0];
       if (!item) continue;
       const price = await ensurePrice(tier.id, m);
       await stripe("POST", `/v1/subscriptions/${subId}`, { "items[0][id]": item.id, "items[0][price]": price, proration_behavior: "none", cancel_at_period_end: "false", "metadata[tier]": tier.id });
-      await d.ref.set({ saas_stripe_price_tier: tier.id, saas_cancel_at_period_end: false, saas_tier_synced_at: new Date().toISOString() }, { merge: true });
+      await d.ref.set({ saas_stripe_price_tier: tier.id, saas_stripe_price_usd: usd, saas_cancel_at_period_end: false, saas_tier_synced_at: new Date().toISOString() }, { merge: true });
       out.changed++;
     } catch (e) { out.errors++; console.warn("[sync-saas-tiers]", d.id, e.message); }
   }
