@@ -16,6 +16,10 @@
     5. En el panel de Recurrentes, Widget → "Checkout en mi tienda" con el
        /pages/<handle> de esa página.
 
+  El checkout se pinta ACÁ MISMO, en el dominio de la tienda (view=checkout con
+  legacy=1): es el mismo formulario que corre en Lumina desde siempre, con los
+  envíos reales por CP de la tienda. Sin iframe.
+
   No cambiar el id "recurrentes-checkout": ahí se monta el checkout.
 {%- endcomment -%}
 
@@ -70,8 +74,8 @@
     function limpiar() {
       var yo = document.getElementById("rec-ck-page");
       if (!yo) return;
-      /* Ojo: mover el nodo recarga el iframe. Solo se mueve una vez, antes de
-         que exista, y después nunca más (por eso el chequeo del padre). */
+      /* Se mueve una sola vez (el chequeo del padre): mover un nodo reinicia
+         lo que tenga adentro. */
       if (yo.parentNode !== document.body) document.body.appendChild(yo);
       var hijos = document.body.children;
       for (var i = 0; i < hijos.length; i++) {
@@ -89,4 +93,4 @@
   })();
 </script>
 
-<script src="https://www.recurrentesapp.com/api/widget?merchant=MERCHANT_ID&view=embed" defer></script>
+<script src="https://www.recurrentesapp.com/api/widget?merchant=MERCHANT_ID&view=checkout&legacy=1" defer></script>
