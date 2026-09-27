@@ -147,7 +147,9 @@ export default async function handler(req, res) {
   if (action === "wa-webhook") return handleWhatsappWebhook(req, res);
   if (action === "demo-lead") return handleDemoLead(req, res);
   if (action === "demo-booked") return handleDemoBooked(req, res);
-  return res.status(400).json({ error: "action debe ser plan | sub | discount | unsub | update-address | pause-offer | demo-lead | demo-booked" });
+  if (action === "demo-slots") return handleDemoSlots(req, res);
+  if (action === "demo-book") return handleDemoBook(req, res);
+  return res.status(400).json({ error: "action debe ser plan | sub | discount | unsub | update-address | pause-offer | demo-lead | demo-booked | demo-slots | demo-book" });
 }
 
 // ─── action=demo-lead ───────────────────────────────────────────
@@ -243,6 +245,110 @@ async function handleDemoBooked(req, res) {
     await trackDemoBooked({ ...lead, id }, { req });
   } catch (e) { console.warn("[demo-booked] acquisition:", e.message); }
   return res.status(200).json({ ok: true });
+}
+
+
+// ─── action=demo-slots / demo-book ──────────────────────────────────────────
+// Reserva SIN Calendly (28-sept-2026, Thiago): el horario es un paso más del
+// formulario. demo-slots devuelve los inicios libres del calendario de Thiago
+// (Google Calendar, _lib/gcal.js + shared/platform/demoSlots.js); demo-book crea el
+// evento con Meet, invita al cliente y deja el lead igual que lo dejaba Calendly
+// (booked_at / meeting_at / meeting_url), así el recordatorio de 2 h y el Admin no
+// cambian. Sin GCAL_IMPERSONATE responde enabled:false y el navegador sigue con
+// Calendly.
+async function demoSlotsNow({ now = Date.now() } = {}) {
+  const { gcalBusy } = await import("./_lib/gcal.js");
+  const S = await import("../shared/platform/demoSlots.js");
+  const to = now + S.DEMO_HORIZON_DAYS * 86400000;
+  const busy = await gcalBusy({ from: now, to });
+  // Reservas nuestras de los últimos minutos que Google todavía no refleja en freeBusy.
+  let blocked = [];
+  try {
+    const snap = await db().collection("demo_leads")
+      .where("meeting_at", ">=", new Date(now).toISOString()).where("meeting_at", "<=", new Date(to).toISOString()).limit(200).get();
+    blocked = snap.docs.map((d) => d.data()?.meeting_at).filter(Boolean);
+  } catch (e) { console.warn("[demo-slots] leads:", e.message); }
+  return S.availableSlots({ now, rules: S.parseHours(process.env.DEMO_HOURS), busy, blocked });
+}
+
+async function handleDemoSlots(req, res) {
+  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+  const { gcalEnabled } = await import("./_lib/gcal.js");
+  const S = await import("../shared/platform/demoSlots.js");
+  if (!gcalEnabled()) return res.status(200).json({ enabled: false, slots: [] });
+  const rl = await rateLimit(`demoslots:${clientIp(req)}`, { limit: 60, windowSec: 3600 });
+  if (!rl.ok) return res.status(429).json({ error: "Demasiadas consultas." });
+  try {
+    const slots = await demoSlotsNow();
+    res.setHeader("Cache-Control", "no-store");
+    return res.status(200).json({ enabled: true, slots, duration_min: S.DEMO_DURATION_MIN, tz: S.DEMO_TZ });
+  } catch (e) {
+    console.warn("[demo-slots]", e.message);
+    // Si Google no responde, el navegador cae a Calendly: nadie se queda sin reservar.
+    return res.status(200).json({ enabled: false, slots: [], error: "calendar_unavailable" });
+  }
+}
+
+async function handleDemoBook(req, res) {
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  const id = String(req.body?.lead_id || "").trim();
+  if (!/^dl_[A-Za-z0-9]{6,40}$/.test(id)) return res.status(400).json({ error: "lead_id inválido" });
+  const start = String(req.body?.start || "");
+  const startMs = Date.parse(start);
+  if (!Number.isFinite(startMs)) return res.status(400).json({ error: "Elegí un horario.", field: "horario" });
+  const rl = await rateLimit(`demobook:${clientIp(req)}`, { limit: 10, windowSec: 3600 });
+  if (!rl.ok) return res.status(429).json({ error: "Demasiados envíos." });
+  const { gcalEnabled, gcalCreateMeeting } = await import("./_lib/gcal.js");
+  const S = await import("../shared/platform/demoSlots.js");
+  if (!gcalEnabled()) return res.status(409).json({ error: "calendar_disabled" });
+
+  const ref = db().collection("demo_leads").doc(id);
+  const snap = await ref.get();
+  if (!snap.exists) return res.status(404).json({ error: "No existe" });
+  const lead = snap.data() || {};
+  if (lead.booked_at) return res.status(200).json({ ok: true, ya: true, meeting_at: lead.meeting_at || null, meeting_url: lead.meeting_url || null });
+
+  // El horario tiene que estar libre AHORA (el cliente pudo tener la lista abierta un rato).
+  let libres;
+  try { libres = await demoSlotsNow(); }
+  catch (e) { console.warn("[demo-book] slots:", e.message); return res.status(503).json({ error: "No pudimos leer el calendario. Probá de nuevo en un momento." }); }
+  const iso = new Date(startMs).toISOString();
+  if (!libres.includes(iso)) return res.status(409).json({ error: "Ese horario ya no está disponible. Elegí otro.", field: "horario", code: "slot_taken" });
+
+  const end = startMs + S.DEMO_DURATION_MIN * 60000;
+  let ev;
+  try {
+    ev = await gcalCreateMeeting({
+      start: startMs, end,
+      summary: `Demo Recurrentes · ${lead.marca || lead.nombre || ""}`.trim(),
+      description: [
+        `Demo de 15 minutos con ${lead.nombre || ""} (${lead.marca || ""}).`,
+        `WhatsApp: ${lead.whatsapp || "-"} · Email: ${lead.email || "-"}`,
+        lead.pedidos ? `Pedidos por día: ${lead.pedidos}` : null,
+        lead.recurrencia ? `Recurrencia hoy: ${lead.recurrencia}` : null,
+        lead.objetivo ? `Objetivo: ${lead.objetivo}` : null,
+        `Lead: ${id}`,
+      ].filter(Boolean).join("\n"),
+      attendee: { email: lead.email, name: lead.nombre },
+    });
+  } catch (e) {
+    console.warn("[demo-book] gcal:", e.message);
+    return res.status(503).json({ error: "No pudimos crear la reunión. Probá de nuevo en un momento." });
+  }
+
+  const at = new Date().toISOString();
+  await ref.set({
+    booked_at: at, status: "agendado", updated_at: at, booked_via: "gcal",
+    meeting_at: iso, meeting_end_at: new Date(end).toISOString(),
+    ...(ev.meetUrl ? { meeting_url: ev.meetUrl } : {}),
+    ...(ev.id ? { gcal_event_id: ev.id } : {}),
+    ...(ev.htmlLink ? { gcal_event_link: ev.htmlLink } : {}),
+  }, { merge: true });
+  try {
+    const { trackDemoBooked } = await import("./_lib/acquisition.js");
+    await trackDemoBooked({ ...lead, id }, { req });
+  } catch (e) { console.warn("[demo-book] acquisition:", e.message); }
+  return res.status(200).json({ ok: true, meeting_at: iso, meeting_url: ev.meetUrl || null });
 }
 
 // Mismas claves que guarda la landing para el resto del embudo (attribution.js).

@@ -15,6 +15,8 @@ const ALLOWED = [
   (u) => u.hostname === "api.resend.com",
   (u) => u.hostname === "api.tiendanube.com",
   (u) => u.hostname === "graph.facebook.com",
+  (u) => u.hostname === "oauth2.googleapis.com",
+  (u) => u.hostname === "www.googleapis.com",
 ];
 
 function headersToObject(h) {
