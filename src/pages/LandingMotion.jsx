@@ -116,6 +116,8 @@ export function MotionStyle({ T }) {
       /* ── Bloque fijo manejado por el scroll (desktop) ── */
       .lm-pin{position:relative;}
       .lm-pin-inner{position:sticky;top:0;height:100vh;height:100svh;display:flex;flex-direction:column;justify-content:center;overflow:hidden;box-sizing:border-box;padding:48px 0;}
+      /* Bloque clavado que mide lo que su contenido (el top lo pone JS para centrarlo). */
+      .lm-pin-inner.lm-pin-fit{height:auto;overflow:visible;}
       .lm-track{display:flex;gap:28px;will-change:transform;transform:translateX(calc(var(--p,0) * var(--travel,0px)));}
       .lm-progress{height:3px;border-radius:99px;background:${T.border};overflow:hidden;}
       .lm-progress > i{display:block;height:100%;width:calc(var(--p,0) * 100%);background:${T.accentSolid};transition:width .08s linear;}
@@ -141,7 +143,7 @@ export function MotionStyle({ T }) {
       /* ── Celular: nada fijo; carrusel con snap y todo apilado ── */
       @media(max-width:900px){
         .lm-pin:not(.lm-pin-all) .lm-pin-inner{position:static;height:auto;display:block;overflow:visible;}
-        .lm-pin-all .lm-pin-inner{justify-content:center;padding:16px 0!important;}
+        .lm-pin-all .lm-pin-inner{justify-content:center;padding:12px 0!important;}
         .lm-stepper{grid-auto-flow:column;gap:4px!important;}
         .lm-stepper-n{width:28px;height:24px;font-size:10px;}
         .lm-stack-grid > div:first-child{grid-template-columns:1fr!important;}
@@ -882,11 +884,26 @@ function ScrollStack({ T, id, items, eyebrow, title, hideHead = false, panelMinH
   const n = items.length;
   const goTo = (i) => { const el = ref.current; if (!el) return; const r = el.getBoundingClientRect(); const total = r.height - window.innerHeight; window.scrollTo({ top: window.scrollY + r.top + total * ((i + 0.5) / n), behavior: "smooth" }); };
   const cur = items[Math.min(step, n - 1)];
+  // Thiago, 27-sept: la caja clavada mide lo que mide su contenido (nada de 100vh
+  // con un hueco abajo) y se centra en la pantalla: el `top` del sticky se calcula
+  // con el alto real del contenido.
+  const innerRef = useRef(null);
+  useEffect(() => {
+    if (!pinned) return;
+    const el = innerRef.current; if (!el) return;
+    let raf = 0;
+    const fit = () => { raf = 0; const h = el.offsetHeight, vh = window.innerHeight; el.style.top = Math.max(0, Math.round((vh - h) / 2)) + "px"; };
+    const onR = () => { if (!raf) raf = requestAnimationFrame(fit); };
+    fit();
+    const ro = "ResizeObserver" in window ? new ResizeObserver(onR) : null; ro?.observe(el);
+    window.addEventListener("resize", onR);
+    return () => { ro?.disconnect(); window.removeEventListener("resize", onR); if (raf) cancelAnimationFrame(raf); };
+  }, [pinned, step]);
   // Thiago, 26-sept: "lo seleccionado debe quedar perfecto en el centro". Solo se
   // ve el paso activo (grande) con un stepper de números; el panel, al lado.
   return (
-    <section id={id} ref={ref} className="lm-pin lm-pin-all" style={{ height: pinned ? `${n * 75 + 40}vh` : "auto", background: T.surface, borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}` }}>
-      <div className="lm-pin-inner" style={{ padding: pinned ? 0 : "72px 0" }}>
+    <section id={id} ref={ref} className="lm-pin lm-pin-all" style={{ height: pinned ? `${n * 75 + 40}vh` : "auto" }}>
+      <div ref={innerRef} className="lm-pin-inner lm-pin-fit" style={{ padding: pinned ? "24px 0" : "72px 0" }}>
         <div className="lm-wrap" style={{ width: "100%" }}>
           {!hideHead && <div data-reveal="spin" style={{ marginBottom: desktop ? 26 : 18, paddingTop: pinned && !desktop ? 0 : 8 }}>
             <div className="lm-eyebrow">{eyebrow}</div>
