@@ -474,6 +474,9 @@ export default function Checkout() {
     try {
       const body = {
         ...(cardTokenId ? { card_token_id: cardTokenId } : {}),
+        // La deja el SDK de Mercado Pago al cargar: identifica el dispositivo del
+        // comprador para el antifraude. Sin ella MP rechaza tarjetas buenas.
+        ...(cardTokenId && window.MP_DEVICE_SESSION_ID ? { device_id: String(window.MP_DEVICE_SESSION_ID) } : {}),
         merchant_id: merchant,
         plan_id: plan.id,
         quantity: qty,
@@ -648,7 +651,7 @@ export default function Checkout() {
             <label className={"rc-opt " + (payWith === "card" ? "on" : "")}>
               <input type="radio" name="rec-pay" checked={payWith === "card"} onChange={() => setPayWith("card")}/>
               <img src="/brand/mercadopago.png" alt="" style={{ width: 30, height: 30, borderRadius: 7, objectFit: "contain", flexShrink: 0 }}/>
-              <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0 }}><b style={{ fontWeight: 600 }}>Tarjeta de crédito o débito</b><div style={{ color: theme.text_muted, fontSize: 13 }}>{isService ? `La cuota se cobra ${freqTxt} a la tarjeta que pongas acá. Cancelás cuando quieras.` : `Se cobra ${freqTxt} a la tarjeta que pongas acá. Cancelás cuando quieras.`}</div></div>
+              <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0 }}><b style={{ fontWeight: 600 }}>Tarjeta de crédito o débito</b><div style={{ color: theme.text_muted, fontSize: 13 }}>{isService ? `La cuota se cobra ${freqTxt} a la tarjeta que pongas acá.` : `Se cobra ${freqTxt} a la tarjeta que pongas acá.`}</div></div>
             </label>
             {payWith === "card" ? (
               <div className="rc-card-body">
@@ -675,7 +678,7 @@ export default function Checkout() {
             <label className={"rc-opt " + (payWith === "mp" ? "on" : "")}>
               <input type="radio" name="rec-pay" checked={payWith === "mp"} onChange={() => setPayWith("mp")}/>
               <img src="/brand/mercadopago.png" alt="" style={{ width: 30, height: 30, borderRadius: 7, objectFit: "contain", flexShrink: 0 }}/>
-              <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0 }}><b style={{ fontWeight: 600 }}>Con tu cuenta de {providerLabel}</b><div style={{ color: theme.text_muted, fontSize: 13 }}>Te redirigimos a la web de {providerLabel} para que pagues con los métodos que tengas guardados ahí. Cancelás cuando quieras.</div></div>
+              <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0 }}><b style={{ fontWeight: 600 }}>Con tu cuenta de {providerLabel}</b><div style={{ color: theme.text_muted, fontSize: 13 }}>Te redirigimos a la web de {providerLabel} para que pagues con los métodos que tengas guardados ahí.</div></div>
             </label>
           </div>
           </div>
@@ -704,7 +707,7 @@ export default function Checkout() {
       {theme.show_trust ? (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontSize: 12.5, color: theme.text_muted, marginTop: 14 }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-          {askAddress ? `Envío automático ${freqTxt}` : `Renovación automática ${freqTxt}`} · Pago seguro con {providerLabel}
+          {askAddress ? `Envío automático ${freqTxt}` : `Renovación automática ${freqTxt}`} · Pago seguro con {providerLabel} · Cancelás cuando quieras
         </div>
       ) : null}
     </section>

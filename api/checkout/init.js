@@ -297,6 +297,9 @@ export default async function handler(req, res) {
   // genera el NAVEGADOR contra Mercado Pago con la public key de la tienda: acá
   // llega un id opaco, los datos de la tarjeta nunca pasan por nuestro servidor.
   const cardTokenId = String(req.body.card_token_id || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
+  // Huella del dispositivo (window.MP_DEVICE_SESSION_ID). El antifraude de MP la
+  // usa para no marcar como "alto riesgo" a una tarjeta legítima.
+  const deviceId = String(req.body.device_id || "").replace(/[^A-Za-z0-9_.:-]/g, "").slice(0, 128);
 
   const fbIn = (req.body.fb && typeof req.body.fb === "object") ? {
     fbc: String(req.body.fb.fbc || "").slice(0, 255),
@@ -977,7 +980,7 @@ export default async function handler(req, res) {
         payer_email: email,
         external_reference: `${merchantId}:${subscriberId}`,
         status: "authorized",
-      });
+      }, { deviceId });
       if (pre && pre.id) {
         authorized = pre;
         await subRef.update({ mp_preapproval_id: pre.id, mp_paid_with_card_form: true });
