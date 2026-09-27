@@ -59,29 +59,6 @@ export function mpReason(titulo, sufijo = "") {
 
 export const isMpAuthError = (e) => !!e && (e.status === 401 || e.status === 403);
 
-// Por qué Mercado Pago rechazó la tarjeta, en castellano y para el comprador.
-// Cada texto termina en algo que puede HACER: sin eso, "pago rechazado" a secas
-// es una pared y se va. Nunca devolvemos el error crudo de MP (trae códigos
-// internos y no se entiende).
-const CARD_ERRORS = [
-  [/insufficient|fondos/i,                      "La tarjeta no tiene fondos suficientes. Probá con otra."],
-  [/security_code|cvv/i,                        "Revisá el código de seguridad de la tarjeta."],
-  [/bad_filled_date|expiration|vencim/i,        "Revisá la fecha de vencimiento de la tarjeta."],
-  [/call_for_authorize/i,                       "Tu banco tiene que autorizar este pago. Llamalos y volvé a intentar."],
-  [/card_disabled|disabled_card/i,              "La tarjeta está inhabilitada. Hablá con tu banco o usá otra."],
-  [/max_attempts/i,                             "Llegaste al límite de intentos con esa tarjeta. Probá con otra."],
-  [/duplicated/i,                               "Ese pago ya se hizo. Revisá tu correo antes de reintentar."],
-  [/not_supported|invalid_payment_type/i,       "Esa tarjeta no sirve para suscripciones. Probá con una de crédito."],
-  // Antifraude: la tarjeta puede estar perfecta y MP igual dice que no.
-  [/CC_VAL_433|high_risk|blacklist/i,           "Mercado Pago no aprobó esta tarjeta por seguridad. Probá con otra tarjeta de crédito, o pagá con tu cuenta de Mercado Pago."],
-  [/bad_filled|invalid_card|card token|token/i, "Revisá los datos de la tarjeta: número, vencimiento y código."],
-];
-export function mpCardErrorText(e) {
-  const txt = `${e?.mp_code || ""} ${e?.mp_message || ""} ${e?.message || ""}`;
-  for (const [re, msg] of CARD_ERRORS) if (re.test(txt)) return msg;
-  return "No pudimos cobrar con esa tarjeta. Probá con otra, o pagá con tu cuenta de Mercado Pago.";
-}
-
 // GET genérico (path con query ya armada). Lanza en !ok.
 export const mpGet = (token, path) => call("GET", path, token);
 
@@ -102,13 +79,8 @@ export const mpCancelPreapprovalPlan = (token, id) =>
 // Preapproval — la suscripción de UN cliente al plan. Se crea cuando el
 // cliente toca "Suscribirme". Devuelve init_point para redirigirlo.
 // Doc: https://www.mercadopago.com.ar/developers/es/reference/subscriptions/_preapproval/post
-export const mpCreatePreapproval = (token, preapproval, { deviceId } = {}) =>
-  // `deviceId` = huella del dispositivo del comprador (window.MP_DEVICE_SESSION_ID,
-  // lo genera el SDK de MP en el navegador). Va en el header X-meli-session-id y es
-  // lo que mira el antifraude de MP: sin esto rechaza como "alto riesgo" tarjetas
-  // legítimas (CC_VAL_433). Si no viene, se manda igual sin el header.
-  call("POST", "/preapproval", token, preapproval,
-    deviceId ? { "X-meli-session-id": deviceId } : null);
+export const mpCreatePreapproval = (token, preapproval) =>
+  call("POST", "/preapproval", token, preapproval);
 
 // Get/Update/Cancel preapproval (para pause / cancel desde el admin).
 export const mpGetPreapproval = (token, id) =>

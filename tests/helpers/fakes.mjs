@@ -19,9 +19,6 @@ export function createFakeMp(router) {
     authorizedPayments: new Map(),  // id → { ...ap, _token }
     plans: new Map(),               // preapproval_plan creados
     plansCreated: [],               // [{ token, body, id }]
-    preapprovalsCreated: [],        // [{ token, body }] — altas por POST /preapproval
-    rejectCardToken: false,         // true = MP rechaza la tarjeta tokenizada
-    nextPreapproval: 1,
     preapprovalUpdates: [],         // [{ id, token, body }]
     hiddenFromSearch: new Set(),    // ids de pago que la búsqueda de MP todavía no indexó
     nextPlan: 1,
@@ -87,30 +84,6 @@ export function createFakeMp(router) {
     mp.plans.set(id, plan);
     mp.plansCreated.push({ token: bearer(call), body: clone(call.json), id });
     return { status: 201, json: pub(plan) };
-  });
-  // Alta de suscripción con tarjeta ya tokenizada (Checkout API). `rejectCardToken`
-  // deja simular lo que más pasa en la vida real: MP le dice que no a la tarjeta.
-  router.on("POST", H_MP, /^\/preapproval$/, (call) => {
-    const b = clone(call.json) || {};
-    // El header del antifraude se guarda aparte: es lo que decide que MP no
-    // rechace una tarjeta buena, y se borra sin que se note.
-    mp.preapprovalsCreated.push({ token: bearer(call), body: clone(b), deviceId: call.headers["x-meli-session-id"] || null });
-    if (mp.rejectCardToken && b.card_token_id) {
-      // `rejectCardToken` puede ser true o el mensaje exacto que queremos que
-      // devuelva MP (así se prueba cómo se traduce cada rechazo).
-      const msg = typeof mp.rejectCardToken === "string" ? mp.rejectCardToken : "CC_VAL_433 Credit card validation has failed";
-      return { status: 400, json: { message: msg, code: "rejected", status: 400 } };
-    }
-    const id = `2c938084pre${String(mp.nextPreapproval++).padStart(8, "0")}`;
-    const pre = {
-      ...b, id,
-      status: b.status || "pending",
-      date_created: nowIso(),
-      init_point: `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_id=${id}`,
-      _token: bearer(call),
-    };
-    mp.preapprovals.set(id, pre);
-    return { status: 201, json: pub(pre) };
   });
   router.on("PUT", H_MP, /^\/preapproval_plan\/([^/]+)$/, (call, m) => {
     const p = mp.plans.get(m[1]);

@@ -256,19 +256,6 @@ export default function CheckoutDesigner({ merchant, onChange, section = "theme"
     toast(ups.length ? "Listo: tus clientes ya pueden sumarlos en el checkout." : "Sin extras en el checkout.");
     onChange?.(); try { frame.current?.contentWindow?.location.reload(); } catch (_) {}
   }
-  // Cobrar con tarjeta dentro del checkout (Checkout API de Mercado Pago).
-  // Guarda solo, sin botón: es un interruptor, no parte del diseño.
-  const [cardApi, setCardApi] = useState(m.mp_checkout_api === true);
-  const [cardSaving, setCardSaving] = useState(false);
-  useEffect(() => { setCardApi(m.mp_checkout_api === true); }, [m.id, m.mp_checkout_api]);
-  async function saveCardApi(v) {
-    setCardApi(v); setCardSaving(true);
-    const d = await apiPatch("merchant", { mp_checkout_api: v }, { action: "save-settings" }).catch(e => ({ error: e.message }));
-    setCardSaving(false);
-    if (d?.error) { setCardApi(!v); return toast("Error: " + d.error, "error", 8000); }
-    toast(v ? "Listo: tus clientes pagan con la tarjeta sin salir del checkout." : "Vuelven a pagar en Mercado Pago.");
-    onChange?.(); try { frame.current?.contentWindow?.location.reload(); } catch (_) {}
-  }
 
   async function save(theme) {
     setSaving(true);
@@ -343,13 +330,6 @@ export default function CheckoutDesigner({ merchant, onChange, section = "theme"
             <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:4 }}>{"{{total}}"} se reemplaza por el monto.</div>
             <Lbl T={T}>Debajo del total</Lbl>
             <textarea value={draft.footer_text} onChange={e => set("footer_text", e.target.value)} rows={3} maxLength={300} placeholder="Se cobra $X ahora y se renueva automáticamente. Podés pausar o cancelar cuando quieras." style={{ ...iS, resize:"vertical", lineHeight:1.45 }}/>
-
-            <div style={{ ...sec, marginTop:18 }}>Cómo paga tu cliente</div>
-            <Toggle T={T} label="Tarjeta dentro del checkout" on={cardApi} onChange={saveCardApi}
-              hint={m.mp_has_public_key === false
-                ? "Necesitás reconectar Mercado Pago desde Integraciones: la conexión vieja no trae la clave pública que pide el formulario."
-                : "El cliente pone la tarjeta acá mismo y no se va a Mercado Pago. Los datos de la tarjeta viajan del navegador a Mercado Pago, nunca pasan por Recurrentes. La opción de pagar con la cuenta de Mercado Pago le sigue apareciendo abajo."}/>
-            {cardSaving ? <div style={{ fontSize:DS.font.sm, color:T.textSm, paddingLeft:28 }}>Guardando…</div> : null}
 
             <div style={{ ...sec, marginTop:18 }}>Qué se muestra</div>
             <Toggle T={T} label="Foto de la tienda" hint={m.store_photo ? "La que cargaste en Configuración → Tiendas" : "Cargá una foto en Configuración → Tiendas para verla acá"} on={draft.show_logo} onChange={v => set("show_logo", v)}/>
