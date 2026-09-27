@@ -80,6 +80,11 @@ function pagina(p, todas) {
 <meta name="description" content="${esc(p.description)}">
 <link rel="canonical" href="${url}">
 <meta name="theme-color" content="#10b981">
+<link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png">
+<link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<meta property="og:image" content="https://www.recurrentesapp.com/icon-512.png">
+<meta property="og:site_name" content="Recurrentes">
 <meta property="og:type" content="article">
 <meta property="og:title" content="${esc(p.title)}">
 <meta property="og:description" content="${esc(p.description)}">
