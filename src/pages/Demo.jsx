@@ -49,14 +49,11 @@ function AgendaEmbed({ T, url, nombre, email, leadId, wa }) {
     const u = new URL(url);
     u.searchParams.set("hide_event_type_details", "1");
     u.searchParams.set("hide_gdpr_banner", "1");
-    // Esquema CLARO a propósito (Thiago, 27-sept): el recuadro es blanco y Calendly
-    // pinta sus botones secundarios ("Abrir la invitación") siempre blancos: con
-    // nuestro texto claro del tema oscuro el texto quedaba gris sobre blanco, ilegible.
-    u.searchParams.set("background_color", "ffffff");
-    u.searchParams.set("text_color", "0a0f0d");
+    if (hex(T.card)) u.searchParams.set("background_color", hex(T.card));
+    if (hex(T.text)) u.searchParams.set("text_color", hex(T.text));
     if (hex(T.accentSolid)) u.searchParams.set("primary_color", hex(T.accentSolid));
     return u.toString();
-  }, [url, T.accentSolid]);
+  }, [url, T.card, T.text, T.accentSolid]);
 
   useEffect(() => {
     let cancelado = false;
