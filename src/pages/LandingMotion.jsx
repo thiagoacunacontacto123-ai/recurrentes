@@ -623,7 +623,8 @@ export function StickyDesigns({ T }) {
   const reduce = useReducedMotion();
   const pinned = !reduce;
   // Dos fases con el mismo scroll (Thiago, 27-sept): 0–50 % pasan los widgets,
-  // 50–100 % se recorre entera la página de suscripción. data-step 0/1 = fase.
+  // 50–100 % la página de suscripción: primero quieta arriba de todo (hasta el 60 %)
+  // y después se recorre entera. data-step 0/1 = fase.
   useScrollProgress(ref, { enabled: pinned, steps: 2 });
   usePinFit(innerRef, pinned);
   const [phase, setPhase] = useState(0);
@@ -636,7 +637,7 @@ export function StickyDesigns({ T }) {
   }, [pinned]);
   const n = DESIGNS.length;
   return (
-    <section id="rec-disenos" ref={ref} className={"lm-pin " + (pinned ? "lm-pin-all" : "")} style={{ height: pinned ? `${n * 60 + 220}vh` : "auto", "--pa": "min(1, calc(var(--p, 0) * 2))", "--pb": "max(0, calc(var(--p, 0) * 2 - 1))" }}>
+    <section id="rec-disenos" ref={ref} className={"lm-pin " + (pinned ? "lm-pin-all" : "")} style={{ height: pinned ? `${n * 60 + 220}vh` : "auto", "--pa": "min(1, calc(var(--p, 0) * 2))", "--pb": "min(1, max(0, calc((var(--p, 0) * 2 - 1.2) / 0.8)))" }}>
       <div className="lm-wrap" style={{ width: "100%", padding: "64px 24px 8px" }}>
         <div data-reveal="tilt">
           <div className="lm-eyebrow">Se adapta a tu tienda · dos formas</div>
