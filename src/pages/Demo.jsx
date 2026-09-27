@@ -197,14 +197,10 @@ export default function DemoPage() {
 
       <MotionStyle T={T}/>
       {/* Sin "Volver" ni "Iniciar sesión" (Thiago, 26-sept): solo el logo y los sellos de partner. */}
-      <nav style={{ position: "sticky", top: 0, zIndex: 20, background: T.bg + "e6", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderBottom: `1px solid ${T.border}` }}>
-        <div className="rec-demo-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 60, gap: 10 }}>
-          <a href="#/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: T.text }}>
-            <RecLogo size={30}/><span style={{ fontWeight: 800, fontSize: 18, letterSpacing: -0.3 }}>Recurrentes</span>
-          </a>
-          <PartnerBadges T={T} compact style={{ justifyContent: "flex-end" }}/>
-        </div>
-      </nav>
+      {/* Sin header (Thiago, 27-sept): la página de la demo va directo al grano. Solo el logo, chico. */}
+      <div className="rec-demo-wrap" style={{ paddingTop: 22 }}>
+        <a href="#/" style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", color: T.text }}><RecLogo size={24}/><span style={{ fontWeight: 800, fontSize: 15, letterSpacing: -0.2 }}>Recurrentes</span></a>
+      </div>
 
       <div style={{ position: "relative" }}>
         <div className="rec-demo-bg" aria-hidden="true"/>

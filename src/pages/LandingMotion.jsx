@@ -977,7 +977,8 @@ export function MetaAdsSection({ T }) {
   const ev = [["AddToCart", "abre el checkout", "#60A5FA"], ["InitiateCheckout", "deja el mail", "#A78BFA"], ["Purchase", "paga la suscripción · con el monto", "#34d399"]];
   return (
     <section id="rec-meta" style={{ padding: "96px 0", background: T.surface, borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}` }}>
-      <div className="lm-wrap" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 40, alignItems: "center" }}>
+      <div className="lm-wrap lm-price-grid lm-meta-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 40, alignItems: "center" }}>
+        <style>{`@media(max-width:900px){.lm-meta-grid > *{order:0!important;min-width:0}}`}</style>
         <div data-reveal="flip" style={{ order: 2 }}>
           <div className="lm-eyebrow">Meta Ads</div>
           <h2 className="lm-h2">Tu pixel se entera<br/>de cada suscripción</h2>
