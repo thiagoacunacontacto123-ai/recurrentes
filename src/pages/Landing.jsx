@@ -376,7 +376,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
               <span style={{background:`linear-gradient(135deg, ${T.accentSolid}, #34d399 60%, #a7f3d0)`,WebkitBackgroundClip:"text",backgroundClip:"text",WebkitTextFillColor:"transparent"}}>sin volver a vender.</span>
             </h1>
             <p style={{fontSize:18,color:T.textMd,lineHeight:1.6,margin:"0 0 26px",maxWidth:460,textWrap:"pretty"}}>
-              Suscripciones para e-commerce con Mercado Pago. Tu cliente se suscribe una vez y cada cobro crea el pedido en tu tienda. <strong style={{color:T.text}}>Vos solo despachás.</strong>
+              Suscripciones para e-commerce. Tu cliente se suscribe una vez y cada cobro crea el pedido en tu tienda. <strong style={{color:T.text}}>Vos solo despachás.</strong>
             </p>
             <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
               <button onClick={irDemo} className="rec-btn-xl" style={{...BtnSolid(T)}}>
