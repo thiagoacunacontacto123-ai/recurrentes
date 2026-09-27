@@ -821,7 +821,7 @@ export default function Checkout() {
            viven en un mismo cuadro y el anillo tiene que marcar la fila. */
         .rc-pay-box.rc-sel{box-shadow:inset 0 0 0 1px ${theme.color};border-color:${theme.color}}
         .rc-pay-box .rc-opt.on{box-shadow:none}
-        .rc-card-body{padding:14px 16px 4px;border-top:1px solid ${theme.border_soft};background:${theme.input_bg}}
+        .rc-card-body{padding:14px 16px;border-top:1px solid ${theme.border_soft};background:${theme.input_bg}}
         .rc-card-body .rc-f input{background:${theme.bg}}
         .rc-card-body .rc-mpf{background:${theme.bg}}
         .rc-doc{display:grid;grid-template-columns:minmax(0,110px) minmax(0,1fr);gap:12px;margin-top:12px}
