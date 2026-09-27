@@ -677,6 +677,10 @@ function Hi({ T, d = 0, children }) {
   return <span className="lm-hi" style={{ "--d": `${0.35 + d * 0.35}s`, "--c": T.accentSolid }}>{children}</span>;
 }
 
+const REV_MIN = 200000, REV_MAX = 2000000000;
+const revToSlider = (v) => Math.round(1000 * Math.log(Math.max(REV_MIN, Math.min(REV_MAX, v)) / REV_MIN) / Math.log(REV_MAX / REV_MIN));
+const sliderToRev = (x) => { const v = REV_MIN * Math.pow(REV_MAX / REV_MIN, x / 1000); const step = v < 5e6 ? 1e5 : v < 5e7 ? 1e6 : v < 5e8 ? 1e7 : 1e8; return Math.round(v / step) * step; };
+
 // ─── 4. El precio como arma ──────────────────────────────────────────────
 export function PriceWeapon({ T, onDemo, hideHead = false }) {
   const [rev, setRev] = useState(2000000); // facturación mensual en suscripciones (ARS)
@@ -739,8 +743,10 @@ export function PriceWeapon({ T, onDemo, hideHead = false }) {
             <div style={{ fontFamily: FD, fontSize: 22, fontWeight: 800, letterSpacing: -0.5, marginBottom: 6 }}>¿Cuánto te lleva una comisión?</div>
             <div style={{ fontSize: 14, color: T.textSm, lineHeight: 1.55, marginBottom: 18 }}>Poné cuánto facturás por mes en suscripciones y mirá cuánto se quedaría una plataforma con comisión por venta.</div>
             <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textSm, textTransform: "uppercase", letterSpacing: .5, marginBottom: 6 }}>Facturación mensual en suscripciones</label>
-            <input type="range" min={200000} max={20000000} step={100000} value={rev} onChange={e => setRev(Number(e.target.value))} style={{ width: "100%", accentColor: T.accentSolid, marginBottom: 10 }} aria-label="Facturación mensual"/>
-            <input type="text" inputMode="numeric" value={fmtARS(rev)} onChange={e => { const n = Number(String(e.target.value).replace(/[^\d]/g, "")); if (Number.isFinite(n)) setRev(Math.min(50000000, Math.max(0, n))); }} style={inp} aria-label="Facturación mensual en pesos"/>
+            {/* Franja de $200.000 a $2.000.000.000 (Thiago, 27-sept) en escala logarítmica:
+                así los primeros millones no quedan aplastados en dos píxeles. */}
+            <input type="range" min={0} max={1000} step={1} value={revToSlider(rev)} onChange={e => setRev(sliderToRev(Number(e.target.value)))} style={{ width: "100%", accentColor: T.accentSolid, marginBottom: 10 }} aria-label="Facturación mensual"/>
+            <input type="text" inputMode="numeric" value={fmtARS(rev)} onChange={e => { const n = Number(String(e.target.value).replace(/[^\d]/g, "")); if (Number.isFinite(n)) setRev(Math.min(REV_MAX, Math.max(0, n))); }} style={inp} aria-label="Facturación mensual en pesos"/>
             <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center", flexWrap: "wrap" }}>
               <span style={{ fontSize: 12.5, color: T.textSm }}>Comisión de los demás:</span>
               {[1, 2, 3].map(r => <button key={r} onClick={() => setRate(r)} style={{ fontFamily: F, fontSize: 13, fontWeight: 700, padding: "6px 12px", borderRadius: 99, cursor: "pointer", border: `1px solid ${rate === r ? T.accentSolid : T.border}`, background: rate === r ? T.accentSolid + "1a" : "transparent", color: rate === r ? T.accent : T.textMd }}>{r}%</button>)}
