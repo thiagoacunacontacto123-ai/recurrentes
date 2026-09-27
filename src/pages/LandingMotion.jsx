@@ -980,7 +980,7 @@ function PanelPanel({ T }) {
 // con secciones VENTAS / CATÁLOGO / CLIENTES, ítem activo con fondo acento al 20 %,
 // y abajo la píldora de la tienda activa.
 const PANEL_NAV = [["Analíticas"], ["Ventas", "Suscripciones", "Carritos abandonados", "Cobros"], ["Catálogo", "Planes", "Widget", "Carrito", "Checkout"], ["Clientes", "Retención", "Flujos de email", "Flujos de WhatsApp", "Portal del cliente"], ["Configuración"]];
-function Frame({ T, title, children }) {
+function Frame({ T, title, children, bare = false }) {
   const cur = title.split(" · ").pop();
   return (
     <div className="lm-card" style={{ padding: 0, display: "flex", flexDirection: "column", background: T.bg }}>
@@ -999,7 +999,7 @@ function Frame({ T, title, children }) {
         </aside>
         <div style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 14px", height: 36, borderBottom: `1px solid ${T.border}`, fontSize: 11.5 }}><b style={{ color: T.text, fontFamily: FD, fontSize: 13 }}>{cur}</b><span style={{ marginLeft: "auto", fontSize: 10, color: T.textSm }}>Tostado · tostado.ar</span></div>
-          <div style={{ padding: 14, minWidth: 0, fontSize: 12.5, color: T.text }}>{children}</div>
+          <div style={{ padding: bare ? 8 : 14, minWidth: 0, fontSize: 12.5, color: T.text }}>{children}</div>
         </div>
       </div>
     </div>
@@ -1060,7 +1060,7 @@ const TOUR = PANEL_SCREENS;
 
 // "Todo lo que hace" = las 12 secciones del panel, en el MISMO orden del menú real, cada
 // una dentro del marco del panel (Thiago, 27-sept: "poné todos, y en orden").
-const FEATURES = PANEL_SCREENS.map(sc => ({ t: sc.t.split(" · ").pop(), d: sc.d, C: ({ T }) => <Frame T={T} title={sc.t}><sc.C T={T}/></Frame> }));
+const FEATURES = PANEL_SCREENS.map(sc => ({ t: sc.t.split(" · ").pop(), d: sc.d, C: ({ T }) => PANEL_SHOTS[sc.t] ? <Shot T={T} title={sc.t}/> : <Frame T={T} title={sc.t}><sc.C T={T}/></Frame> }));
 
 function ScrollStack({ T, id, items, eyebrow, title, hideHead = false, panelMinH = 440 }) {
   const ref = useRef(null);
@@ -1151,7 +1151,24 @@ export function BuyJourney({ T }) {
   return <ScrollStack T={T} id="rec-proceso" items={JOURNEY} eyebrow="Así compra tu cliente" title={<>Todo el proceso,<br/>a medida que bajás</>} panelMinH={540}/>;
 }
 
-export const PANEL_SHOTS = {};
+export const PANEL_SHOTS = {
+  "Analíticas": "/landing/panel-analiticas.jpg",
+  "Ventas · Suscripciones": "/landing/panel-suscripciones.jpg",
+  "Ventas · Carritos abandonados": "/landing/panel-carritos.jpg",
+  "Ventas · Cobros": "/landing/panel-cobros.jpg",
+  "Catálogo · Planes": "/landing/panel-planes.jpg",
+  "Catálogo · Widget": "/landing/panel-widget.jpg",
+  "Catálogo · Carrito": "/landing/panel-carrito.jpg",
+  "Catálogo · Checkout": "/landing/panel-checkout.jpg",
+  "Clientes · Retención": "/landing/panel-retencion.jpg",
+  "Clientes · Flujos de email": "/landing/panel-flujos-email.jpg",
+  "Clientes · Flujos de WhatsApp": "/landing/panel-flujos-whatsapp.jpg",
+  "Clientes · Portal del cliente": "/landing/panel-portal.jpg",
+};
+// Captura real dentro del marco del panel (barra + sidebar) para que se vea como el panel entero.
+function Shot({ T, title }) {
+  return <Frame T={T} title={title} bare><img src={PANEL_SHOTS[title]} alt={title} loading="lazy" style={{ display: "block", width: "100%", borderRadius: 8 }}/></Frame>;
+}
 export function PanelTour({ T }) {
   const ref = useRef(null);
   const innerRef = useRef(null);
@@ -1168,7 +1185,7 @@ export function PanelTour({ T }) {
             <div>
               <div className="lm-eyebrow">El panel, por dentro</div>
               <h2 className="lm-h2">Pantalla por pantalla,<br/>así lo vas a usar</h2>
-              <p className="lm-sub">Seguí bajando y el panel va pasando. Datos de ejemplo: en la demo lo ves con tus productos.</p>
+              <p className="lm-sub">Seguí bajando y el panel va pasando. Capturas reales de nuestra tienda de pruebas: en la demo lo ves con tus productos.</p>
             </div>
             <div className="lm-progress" style={{ width: 160, marginBottom: 10 }}><i/></div>
           </div>
@@ -1177,9 +1194,7 @@ export function PanelTour({ T }) {
           <div className="lm-track lm-track-center" style={{ "--w": "min(640px, 86vw)", "--n": n, alignItems: "flex-start" }}>
             {TOUR.map((sc, i) => (
               <div key={sc.t} className="lm-tour-item" style={{ flex: "0 0 min(640px, 86vw)" }}>
-                {PANEL_SHOTS[sc.t]
-                  ? <img src={PANEL_SHOTS[sc.t]} alt={sc.t} style={{ display: "block", width: "100%", borderRadius: 18, border: `1px solid ${T.border}` }} loading="lazy"/>
-                  : <Frame T={T} title={sc.t}><sc.C T={T}/></Frame>}
+                {PANEL_SHOTS[sc.t] ? <Shot T={T} title={sc.t}/> : <Frame T={T} title={sc.t}><sc.C T={T}/></Frame>}
                 <div style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "baseline" }}><span style={{ fontFamily: MONO, fontSize: 12, color: T.accent }}>0{i + 1}</span><div><div style={{ fontFamily: FD, fontSize: 16, fontWeight: 800, color: T.text }}>{sc.t}</div><div style={{ fontSize: 13, color: T.textSm, lineHeight: 1.5, marginTop: 2 }}>{sc.d}</div></div></div>
               </div>
             ))}
