@@ -993,8 +993,14 @@ function Frame({ T, title, children }) {
         <span style={{ fontSize: 12, color: T.textSm, marginLeft: 6, fontFamily: MONO }}>recurrentesapp.com · {title}</span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "118px 1fr", minHeight: 250 }} className="lm-tour-body">
-        <aside className="lm-tour-side" style={{ borderRight: `1px solid ${T.border}`, padding: "12px 10px", display: "grid", gap: 4, alignContent: "start", fontSize: 11.5, color: T.textSm }}>
-          {["Inicio", "Ventas", "Catálogo", "Clientes", "Analíticas", "Configuración"].map(n => <span key={n} style={{ padding: "6px 8px", borderRadius: 8, background: title.startsWith(n) ? T.accentSolid + "1a" : "transparent", color: title.startsWith(n) ? T.accent : T.textSm, fontWeight: title.startsWith(n) ? 800 : 600 }}>{n}</span>)}
+        {/* El menú REAL del panel (src/ui/Shell.jsx NAV): Analíticas · Ventas · Catálogo · Clientes · Configuración */}
+        <aside className="lm-tour-side" style={{ borderRight: `1px solid ${T.border}`, padding: "10px 8px", display: "grid", gap: 2, alignContent: "start", fontSize: 10.5, color: T.textSm }}>
+          {[["Analíticas"], ["Ventas", "Suscripciones", "Carritos abandonados", "Cobros"], ["Catálogo", "Planes", "Widget", "Carrito", "Checkout"], ["Clientes", "Retención", "Flujos de email", "Flujos de WhatsApp", "Portal del cliente"], ["Configuración"]].map(([sec, ...items]) => (
+            <React.Fragment key={sec}>
+              {items.length ? <span style={{ padding: "6px 6px 2px", fontSize: 8.5, letterSpacing: .6, textTransform: "uppercase", fontWeight: 800, color: T.textSm }}>{sec}</span> : null}
+              {(items.length ? items : [sec]).map(n => { const on = title.split(" · ").pop() === n || title === n; return <span key={n} style={{ padding: "4px 6px", borderRadius: 6, background: on ? T.accentSolid + "1a" : "transparent", color: on ? T.accent : T.textSm, fontWeight: on ? 800 : 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{n}</span>; })}
+            </React.Fragment>
+          ))}
         </aside>
         <div style={{ padding: 14, minWidth: 0, fontSize: 12.5, color: T.text }}>{children}</div>
       </div>
@@ -1004,7 +1010,7 @@ function Frame({ T, title, children }) {
 const Kpi = ({ T, l, v, d }) => <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, padding: "9px 11px" }}><div style={{ fontSize: 9.5, color: T.textSm, textTransform: "uppercase", fontWeight: 700, letterSpacing: .5 }}>{l}</div><div style={{ fontFamily: FD, fontSize: 19, fontWeight: 800, letterSpacing: -.5, color: T.text }}>{v}</div>{d && <div style={{ fontSize: 10.5, color: T.accent, fontWeight: 700 }}>{d}</div>}</div>;
 const Row = ({ T, cols, c }) => <div style={{ display: "grid", gridTemplateColumns: cols.map(() => "1fr").join(" "), gap: 8, padding: "7px 0", borderTop: `1px solid ${T.borderL || T.border}`, fontSize: 12 }}>{cols.map((x, i) => <span key={i} style={{ color: i === cols.length - 1 && c ? c : i ? T.textSm : T.text, fontWeight: i ? 500 : 700, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x}</span>)}</div>;
 const TOUR = [
-  { t: "Inicio", d: "Lo que pasó hoy y el mes: suscriptores, ingresos recurrentes, cobros, rechazos recuperados.", C: ({ T }) => <>
+  { t: "Analíticas", d: "Lo que pasó hoy y el mes: suscriptores, ingresos recurrentes, cobros, rechazos recuperados, retención y ticket promedio.", C: ({ T }) => <>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 12 }}><Kpi T={T} l="Suscriptores" v="128" d="+9 este mes"/><Kpi T={T} l="MRR" v="$ 5,2M" d="+12%"/><Kpi T={T} l="Cobros hoy" v="14"/></div>
       <div style={{ height: 70, display: "flex", alignItems: "flex-end", gap: 4 }}>{[30, 42, 38, 55, 48, 62, 58, 70, 66, 78, 74, 88].map((h, i) => <i key={i} style={{ flex: 1, height: h + "%", background: i === 11 ? T.accentSolid : T.accentSolid + "55", borderRadius: 3, display: "block" }}/>)}</div>
       <div style={{ fontSize: 10.5, color: T.textSm, marginTop: 6 }}>Ingresos recurrentes por mes</div>
@@ -1018,11 +1024,14 @@ const TOUR = [
   { t: "Catálogo · Planes", d: "Un plan por producto: packs, frecuencia, descuento, regalos. Y trece diseños de widget.", C: ({ T }) => <>
       {[["Café de especialidad · 250 g", "3 packs · cada 30 días · 10% off"], ["Sérum de vitamina C", "2 packs · cada 60 días · 15% off"], ["Alimento premium · 3 kg", "3 packs · cada 30 días · regalo en el 1.º"]].map(([a, b]) => <div key={a} style={{ display: "flex", justifyContent: "space-between", gap: 8, padding: "9px 0", borderTop: `1px solid ${T.borderL || T.border}` }}><span><b style={{ display: "block", fontSize: 12.5 }}>{a}</b><span style={{ fontSize: 11, color: T.textSm }}>{b}</span></span><span style={{ fontSize: 10.5, fontWeight: 800, color: T.accent, alignSelf: "center" }}>ACTIVO</span></div>)}
     </> },
-  { t: "Clientes · Flujos", d: "Mails y WhatsApp automáticos: carrito sin pagar, próximo cobro, pago rechazado, bienvenida. Con tu marca.", C: ({ T }) => <>
+  { t: "Clientes · Flujos de email", d: "Mails y WhatsApp automáticos: carrito sin pagar, próximo cobro, pago rechazado, bienvenida. Con tu marca.", C: ({ T }) => <>
       {[["Carrito sin pagar", "Mail a la 1 h · WhatsApp a las 24 h", true], ["Próximo cobro", "WhatsApp 2 días antes", true], ["Pago rechazado", "Mail + WhatsApp con link a la tarjeta", true], ["Bienvenida", "Mail al activar", false]].map(([a, b, on]) => <div key={a} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "9px 0", borderTop: `1px solid ${T.borderL || T.border}` }}><span><b style={{ display: "block", fontSize: 12.5 }}>{a}</b><span style={{ fontSize: 11, color: T.textSm }}>{b}</span></span><i style={{ width: 30, height: 17, borderRadius: 99, background: on ? T.accentSolid : T.border, position: "relative", flexShrink: 0 }}><b style={{ position: "absolute", top: 2, left: on ? 15 : 2, width: 13, height: 13, borderRadius: 99, background: "#fff" }}/></i></div>)}
     </> },
-  { t: "Analíticas", d: "Retención, ticket promedio, churn y cuánto vale un suscriptor. Para decidir descuentos y packs.", C: ({ T }) => <>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8, marginBottom: 10 }}><Kpi T={T} l="Retención a 3 meses" v="81%"/><Kpi T={T} l="Ticket promedio" v={fmtARS(31400)} d="+27% vs. compra única"/><Kpi T={T} l="Churn mensual" v="4,1%"/><Kpi T={T} l="Rechazos recuperados" v="83%"/></div>
+  { t: "Catálogo · Checkout", d: "Tu checkout con tus colores, logo y textos, y los productos para sumar a la suscripción. Lo ves en vivo mientras lo cambiás.", C: ({ T }) => <>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 10 }}>
+        <div style={{ display: "grid", gap: 6, fontSize: 11.5 }}>{[["Color", "#6b3f2a"], ["Letra", "Serif"], ["Botón", "Pagar {{total}} · cada mes"], ["Logo", "Sí"]].map(([a, b]) => <div key={a} style={{ display: "flex", justifyContent: "space-between", padding: "6px 8px", border: `1px solid ${T.border}`, borderRadius: 8 }}><span style={{ color: T.textSm }}>{a}</span><b style={{ color: T.text }}>{b}</b></div>)}</div>
+        <div style={{ background: "#fff", borderRadius: 10, padding: 10, color: "#111", fontSize: 11 }}><div style={{ fontFamily: "Georgia,serif", color: "#6b3f2a", fontWeight: 700, marginBottom: 6 }}>TOSTADO</div><div style={{ border: "1px solid #ddd", borderRadius: 6, padding: "5px 7px", marginBottom: 5 }}>ana@ejemplo.com</div><div style={{ border: "1px solid #ddd", borderRadius: 6, padding: "5px 7px", marginBottom: 6 }}>Av. Santa Fe 3200 · CABA</div><div style={{ background: "#6b3f2a", color: "#fff", borderRadius: 7, padding: "7px", textAlign: "center", fontWeight: 800 }}>Pagar {fmtARS(27800)} · cada mes</div></div>
+      </div>
     </> },
 ];
 // Capturas REALES del panel: cuando estén en public/landing/panel-<n>.png (las
