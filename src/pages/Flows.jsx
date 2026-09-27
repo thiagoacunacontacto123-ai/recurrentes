@@ -6,7 +6,7 @@ import { DS, useT } from "../ui/theme.js";
 import { Btn, DSBadge, DSToggle, Spinner, PageHeader, Callout, Field, InputStyle, Hint, Loading, appConfirm, toast } from "../ui/components.jsx";
 import { KpiCard, Panel } from "../ui/charts.jsx";
 import { RowMenu } from "./_shared.jsx";
-import { AUTO_EMAILS, FLOW_TRIGGERS, TRIGGER_BY_ID, FLOW_VARIABLES, CTA_OPTIONS, WAIT_UNIT_LABEL, FLOW_MAX_STEPS, defaultFlow, sanitizeFlow, flowSummary, fmtWait, renderVars, newStepId } from "../../shared/platform/flows.js";
+import { AUTO_EMAILS, AUTO_EMAIL_VARIABLES, resolveAutoEmail, FLOW_TRIGGERS, TRIGGER_BY_ID, FLOW_VARIABLES, CTA_OPTIONS, WAIT_UNIT_LABEL, FLOW_MAX_STEPS, defaultFlow, sanitizeFlow, flowSummary, fmtWait, renderVars, newStepId } from "../../shared/platform/flows.js";
 // Paso "whatsapp" (plantillas aprobadas de la Cloud API de Meta): solo si la tienda lo conectó.
 import { WA_FLOW_SUGGESTION, defaultWhatsappFlow } from "../../shared/platform/flows.js";
 import { WA_DEFAULT_LANG, WA_TEMPLATES } from "../../shared/platform/whatsapp.js";
@@ -55,6 +55,7 @@ export function FlowsPage({ merchant, onMerchantChange }) {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [editing, setEditing] = useState(null);   // flujo (nuevo o existente) abierto en el editor
+  const [autoEdit, setAutoEdit] = useState(null); // id del mail automático abierto
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState(null);
   // Mail de atención al cliente (email_reply_to): va al pie de cada mail. Sin él no se activan flujos.
@@ -93,6 +94,7 @@ export function FlowsPage({ merchant, onMerchantChange }) {
   }
 
   if (editing) return <FlowEditor T={T} merchant={merchant} initial={editing} onBack={() => { setEditing(null); load(); }}/>;
+  if (autoEdit) return <AutoEmailEditor T={T} merchant={merchant} id={autoEdit} onBack={() => { setAutoEdit(null); onMerchantChange?.(); }}/>;
 
   const active = flows.filter(f => f.active).length;
   const used = new Set(flows.map(f => f.trigger));
@@ -136,15 +138,18 @@ export function FlowsPage({ merchant, onMerchantChange }) {
                     <span style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:10, fontWeight:700, color:T.green, background:T.green + "14", borderRadius:99, padding:"2px 8px" }}>
                       <span style={{ width:6, height:6, borderRadius:"50%", background:T.green, boxShadow:`0 0 6px ${T.green}` }}/>Activo
                     </span>
+                    {merchant?.auto_emails?.[m.id] && <span style={{ fontSize:10, fontWeight:700, color:T.blue, background:T.blue + "18", borderRadius:99, padding:"2px 8px" }}>con tu texto</span>}
                   </div>
                   <div style={{ fontSize:11.5, color:T.textSm, marginTop:3, lineHeight:1.5 }}>{m.when} {m.says}</div>
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:8, marginLeft:"auto" }}>
-                  {/* Prendido y trabado: no es una opción, es parte del producto. */}
+                  {/* Prendido y trabado: no es una opción, es parte del producto.
+                      Lo que SÍ puede hacer es cambiarle el texto. */}
                   <div role="img" aria-label="Siempre activo" title="Este mail sale siempre: es parte de la suscripción."
                     style={{ width:44, height:24, borderRadius:20, background:T.accentSolid, opacity:.55, position:"relative", cursor:"not-allowed", flexShrink:0 }}>
                     <div style={{ position:"absolute", top:3, left:22, width:18, height:18, borderRadius:"50%", background:"#fff", boxShadow:"0 1px 4px rgba(0,0,0,0.3)" }}/>
                   </div>
+                  <Btn T={T} variant="secondary" size="sm" onClick={() => setAutoEdit(m.id)}>Editar</Btn>
                 </div>
               </div>
             ))}
@@ -480,11 +485,90 @@ function FlowEditor({ T, merchant, initial, onBack }) {
   );
 }
 
+// ─── Editar uno de los tres mails obligatorios ──────────────────────────────
+// No se pueden apagar, pero el texto es del comerciante (27-sept-2026, Thiago).
+// Guarda parcial en merchants.auto_emails.<id>; "Volver al texto original" borra
+// lo suyo y vuelve al de fábrica.
+function AutoEmailEditor({ T, merchant, id, onBack }) {
+  const def = AUTO_EMAILS.find(m => m.id === id);
+  const actual = resolveAutoEmail(id, merchant) || {};
+  const [subject, setSubject] = useState(actual.subject || "");
+  const [body, setBody] = useState(actual.body || "");
+  const [cta, setCta] = useState(actual.cta_label || "");
+  const [saving, setSaving] = useState(false);
+  const editado = Boolean(merchant?.auto_emails?.[id]);
+  if (!def) return null;
+
+  const sinCambios = subject === actual.subject && body === actual.body && cta === (actual.cta_label || "");
+
+  async function guardar(propio) {
+    setSaving(true);
+    const anterior = merchant?.auto_emails || {};
+    const auto_emails = propio
+      ? { ...anterior, [id]: { subject: subject.trim(), body: body.trim(), cta_label: cta.trim() } }
+      : Object.fromEntries(Object.entries(anterior).filter(([k]) => k !== id));
+    const d = await apiPatch("merchant", { auto_emails: Object.keys(auto_emails).length ? auto_emails : null }, { action: "save-settings" })
+      .catch(e => ({ error: e.message }));
+    setSaving(false);
+    if (d?.error) return toast("No se pudo guardar: " + d.error, "error", 6000);
+    toast(propio ? "Guardado: sale con tu texto" : "Volvió al texto original", propio ? "success" : "warning");
+    onBack();
+  }
+
+  const vars = Object.fromEntries(AUTO_EMAIL_VARIABLES.map(v => [v.key, v.sample]));
+  const paso = { subject, body, cta: cta ? "portal" : "none", cta_label: cta };
+
+  return (
+    <div>
+      <PageHeader T={T} title={def.name} subtitle={def.when}
+        right={<Btn T={T} variant="secondary" size="sm" onClick={onBack} style={{ height:34 }}>← Volver</Btn>}/>
+
+      <Callout T={T} tone="info" style={{ marginBottom:16 }}>
+        Este mail sale siempre y no se puede apagar: es parte de la suscripción. Lo que sí podés cambiar es lo que dice.
+      </Callout>
+
+      <div style={{ display:"grid", gridTemplateColumns:"minmax(0,1fr) minmax(0,380px)", gap:16, alignItems:"start" }} className="kpi-grid">
+        <Panel T={T} title="El mail" sub="Usá las variables para que cada cliente reciba lo suyo.">
+          <Field T={T} label="Asunto">
+            <input value={subject} onChange={e => setSubject(e.target.value)} maxLength={150} style={InputStyle(T)}/>
+          </Field>
+          <Field T={T} label="Mensaje">
+            <textarea value={body} onChange={e => setBody(e.target.value)} maxLength={2000} rows={10}
+              style={{ ...InputStyle(T), resize:"vertical", lineHeight:1.5 }}/>
+          </Field>
+          <Field T={T} label="Texto del botón (vacío = sin botón)">
+            <input value={cta} onChange={e => setCta(e.target.value)} maxLength={40} placeholder="Gestionar mi suscripción" style={InputStyle(T)}/>
+          </Field>
+          <Hint T={T}>El botón lleva al portal del cliente, donde pausa, cambia la dirección o cancela.</Hint>
+
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginTop:14, alignItems:"center" }}>
+            <Btn T={T} variant="solid" disabled={saving || (!subject.trim() || !body.trim())} onClick={() => guardar(true)}>
+              {saving ? "Guardando…" : "Guardar"}
+            </Btn>
+            {editado && <Btn T={T} variant="secondary" disabled={saving} onClick={() => guardar(false)}>Volver al texto original</Btn>}
+            {sinCambios && !editado && <span style={{ fontSize:DS.font.sm, color:T.textSm }}>Este es el texto de fábrica.</span>}
+          </div>
+        </Panel>
+
+        <div style={{ position:"sticky", top:80 }}>
+          <EmailPreview T={T} merchant={merchant} step={paso} vars={vars}/>
+          <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, marginTop:10 }}>
+            Variables: {AUTO_EMAIL_VARIABLES.map(v => `{{${v.key}}}`).join(" · ")}
+          </div>
+          <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, marginTop:8 }}>
+            Este mail no lleva link de baja: es de la suscripción, no publicidad.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Cómo le llega el mail al cliente (colores fijos de mail, datos de ejemplo).
-function EmailPreview({ T, merchant, step }) {
+function EmailPreview({ T, merchant, step, vars: varsIn }) {
   const brand = merchant?.email_brand_effective || merchant?.email_brand || merchant?.store_name || "Tu marca";
   const accent = /^#[0-9a-f]{3,8}$/i.test(merchant?.widget_color || "") ? merchant.widget_color : "#10b981";
-  const vars = { ...Object.fromEntries(FLOW_VARIABLES.map(v => [v.key, v.sample])), marca: brand };
+  const vars = { ...Object.fromEntries(FLOW_VARIABLES.map(v => [v.key, v.sample])), ...(varsIn || {}), marca: brand };
   if (!step) {
     return (
       <Panel T={T} title="Vista previa">

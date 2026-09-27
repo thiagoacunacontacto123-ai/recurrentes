@@ -166,10 +166,41 @@ const fmtArs = (n) => `$${Math.round(Number(n) || 0).toLocaleString("es-AR")}`;
 
 // ─── Templates ───────────────────────────────────────────────────
 
+// ── Mails automáticos con el texto del comerciante ──────────────────────────
+// Los tres mails de abajo (activación, pago rechazado, baja) salen de fábrica
+// con el texto y el diseño que están acá. Desde el 27-sept-2026 el comercio los
+// puede editar (Flujos de email → Editar) y lo que guarda vive en
+// `merchants.auto_emails.<id>`.
+//
+// Regla: si NO los tocó, sale exactamente lo de siempre. Nadie se despierta con
+// los mails cambiados porque nosotros movimos una plantilla.
+async function sendAutoEmailCustom(id, { merchant, to, vars, ctaUrl, tags }) {
+  const { resolveAutoEmail } = await import("../../shared/platform/flows.js");
+  const { renderVars } = await import("../../shared/platform/flows.js");
+  const snd = resolveSender({ merchant });
+  const t = resolveAutoEmail(id, merchant);
+  const subject = plain(renderVars(t.subject, vars), 180) || "Tu suscripción";
+  const label = renderVars(t.cta_label, vars).trim();
+  return emailFlowStep({
+    to, merchant,
+    subject,
+    bodyText: renderVars(t.body, vars),
+    ctaLabel: label,
+    ctaUrl: label ? ctaUrl : null,
+    // Sin merchantId: estos NO llevan link de baja. Son transaccionales — el
+    // cliente no puede darse de baja del aviso de que le rechazaron el pago.
+    tags: { type: id, ...(tags || {}) },
+  });
+}
+
 export async function emailSubscriptionActivated({ to, customerName, productTitle, frequencyDays, amount, portalUrl, merchant, from, brand, accent, replyTo }) {
   const snd = resolveSender({ merchant, from, brand, accent, replyTo });
   const prodTxt = plain(productTitle) || "tu suscripción";
   const freq = parseInt(frequencyDays, 10) || 30;
+  if (merchant?.auto_emails?.activation) {
+    return sendAutoEmailCustom("activation", { merchant, to, ctaUrl: portalUrl,
+      vars: { nombre: plain(customerName) || "", producto: prodTxt, monto: fmtArs(amount), frecuencia: `cada ${freq} días`, marca: snd.brand } });
+  }
   const html = baseTemplate({
     brand: snd.brand, accent: snd.accent, support: snd.support,
     title: `¡Tu suscripción a ${prodTxt} está activa!`,
@@ -193,6 +224,10 @@ export async function emailSubscriptionActivated({ to, customerName, productTitl
 export async function emailSubscriptionCancelled({ to, customerName, productTitle, merchant, from, brand, accent, replyTo }) {
   const snd = resolveSender({ merchant, from, brand, accent, replyTo });
   const prodTxt = plain(productTitle) || "tu suscripción";
+  if (merchant?.auto_emails?.cancellation) {
+    return sendAutoEmailCustom("cancellation", { merchant, to, ctaUrl: null,
+      vars: { nombre: plain(customerName) || "", producto: prodTxt, marca: snd.brand } });
+  }
   const html = baseTemplate({
     brand: snd.brand, accent: snd.accent, support: snd.support,
     title: `Cancelamos tu suscripción`,
@@ -285,6 +320,10 @@ export async function emailAbandonedCheckout({ to, customerName, productTitle, a
 export async function emailPaymentFailed({ to, customerName, productTitle, portalUrl, merchant, from, brand, accent, replyTo }) {
   const snd = resolveSender({ merchant, from, brand, accent, replyTo });
   const prodTxt = plain(productTitle) || "tu suscripción";
+  if (merchant?.auto_emails?.payment_failed) {
+    return sendAutoEmailCustom("payment_failed", { merchant, to, ctaUrl: portalUrl,
+      vars: { nombre: plain(customerName) || "", producto: prodTxt, marca: snd.brand } });
+  }
   const html = baseTemplate({
     brand: snd.brand, accent: snd.accent, support: snd.support,
     title: `Tu pago no se pudo procesar`,

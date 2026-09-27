@@ -60,17 +60,82 @@ export const FLOW_VARIABLES = [
 // cliente de Wellfresh le preguntó si el mail de "pago confirmado" estaba
 // puesto, y estaba, pero en el panel no se veía por ningún lado (27-sept-2026,
 // Thiago). Van siempre prendidos y no se cobran.
+// Cada uno trae el texto que sale HOY. El comerciante lo puede editar (botón
+// Editar, 27-sept-2026) y lo que guarde vive en `merchants.auto_emails.<id>`;
+// si no toca nada, o si borra lo suyo, vuelve exactamente a esto.
 export const AUTO_EMAILS = [
-  { id: "activation", icon: "✅", name: "Pago confirmado",
+  {
+    id: "activation", icon: "✅", name: "Pago confirmado",
     when: "Apenas Mercado Pago confirma el primer pago y la suscripción queda activa.",
-    says: "Le confirma el pago, qué compró, cada cuánto se renueva y el link a su portal." },
-  { id: "payment_failed", icon: "⚠️", name: "Pago rechazado",
+    says: "Le confirma el pago, qué compró, cada cuánto se renueva y el link a su portal.",
+    subject: "¡Suscripción activa — {{producto}}!",
+    body: "Hola {{nombre}},\n\nRecibimos la confirmación de tu pago. Ya estás suscrito a {{producto}}.\n\nSe cobra {{monto}} {{frecuencia}}.\n\nEn los próximos días vas a recibir tu primer envío a la dirección que cargaste.\n\nPodés pausar, cancelar o cambiar la dirección cuando quieras desde tu portal.",
+    cta_label: "Gestionar mi suscripción",
+  },
+  {
+    id: "payment_failed", icon: "⚠️", name: "Pago rechazado",
     when: "Cuando Mercado Pago no pudo cobrar una renovación.",
-    says: "Le avisa que el cobro no salió y le deja el link para actualizar la tarjeta." },
-  { id: "cancellation", icon: "👋", name: "Suscripción cancelada",
+    says: "Le avisa que el cobro no salió y le deja el link para actualizar la tarjeta.",
+    subject: "Hubo un problema con tu pago — {{producto}}",
+    body: "Hola {{nombre}},\n\nIntentamos cobrar tu suscripción a {{producto}} y no fue posible. Suele pasar por una tarjeta vencida, sin saldo, con el tope diario alcanzado o bloqueada por seguridad.\n\nLo bueno: lo arreglás en un minuto desde tu cuenta de Mercado Pago. Vamos a reintentar el cobro automáticamente en las próximas 48 horas.",
+    cta_label: "Ver detalle de mi suscripción",
+  },
+  {
+    id: "cancellation", icon: "👋", name: "Suscripción cancelada",
     when: "Cuando se da de baja, la cancele el cliente desde su portal o vos desde el panel.",
-    says: "Le confirma que no se le cobra más." },
+    says: "Le confirma que no se le cobra más.",
+    subject: "Tu suscripción a {{producto}} fue cancelada",
+    body: "Hola {{nombre}},\n\nConfirmamos que tu suscripción a {{producto}} fue cancelada. No vamos a hacer más cobros.\n\nSi fue un error o cambiás de idea, podés volver al producto en la tienda y suscribirte de nuevo.",
+    cta_label: "",
+  },
 ];
+export const AUTO_EMAIL_BY_ID = Object.fromEntries(AUTO_EMAILS.map(m => [m.id, m]));
+
+// Variables de los mails automáticos. Son menos que las de un flujo: acá no hay
+// link de checkout ni fecha de próximo cobro, porque el mail sale en el momento.
+export const AUTO_EMAIL_VARIABLES = [
+  { key: "nombre",     label: "Nombre",        sample: "Ana" },
+  { key: "producto",   label: "Producto",      sample: "Café de especialidad 250 g" },
+  { key: "monto",      label: "Monto",         sample: "$9.480" },
+  { key: "frecuencia", label: "Cada cuánto",   sample: "cada 30 días" },
+  { key: "marca",      label: "Tu marca",      sample: "Tu marca" },
+];
+
+// Lo que el comerciante guardó para un mail automático, o el texto de fábrica.
+// Se usa en los DOS lados: el editor del panel y el mail que sale de verdad.
+export function resolveAutoEmail(id, merchant) {
+  const def = AUTO_EMAIL_BY_ID[id];
+  if (!def) return null;
+  const propio = merchant?.auto_emails?.[id] || {};
+  const txt = (k) => (typeof propio[k] === "string" && propio[k].trim() ? propio[k] : def[k]);
+  return {
+    id, subject: txt("subject"), body: txt("body"),
+    // El botón sí se puede dejar vacío a propósito (cancelación no lleva).
+    cta_label: typeof propio.cta_label === "string" ? propio.cta_label : def.cta_label,
+    editado: Object.keys(propio).length > 0,
+  };
+}
+
+// Saneo de lo que manda el panel. Solo los tres ids conocidos; un texto vacío
+// borra ese campo (vuelve al de fábrica) y {} borra el mail entero.
+export function sanitizeAutoEmails(input) {
+  if (input == null) return { auto_emails: null };
+  if (typeof input !== "object" || Array.isArray(input)) return { error: "auto_emails tiene que ser un objeto" };
+  const out = {};
+  for (const [id, v] of Object.entries(input)) {
+    if (!AUTO_EMAIL_BY_ID[id]) return { error: `No existe el mail automático "${id}"` };
+    if (v == null || typeof v !== "object") continue;
+    const uno = {};
+    const sub = String(v.subject || "").replace(/\s+/g, " ").trim().slice(0, 150);
+    const body = String(v.body || "").replace(/\r\n/g, "\n").trim().slice(0, 2000);
+    const cta = String(v.cta_label || "").replace(/\s+/g, " ").trim().slice(0, 40);
+    if (sub) uno.subject = sub;
+    if (body) uno.body = body;
+    if ("cta_label" in v) uno.cta_label = cta;   // vacío = sin botón, a propósito
+    if (Object.keys(uno).length) out[id] = uno;
+  }
+  return { auto_emails: Object.keys(out).length ? out : null };
+}
 
 export const CTA_OPTIONS = [
   { id:"none",     label:"Sin botón" },

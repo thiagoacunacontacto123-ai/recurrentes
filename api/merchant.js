@@ -223,6 +223,8 @@ export default async function handler(req, res) {
         // Tema del checkout hosteado: lo guardado (parcial) + el resuelto para la vista previa.
         checkout_theme: (merchant.checkout_theme && typeof merchant.checkout_theme === "object") ? merchant.checkout_theme : null,
         checkout_upsells: Array.isArray(merchant.checkout_upsells) ? merchant.checkout_upsells : [],
+        // Lo que el comercio editó de los mails automáticos (vacío = de fábrica).
+        auto_emails: (merchant.auto_emails && typeof merchant.auto_emails === "object") ? merchant.auto_emails : null,
         // Cobrar con tarjeta dentro de nuestro checkout: prendido, y si la tienda
         // tiene la public key (sin ella el interruptor no se puede prender).
         mp_checkout_api: merchant.mp_checkout_api === true,
@@ -861,6 +863,14 @@ async function saveSettings(merchantId, req, res) {
     const quiere = b.mp_checkout_api === true;
     if (quiere && !(await getCur()).mp_public_key) return bad("Para cobrar con tarjeta en tu checkout necesitamos la Public Key de Mercado Pago. Reconectá Mercado Pago desde Integraciones y queda cargada sola.");
     out.mp_checkout_api = quiere;
+  }
+  // Textos de los tres mails automáticos (Flujos de email → Editar). Parcial:
+  // lo que no mande vuelve al texto de fábrica; null borra todo lo suyo.
+  if ("auto_emails" in b) {
+    const { sanitizeAutoEmails } = await import("../shared/platform/flows.js");
+    const r = sanitizeAutoEmails(b.auto_emails);
+    if (r.error) return bad(r.error);
+    out.auto_emails = r.auto_emails;
   }
   if ("cart_settings" in b) {
     const r = sanitizeCartSettings(b.cart_settings);
