@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from "react";
-import { BundlePreview } from "./WidgetDesigner.jsx";
 import { DS } from "../ui/theme.js";
 import { BtnSolid } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
@@ -272,14 +271,9 @@ const DEMO_MERCHANT = {
   widget_texts: { headline: "Elegí tu pack", sub_hint: "Tildá esta opción y te llega solo, sin frenar el tratamiento" },
 };
 function WidgetMock({ T }) {
-  return (
-    <MockFrame T={T} label="Widget en tu producto">
-      <BundlePreview plan={DEMO_PLAN} merchant={DEMO_MERCHANT} footer={false} maxWidth={470} minHeight={560} style={{ margin: "0 -4px" }}/>
-      <div style={{ marginTop: 10, fontSize: 11.5, color: T.textSm, textAlign: "center" }}>
-        Probalo: tocá los packs y cambiá entre <strong style={{ color: T.textMd }}>Compra única</strong> y <strong style={{ color: T.textMd }}>Suscripción</strong>.
-      </div>
-    </MockFrame>
-  );
+  // Sección vieja (no se monta). Antes usaba BundlePreview de WidgetDesigner, que arrastraba
+  // el diseñador entero al paquete de la landing (27-sept-2026).
+  return <div style={{ minHeight: 200, borderRadius: 16, background: T.card, border: `1px solid ${T.border}` }}/>;
 }
 function TimelineMock({ T }) {
   const rows = [

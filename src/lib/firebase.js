@@ -2,7 +2,6 @@
 // Las escrituras importantes pasan por /api/* con el Admin SDK.
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
 
 // Login con Google en el dominio propio: el handler de Firebase (/__/auth/*) se sirve
 // por un proxy de Vercel (vercel.json), así Google muestra "recurrentesapp.com" y no
@@ -24,5 +23,5 @@ const config = {
 export const app = getApps().length ? getApps()[0] : initializeApp(config);
 export const auth = getAuth(app);
 auth.languageCode = "es"; // mails de Firebase (respaldo) en castellano
-export const db = getFirestore(app);
+// Sin Firestore en el navegador (27-sept-2026): nadie usaba `db` y el SDK pesaba ~100 KB gz en la landing.
 export { onAuthStateChanged };
