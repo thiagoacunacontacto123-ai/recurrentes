@@ -171,7 +171,9 @@ function buildCtx(vm, state) {
   };
   ctx.freqPrefix = function (p) {
     if (t.freq_prefix) return t.freq_prefix;
-    return (p && p.qty > 1) ? "Te llegan " + p.qty + " cada" : "Te llega cada";
+    // "Te llegan 2 unidades cada mes", no "Te llegan 2 cada mes": leído rápido parecía
+    // "cada 2 meses" (27-sept-2026, Thiago).
+    return (p && p.qty > 1) ? "Te llegan " + p.qty + " unidades cada" : "Te llega cada";
   };
   ctx.freqText = function (p) {
     p = p || sel;

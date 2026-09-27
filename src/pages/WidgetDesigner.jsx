@@ -33,7 +33,7 @@ const DEFAULT_WIDGET_TEXTS = {
   cta_sub: "Suscribirme",
   savings_label: "Ahorrás {pct}%",
   per_unit_label: "{price} c/u",
-  freq_prefix: "",   // vacío = automático: "Te llegan 2 cada 30 días"
+  freq_prefix: "",   // vacío = automático: "Te llegan 2 unidades cada 30 días"
   trust_lines: ["Cancelás cuando quieras", "Envío a todo el país"],
   trust_lines_once: [],
   note_sub: "",
@@ -85,7 +85,7 @@ function ModoTextos({ T, titulo, campos, texts, setText, inputS, lineas, campoLi
         {campos.map(([k, label]) => (
           <Field key={k} T={T} label={label}>
             <input type="text" value={texts[k] ?? ""} onChange={e=>setText(k, e.target.value)} style={inputS}
-              placeholder={k === "freq_prefix" ? "Te llegan 2 cada…" : DEFAULT_WIDGET_TEXTS[k]} maxLength={80}/>
+              placeholder={k === "freq_prefix" ? "Te llegan 2 unidades cada…" : DEFAULT_WIDGET_TEXTS[k]} maxLength={80}/>
           </Field>
         ))}
       </div>
@@ -644,7 +644,7 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
             {TEXT_FIELDS.map(([k, label]) => (
               <Field key={k} T={T} label={label}>
                 <input type="text" value={texts[k] ?? ""} onChange={e=>setText(k, e.target.value)} style={inputS}
-              placeholder={k === "freq_prefix" ? "Te llegan 2 cada…" : DEFAULT_WIDGET_TEXTS[k]} maxLength={80}/>
+              placeholder={k === "freq_prefix" ? "Te llegan 2 unidades cada…" : DEFAULT_WIDGET_TEXTS[k]} maxLength={80}/>
               </Field>
             ))}
           </div>

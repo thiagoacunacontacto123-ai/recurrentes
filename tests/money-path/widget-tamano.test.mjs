@@ -196,7 +196,7 @@ test("(w) la nota del pack se escapa", () => {
 
 test("(w) la frecuencia dice CUÁNTOS le llegan", () => {
   const dos = htmlNotas("v01", { mode: "sub", selectedIdx: 1 });
-  assert.ok(dos.includes("Te llegan 2 cada"), "el pack de 2 tiene que decir la cantidad");
+  assert.ok(dos.includes("Te llegan 2 unidades cada"), "el pack de 2 tiene que decir la cantidad");
   // Con uno solo no tiene sentido "Te llegan 1".
   const uno = htmlNotas("v01", { mode: "sub", selectedIdx: 0 });
   assert.ok(uno.includes("Te llega cada") && !uno.includes("Te llegan 1"));
@@ -337,7 +337,7 @@ test("(w) sub_hint manda tildado y destildado", () => {
   assert.equal(renglon({ sub_hint: MIO }, "sub"), MIO, "tildado: el texto del comerciante");
   assert.equal(renglon({ sub_hint: MIO }, "once"), MIO, "apagado: el mismo");
   // Sin cargarlo, los automáticos de siempre (cada modo el suyo).
-  assert.match(renglon({}, "sub"), /Te llegan 2 cada/);
+  assert.match(renglon({}, "sub"), /Te llegan 2 unidades cada/);
   assert.match(renglon({}, "once"), /Activalo y te llega solo/);
 });
 

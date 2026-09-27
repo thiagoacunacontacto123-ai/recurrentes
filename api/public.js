@@ -417,6 +417,14 @@ async function handlePlan(req, res) {
         vocab: p.vocab,
         // Casilla "Quiero que me avisen por WhatsApp": solo si la tienda tiene quién mande.
         whatsapp_optin: Boolean(waSender(m)),
+        // Formulario de tarjeta en nuestro checkout (Checkout API de MP), detrás
+        // de la bandera `mp_checkout_api`. La public key es PÚBLICA por diseño:
+        // vive en el navegador y solo sirve para tokenizar una tarjeta contra la
+        // cuenta de esta tienda. El access token NUNCA sale de acá.
+        card_form: (m.mp_checkout_api === true && p.paymentProvider === "mercadopago"
+          && typeof m.mp_public_key === "string" && /^(APP_USR|TEST)-/.test(m.mp_public_key))
+          ? { public_key: m.mp_public_key }
+          : null,
       };
     }
     return res.json({
