@@ -609,14 +609,14 @@ export default function Checkout() {
   // fondo del checkout de la tienda, y nada de alto mínimo de pantalla.
   useEffect(() => {
     if (!isEmbed) return;
-    const h = document.documentElement, b = document.body;
-    const antes = [h.style.background, b.style.background, b.style.margin, h.style.minHeight, b.style.minHeight];
-    h.style.background = theme.bg; b.style.background = theme.bg;
-    b.style.margin = "0"; h.style.minHeight = "0"; b.style.minHeight = "0";
-    return () => {
-      h.style.background = antes[0]; b.style.background = antes[1];
-      b.style.margin = antes[2]; h.style.minHeight = antes[3]; b.style.minHeight = antes[4];
-    };
+    // Va como hoja de estilo con !important, no como estilo del elemento:
+    // applyTheme() del panel escribe body.style.background con el fondo de la
+    // app cada vez que cambia el tema y pisaría cualquier cosa que pongamos ahí.
+    const bg = /^#[0-9a-fA-F]{3,8}$/.test(String(theme.bg || "")) ? theme.bg : "#ffffff";
+    const st = document.createElement("style");
+    st.textContent = `html,body{background:${bg}!important;margin:0!important;min-height:0!important}`;
+    document.head.appendChild(st);
+    return () => { try { st.remove(); } catch (_) {} };
   }, [isEmbed, theme.bg]);
 
   const R = theme.radius;
