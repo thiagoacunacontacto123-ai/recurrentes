@@ -84,6 +84,8 @@ export function MotionStyle({ T }) {
       @keyframes lmStepIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
       .lm-stack-panel{position:absolute;inset:0;opacity:0;transform:translateY(40px) scale(.96) rotate(1.5deg);transition:opacity .5s cubic-bezier(.22,1,.36,1),transform .6s cubic-bezier(.22,1,.36,1);pointer-events:none;}
       .lm-stack-panel.on{opacity:1;transform:none;pointer-events:auto;}
+      .lm-stack-panel > .lm-card{max-height:100%;overflow:auto;scrollbar-width:none;}
+      .lm-stack-panel > .lm-card::-webkit-scrollbar{display:none;}
       .lm-stack-panel.was{opacity:0;transform:translateY(-40px) scale(.96) rotate(-1.5deg);}
       @media(max-width:640px){.lm-tour-side{display:none!important}.lm-tour-body{grid-template-columns:1fr!important}}
       /* ── Comparativa "arena" ── */
@@ -253,10 +255,12 @@ function usePinFit(innerRef, enabled, dep) {
     const fit = () => { raf = 0; const h = el.offsetHeight, vh = window.innerHeight; el.style.top = Math.max(0, Math.round((vh - h) / 2)) + "px"; };
     const onR = () => { if (!raf) raf = requestAnimationFrame(fit); };
     fit();
-    const ro = "ResizeObserver" in window ? new ResizeObserver(onR) : null; ro?.observe(el);
+    // Solo al cambiar el tamaño de la ventana (o de fuentes/imagenes al cargar), NUNCA
+    // al cambiar de paso: si el top del sticky se mueve mientras bajás, "late".
+    const t1 = setTimeout(fit, 400), t2 = setTimeout(fit, 1500);
     window.addEventListener("resize", onR);
-    return () => { ro?.disconnect(); window.removeEventListener("resize", onR); if (raf) cancelAnimationFrame(raf); };
-  }, [innerRef, enabled, dep]);
+    return () => { clearTimeout(t1); clearTimeout(t2); window.removeEventListener("resize", onR); if (raf) cancelAnimationFrame(raf); };
+  }, [innerRef, enabled]);
 }
 
 function useMedia(query) {
@@ -1091,8 +1095,8 @@ function ScrollStack({ T, id, items, eyebrow, title, hideHead = false, panelMinH
                   <div style={{ marginTop: 14, fontSize: 12.5, color: T.textSm }}>{step + 1} de {n} · seguí bajando</div>
                 </div>
               </div>
-              <div className="lm-stack-stage" style={{ position: "relative", minHeight: desktop ? panelMinH : "min(58svh, 520px)" }}>
-                {items.map((f, i) => <div key={f.t} className={"lm-stack-panel " + (i === step ? "on" : i < step ? "was" : "")} style={{ display: "grid", alignContent: "center" }}><div className="lm-card" style={{ padding: desktop ? 14 : 10, boxShadow: "0 30px 70px -30px rgba(0,0,0,.5)" }}><f.C T={T}/></div></div>)}
+              <div className="lm-stack-stage" style={{ position: "relative", height: desktop ? panelMinH : "min(56svh, 520px)" }}>
+                {items.map((f, i) => <div key={f.t} className={"lm-stack-panel " + (i === step ? "on" : i < step ? "was" : "")} style={{ display: "grid", alignContent: "center", overflow: "hidden" }}><div className="lm-card" style={{ padding: desktop ? 14 : 10, boxShadow: "0 30px 70px -30px rgba(0,0,0,.5)" }}><f.C T={T}/></div></div>)}
               </div>
             </div>
           ) : (
