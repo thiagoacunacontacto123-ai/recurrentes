@@ -19,6 +19,7 @@ import { readAttribution, pixelTrack } from "../lib/attribution.js";
 import { AGENDA_URL, waLink, agendaUrl } from "../lib/contacto.js";
 import { DEMO_PREGUNTAS, DEMO_CONFIRMACIONES, sanitizeDemoLead } from "../../shared/platform/demoLead.js";
 import { REVIEWS, ReviewCard, Stars } from "./LandingSections.jsx";
+import { MotionStyle, useReveal, PartnerBadges } from "./LandingMotion.jsx";
 
 const F = "'Inter',system-ui,sans-serif";
 const FD = "'Manrope','Inter',system-ui,sans-serif";
@@ -136,6 +137,8 @@ export default function DemoPage() {
   // Id del lead guardado: con eso marcamos "agendó" cuando Calendly avisa.
   const [leadId, setLeadId] = useState(null);
   const set = (k, v) => setF((p) => ({ ...p, [k]: v }));
+  const rootRef = React.useRef(null);
+  useReveal(rootRef);
 
   const label = { display: "block", fontSize: 12.5, fontWeight: 600, color: T.textMd, marginBottom: 6, lineHeight: 1.4 };
   const campo = { marginBottom: 14 };
@@ -174,7 +177,7 @@ export default function DemoPage() {
   const wa = waLink(`Hola! Soy ${f.nombre || ""} de ${f.marca || ""}. Acabo de pedir la demo de Recurrentes.`);
 
   return (
-    <div className="rec-demo" style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: F }}>
+    <div ref={rootRef} className="rec-demo" style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: F }}>
       <style>{`
         .rec-demo h1,.rec-demo h2,.rec-demo h3{font-family:${FD};}
         .rec-demo-wrap{max-width:1120px;margin:0 auto;padding:0 24px;}
@@ -190,15 +193,14 @@ export default function DemoPage() {
         }
       `}</style>
 
+      <MotionStyle T={T}/>
+      {/* Sin "Volver" ni "Iniciar sesión" (Thiago, 26-sept): solo el logo y los sellos de partner. */}
       <nav style={{ position: "sticky", top: 0, zIndex: 20, background: T.bg + "e6", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", borderBottom: `1px solid ${T.border}` }}>
-        <div className="rec-demo-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 60 }}>
+        <div className="rec-demo-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 60, gap: 10 }}>
           <a href="#/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: T.text }}>
             <RecLogo size={30}/><span style={{ fontWeight: 800, fontSize: 18, letterSpacing: -0.3 }}>Recurrentes</span>
           </a>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 13.5 }}>
-            <a href="#/" style={{ color: T.textMd, textDecoration: "none", fontWeight: 500 }}>← Volver</a>
-            <a href="#/login" style={{ color: T.text, textDecoration: "none", fontWeight: 600 }}>Iniciar sesión</a>
-          </div>
+          <PartnerBadges T={T} compact style={{ justifyContent: "flex-end" }}/>
         </div>
       </nav>
 
@@ -226,7 +228,7 @@ export default function DemoPage() {
             <>
               {/* Arriba: una explicación breve. Después, directo a los datos. Las
                   reseñas quedan al final (25-sept-2026, Thiago: "sin tanto choclo"). */}
-              <div style={{ maxWidth: 640, margin: "36px auto 26px", textAlign: "center" }}>
+              <div data-reveal="flip" style={{ maxWidth: 640, margin: "36px auto 26px", textAlign: "center" }}>
                 <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "5px 12px", borderRadius: 20, background: T.accentSolid + "16", border: `1px solid ${T.accentSolid}44`, color: T.accent, fontSize: 11, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", marginBottom: 16 }}>
                   <span style={{ width: 7, height: 7, borderRadius: 99, background: T.accentSolid }}/>Demo de 15 minutos · por videollamada
                 </div>
@@ -238,7 +240,7 @@ export default function DemoPage() {
                 </p>
               </div>
 
-              <div className="rec-demo-form" style={{ position: "static", maxWidth: 560, margin: "0 auto" }}>
+              <div data-reveal="swing" className="rec-demo-form" style={{ position: "static", maxWidth: 560, margin: "0 auto" }}>
                 <h2 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.03em", margin: "0 0 16px" }}>Tus datos</h2>
 
                 <div style={campo}>
@@ -301,7 +303,7 @@ export default function DemoPage() {
                   <Stars T={T} size={14}/>
                   <span style={{ fontSize: 13.5, color: T.textMd }}><strong style={{ color: T.text }}>4.9</strong> promedio de las tiendas que ya venden por suscripción</span>
                 </div>
-                <div className="rec-demo-reviews">
+                <div className="rec-demo-reviews" data-reveal="rise">
                   {REVIEWS.slice(0, 3).map((r, i) => <ReviewCard key={r.n} T={T} r={r} i={i} compact/>)}
                 </div>
               </div>

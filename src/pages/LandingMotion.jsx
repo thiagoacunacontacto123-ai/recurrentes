@@ -49,14 +49,14 @@ export function MotionStyle({ T }) {
       /* ── Hero: tres facetas que van pasando (widget café → widget vitamina → página) ── */
       /* La caja del hero SIEMPRE mide lo mismo (Thiago, 26-sept: "que ese cuadrado se
          mantenga del mismo tamaño"): el escenario tiene alto fijo y cada faceta lo llena. */
-      .lm-stage{position:relative;perspective:1200px;min-width:0;max-width:100%;height:var(--stage-h,560px);}
-      .lm-face{position:absolute;inset:0;min-width:0;max-width:100%;}
-      .lm-face > .lm-card{height:100%;display:flex;flex-direction:column;overflow:hidden;}
+      .lm-stage{position:relative;perspective:1200px;min-width:0;max-width:100%;display:grid;}
+      .lm-face{grid-area:1/1;min-width:0;max-width:100%;align-self:stretch;}
+      .lm-face > .lm-card{height:100%;display:flex;flex-direction:column;}
       .lm-face .lm-hero-widget > div:last-child{flex:1;min-height:0;}
+      .lm-face.is-hidden{visibility:hidden;pointer-events:none;}
+      .lm-face.is-out{pointer-events:none;z-index:2;}
       .lm-hero-widget{min-width:0;max-width:100%;}
       .rec-land-hero > *{min-width:0;}
-      .lm-face.is-out{pointer-events:none;z-index:2;}
-      @media(max-width:640px){.lm-stage{--stage-h:600px;}}
       .lm-in-flip{animation:lmInFlip .75s cubic-bezier(.22,1,.36,1) both;transform-origin:50% 50%;}
       .lm-out-flip{animation:lmOutFlip .75s cubic-bezier(.22,1,.36,1) both;transform-origin:50% 50%;}
       @keyframes lmInFlip{from{opacity:0;transform:rotateY(-70deg) translateX(60px)}to{opacity:1;transform:none}}
@@ -77,9 +77,15 @@ export function MotionStyle({ T }) {
       .lm-stack-item{transition:opacity .35s,transform .35s;}
       .lm-stack-item:not(.on){opacity:.32;}
       .lm-stack-item.on{opacity:1;}
+      .lm-stepper-n{font-family:${MONO};font-size:11px;font-weight:700;width:34px;height:30px;border-radius:9px;border:1px solid ${T.border};background:transparent;color:${T.textSm};cursor:pointer;transition:all .25s;}
+      .lm-stepper-n.on{background:${T.accentSolid};border-color:${T.accentSolid};color:#fff;transform:scale(1.08);}
+      .lm-stepper-n.done{color:${T.accent};border-color:${T.accentSolid}66;}
+      .lm-stack-active{animation:lmStepIn .45s cubic-bezier(.22,1,.36,1) both;}
+      @keyframes lmStepIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
       .lm-stack-panel{position:absolute;inset:0;opacity:0;transform:translateY(40px) scale(.96) rotate(1.5deg);transition:opacity .5s cubic-bezier(.22,1,.36,1),transform .6s cubic-bezier(.22,1,.36,1);pointer-events:none;}
       .lm-stack-panel.on{opacity:1;transform:none;pointer-events:auto;}
       .lm-stack-panel.was{opacity:0;transform:translateY(-40px) scale(.96) rotate(-1.5deg);}
+      @media(max-width:640px){.lm-tour-side{display:none!important}.lm-tour-body{grid-template-columns:1fr!important}}
       /* ── Comparativa "arena" ── */
       .lm-arena{display:grid;grid-template-columns:1.25fr repeat(6,1fr);gap:0;align-items:stretch;}
       .lm-arena-h{padding:16px 14px 14px;font-size:13px;font-weight:800;}
@@ -96,6 +102,8 @@ export function MotionStyle({ T }) {
       }
       .lm-arena-pill{font-family:${F};font-size:12.5px;font-weight:700;padding:7px 12px;border-radius:99px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.05);color:#cfe3da;cursor:pointer;}
       .lm-arena-pill.on{background:#fff;color:#0C1A18;border-color:#fff;}
+      .lm-hi{position:relative;color:${T.text};font-weight:700;background-image:linear-gradient(120deg,var(--c,${T.accentSolid})55,var(--c,${T.accentSolid})55);background-repeat:no-repeat;background-size:0% 42%;background-position:0 88%;transition:background-size .6s cubic-bezier(.22,1,.36,1);transition-delay:var(--d,0s);padding:0 2px;border-radius:3px;}
+      .is-in .lm-hi{background-size:100% 42%;}
       /* ── Bloque "una suscripción para tu suscripción" ── */
       .lm-subs-row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;}
       .lm-subs-row > span{display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:99px;background:${T.card};border:1px solid ${T.border};font-size:14px;font-weight:700;color:${T.text};}
@@ -107,7 +115,7 @@ export function MotionStyle({ T }) {
       }
       /* ── Bloque fijo manejado por el scroll (desktop) ── */
       .lm-pin{position:relative;}
-      .lm-pin-inner{position:sticky;top:0;height:100vh;height:100svh;display:flex;flex-direction:column;justify-content:center;overflow:hidden;}
+      .lm-pin-inner{position:sticky;top:0;height:100vh;height:100svh;display:flex;flex-direction:column;justify-content:center;overflow:hidden;box-sizing:border-box;padding:48px 0;}
       .lm-track{display:flex;gap:28px;will-change:transform;transform:translateX(calc(var(--p,0) * var(--travel,0px)));}
       .lm-progress{height:3px;border-radius:99px;background:${T.border};overflow:hidden;}
       .lm-progress > i{display:block;height:100%;width:calc(var(--p,0) * 100%);background:${T.accentSolid};transition:width .08s linear;}
@@ -133,8 +141,10 @@ export function MotionStyle({ T }) {
       /* ── Celular: nada fijo; carrusel con snap y todo apilado ── */
       @media(max-width:900px){
         .lm-pin:not(.lm-pin-all) .lm-pin-inner{position:static;height:auto;display:block;overflow:visible;}
-        .lm-pin-all .lm-pin-inner{justify-content:flex-start;padding-top:72px!important;}
-        .lm-pin-all .lm-h2{font-size:26px;}
+        .lm-pin-all .lm-pin-inner{justify-content:center;padding:16px 0!important;}
+        .lm-stepper{grid-auto-flow:column;gap:4px!important;}
+        .lm-stepper-n{width:28px;height:24px;font-size:10px;}
+        .lm-stack-grid > div:first-child{grid-template-columns:1fr!important;}
         .lm-stack-stage .lm-dots > i.on::after{transform:none;animation:none;}
         .lm-track{transform:none!important;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:4px 16px 18px;margin:0 -16px;scrollbar-width:none;}
         .lm-track::-webkit-scrollbar{display:none;}
@@ -143,7 +153,7 @@ export function MotionStyle({ T }) {
         .lm-wrap{padding:0 16px;}
       }
       @media (prefers-reduced-motion: reduce){
-        .lm-stack-item[hidden]{display:block!important;}
+        .lm-stack-active{animation:none;}
         [data-reveal]{opacity:1;transform:none;transition:none;clip-path:none;}
         .lm-in-flip,.lm-out-flip,.lm-in-zoom,.lm-out-zoom,.lm-in-wipe,.lm-out-wipe{animation:none;}
         .lm-face.is-out{display:none;}
@@ -290,7 +300,7 @@ const SKIN_SCRIPT = [
   { mode: "sub",  idx: 0, act: ["mode", "sub"] },
   { mode: "sub",  idx: 1, act: ["pack", 1] },
 ];
-export function WidgetLoop({ T, plan = SAMPLE_PLANS.cafe, merchant = HERO_MERCHANT, script = HERO_SCRIPT, brand = "Tostado", brandColor = "#6b3f2a", art = PRODUCT_ART.cafe, onDone, fontSize = 13.5 }) {
+export function WidgetLoop({ T, plan = SAMPLE_PLANS.cafe, merchant = HERO_MERCHANT, script = HERO_SCRIPT, brand = "Tostado", brandColor = "#6b3f2a", art = PRODUCT_ART.cafe, onDone, fontSize = 13.5, active = true }) {
   const reduce = useReducedMotion();
   const vm = useMemo(() => safeVM(plan, merchant), [plan, merchant]);
   const states = useMemo(() => {
@@ -306,9 +316,10 @@ export function WidgetLoop({ T, plan = SAMPLE_PLANS.cafe, merchant = HERO_MERCHA
   const doneRef = useRef(onDone); doneRef.current = onDone;
   const cur = script[Math.min(step, script.length - 1)];
   const html = states[cur.mode + ":" + cur.idx] || Object.values(states)[0] || "";
+  useEffect(() => { if (active && !reduce) { setStep(0); setCursor({ x: 70, y: 40, click: false, on: false }); } }, [active, reduce]);
 
   useEffect(() => {
-    if (reduce) return;
+    if (reduce || !active) return;
     let alive = true; let t1, t2;
     const isLast = step >= script.length - 1;
     const next = isLast ? null : script[step + 1];
@@ -331,7 +342,7 @@ export function WidgetLoop({ T, plan = SAMPLE_PLANS.cafe, merchant = HERO_MERCHA
     };
     const t0 = setTimeout(go, step === 0 ? 900 : isLast ? 2200 : 1500);
     return () => { alive = false; clearTimeout(t0); clearTimeout(t1); clearTimeout(t2); };
-  }, [step, reduce, script]);
+  }, [step, reduce, script, active]);
 
   return (
     <div className="lm-hero-widget lm-card" style={{ position: "relative", padding: "16px 16px 14px", boxShadow: "0 30px 70px -30px rgba(0,0,0,.5)" }}>
@@ -359,10 +370,10 @@ export function WidgetLoop({ T, plan = SAMPLE_PLANS.cafe, merchant = HERO_MERCHA
 
 // Faceta 3: la página de suscripción (el checkout de Recurrentes con la marca de
 // la tienda), con el botón a la tienda de ejemplo (#/tostado).
-export function SubPageMock({ T, onDone }) {
+export function SubPageMock({ T, onDone, active = true }) {
   const reduce = useReducedMotion();
   const doneRef = useRef(onDone); doneRef.current = onDone;
-  useEffect(() => { if (reduce) return; const t = setTimeout(() => doneRef.current?.(), 5200); return () => clearTimeout(t); }, [reduce]);
+  useEffect(() => { if (reduce || !active) return; const t = setTimeout(() => doneRef.current?.(), 5200); return () => clearTimeout(t); }, [reduce, active]);
   const c = "#6b3f2a";
   const row = (l, v, b) => <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, color: b ? "#111" : "#555", fontWeight: b ? 800 : 500 }}><span>{l}</span><span style={{ fontVariantNumeric: "tabular-nums" }}>{v}</span></div>;
   return (
@@ -415,16 +426,21 @@ export function HeroWidgetLoop({ T }) {
   const [prev, setPrev] = useState(null); // { i, trans } la faceta que sale
   const next = () => setI(cur => { const n = (cur + 1) % FACETS.length; setPrev({ i: cur, trans: FACETS[n].trans }); return n; });
   useEffect(() => { if (prev == null) return; const t = setTimeout(() => setPrev(null), 800); return () => clearTimeout(t); }, [prev]);
-  const face = (k, onDone) => k === "cafe" ? <WidgetLoop key="cafe" T={T} onDone={onDone}/>
-    : k === "skin" ? <WidgetLoop key="skin" T={T} plan={SAMPLE_PLANS.skin} merchant={SKIN_MERCHANT} script={SKIN_SCRIPT} brand="Ámbar" brandColor="#b06571" art={PRODUCT_ART.skin} onDone={onDone}/>
-    : <SubPageMock key="page" T={T} onDone={onDone}/>;
+  // Las tres facetas están SIEMPRE montadas y apiladas: el escenario mide lo que la
+  // más alta (Thiago: "que ese cuadrado se mantenga del mismo tamaño", sin cortar nada).
+  const face = (k, active) => k === "cafe" ? <WidgetLoop T={T} active={active} onDone={active && !reduce ? next : undefined}/>
+    : k === "skin" ? <WidgetLoop T={T} plan={SAMPLE_PLANS.skin} merchant={SKIN_MERCHANT} script={SKIN_SCRIPT} brand="Ámbar" brandColor="#b06571" art={PRODUCT_ART.skin} active={active} onDone={active && !reduce ? next : undefined}/>
+    : <SubPageMock T={T} active={active} onDone={active && !reduce ? next : undefined}/>;
   const cur = FACETS[i];
   return (
     <div style={{ position: "relative" }}>
       <div style={{ position: "absolute", inset: -40, background: `radial-gradient(circle at 60% 30%, ${T.accentSolid}2e 0%, transparent 60%)`, filter: "blur(30px)", pointerEvents: "none" }}/>
       <div className="lm-stage">
-        <div key={"in" + i + cur.key} className={"lm-face " + (prev && !reduce ? "lm-in-" + cur.trans : "")}>{face(cur.key, reduce ? undefined : next)}</div>
-        {prev != null && !reduce && <div key={"out" + prev.i} className={"lm-face is-out lm-out-" + prev.trans} aria-hidden="true">{face(FACETS[prev.i].key)}</div>}
+        {FACETS.map((f, k) => {
+          const isCur = k === i, isOut = prev != null && prev.i === k && !reduce;
+          const cls = "lm-face " + (isCur ? (prev && !reduce ? "lm-in-" + cur.trans : "") : isOut ? "is-out lm-out-" + prev.trans : "is-hidden");
+          return <div key={f.key} className={cls} aria-hidden={!isCur}>{face(f.key, isCur)}</div>;
+        })}
       </div>
       <div className="lm-dots" aria-hidden="true">{FACETS.map((f, k) => <i key={f.key} className={k === i ? "on" : ""} style={{ "--dur": k === 2 ? "5.2s" : k === 1 ? "6.5s" : "8.5s" }}/>)}</div>
       <div style={{ textAlign: "center", fontSize: 12, color: T.textSm, marginTop: 6 }}>{cur.label} · datos de ejemplo</div>
@@ -627,6 +643,11 @@ export function HorizontalSteps({ T }) {
   );
 }
 
+// Subrayado tipo marcador que se pinta cuando el bloque aparece (.is-in del ancestro).
+function Hi({ T, d = 0, children }) {
+  return <span className="lm-hi" style={{ "--d": `${0.35 + d * 0.35}s`, "--c": T.accentSolid }}>{children}</span>;
+}
+
 // ─── 4. El precio como arma ──────────────────────────────────────────────
 export function PriceWeapon({ T, onDemo, hideHead = false }) {
   const [rev, setRev] = useState(2000000); // facturación mensual en suscripciones (ARS)
@@ -640,7 +661,7 @@ export function PriceWeapon({ T, onDemo, hideHead = false }) {
       <div style={{ textAlign: "center", maxWidth: 760, margin: "0 auto 28px" }} data-reveal="flip">
         {!hideHead && <><div className="lm-eyebrow">Precio</div>
         <h2 className="lm-h2">Un costo de instalación<br/>y un abono. <em style={{ fontStyle: "italic", fontFamily: "Georgia, 'Times New Roman', serif", fontWeight: 500 }}>Nada más.</em></h2></>}
-        <p className="lm-sub" style={{ margin: "0 auto" }}>Las plataformas con comisión te sacan un poquito de cada venta. Un poquito, todos los meses, de todas las ventas: miles de dólares al año sin que lo veas en ninguna factura. Acá pagás la instalación, el abono de tu tramo, y listo.</p>
+        <p className="lm-sub" style={{ margin: "0 auto" }}>Las plataformas con comisión te sacan <Hi T={T} d={1}>un poquito</Hi> de cada venta. Un poquito, todos los meses, de todas las ventas. Al año son <Hi T={T} d={2}>miles de dólares</Hi> que se van sin que lo veas en ninguna factura. Acá pagás la instalación, el abono de tu tramo, <Hi T={T} d={3}>y listo</Hi>.</p>
       </div>
       <div data-reveal="pop" style={{ textAlign: "center", margin: "0 auto 44px", maxWidth: 760 }}>
         <div className="lm-subs-row">
@@ -648,7 +669,7 @@ export function PriceWeapon({ T, onDemo, hideHead = false }) {
             <span key={n} style={i === 3 ? { borderColor: T.accentSolid, color: T.accent, background: T.accentSolid + "14" } : undefined}><span style={{ width: 8, height: 8, borderRadius: 99, background: i === 3 ? T.accentSolid : T.textSm, display: "inline-block" }}/>{n}<small style={{ fontWeight: 600, color: T.textSm }}>· {d}</small></span>
           ))}
         </div>
-        <div style={{ fontSize: 13.5, color: T.textSm, marginTop: 14, lineHeight: 1.5 }}>Sí: te cobramos una suscripción por vender suscripciones. Un precio que sabés antes de que empiece el mes, como el que vos le cobrás a tu cliente.</div>
+        <div style={{ fontSize: 14.5, color: T.textMd, marginTop: 16, lineHeight: 1.6, maxWidth: 620, marginLeft: "auto", marginRight: "auto" }}>Sí, leíste bien: <Hi T={T} d={1}>te cobramos una suscripción por vender suscripciones</Hi>. Lo sabemos, es redundante. Pero es <Hi T={T} d={2}>el mismo trato que vos le das a tu cliente</Hi>: un precio fijo, que sabés antes de que empiece el mes, y nadie metiendo la mano en cada venta.</div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 16 }} className="lm-price-grid">
@@ -680,7 +701,7 @@ export function PriceWeapon({ T, onDemo, hideHead = false }) {
           </div>
         ))}
       </div>
-      <div style={{ fontSize: 12.5, color: T.textSm, textAlign: "center", marginTop: 12 }}>Después sigue subiendo por tramos. Suscriptor activo = cliente con su suscripción cobrando. Precios en dólares, sin contrato.</div>
+      <div style={{ fontSize: 12.5, color: T.textSm, textAlign: "center", marginTop: 12, maxWidth: 720, marginLeft: "auto", marginRight: "auto", lineHeight: 1.55 }}>Después sigue subiendo por tramos, y siempre pasa lo mismo: <b style={{ color: T.text }}>cuantos más clientes activos tenés, más barato te sale el plan por cada cliente</b>. Suscriptor activo = cliente con su suscripción cobrando. Precios en dólares, sin contrato.</div>
 
       {/* Calculadora: el argumento que se toca */}
       <div className="lm-card" style={{ marginTop: 40, padding: 26 }} data-reveal="wipe">
@@ -857,36 +878,44 @@ function ScrollStack({ T, id, items, eyebrow, title, hideHead = false, panelMinH
     return () => mo.disconnect();
   }, [pinned]);
   const n = items.length;
+  const goTo = (i) => { const el = ref.current; if (!el) return; const r = el.getBoundingClientRect(); const total = r.height - window.innerHeight; window.scrollTo({ top: window.scrollY + r.top + total * ((i + 0.5) / n), behavior: "smooth" }); };
+  const cur = items[Math.min(step, n - 1)];
+  // Thiago, 26-sept: "lo seleccionado debe quedar perfecto en el centro". Solo se
+  // ve el paso activo (grande) con un stepper de números; el panel, al lado.
   return (
     <section id={id} ref={ref} className="lm-pin lm-pin-all" style={{ height: pinned ? `${n * 75 + 40}vh` : "auto", background: T.surface, borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}` }}>
       <div className="lm-pin-inner" style={{ padding: pinned ? 0 : "72px 0" }}>
         <div className="lm-wrap" style={{ width: "100%" }}>
-          {!hideHead && <div data-reveal="spin" style={{ marginBottom: 28 }}>
+          {!hideHead && <div data-reveal="spin" style={{ marginBottom: desktop ? 26 : 18, paddingTop: pinned && !desktop ? 0 : 8 }}>
             <div className="lm-eyebrow">{eyebrow}</div>
-            <h2 className="lm-h2">{title}</h2>
+            <h2 className="lm-h2" style={!desktop ? { fontSize: 26 } : undefined}>{title}</h2>
           </div>}
-          <div className="lm-stack-grid" style={{ display: "grid", gridTemplateColumns: pinned && desktop ? "minmax(0,.9fr) minmax(0,1.1fr)" : "1fr", gap: pinned ? (desktop ? 40 : 14) : 24, alignItems: "center" }}>
-            <div className="lm-stack-list" style={{ display: "grid", gap: pinned ? 6 : 18 }}>
+          {pinned ? (
+            <div className="lm-stack-grid" style={{ display: "grid", gridTemplateColumns: desktop ? "minmax(0,.85fr) minmax(0,1.15fr)" : "1fr", gap: desktop ? 44 : 16, alignItems: "center" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: desktop ? 18 : 12, alignItems: "center" }}>
+                <div className="lm-stepper" style={{ display: "grid", gap: 6 }}>
+                  {items.map((f, i) => <button key={f.t} type="button" aria-label={f.t} onClick={() => goTo(i)} className={"lm-stepper-n " + (i === step ? "on" : i < step ? "done" : "")}>{String(i + 1).padStart(2, "0")}</button>)}
+                </div>
+                <div key={cur.t} className="lm-stack-active">
+                  <div style={{ fontFamily: FD, fontSize: desktop ? 30 : 21, fontWeight: 800, letterSpacing: -0.6, color: T.text, lineHeight: 1.12, textWrap: "balance" }}>{cur.t}</div>
+                  <div style={{ fontSize: desktop ? 16 : 14, color: T.textSm, lineHeight: 1.55, marginTop: 10, maxWidth: 420 }}>{cur.d}</div>
+                  <div style={{ marginTop: 14, fontSize: 12.5, color: T.textSm }}>{step + 1} de {n} · seguí bajando</div>
+                </div>
+              </div>
+              <div className="lm-stack-stage" style={{ position: "relative", minHeight: desktop ? panelMinH : "min(58svh, 520px)" }}>
+                {items.map((f, i) => <div key={f.t} className={"lm-stack-panel " + (i === step ? "on" : i < step ? "was" : "")} style={{ display: "grid", alignContent: "center" }}><div className="lm-card" style={{ padding: desktop ? 14 : 10, boxShadow: "0 30px 70px -30px rgba(0,0,0,.5)" }}><f.C T={T}/></div></div>)}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 24 }}>
               {items.map((f, i) => (
-                <div key={f.t} className={"lm-stack-item " + (!pinned || i === step ? "on" : "")} hidden={pinned && !desktop && i !== step} onClick={pinned ? () => { const el = ref.current; if (!el) return; const r = el.getBoundingClientRect(); const total = r.height - window.innerHeight; window.scrollTo({ top: window.scrollY + r.top + total * ((i + 0.5) / n), behavior: "smooth" }); } : undefined} style={{ cursor: pinned ? "pointer" : "default", padding: pinned ? "12px 14px" : 0, borderRadius: 14, background: pinned && i === step ? T.card : "transparent", border: pinned && i === step ? `1px solid ${T.border}` : "1px solid transparent" }} data-reveal={pinned ? undefined : "swing"}>
-                  <div style={{ display: "flex", gap: 12, alignItems: "baseline" }}>
-                    <span style={{ fontFamily: MONO, fontSize: 12, color: T.accent }}>0{i + 1}</span>
-                    <div>
-                      <div style={{ fontFamily: FD, fontSize: 18, fontWeight: 800, letterSpacing: -0.3, color: T.text }}>{f.t}</div>
-                      <div style={{ fontSize: 13.5, color: T.textSm, lineHeight: 1.5, marginTop: 3 }}>{f.d}</div>
-                    </div>
-                  </div>
-                  {!pinned && <div style={{ marginTop: 12, maxWidth: 560 }}><f.C T={T}/></div>}
+                <div key={f.t} data-reveal="swing">
+                  <div style={{ display: "flex", gap: 12, alignItems: "baseline" }}><span style={{ fontFamily: MONO, fontSize: 12, color: T.accent }}>0{i + 1}</span><div><div style={{ fontFamily: FD, fontSize: 18, fontWeight: 800, color: T.text }}>{f.t}</div><div style={{ fontSize: 13.5, color: T.textSm, lineHeight: 1.5, marginTop: 3 }}>{f.d}</div></div></div>
+                  <div style={{ marginTop: 12, maxWidth: 560 }}><f.C T={T}/></div>
                 </div>
               ))}
             </div>
-            {pinned && (
-              <div className="lm-stack-stage" style={{ position: "relative", minHeight: desktop ? panelMinH : "min(60svh, 520px)" }}>
-                {items.map((f, i) => <div key={f.t} className={"lm-stack-panel " + (i === step ? "on" : i < step ? "was" : "")} style={{ display: "grid", alignContent: desktop ? "center" : "start" }}><div className="lm-card" style={{ padding: desktop ? 14 : 10, boxShadow: "0 30px 70px -30px rgba(0,0,0,.5)" }}><f.C T={T}/></div></div>)}
-                {!desktop && <div className="lm-dots" style={{ position: "absolute", left: 0, right: 0, bottom: -18 }}>{items.map((f, i) => <i key={f.t} className={i === step ? "on" : ""} style={{ "--dur": "0s" }}/>)}</div>}
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </section>
@@ -907,12 +936,13 @@ const JOURNEY = [
   { t: "Toca “Suscribirme y ahorrar”", d: "Ve el descuento por suscribirse, cada cuánto le llega y que puede pausar o cancelar cuando quiera.", C: () => <JW mode="sub" idx={1}/> },
   { t: "Elige el pack", d: "Dos, cuatro bolsas. Mejor precio por unidad y, si querés, un regalo en el primer envío.", C: () => <JW mode="sub" idx={2}/> },
   { t: "Paga en el checkout con tu marca", d: "Contacto, dirección, envío cotizado en vivo con tus correos y el resumen. Todo con tu color y tu logo.", C: ({ T }) => <SubPageMock T={{ ...T, card: "#fff" }}/> },
-  { t: "Mercado Pago cobra, hoy y cada mes", d: "La plata entra en tu cuenta de MP. Si una tarjeta falla se reintenta y avisamos.", C: MpStep },
+  { t: "Mercado Pago cobra hoy, y cada período", d: "Cada mes, cada dos, cada quince días: lo que eligió. La plata entra en tu cuenta de MP. Si una tarjeta falla se reintenta y avisamos.", C: MpStep },
   { t: "La orden aparece en tu tienda", d: "Con dirección, envío y stock descontado. La despachás como cualquier venta.", C: OrderStep },
   { t: "El cliente recibe el aviso", d: "Mail y WhatsApp con tu nombre: pedido en camino, próximo cobro, link a su portal.", C: WaPanel },
+  { t: "Y gestiona su suscripción desde su portal", d: "Pausa, cambia la dirección o la tarjeta, cancela. Sin escribirte. Vos lo ves todo en tu panel.", C: PortalPanel },
 ];
 export function BuyJourney({ T }) {
-  return <ScrollStack T={T} id="rec-proceso" items={JOURNEY} eyebrow="Así compra tu cliente" title={<>Todo el proceso,<br/>a medida que bajás</>} panelMinH={520}/>;
+  return <ScrollStack T={T} id="rec-proceso" items={JOURNEY} eyebrow="Así compra tu cliente" title={<>Todo el proceso,<br/>a medida que bajás</>} panelMinH={540}/>;
 }
 
 // ─── El panel, pantalla por pantalla (Thiago, 26-sept: "sección por sección,
@@ -921,12 +951,12 @@ export function BuyJourney({ T }) {
 // datos de tiendas reales.
 function Frame({ T, title, children }) {
   return (
-    <div className="lm-card" style={{ padding: 0, height: "100%", display: "flex", flexDirection: "column" }}>
+    <div className="lm-card" style={{ padding: 0, display: "flex", flexDirection: "column" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: `1px solid ${T.border}`, background: T.surface }}>
         <span style={{ display: "inline-flex", gap: 5 }}>{["#ff5f57", "#febc2e", "#28c840"].map(c => <i key={c} style={{ width: 9, height: 9, borderRadius: 99, background: c, display: "block" }}/>)}</span>
         <span style={{ fontSize: 12, color: T.textSm, marginLeft: 6, fontFamily: MONO }}>recurrentesapp.com · {title}</span>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "118px 1fr", flex: 1, minHeight: 0 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "118px 1fr", minHeight: 250 }} className="lm-tour-body">
         <aside className="lm-tour-side" style={{ borderRight: `1px solid ${T.border}`, padding: "12px 10px", display: "grid", gap: 4, alignContent: "start", fontSize: 11.5, color: T.textSm }}>
           {["Inicio", "Ventas", "Catálogo", "Clientes", "Analíticas", "Configuración"].map(n => <span key={n} style={{ padding: "6px 8px", borderRadius: 8, background: title.startsWith(n) ? T.accentSolid + "1a" : "transparent", color: title.startsWith(n) ? T.accent : T.textSm, fontWeight: title.startsWith(n) ? 800 : 600 }}>{n}</span>)}
         </aside>
@@ -959,22 +989,41 @@ const TOUR = [
       <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: 8, marginBottom: 10 }}><Kpi T={T} l="Retención a 3 meses" v="81%"/><Kpi T={T} l="Ticket promedio" v={fmtARS(31400)} d="+27% vs. compra única"/><Kpi T={T} l="Churn mensual" v="4,1%"/><Kpi T={T} l="Rechazos recuperados" v="83%"/></div>
     </> },
 ];
+// Capturas REALES del panel: cuando estén en public/landing/panel-<n>.png (las
+// manda Thiago desde la tienda RECURRENTES con casos simulados) se usan en vez
+// de la maqueta. Hasta entonces, maqueta.
+export const PANEL_SHOTS = {};
 export function PanelTour({ T }) {
+  const ref = useRef(null);
+  const desktop = useDesktop();
+  const reduce = useReducedMotion();
+  useScrollProgress(ref, { enabled: desktop && !reduce });
+  const n = TOUR.length;
   return (
-    <section id="rec-panel" style={{ padding: "96px 0", overflow: "hidden" }}>
-      <div className="lm-wrap" data-reveal="flip" style={{ marginBottom: 26 }}>
-        <div className="lm-eyebrow">El panel, por dentro</div>
-        <h2 className="lm-h2">Pantalla por pantalla,<br/>así lo vas a usar</h2>
-        <p className="lm-sub">Deslizá para recorrerlo. Son maquetas con datos de ejemplo: en la demo lo ves andando con tus productos.</p>
-      </div>
-      <div className="lm-tour" style={{ display: "flex", gap: 20, overflowX: "auto", scrollSnapType: "x mandatory", padding: "6px max(24px, calc((100vw - 1120px) / 2 + 24px)) 22px", scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
-        <style>{`.lm-tour::-webkit-scrollbar{display:none} .lm-tour-item{flex:0 0 min(680px, 88vw);scroll-snap-align:center;} @media(max-width:640px){.lm-tour-side{display:none!important} .lm-tour-item > div:first-child{height:auto!important}}`}</style>
-        {TOUR.map((s, i) => (
-          <div key={s.t} className="lm-tour-item" data-reveal={["swing", "rise", "pop", "tilt", "flip", "spin"][i]}>
-            <div style={{ height: 340 }}><Frame T={T} title={s.t}><s.C T={T}/></Frame></div>
-            <div style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "baseline" }}><span style={{ fontFamily: MONO, fontSize: 12, color: T.accent }}>0{i + 1}</span><div><div style={{ fontFamily: FD, fontSize: 16, fontWeight: 800, color: T.text }}>{s.t}</div><div style={{ fontSize: 13, color: T.textSm, lineHeight: 1.5, marginTop: 2 }}>{s.d}</div></div></div>
+    <section id="rec-panel" ref={ref} className="lm-pin" style={{ height: desktop && !reduce ? `${n * 60 + 40}vh` : "auto" }}>
+      <div className="lm-pin-inner" style={{ padding: desktop ? 0 : "72px 0 40px" }}>
+        <div className="lm-wrap" style={{ width: "100%" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 24, alignItems: "end", marginBottom: 22 }} data-reveal="flip">
+            <div>
+              <div className="lm-eyebrow">El panel, por dentro</div>
+              <h2 className="lm-h2">Pantalla por pantalla,<br/>así lo vas a usar</h2>
+              <p className="lm-sub">Seguí bajando y el panel va pasando. Datos de ejemplo: en la demo lo ves con tus productos.</p>
+            </div>
+            <div className="lm-progress" style={{ width: 160, marginBottom: 10 }}><i/></div>
           </div>
-        ))}
+        </div>
+        <div className="lm-wrap" style={{ width: "100%" }}>
+          <div className="lm-track" style={{ "--travel": `calc(-1 * ((min(640px, 86vw) + 28px) * ${n} - 100%))`, alignItems: "flex-start" }}>
+            {TOUR.map((sc, i) => (
+              <div key={sc.t} className="lm-tour-item" style={{ flex: "0 0 min(640px, 86vw)" }}>
+                {PANEL_SHOTS[sc.t]
+                  ? <img src={PANEL_SHOTS[sc.t]} alt={sc.t} style={{ display: "block", width: "100%", borderRadius: 18, border: `1px solid ${T.border}` }} loading="lazy"/>
+                  : <Frame T={T} title={sc.t}><sc.C T={T}/></Frame>}
+                <div style={{ marginTop: 12, display: "flex", gap: 10, alignItems: "baseline" }}><span style={{ fontFamily: MONO, fontSize: 12, color: T.accent }}>0{i + 1}</span><div><div style={{ fontFamily: FD, fontSize: 16, fontWeight: 800, color: T.text }}>{sc.t}</div><div style={{ fontSize: 13, color: T.textSm, lineHeight: 1.5, marginTop: 2 }}>{sc.d}</div></div></div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </section>
   );

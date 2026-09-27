@@ -688,11 +688,11 @@ const FAQS = [
   ["¿Recurrentes toca mis precios o mi tema?", "No. El widget se suma a tu ficha con tus colores y letra; los precios y descuentos los definís vos por plan. Si algo del tema tapa el widget, lo ajustamos nosotros."],
   ["¿Qué pasa si quiero dejar de usarlo?", "Cancelás cuando quieras, sin contrato. Las suscripciones siguen cobrando en tu Mercado Pago hasta que vos las canceles desde el panel."],
 ];
-export function FaqSection({ T }) {
+export function FaqSection({ T, hideHead = false }) {
   return (
-    <section className="ls-sec" id="rec-faq" style={{background:T.card}}>
+    <section className="ls-sec" id="rec-faq" style={{background:T.card, paddingTop: hideHead ? 24 : undefined}}>
       <div className="ls-wrap" style={{maxWidth:820}}>
-        <SectionHead T={T} eyebrow="Preguntas frecuentes" title="Lo que todos preguntan antes de empezar"/>
+        {!hideHead && <SectionHead T={T} eyebrow="Preguntas frecuentes" title="Lo que todos preguntan antes de empezar"/>}
         <div className="ls-faq" style={{display:"flex",flexDirection:"column",gap:8}}>
           {FAQS.map(([q, a], i) => (
             <details key={q} open={i === 0} style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:"0 18px"}}>
@@ -709,7 +709,7 @@ export function FaqSection({ T }) {
 }
 
 // ─── 8. Pie de página ────────────────────────────────────────────────────
-export function BigFooter({ T, onGo, onRegister }) {
+export function BigFooter({ T, onGo, onRegister, darkMode, onToggleDark }) {
   const link = { background:"none", border:"none", padding:0, color:T.textSm, fontSize:13, cursor:"pointer", fontFamily:F, textAlign:"left", textDecoration:"none" };
   const cols = [
     // 26-sept-2026 (Thiago): fuera la columna "Para". Las secciones viven también
@@ -743,7 +743,7 @@ export function BigFooter({ T, onGo, onRegister }) {
         </div>
         <div style={{borderTop:`1px solid ${T.border}`,marginTop:32,paddingTop:18,fontSize:12,color:T.textSm,display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
           <span>© {new Date().getFullYear()} Recurrentes · Buenos Aires, Argentina</span>
-          <span>Precios en dólares · Cobros con Mercado Pago · <a href="mailto:soporte@recurrentesapp.com" style={{color:T.textSm}}>soporte@recurrentesapp.com</a></span>
+          {onToggleDark && <button onClick={onToggleDark} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:8,color:T.textSm,cursor:"pointer",padding:"5px 10px",fontFamily:F,fontSize:12,display:"inline-flex",alignItems:"center",gap:6}}>{darkMode ? "Modo claro" : "Modo oscuro"}</button>}
         </div>
       </div>
     </footer>
@@ -846,12 +846,16 @@ export const COMPARE_ROWS = [
 ];
 export const COMPARE_COLS = [
   { key:"rec",  title:"Recurrentes", real:true },
+  { key:"orq",  title:"Orquesty",    sub:"Latam",      ini:"O", c:"#FB923C" },
   { key:"f1",   title:"Fácil Uno",   sub:"Argentina",  ini:"F", c:"#4ADE80" },
   { key:"rev",  title:"Reval",       sub:"Latam",      ini:"R", c:"#60A5FA" },
   { key:"pue",  title:"Puentify",    sub:"Argentina",  ini:"P", c:"#A78BFA" },
   { key:"rch",  title:"Recharge",    sub:"Internacional", ini:"R", c:"#F472B6" },
-  { key:"orq",  title:"Orquesty",    sub:"Latam",      ini:"O", c:"#FB923C" },
 ];
+// Las filas de arriba están cargadas en el orden histórico (rec, Fácil Uno, Reval,
+// Puentify, Recharge, Orquesty); acá se acomodan al orden de las columnas.
+const _ORDER = [0, 5, 1, 2, 3, 4];
+for (const row of COMPARE_ROWS) { const vals = row.slice(1); row.splice(1, vals.length, ..._ORDER.map(k => vals[k])); }
 // Links de cada dato, por si alguien quiere chequearlo (y para respaldarnos).
 export const COMPARE_SOURCES = [
   { t:"Fácil Uno", u:"https://www.facil.uno/" },

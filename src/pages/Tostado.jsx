@@ -4,7 +4,7 @@
 // REAL de Recurrentes funcionando (se cambia el modo y el pack). El botón de
 // "Suscribirme" muestra cómo sigue (checkout con la marca) y lleva a pedir demo.
 import React, { useEffect, useState } from "react";
-import { InteractiveWidget, SubPageMock, SAMPLE_PLANS, PRODUCT_ART, PartnerBadges } from "./LandingMotion.jsx";
+import { InteractiveWidget, SAMPLE_PLANS, PRODUCT_ART, PartnerBadges } from "./LandingMotion.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
 
 const F = "'Inter',system-ui,sans-serif";
@@ -13,8 +13,10 @@ const C = "#6b3f2a", CREAM = "#f6f1ea", INK = "#1f1511";
 const fmtARS = (n) => "$" + Math.round(Number(n) || 0).toLocaleString("es-AR");
 const MERCHANT = { widget_variant: "v13", widget_color: C, widget_radius: 12, widget_mode_default: "once", widget_mode_order: "once_first", widget_show_per_unit: true,
   widget_texts: { headline: "Elegí tu pack", sub_label: "Suscribirme y ahorrar", sub_hint: "Te llega solo cada mes · pausás o cancelás cuando quieras", cta_once: "Agregar al carrito" } };
-// Tema mínimo para SubPageMock (usa T.border / T.borderL).
-const TT = { border: "#e8e2da", borderL: "#efe9e1", card: "#fff", isDark: false, text: INK, textSm: "#8a7b72", accent: C, accentSolid: C };
+// Checkout REAL en vista previa (Thiago, 26-sept: "que esto sea el checkout real"):
+// el plan es de nuestra tienda de pruebas (RECURRENTES, ex DEMO SHOPIFY) y el
+// tema lleva los colores de Tostado. preview=1 = sin eventos, leads ni pago.
+const CHECKOUT_PREVIEW = "#/checkout?merchant=m_mu4jn3fj2x06fm&plan=gyU6BCDtNFZAm9aEo2qQ&preview=1&theme=" + encodeURIComponent(JSON.stringify({ color: C, header_text: "TOSTADO", font: "serif", radius: 12 }));
 
 export default function TostadoStore() {
   const [toast, setToast] = useState(null);
@@ -32,8 +34,8 @@ export default function TostadoStore() {
   };
   const gallery = [
     { art: "/landing/prod-cafe.jpg", cap: "Bolsa de 250 g con válvula" },
-    { art: "/landing/prod-supl.jpg", cap: "Tueste medio · notas a chocolate y ciruela" },
-    { art: "/landing/prod-mate.jpg", cap: "Molido a pedido o en grano" },
+    { art: "/landing/prod-cafe2.jpg", cap: "Tueste medio · notas a chocolate y ciruela" },
+    { art: "/landing/prod-cafe3.jpg", cap: "Molido a pedido o en grano" },
   ];
   return (
     <div style={{ fontFamily: F, background: CREAM, color: INK, minHeight: "100vh" }}>
@@ -128,11 +130,12 @@ export default function TostadoStore() {
       {toast && <div role="status" style={{ position: "fixed", left: "50%", bottom: 24, transform: "translateX(-50%)", background: INK, color: "#fff", padding: "12px 18px", borderRadius: 99, fontSize: 13.5, fontWeight: 700, boxShadow: "0 18px 40px rgba(0,0,0,.35)", animation: "tsToast .3s ease both", zIndex: 50, whiteSpace: "nowrap", maxWidth: "calc(100% - 32px)", overflow: "hidden", textOverflow: "ellipsis" }}>{toast} · en tu tienda esto abre el carrito del tema</div>}
 
       {modal && (
-        <div onClick={() => setModal(false)} style={{ position: "fixed", inset: 0, background: "rgba(20,10,5,.55)", zIndex: 60, display: "grid", placeItems: "center", padding: 16, overflow: "auto" }}>
-          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 720, animation: "tsFade .35s ease both" }}>
-            <div style={{ color: "#fff", textAlign: "center", marginBottom: 12, fontSize: 14 }}>Al tocar <b>Suscribirme</b>, tu cliente pasa al checkout de Recurrentes con la marca de la tienda:</div>
-            <SubPageMock T={TT}/>
-            <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 14, flexWrap: "wrap" }}>
+        <div onClick={() => setModal(false)} style={{ position: "fixed", inset: 0, background: "rgba(20,10,5,.6)", zIndex: 60, display: "grid", placeItems: "center", padding: 12 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 1040, height: "min(88vh, 900px)", display: "flex", flexDirection: "column", animation: "tsFade .35s ease both" }}>
+            <div style={{ color: "#fff", textAlign: "center", marginBottom: 10, fontSize: 14 }}>Al tocar <b>Suscribirme</b>, tu cliente pasa al checkout REAL de Recurrentes con la marca de la tienda. Este es el nuestro, en vivo, con un producto de nuestra tienda de pruebas:</div>
+            {/* Checkout real (src/pages/Checkout.jsx) en modo vista previa: sin eventos, sin leads ni pago. */}
+            <iframe title="Checkout de Recurrentes" src={CHECKOUT_PREVIEW} style={{ flex: 1, width: "100%", border: "none", borderRadius: 18, background: "#fff", boxShadow: "0 30px 80px rgba(0,0,0,.5)" }}/>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 12, flexWrap: "wrap" }}>
               <a href="#/demo" style={{ background: "#10b981", color: "#fff", fontWeight: 800, fontSize: 14, padding: "12px 20px", borderRadius: 12, textDecoration: "none" }}>Quiero esto en mi tienda</a>
               <button type="button" onClick={() => setModal(false)} style={{ background: "rgba(255,255,255,.12)", color: "#fff", border: "1px solid rgba(255,255,255,.3)", fontWeight: 700, fontSize: 14, padding: "12px 20px", borderRadius: 12, cursor: "pointer", fontFamily: F }}>Seguir mirando</button>
             </div>

@@ -70,7 +70,7 @@ export default function SitePage({ T, darkMode, onToggleDark, onLogin, page }) {
       </>}
       {key === "preguntas" && <>
         <PageHead T={T} eyebrow="Preguntas frecuentes" title={<>Lo que todos preguntan<br/>antes de empezar</>} sub="Si tu duda no está, escribinos por WhatsApp o pedí la demo: te la contestamos en la llamada." reveal="wipe"/>
-        <FaqSection T={T}/>
+        <FaqSection T={T} hideHead/>
         <ClosingCta T={T} onDemo={IR_DEMO}/>
       </>}
     </LandingShell>
