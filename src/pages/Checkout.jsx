@@ -554,7 +554,7 @@ export default function Checkout() {
       <div className="rc-opts"><label className="rc-opt on" style={{ cursor: "default" }}>
         <input type="radio" checked readOnly aria-label={providerLabel}/>
         <img src="/brand/mercadopago.png" alt="" style={{ width: 30, height: 30, borderRadius: 7, objectFit: "contain", flexShrink: 0 }}/>
-        <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0 }}><b style={{ fontWeight: 600 }}>Con tu cuenta de {providerLabel}</b><div style={{ color: theme.text_muted, fontSize: 13 }}>Te redirigimos a la web de {providerLabel} para que pagues con los métodos que tengas guardados ahí.</div></div>
+        <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0 }}><b style={{ fontWeight: 600 }}>Con tu cuenta de {providerLabel}</b><div style={{ color: theme.text_muted, fontSize: 13 }}>Te redirigiremos a la aplicación de {providerLabel} para que pagues desde ahí.</div></div>
       </label></div>
       {theme.summary_mobile === "before_pay" ? <div className="rc-inline-summary">{summaryBody}</div> : null}
       {formErr ? <div role="alert" style={{ background: "#fde8e8", border: "1px solid #f5b5b5", color: "#b42318", fontSize: 14, padding: "11px 13px", borderRadius: R, marginTop: 14 }}>{formErr}</div> : null}
