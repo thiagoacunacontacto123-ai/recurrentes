@@ -1,12 +1,9 @@
 import React from "react";
-import { DS } from "../ui/theme.js";
 import { BtnSolid, BtnSecondary } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
-import { PricingTable } from "./Billing.jsx";
 import { FREE_SUBSCRIBERS } from "../../shared/platform/pricing.js";
-import { SectionsStyle, ProblemSection, DeepDivesSection, TrustSection, FaqSection, BigFooter, VideoSection, ComparisonSection, ReviewsSection, WhatsAppSection } from "./LandingSections.jsx";
-import { LANDING_VIDEOS } from "../lib/landingMedia.js";
-import { MotionStyle, useReveal, HeroWidgetLoop, StickyDesigns, HorizontalSteps, PriceWeapon, IntegrationsMarquee, ClosingCta /*, ReviewsBlock */ } from "./LandingMotion.jsx";
+import { SectionsStyle, FaqSection, BigFooter } from "./LandingSections.jsx";
+import { MotionStyle, useReveal, HeroWidgetLoop, StickyDesigns, HorizontalSteps, PriceWeapon, IntegrationsMarquee, ClosingCta, FeatureStack, ComparisonArena, PanelTour, BuyJourney /*, ReviewsBlock */ } from "./LandingMotion.jsx";
 
 const F = "'Inter',system-ui,sans-serif";
 // Display (25-sept-2026, Thiago: "bien zarpado, estético"): Manrope apretada para los
@@ -107,7 +104,7 @@ function FlowColumn({ T, items, label = FLOW_MLABEL.get(items), compact }) {
 }
 
 // Tiendas → pasarelas → panel de Recurrentes con las acciones de cada cobro.
-function FlowMap({ T, compact }) {
+export function FlowMap({ T, compact }) {
   const head = (n, t, sub) => (
     <div>
       <div style={{fontSize:compact ? 9.5 : 11,fontWeight:800,color:T.accent,letterSpacing:0.5,textTransform:"uppercase"}}>{n} · {t}</div>
@@ -189,146 +186,113 @@ function RotatingWords({ T }) {
   );
 }
 
-// Barra fija de abajo con "Empezar gratis". Aparece cuando el visitante ya
-// bajó una pantalla y media, y se esconde al llegar al pie (ahí ya está el CTA
-// grande y taparlo sería redundante).
+// Píldora fija de abajo (26-sept, Thiago: la barra anterior "tapaba el bloque
+// fijo"). Es chica, va al centro en compu y a lo ancho en celular, y se esconde
+// mientras un bloque clavado (.lm-pin) ocupa la pantalla o al llegar al pie.
 function StickyCta({ T, onRegister, onToggle }) {
   const [visible, setVisible] = React.useState(false);
   React.useEffect(() => {
     let ticking = false;
     const mirar = () => {
       ticking = false;
-      const y = window.scrollY;
-      const alFinal = y + window.innerHeight > document.body.scrollHeight - 700;
-      setVisible(y > window.innerHeight * 1.4 && !alFinal);
+      const y = window.scrollY, vh = window.innerHeight;
+      const alFinal = y + vh > document.body.scrollHeight - 700;
+      let enPin = false;
+      for (const el of document.querySelectorAll(".lm-pin")) {
+        const r = el.getBoundingClientRect();
+        if (r.top < vh * 0.4 && r.bottom > vh * 0.9) { enPin = true; break; }
+      }
+      setVisible(y > vh * 1.2 && !alFinal && !enPin);
     };
     const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(mirar); } };
     window.addEventListener("scroll", onScroll, { passive: true });
     mirar();
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
-  // El aviso va aparte: setVisible ya corta solo cuando el valor no cambia, así
-  // que esto corre una vez por transición y no en cada scroll.
   const avisar = React.useRef(onToggle); avisar.current = onToggle;
   React.useEffect(() => { avisar.current?.(visible); }, [visible]);
   return (
-    <div aria-hidden={!visible} style={{
-      position:"fixed", left:0, right:0, bottom:0, zIndex:85,
-      transform: visible ? "translateY(0)" : "translateY(110%)",
-      transition:"transform .28s cubic-bezier(.4,0,.2,1)",
+    <div aria-hidden={!visible} className="rec-sticky" style={{
+      position:"fixed", zIndex:85,
+      transform: visible ? "translate(-50%,0)" : "translate(-50%,140%)",
+      opacity: visible ? 1 : 0,
+      transition:"transform .32s cubic-bezier(.22,1,.36,1),opacity .25s",
       pointerEvents: visible ? "auto" : "none",
-      background:T.card, borderTop:`1px solid ${T.border}`,
-      boxShadow:"0 -8px 28px rgba(0,0,0,0.22)",
-      padding:"11px 16px calc(11px + env(safe-area-inset-bottom))",
+      background:T.isDark ? "rgba(22,30,34,.92)" : "rgba(255,255,255,.94)", backdropFilter:"blur(12px)", WebkitBackdropFilter:"blur(12px)",
+      border:`1px solid ${T.border}`, borderRadius:99,
+      boxShadow:"0 18px 44px -14px rgba(0,0,0,.45)",
+      padding:"8px 8px 8px 16px", display:"flex", alignItems:"center", gap:14,
     }}>
-      <div style={{maxWidth:1100, margin:"0 auto", display:"flex", alignItems:"center", gap:14}}>
-        <div className="rec-sticky-txt" style={{flex:1, minWidth:0}}>
-          <div style={{fontSize:14, fontWeight:800, color:T.text, lineHeight:1.25}}>Te mostramos demos reales andando, en 15 minutos</div>
-          <div className="hide-mobile" style={{fontSize:12, color:T.textSm, lineHeight:1.35, marginTop:1}}>Tiendas que ya venden por suscripción · 0% de comisión por venta.</div>
-        </div>
-        <button onClick={onRegister} style={{...BtnSolid(T), padding:"12px 22px", fontSize:14.5, whiteSpace:"nowrap", flexShrink:0}}>
-          Pedir una demo
-        </button>
+      <style>{`.rec-sticky{left:50%;bottom:18px;} @media(max-width:640px){.rec-sticky{left:50%;right:auto;bottom:12px;width:calc(100% - 24px);border-radius:18px;padding:8px 8px 8px 14px;} .rec-sticky .rec-sticky-sub{display:none;}}`}</style>
+      <RecLogo size={26}/>
+      <div style={{flex:1, minWidth:0, lineHeight:1.2}}>
+        <div style={{fontSize:13.5, fontWeight:800, color:T.text, whiteSpace:"nowrap"}}>Demo de 15 minutos</div>
+        <div className="rec-sticky-sub" style={{fontSize:11.5, color:T.textSm, whiteSpace:"nowrap"}}>Casos reales andando · 0% de comisión</div>
       </div>
+      <button onClick={onRegister} style={{...BtnSolid(T), padding:"10px 18px", fontSize:13.5, whiteSpace:"nowrap", flexShrink:0, borderRadius:99}}>Pedir demo</button>
     </div>
   );
 }
 
-export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister }) {
-  // 25-sept-2026, Thiago: el camino principal es PEDIR DEMO, no "empezar gratis".
-  // Las dos tiendas que funcionan salieron las dos de una integración hecha a
-  // mano; el que se registra solo no conecta nada. El registro sigue existiendo
-  // (lo necesita la instalación desde la app store de Tiendanube) pero como
-  // segunda opción.
+// Páginas del sitio: comparten nav y pie (Thiago, 26-sept: "subsecciones").
+export const SITE_NAV = [
+  ["Cómo funciona", "como-funciona"], ["Funciones", "funciones"], ["Precios", "precios"], ["Integraciones", "integraciones"], ["Preguntas", "preguntas"],
+];
+
+// Nav + pie + WhatsApp + píldora fija. La home y cada página van adentro.
+export function LandingShell({ T, darkMode, onToggleDark, onLogin, active, children, sticky = true, footerGo }) {
   const irDemo = () => { try { window.location.hash = "#/demo"; } catch (_) {} };
-  const irRegistro = () => { if (onRegister) onRegister(); else window.location.hash = "#/registro"; };
-  // Con la barra fija abajo, el botón de WhatsApp se corre para no taparla.
+  // Sin "Ingresar" en el sitio (Thiago, 26-sept): la landing es solo para
+  // prospectos; a los clientes el link de #/login se lo manda él por WhatsApp.
   const [stickyOn, setStickyOn] = React.useState(false);
-  const irLogin = () => { if (onLogin) onLogin(); else window.location.hash = "#/login"; };
-  const ir = (id) => () => { try { document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }); } catch (_) {} };
-  // Reveal al entrar en pantalla (IntersectionObserver) para todo [data-reveal] de la landing.
   const rootRef = React.useRef(null);
   useReveal(rootRef);
-
-  const PASOS = [
-    { n:"1", t:"Conectá tu tienda y Mercado Pago", d:"Tiendanube en un clic, Shopify en dos pasos, Mercado Pago en un clic. Diez minutos, sin código." },
-    { n:"2", t:"Creá tus planes", d:"Elegís el producto, cada cuántos días se cobra, el descuento y los packs. En Tiendanube el widget se pone solo; en Shopify es una línea en el tema." },
-    { n:"3", t:"Cobrá y despachá en piloto automático", d:"Cada cobro crea la orden en tu negocio. Tus clientes gestionan su suscripción desde el portal." },
-  ];
-
+  // El logo del nav gira hacia la derecha a medida que bajás (Thiago, 26-sept).
+  const logoRef = React.useRef(null);
+  React.useEffect(() => {
+    let reduce = false; try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (_) {}
+    if (reduce) return;
+    let raf = 0;
+    const paint = () => { raf = 0; const el = logoRef.current; if (el) el.style.transform = `rotate(${(window.scrollY * 0.22) % 360}deg)`; };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(paint); };
+    window.addEventListener("scroll", onScroll, { passive: true }); paint();
+    return () => { window.removeEventListener("scroll", onScroll); if (raf) cancelAnimationFrame(raf); };
+  }, []);
   return (
     <div ref={rootRef} className="rec-landing-root" style={{fontFamily:F,background:T.bg,minHeight:"100vh",color:T.text}}>
       <style>{`
         .rec-landing-root h1,.rec-landing-root h2,.rec-landing-root h3{font-family:${FD};}
         .rec-land-hero{display:grid;grid-template-columns:0.9fr 1.18fr;gap:44px;align-items:center;position:relative;}
-        /* Fondo del hero: grilla fina que se desvanece + halo del acento. Es lo que hace
-           que la primera pantalla se vea "de producto" y no de plantilla. */
         .rec-hero-bg{position:absolute;inset:-40px -24px 0;pointer-events:none;z-index:0;
           background-image:linear-gradient(${T.border} 1px,transparent 1px),linear-gradient(90deg,${T.border} 1px,transparent 1px);
           background-size:56px 56px;
           -webkit-mask-image:radial-gradient(ellipse 70% 60% at 50% 0%,#000 30%,transparent 100%);mask-image:radial-gradient(ellipse 70% 60% at 50% 0%,#000 30%,transparent 100%);opacity:.55;}
         .rec-hero-sec > *{position:relative;z-index:1;}
-        .rec-nav-link{background:transparent;border:none;color:${T.textMd};font-size:13.5px;font-weight:500;cursor:pointer;font-family:${F};padding:7px 11px;border-radius:9px;transition:background .15s,color .15s;}
-        .rec-nav-link:hover{background:${T.surface};color:${T.text};}
+        .rec-nav-link{background:transparent;border:none;color:${T.textMd};font-size:13.5px;font-weight:500;cursor:pointer;font-family:${F};padding:7px 11px;border-radius:9px;transition:background .15s,color .15s;text-decoration:none;display:inline-block;}
+        .rec-nav-link:hover,.rec-nav-link.on{background:${T.surface};color:${T.text};}
+        .rec-nav-link.on{font-weight:700;}
         .rec-stat{padding:22px 22px 20px;border-radius:18px;background:${T.card};border:1px solid ${T.border};position:relative;overflow:hidden;transition:transform .18s ease,border-color .18s ease;}
         .rec-stat::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,${T.isDark ? ".035" : ".6"}),transparent 40%);pointer-events:none;}
         .rec-stat:hover{transform:translateY(-3px);border-color:${T.accentSolid}66;}
-        .rec-paso{position:relative;background:${T.card};border:1px solid ${T.border};border-radius:20px;padding:26px 24px 24px;overflow:hidden;}
-        .rec-paso-n{font-family:${FD};font-size:64px;font-weight:800;line-height:1;letter-spacing:-3px;color:${T.accentSolid};opacity:.18;position:absolute;right:16px;top:8px;}
-        .rec-cta-final{position:relative;overflow:hidden;background:#0C1A18;color:#fff;border:1px solid rgba(255,255,255,.08);border-radius:28px;padding:64px 28px;text-align:center;}
-        .rec-cta-final::before{content:"";position:absolute;inset:-40%;background:radial-gradient(circle at 50% 30%,${T.accentSolid}55 0%,transparent 45%);pointer-events:none;}
-        .rec-cta-final > *{position:relative;}
         .rec-btn-xl{display:inline-flex;align-items:center;gap:10px;padding:15px 26px;border-radius:14px;font-size:16px;font-weight:700;letter-spacing:-.1px;box-shadow:0 12px 30px -10px ${T.accentSolid}99;transition:transform .15s,box-shadow .15s;}
         .rec-btn-xl:hover{transform:translateY(-1px);box-shadow:0 16px 36px -10px ${T.accentSolid}aa;}
-        .rec-land-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
-        .rec-land-pasos{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
-        .rec-land-stores{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
-        .rec-land-card{transition:transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;}
-        .rec-land-card:hover{transform:translateY(-3px);box-shadow:0 14px 34px rgba(0,0,0,0.18);}
         .rec-land-wrap{max-width:1180px;margin:0 auto;padding:0 24px;}
         .rec-hero-sec{padding-top:56px;}
-        @media(max-width:640px){ .rec-hero-sec{padding-top:28px!important;padding-bottom:28px!important;} }
-        @media (prefers-reduced-motion: reduce){ .rec-land-card{transition:none;} .rec-land-card:hover{transform:none;} }
-        @media(max-width:900px){ .rec-land-hero{grid-template-columns:1fr!important;gap:32px;} .rec-land-grid,.rec-land-stores{grid-template-columns:repeat(2,1fr)!important;} }
+        .rec-page-head{padding-block:72px 24px;}
+        .rec-page-head h1{font-family:${FD};font-size:clamp(34px,4.6vw,60px);font-weight:800;letter-spacing:-.045em;line-height:1.02;margin:0 0 16px;text-wrap:balance;}
+        .rec-page-head p{font-size:17px;color:${T.textMd};line-height:1.6;max-width:640px;margin:0;}
+        @media(max-width:640px){ .rec-hero-sec{padding-top:28px!important;padding-bottom:28px!important;} .rec-page-head{padding-block:40px 8px;} }
+        @media(max-width:900px){ .rec-land-hero{grid-template-columns:1fr!important;gap:32px;} }
         @media(max-width:900px){ .rec-land-benefits{grid-template-columns:1fr!important;gap:18px!important;} }
-        /* ── Celular (Thiago, 17-sept): la pauta entra por acá, así que todo tiene
-           que leerse sin deslizar de costado. ── */
         @media(max-width:640px){
           .rec-land-hero{gap:22px!important;}
           .rec-land-h1{font-size:31px!important;letter-spacing:-1.1px!important;}
           .rec-nav-login{padding:6px 10px!important;font-size:12px!important;white-space:nowrap;}
           .rec-nav-cta{padding:7px 12px!important;font-size:12px!important;white-space:nowrap;}
           .rec-nav-login .rec-nav-login-long{display:none;}
+          .rec-land-wrap{padding-left:16px;padding-right:16px;} .hide-mobile{display:none!important;}
         }
-        @media(max-width:640px){ .rec-land-grid,.rec-land-stores,.rec-land-pasos{grid-template-columns:1fr!important;} .rec-land-h1{font-size:34px!important;} .rec-land-wrap{padding-left:16px;padding-right:16px;} .hide-mobile{display:none!important;} }
-      `}</style>
-
-      {/* Nav */}
-      <nav style={{position:"sticky",top:0,zIndex:20,background:T.bg+"e6",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderBottom:`1px solid ${T.border}`}}>
-        <div className="rec-land-wrap" style={{display:"flex",alignItems:"center",justifyContent:"space-between",height:60,gap:8}}>
-          <a href="#/" style={{display:"flex",alignItems:"center",gap:10,textDecoration:"none",color:T.text}}>
-            <RecLogo size={30}/>
-            <span style={{fontWeight:800,fontSize:18,letterSpacing:-0.3}}>Recurrentes</span>
-          </a>
-          <div style={{display:"flex",alignItems:"center",gap:8}}>
-            {[["Cómo funciona","rec-como-funciona"],["Diseños","rec-disenos"],["Precios","rec-precios"],["Integraciones","rec-tiendas"],["Preguntas","rec-faq"]].map(([l,id])=>(
-              <button key={id} onClick={ir(id)} className="hide-mobile rec-nav-link">{l}</button>
-            ))}
-            <button onClick={onToggleDark} className="hide-mobile" title={darkMode?"Modo claro":"Modo oscuro"} aria-label={darkMode?"Modo claro":"Modo oscuro"} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:8,color:T.textMd,cursor:"pointer",padding:"6px 8px",display:"flex",alignItems:"center"}}>
-              {darkMode
-                ?<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-                :<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>}
-            </button>
-            <button onClick={irLogin} className="rec-nav-login" style={{...BtnSecondary(T),padding:"7px 14px",fontSize:13,fontWeight:600}}>Ingresar<span className="rec-nav-login-long"> a mi cuenta</span></button>
-            <button onClick={irDemo} className="rec-nav-cta" style={{...BtnSolid(T),padding:"8px 16px",fontSize:13}}>Pedir demo</button>
-          </div>
-        </div>
-      </nav>
-
-      {/* Hero + panel de conectores (id rec-tiendas: el nav apunta acá) */}
-      <section id="rec-hero" className="rec-land-wrap rec-hero-sec" style={{paddingBottom:24,position:"relative"}}>
-        <div className="rec-hero-bg" aria-hidden="true"/>
-        <style>{`
+        /* Mapa tiendas → pasarelas → panel (FlowMap, página Integraciones) */
           .rec-flow-grid{display:grid;grid-template-columns:minmax(0,1fr) 72px minmax(0,1fr) 72px minmax(0,1.2fr);column-gap:10px;align-items:stretch;}
           /* Versión chica: el mismo mapa (curvas punteadas incluidas) dentro del panel del hero. */
           .rec-flow-sm .rec-flow-grid{grid-template-columns:minmax(0,0.8fr) 46px minmax(0,0.7fr) 46px minmax(0,1.24fr);column-gap:6px;}
@@ -353,9 +317,59 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
             .rec-flow-mobile-arrow{display:block;text-align:center;font-size:44px;font-weight:800;color:${T.accentSolid};line-height:1;margin:2px 0;}
             .rec-flow-mlabel{display:block;}
           }
-        `}</style>
+        .rec-wa-fab{transition:bottom .28s cubic-bezier(.4,0,.2,1),transform .15s ease}
+        .rec-wa-fab:hover{transform:translateY(-2px)} @media(max-width:640px){.rec-wa-fab{right:14px;width:52px;height:52px}}
+      `}</style>
+      <MotionStyle T={T}/>
+      <SectionsStyle T={T}/>
+
+      <nav style={{position:"sticky",top:0,zIndex:20,background:T.bg+"e6",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",borderBottom:`1px solid ${T.border}`}}>
+        <div className="rec-land-wrap" style={{display:"flex",alignItems:"center",justifyContent:"space-between",height:60,gap:8}}>
+          <a href="#/" style={{display:"flex",alignItems:"center",gap:10,textDecoration:"none",color:T.text}}>
+            <span ref={logoRef} style={{display:"inline-flex",willChange:"transform"}}><RecLogo size={30}/></span>
+            <span style={{fontWeight:800,fontSize:18,letterSpacing:-0.3}}>Recurrentes</span>
+          </a>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            {SITE_NAV.map(([l,id])=>(
+              <a key={id} href={`#/${id}`} className={"hide-mobile rec-nav-link" + (active === id ? " on" : "")}>{l}</a>
+            ))}
+            <button onClick={onToggleDark} className="hide-mobile" title={darkMode?"Modo claro":"Modo oscuro"} aria-label={darkMode?"Modo claro":"Modo oscuro"} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:8,color:T.textMd,cursor:"pointer",padding:"6px 8px",display:"flex",alignItems:"center"}}>
+              {darkMode
+                ?<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+                :<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>}
+            </button>
+            <button onClick={irDemo} className="rec-nav-cta" style={{...BtnSolid(T),padding:"8px 16px",fontSize:13}}>Pedir demo</button>
+          </div>
+        </div>
+      </nav>
+
+      {children}
+
+      {sticky && <StickyCta T={T} onRegister={irDemo} onToggle={setStickyOn}/>}
+
+      {/* WhatsApp de Thiago, abajo a la derecha: la gente toca y le habla (18-sept). */}
+      <a href={`https://wa.me/5491164117974?text=${encodeURIComponent("Hola! Vi Recurrentes y quiero saber más para mi tienda.")}`} target="_blank" rel="noopener noreferrer" aria-label="Escribinos por WhatsApp"
+        className="rec-wa-fab" style={{position:"fixed",right:18,bottom:stickyOn ? 84 : 18,zIndex:90,width:56,height:56,borderRadius:"50%",background:"#25D366",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 10px 28px rgba(37,211,102,0.45)",textDecoration:"none"}}>
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.5 14.4c-.3-.1-1.8-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-.3-.1-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.6c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.9-2.2c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.1.2 2.1 3.2 5.1 4.5.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.4.2-.7.2-1.3.2-1.4-.1-.2-.3-.3-.6-.4zM12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2z"/></svg>
+      </a>
+
+      <BigFooter T={T} onGo={footerGo} onRegister={irDemo}/>
+    </div>
+  );
+}
+
+export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister }) {
+  // 25-sept-2026, Thiago: el camino principal es PEDIR DEMO, no "empezar gratis".
+  const irDemo = () => { try { window.location.hash = "#/demo"; } catch (_) {} };
+  const ir = (id) => () => { try { document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }); } catch (_) {} };
+
+  return (
+    <LandingShell T={T} darkMode={darkMode} onToggleDark={onToggleDark} onLogin={onLogin} active="home">
+      {/* Hero: texto + el widget REAL pasando por tres facetas */}
+      <section id="rec-hero" className="rec-land-wrap rec-hero-sec" style={{paddingBottom:24,position:"relative"}}>
+        <div className="rec-hero-bg" aria-hidden="true"/>
         <div className="rec-land-hero">
-          <div data-reveal>
+          <div data-reveal="tilt">
             <div style={{display:"inline-flex",alignItems:"center",gap:8,padding:"5px 12px",borderRadius:20,background:T.accentSolid+"16",border:`1px solid ${T.accentSolid}44`,color:T.accent,fontSize:11,fontWeight:700,letterSpacing:0.4,marginBottom:20,textTransform:"uppercase"}}>
               <span style={{width:7,height:7,borderRadius:99,background:T.accentSolid,boxShadow:`0 0 0 3px ${T.accentSolid}33`}}/>
               <RotatingWords T={T}/>
@@ -372,30 +386,27 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
                 Pedir una demo
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </button>
-              <button onClick={ir("rec-como-funciona")} style={{...BtnSecondary(T),padding:"14px 20px",fontSize:15,borderRadius:14}}>Ver cómo funciona</button>
+              <a href="#/tostado" style={{...BtnSecondary(T),padding:"14px 20px",fontSize:15,borderRadius:14,textDecoration:"none",display:"inline-flex",alignItems:"center",gap:8}}>Probar la tienda de ejemplo</a>
             </div>
             <div style={{marginTop:18,display:"flex",gap:"6px 16px",flexWrap:"wrap",fontSize:13,color:T.textSm}}>
               {["Shopify y Tiendanube","0% de comisión por venta","Demo de 15 minutos, con casos reales"].map(t => (
                 <span key={t} style={{display:"inline-flex",alignItems:"center",gap:6}}><span style={{width:5,height:5,borderRadius:99,background:T.accentSolid}}/>{t}</span>
               ))}
             </div>
-
           </div>
 
-          {/* El widget REAL en loop: el comprador elige pack y activa la suscripción. */}
-          <div data-reveal="right" className="lm-float">
+          <div data-reveal="swing" className="lm-float">
             <HeroWidgetLoop T={T}/>
           </div>
         </div>
 
-        {/* Tres beneficios a lo ancho, debajo del hero y del panel (Thiago, 17-sept). */}
         <div style={{marginTop:40,display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:14}} className="rec-land-benefits">
           {[
             ["0%", "de comisión por venta", "Lo que cobra tu cliente es tuyo. Pagás un plan según tus suscriptores, no un porcentaje de cada cobro."],
             ["1 llamada", "y queda integrado", "La integración la hacemos nosotros con vos, guiada paso a paso: tienda, Mercado Pago, planes y widget."],
             [`${FREE_SUBSCRIBERS}`, "suscriptores gratis", "Arrancás sin pagar el plan y recién pagás cuando la suscripción ya te está funcionando."],
-          ].map(([v,l,d])=>(
-            <div key={l} className="rec-stat">
+          ].map(([v,l,d], i)=>(
+            <div key={l} className="rec-stat" data-reveal={["flip","pop","spin"][i]}>
               <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:8}}>
                 <span style={{fontFamily:FD,fontSize:40,fontWeight:800,letterSpacing:-2,lineHeight:1,color:T.text}}>{v}</span>
                 <span style={{fontSize:13.5,fontWeight:700,color:T.accent}}>{l}</span>
@@ -406,40 +417,18 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
         </div>
       </section>
 
-      {/* 26-sept-2026: landing con movimiento (LandingMotion.jsx). Orden:
-          diseños que pasan con el scroll → cómo funciona (horizontal) → precio
-          como arma + calculadora → integraciones → preguntas → cierre.
-          Las secciones viejas (ProblemSection, DeepDives, Video, Comparación,
-          Reseñas inventadas…) siguen en LandingSections.jsx pero no se montan. */}
-      <MotionStyle T={T}/>
-      <SectionsStyle T={T}/>
+      {/* 26-sept-2026: orden por lo que convence (atención → entender → ver →
+          confiar → precio → comparar → integraciones → dudas → acción). */}
+      <BuyJourney T={T}/>
       <StickyDesigns T={T}/>
-      <HorizontalSteps T={T}/>
+      <FeatureStack T={T}/>
+      <PanelTour T={T}/>
       <PriceWeapon T={T} onDemo={irDemo}/>
+      <ComparisonArena T={T}/>
       <IntegrationsMarquee T={T}/>
-      {/* Reseñas: bloque preparado en LandingMotion.jsx (ReviewsBlock). Se monta
-          cuando haya clientes reales en RESENAS_REALES; hasta entonces, nada
-          inventado en la home.
-          <ReviewsBlock T={T}/> */}
+      {/* Reseñas: ReviewsBlock en LandingMotion.jsx, se monta cuando haya clientes reales. */}
       <FaqSection T={T}/>
-
-      {/* Barra fija con el CTA, como las de las tiendas de dropshipping: aparece
-          al bajar un poco y acompaña el scroll (22-sept, Thiago). En celular es
-          donde más rinde, pero se muestra en las dos. */}
-      <StickyCta T={T} onRegister={irDemo} onToggle={setStickyOn}/>
-
-      {/* WhatsApp de Thiago, abajo a la derecha: la gente toca y le habla (18-sept). */}
-      <a href={`https://wa.me/5491164117974?text=${encodeURIComponent("Hola! Vi Recurrentes y quiero saber más para mi tienda.")}`} target="_blank" rel="noopener noreferrer" aria-label="Escribinos por WhatsApp"
-        className="rec-wa-fab" style={{position:"fixed",right:18,bottom:stickyOn ? 92 : 18,zIndex:90,width:56,height:56,borderRadius:"50%",background:"#25D366",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 10px 28px rgba(37,211,102,0.45)",textDecoration:"none"}}>
-        <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.5 14.4c-.3-.1-1.8-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-.3-.1-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.5-.6c.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5l-.9-2.2c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.1.2 2.1 3.2 5.1 4.5.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.4.2-.7.2-1.3.2-1.4-.1-.2-.3-.3-.6-.4zM12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2z"/></svg>
-      </a>
-      <style>{`.rec-wa-fab:hover{transform:translateY(-2px);transition:transform .15s ease} @media(max-width:640px){.rec-wa-fab{right:14px;width:52px;height:52px}
-}
-        .rec-wa-fab{transition:bottom .28s cubic-bezier(.4,0,.2,1),transform .15s ease}`}</style>
-
-      <ClosingCta T={T} onDemo={irDemo} onLogin={irLogin}/>
-
-      <BigFooter T={T} onGo={(id) => ir(id)()} onRegister={irDemo}/>
-    </div>
+      <ClosingCta T={T} onDemo={irDemo}/>
+    </LandingShell>
   );
 }

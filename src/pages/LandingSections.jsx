@@ -5,7 +5,7 @@ import { BtnSolid } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
 import { tierFor, FREE_SUBSCRIBERS, PRICING_TIERS, INSTALL_USD } from "../../shared/platform/pricing.js";
 // El precio más barato, sacado de la escala real: la landing no lo repite a mano.
-const PRECIO_DESDE = PRICING_TIERS.find(t => t.usd > 0)?.usd ?? 0;
+export const PRECIO_DESDE = PRICING_TIERS.find(t => t.usd > 0)?.usd ?? 0;
 
 // Secciones largas de la landing (Landing.jsx las ordena). Todo lo que se ve
 // como dato es un EJEMPLO ilustrativo y está marcado así: no hay testimonios,
@@ -49,7 +49,7 @@ export function SectionsStyle({ T }) {
       .ls-tabs{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;}
       .ls-case{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,0.9fr);gap:28px;align-items:center;}
       .ls-calc{display:grid;grid-template-columns:minmax(0,0.9fr) minmax(0,1.1fr);gap:24px;align-items:stretch;}
-      .ls-foot{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:28px;}
+      .ls-foot{display:grid;grid-template-columns:1.4fr repeat(2,1fr);gap:28px;}
       .ls-reviews{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:stretch;}
       .ls-videos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px;align-items:start;}
       /* Tabla comparativa: en celular cada columna se lee sin deslizar */
@@ -88,7 +88,7 @@ export function SectionsStyle({ T }) {
   );
 }
 
-function SectionHead({ T, eyebrow, title, sub, align = "center" }) {
+export function SectionHead({ T, eyebrow, title, sub, align = "center" }) {
   // 22-sept-2026: títulos más grandes y de peso LIVIANO, con el eyebrow en
   // monoespaciada y espaciado. Es el recurso que hace que Reval se lea cara:
   // pesa menos y ocupa más. Un título puede traer *una palabra* entre
@@ -107,10 +107,10 @@ function SectionHead({ T, eyebrow, title, sub, align = "center" }) {
   );
 }
 
-const Check = ({ c, size = 15 }) => (
+export const Check = ({ c, size = 15 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0,marginTop:3}}><polyline points="20 6 9 17 4 12"/></svg>
 );
-const Cross = ({ c, size = 15 }) => (
+export const Cross = ({ c, size = 15 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0,marginTop:3}}><path d="M18 6L6 18M6 6l12 12"/></svg>
 );
 function Bullets({ T, items }) {
@@ -678,6 +678,14 @@ const FAQS = [
   ["¿Puedo dar descuentos?", "Sí: descuento por suscribirse, packs con mejor precio y cupones que valen para toda la suscripción."],
   ["¿Mercado Pago me cobra comisión?", "Sí, la comisión habitual de Mercado Pago por cada cobro, como en cualquier venta. Recurrentes no suma comisión por cobro: pagás un plan según tus suscriptores."],
   ["¿Qué pasa con los envíos?", "Cada cobro crea la orden con la dirección y el método de envío que eligió tu cliente, igual que una venta normal. Si cambia de dirección, lo hace desde su portal y el próximo pedido ya sale con la nueva."],
+  ["¿Cuánto tarda la puesta en marcha?", "Una llamada de 20 a 30 minutos. Conectamos tu tienda y Mercado Pago, armamos el primer plan con tus productos y dejamos el widget andando en tu ficha. Se paga cuando ya está funcionando."],
+  ["¿Puedo vender packs de 2 o 3 unidades?", "Sí. Cada plan puede tener packs con su propio precio, frecuencia y hasta regalos que viajan en el pedido. El cliente elige el pack en el mismo widget."],
+  ["¿Se puede suscribir a una sola variante?", "Sí: el plan se arma por producto y el cliente elige la variante (sabor, talle, aroma) en la ficha. Eso otras plataformas no lo permiten."],
+  ["¿Qué ve el cliente después de pagar?", "La confirmación de Mercado Pago, un mail con tu marca y el link a su portal, donde puede pausar, cambiar la dirección o cancelar sin escribirte."],
+  ["¿Y si ya uso otra app de suscripciones?", "Migramos tus planes en la misma llamada. Las suscripciones ya activas en otra plataforma se dan de alta de nuevo con el cliente, porque la tarjeta la guarda cada pasarela."],
+  ["¿Puedo probar antes de pagar?", "Sí: el plan es gratis hasta los primeros suscriptores activos, así que arrancás vendiendo sin pagar el abono. La puesta en marcha se paga recién cuando está terminada."],
+  ["¿Recurrentes toca mis precios o mi tema?", "No. El widget se suma a tu ficha con tus colores y letra; los precios y descuentos los definís vos por plan. Si algo del tema tapa el widget, lo ajustamos nosotros."],
+  ["¿Qué pasa si quiero dejar de usarlo?", "Cancelás cuando quieras, sin contrato. Las suscripciones siguen cobrando en tu Mercado Pago hasta que vos las canceles desde el panel."],
 ];
 export function FaqSection({ T }) {
   return (
@@ -703,9 +711,10 @@ export function FaqSection({ T }) {
 export function BigFooter({ T, onGo, onRegister }) {
   const link = { background:"none", border:"none", padding:0, color:T.textSm, fontSize:13, cursor:"pointer", fontFamily:F, textAlign:"left", textDecoration:"none" };
   const cols = [
-    ["Producto", [["Cómo funciona","rec-como-funciona"],["Funciones","rec-funciones"],["Integraciones","rec-tiendas"],["Precios","rec-precios"],["Calculadora","rec-calculadora"]]],
-    ["Para", [["Tiendas online","rec-tiendas"],["Suplementos","rec-tiendas"],["Café y alimentos","rec-tiendas"],["Cosmética","rec-tiendas"]]],
-    ["Recurrentes", [["Preguntas frecuentes","rec-faq"],["Términos","#/terminos"],["Privacidad","#/privacidad"],["Soporte por WhatsApp","https://wa.me/5491164117974"],["soporte@recurrentesapp.com","mailto:soporte@recurrentesapp.com"]]],
+    // 26-sept-2026 (Thiago): fuera la columna "Para". Las secciones viven también
+    // como páginas propias (#/como-funciona, #/funciones…), con el mismo nav y pie.
+    ["Producto", [["Cómo funciona","#/como-funciona"],["Funciones","#/funciones"],["Diseños","#/funciones"],["Integraciones","#/integraciones"],["Precios","#/precios"],["Calculadora de comisión","#/calculadora"],["Tienda de ejemplo","#/tostado"]]],
+    ["Recurrentes", [["Preguntas frecuentes","#/preguntas"],["Pedir demo","#/demo"],["Términos","#/terminos"],["Privacidad","#/privacidad"],["Soporte por WhatsApp","https://wa.me/5491164117974"],["soporte@recurrentesapp.com","mailto:soporte@recurrentesapp.com"]]],
   ];
   return (
     <footer style={{borderTop:`1px solid ${T.border}`,padding:"48px 0 28px",background:T.surface}}>
@@ -800,55 +809,61 @@ export function VideoSection({ T, videos = [] }) {
 // Excepción: el setup y la comisión de Puentify no están en su web pero los
 // confirmó Thiago con comercios que trabajan con ellos; van marcados como
 // dato de mercado en la nota al pie, no como precio de lista.
-const COMPARE_ROWS = [
+export const COMPARE_ROWS = [
   ["Precio del plan",
     ["Gratis hasta 10 suscriptores", "rec"],
     ["Sin abono", "solo comisión"],
     ["USD 99 a 249 por mes", "según el plan"],
     ["Sin abono", "solo comisión"],
-    ["USD 99 a 499 por mes", "según el plan"]],
+    ["USD 99 a 499 por mes", "según el plan"],
+    ["USD 79 a 229 por mes", "según el plan"]],
   ["Comisión sobre cada venta",
     ["0%", true],
     ["1,65% + IVA", "de todo lo que cobrás"],
     ["1,2% a 1,8%", "de todo lo que cobrás"],
     ["2%", "de todo lo que cobrás"],
-    ["1,49% + USD 0,19", "por transacción"]],
-  ["Cobra con Mercado Pago", true, true, true, true, false],
-  ["Funciona en Shopify", true, true, true, true, true],
+    ["1,49% + USD 0,19", "por transacción"],
+    ["1% a 2%", "de las ventas por suscripción"]],
+  ["Cobra con Mercado Pago", true, true, true, true, false, true],
+  ["Funciona en Shopify", true, true, true, true, true, true],
   ["Funciona en Tiendanube", true, true,
     ["No", "te hacen pasar a Shopify"],
-    true, false],
-  ["Suscribir una variante puntual", true, false, false, false, true],
-  ["Dos productos con suscripción en el mismo carrito", true, false, false, false, true],
+    true, false, false],
+  ["Suscribir una variante puntual", true, false, false, false, true, "?"],
+  ["Dos productos con suscripción en el mismo carrito", true, false, false, false, true, true],
   ["Diseños de widget listos para usar",
-    ["Más de 10 diseños con tus fotos", true], false, false, false, false],
+    ["Más de 10 diseños con tus fotos", true], false, false, false, false,
+    ["3 modos", "toggle, selector, suscripción primero"]],
   ["Mails automáticos con tu marca", true, false, true, false,
-    ["Sí", "en inglés"]],
-  ["Avisos por WhatsApp al cliente", ["Sí", true], false, false, false, false],
-  ["Avisos por WhatsApp al comerciante", ["Sí", true], false, false, false, false],
-  ["Portal del cliente: pausar, cancelar, cambiar dirección", true, false, true, true, true],
-  ["Soporte en español por WhatsApp", ["Sí", true], true, true, true, false]
+    ["Sí", "en inglés"],
+    ["Vía Klaviyo o Mailchimp", "integración aparte"]],
+  ["Avisos por WhatsApp al cliente", ["Sí", true], false, false, false, false, "?"],
+  ["Avisos por WhatsApp al comerciante", ["Sí", true], false, false, false, false, "?"],
+  ["Portal del cliente: pausar, cancelar, cambiar dirección", true, false, true, true, true, true],
+  ["Soporte en español por WhatsApp", ["Sí", true], true, true, true, false, ["Sí", "soporte incluido, canal no documentado"]]
 ];
-const COMPARE_COLS = [
+export const COMPARE_COLS = [
   { key:"rec",  title:"Recurrentes", real:true },
   { key:"f1",   title:"Fácil Uno",   sub:"Argentina",  ini:"F", c:"#4ADE80" },
   { key:"rev",  title:"Reval",       sub:"Latam",      ini:"R", c:"#60A5FA" },
   { key:"pue",  title:"Puentify",    sub:"Argentina",  ini:"P", c:"#A78BFA" },
   { key:"rch",  title:"Recharge",    sub:"Internacional", ini:"R", c:"#F472B6" },
+  { key:"orq",  title:"Orquesty",    sub:"Latam",      ini:"O", c:"#FB923C" },
 ];
 // Links de cada dato, por si alguien quiere chequearlo (y para respaldarnos).
-const COMPARE_SOURCES = [
+export const COMPARE_SOURCES = [
   { t:"Fácil Uno", u:"https://www.facil.uno/" },
   { t:"Reval", u:"https://appreval.com/" },
   { t:"Puentify", u:"https://puentify.app/" },
   { t:"Recharge", u:"https://getrecharge.com/pricing/" },
+  { t:"Orquesty", u:"https://orquesty.com/" },
 ];
 // Marca de cada competidor: inicial en un círculo con su color. No usamos sus
 // logos: son marcas registradas y no tenemos permiso para reproducirlos.
-function CompareMark({ ini, c }) {
+export function CompareMark({ ini, c }) {
   return <span aria-hidden="true" style={{width:20,height:20,borderRadius:"50%",background:c+"22",color:c,border:`1.5px solid ${c}55`,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:900,flexShrink:0}}>{ini}</span>;
 }
-function CompareCell({ T, v }) {
+export function CompareCell({ T, v }) {
   const ok = (c) => <Check c={c} size={16}/>;
   const no = (c) => <Cross c={c} size={16}/>;
   if (v === true) return <span style={{display:"inline-flex",alignItems:"center",gap:6,color:T.accent,fontWeight:700}}>{ok(T.accent)}Sí</span>;
@@ -917,7 +932,7 @@ export function ComparisonSection({ T }) {
     </section>
   );
 }
-function RecLogoMini() {
+export function RecLogoMini() {
   return (
     <svg width="20" height="20" viewBox="0 0 32 32" aria-hidden="true" style={{display:"block",flexShrink:0}}>
       <defs><linearGradient id="recCmpGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#34d399"/><stop offset="100%" stopColor="#059669"/></linearGradient></defs>

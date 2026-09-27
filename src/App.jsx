@@ -12,6 +12,8 @@ import Checkout from "./pages/Checkout.jsx";
 import LegalPage, { SoportePage } from "./pages/Legal.jsx";
 import { TransferAcceptPage } from "./pages/Transfer.jsx";
 import DemoPage from "./pages/Demo.jsx";
+import TostadoStore from "./pages/Tostado.jsx";
+import { SITE_PAGES } from "./pages/SitePages.jsx";
 
 import { initPixel, pixelPageView } from "./lib/attribution.js";
 // Routing simple hash-based.
@@ -54,6 +56,9 @@ export default function App() {
   if (route === "soporte") return <SoportePage T={readStoredDark() ? DARK : LIGHT}/>;
   // Pedir demo: anda con o sin sesión (no crea cuenta, junta el lead y avisa).
   if (route === "demo") return <DemoPage/>;
+  if (route === "tostado") return <TostadoStore/>;
+  // Páginas del sitio (#/precios, #/funciones…): públicas, también con sesión abierta.
+  if (route === "site") return <PublicSite/>;
   // Aceptar una tienda transferida: anda con o sin sesión (maneja el login adentro).
   if (route === "transferir") return <TransferAcceptPage user={user} authReady={authReady}/>;
 
@@ -79,5 +84,7 @@ function parseRoute() {
   if (path === "soporte") return "soporte";
   if (path === "transferir") return "transferir";
   if (path === "demo") return "demo";
+  if (path === "tostado") return "tostado";
+  if (SITE_PAGES.has(path)) return "site";
   return "default";
 }

@@ -14,6 +14,7 @@ import { useTheme } from "../ui/theme.js";
 import { InputStyle, BtnSolid, BtnSecondary, Spinner } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
 import Landing from "./Landing.jsx";
+import SitePage, { SITE_PAGES } from "./SitePages.jsx";
 import { apiPost } from "../lib/api.js";
 import { savePendingSignup, readPendingSignup, normalizeWhatsapp, EMAIL_RE } from "../lib/signup.js";
 
@@ -43,6 +44,7 @@ function authViewFromHash() {
   if (h === "login") return "login";
   if (h === "registro" || h === "register" || h === "signup") return "register";
   if (h === "recuperar" || h === "reset") return "reset";
+  if (SITE_PAGES.has(h)) return "page:" + h;
   return "landing";
 }
 
@@ -70,6 +72,7 @@ export function PublicSite() {
     if (view === "register" && !registroPermitido()) { try { window.location.hash = "#/demo"; } catch (_) {} }
   }, [view]);
   const go = (v) => { try { window.location.hash = v === "landing" ? "#/" : `#/${v === "register" ? "registro" : v === "reset" ? "recuperar" : "login"}`; } catch (_) {} setView(v); window.scrollTo(0, 0); };
+  if (view.startsWith("page:")) return <SitePage T={T} darkMode={darkMode} onToggleDark={toggleDark} onLogin={() => go("login")} page={view.slice(5)}/>;
   if (view === "landing") return <Landing T={T} darkMode={darkMode} onToggleDark={toggleDark} onLogin={() => go("login")} onRegister={() => go("register")}/>;
   return <AuthScreen T={T} darkMode={darkMode} onToggleDark={toggleDark} mode={view} setMode={go} onBackToLanding={() => go("landing")}/>;
 }
