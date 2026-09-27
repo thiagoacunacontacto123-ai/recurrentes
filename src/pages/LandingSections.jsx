@@ -711,6 +711,12 @@ export function FaqSection({ T, hideHead = false }) {
 }
 
 // ─── 8. Pie de página ────────────────────────────────────────────────────
+// Redes del pie (27-sept-2026). Cambiar acá los handles si no son estos.
+const SOCIAL = [
+  ["soporte@recurrentesapp.com", "mailto:soporte@recurrentesapp.com", "M4 5h16a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1zm0 1l8 7 8-7"],
+  ["LinkedIn", "https://www.linkedin.com/company/recurrentes", "M4 9h4v11H4zM6 3a2 2 0 110 4 2 2 0 010-4zM10 9h4v2a4 4 0 017-1c.5.9.5 2 .5 3v7h-4v-6c0-1.2-.6-2-1.7-2S13 13 13 14.5V20h-4z"],
+  ["Instagram", "https://www.instagram.com/recurrentesapp", "M7 3h10a4 4 0 014 4v10a4 4 0 01-4 4H7a4 4 0 01-4-4V7a4 4 0 014-4zm5 5.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7zM17.5 6.5h.01"],
+];
 export function BigFooter({ T, onGo, onRegister, darkMode, onToggleDark }) {
   const link = { background:"none", border:"none", padding:0, color:T.textSm, fontSize:13, cursor:"pointer", fontFamily:F, textAlign:"left", textDecoration:"none" };
   const cols = [
@@ -744,8 +750,15 @@ export function BigFooter({ T, onGo, onRegister, darkMode, onToggleDark }) {
           ))}
         </div>
         <div style={{borderTop:`1px solid ${T.border}`,marginTop:32,paddingTop:18,fontSize:12,color:T.textSm,display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
-          <span>© {new Date().getFullYear()} Recurrentes · Buenos Aires, Argentina</span>
-          <a href="mailto:soporte@recurrentesapp.com" style={{color:T.textSm,textDecoration:"none"}}>soporte@recurrentesapp.com</a>
+          <span>© {new Date().getFullYear()} Recurrentes · Desarrollado y codeado con <span aria-label="amor" style={{color:T.accent}}>♥</span> en Buenos Aires, Argentina</span>
+          <span style={{display:"inline-flex",gap:16,alignItems:"center"}}>
+            {SOCIAL.map(([label, href, path]) => (
+              <a key={label} href={href} aria-label={label} title={label} {...(href.startsWith("http") ? { target:"_blank", rel:"noreferrer" } : {})} style={{color:T.accent,display:"inline-flex",alignItems:"center",gap:6,textDecoration:"none",fontSize:12}}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={path}/></svg>
+                <span className="hide-mobile">{label}</span>
+              </a>
+            ))}
+          </span>
         </div>
       </div>
     </footer>
