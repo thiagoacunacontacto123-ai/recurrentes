@@ -160,7 +160,6 @@ export function MotionStyle({ T }) {
         .lm-pin-all .lm-track{--cw:calc(100vw - 32px);transform:translateX(calc((var(--cw) - var(--w, 86vw)) / 2 - var(--pp, var(--p,0)) * (var(--w, 86vw) + 28px) * (var(--n, 1) - 1)))!important;overflow:visible;scroll-snap-type:none;padding:4px 0 8px;margin:0;}
         .lm-pin-all .lm-progress{display:block;width:100px!important;}
         .lm-pin-all .lm-pin-inner{position:sticky;top:64px;height:auto;justify-content:center;padding:12px 0!important;overflow:visible;}
-        .lm-pin-all .lm-pin-fit{top:64px!important;}
         .lm-stepper{grid-auto-flow:column;gap:4px!important;}
         .lm-stepper-n{width:28px;height:24px;font-size:10px;}
         .lm-stack-grid > div:first-child{grid-template-columns:1fr!important;}
@@ -697,8 +696,8 @@ export function StickyDesigns({ T }) {
   // Dos fases con el mismo scroll (Thiago, 27-sept): 0–50 % pasan los widgets,
   // 50–100 % la página de suscripción: primero quieta arriba de todo (hasta el 60 %)
   // y después se recorre entera. data-step 0/1 = fase.
-  useScrollProgress(ref, { enabled: pinned, steps: 2 });
-  usePinFit(innerRef, pinned && desktop);
+  useScrollProgress(ref, { enabled: pinned, steps: desktop ? 2 : 0 });
+  usePinFit(innerRef, pinned); // centra el bloque también en celular (solo recalcula si cambia el ancho)
   const [phase, setPhase] = useState(0);
   useEffect(() => {
     if (!pinned) return;
@@ -709,7 +708,8 @@ export function StickyDesigns({ T }) {
   }, [pinned]);
   const n = DESIGNS.length;
   return (
-    <section id="rec-disenos" ref={ref} className={"lm-pin " + (pinned ? "lm-pin-all" : "")} style={{ height: pinned ? `${n * 60 + 220}vh` : "auto", "--pa": "min(1, calc(var(--p, 0) * 2))", "--pb": "min(1, max(0, calc((var(--p, 0) * 2 - 1.2) / 0.8)))" }}>
+    <>
+    <section id="rec-disenos" ref={ref} className={"lm-pin " + (pinned ? "lm-pin-all" : "")} style={{ height: pinned ? (desktop ? `${n * 60 + 220}vh` : `${n * 55 + 60}vh`) : "auto", "--pa": desktop ? "min(1, calc(var(--p, 0) * 2))" : "var(--p, 0)", "--pb": "min(1, max(0, calc((var(--p, 0) * 2 - 1.2) / 0.8)))" }}>
       <div className="lm-wrap" style={{ width: "100%", padding: "64px 24px 8px" }}>
         <div data-reveal="tilt">
           <div className="lm-eyebrow">Se adapta a tu tienda · dos formas</div>
@@ -718,7 +718,7 @@ export function StickyDesigns({ T }) {
       </div>
       <div ref={innerRef} className={"lm-pin-inner " + (pinned ? "lm-pin-fit" : "")} style={pinned ? { padding: "8px 0 12px" } : { position: "static", height: "auto", display: "block", overflow: "visible", padding: "16px 0 64px" }}>
         <div className="lm-wrap" style={{ width: "100%", marginBottom: 14 }}>
-          <h2 key={phase} className="lm-h2 lm-stack-active" style={{ fontSize: "clamp(22px,2.6vw,32px)", margin: 0 }}>{phase === 0 || !pinned ? <>Un widget por marca, <span style={{ color: T.textSm }}>no una marca por widget</span></> : <>O una página entera <span style={{ color: T.textSm }}>enfocada a suscripción</span></>}</h2>
+          <h2 key={phase} className="lm-h2 lm-stack-active" style={{ fontSize: "clamp(22px,2.6vw,32px)", margin: 0 }}>{phase === 0 || !pinned || !desktop ? <>Un widget por marca, <span style={{ color: T.textSm }}>no una marca por widget</span></> : <>O una página entera <span style={{ color: T.textSm }}>enfocada a suscripción</span></>}</h2>
         </div>
         <div style={{ display: pinned ? "grid" : "block" }}>
           <div className="lm-wrap lm-phase" style={{ width: "100%", overflow: "visible", gridArea: pinned ? "1/1" : "auto", opacity: pinned && phase === 1 ? 0 : 1, pointerEvents: pinned && phase === 1 ? "none" : "auto", transition: "opacity .45s" }}>
@@ -726,14 +726,24 @@ export function StickyDesigns({ T }) {
               {DESIGNS.map((d) => <DesignCard key={d.key} T={T} d={d}/>)}
             </div>
           </div>
-          <div className="lm-wrap lm-phase" style={{ width: "100%", gridArea: pinned ? "1/1" : "auto", opacity: !pinned || phase === 1 ? 1 : 0, pointerEvents: !pinned || phase === 1 ? "auto" : "none", transition: "opacity .45s", marginTop: pinned ? 0 : 44 }}>
-            {!pinned && <h2 className="lm-h2" style={{ fontSize: 24, margin: "0 0 14px" }} data-reveal="swing">O una página entera <span style={{ color: T.textSm }}>enfocada a suscripción</span></h2>}
+          {desktop && <div className="lm-wrap lm-phase" style={{ width: "100%", gridArea: "1/1", opacity: phase === 1 ? 1 : 0, pointerEvents: phase === 1 ? "auto" : "none", transition: "opacity .45s" }}>
             <div style={{ maxWidth: 760, margin: "0 auto" }} data-reveal="rise"><SubLandingMock T={T}/></div>
             <div style={{ textAlign: "center", fontSize: 12.5, color: T.textSm, marginTop: 12 }}>Misma tienda, mismo producto, otra página: solo suscripción, con el bundle, los beneficios y las preguntas. La armamos nosotros con tu marca.</div>
-          </div>
+          </div>}
         </div>
       </div>
     </section>
+    {/* Celular: adentro de lo fijo va SOLO el carril de widgets; la página de suscripción sigue
+        después, estática y entera, como estaba (Thiago, 27-sept). */}
+    {!desktop && (
+      <div className="lm-wrap lm-sub-static" style={{ padding: "48px 16px 64px" }}>
+        <style>{`.lm-sub-static .lm-sublanding{height:auto!important;overflow:visible!important}.lm-sub-static .lm-sublanding-content{transform:none!important}`}</style>
+        <h2 className="lm-h2" style={{ fontSize: 26, margin: "0 0 14px" }} data-reveal="swing">O una página entera <span style={{ color: T.textSm }}>enfocada a suscripción</span></h2>
+        <div data-reveal="rise"><SubLandingMock T={T}/></div>
+        <div style={{ textAlign: "center", fontSize: 12.5, color: T.textSm, marginTop: 12 }}>Misma tienda, mismo producto, otra página: solo suscripción, con el bundle, los beneficios y las preguntas. La armamos nosotros con tu marca.</div>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -1334,9 +1344,9 @@ export function PanelTour({ T }) {
   const innerRef = useRef(null);
   const reduce = useReducedMotion();
   const desktop = useDesktop();
-  const pinned = !reduce; // clavado también en celular, con top fijo por CSS (sin recálculo)
+  const pinned = !reduce; // clavado también en celular
   useScrollProgress(ref, { enabled: pinned });
-  usePinFit(innerRef, pinned && desktop);
+  usePinFit(innerRef, pinned); // centrado; en celular solo recalcula si cambia el ancho
   const trackRef = useRef(null);
   useScrollDriveTrack(trackRef, false);
   const n = TOUR.length;
