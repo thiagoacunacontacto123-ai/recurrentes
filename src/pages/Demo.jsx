@@ -197,11 +197,7 @@ export default function DemoPage() {
 
       <MotionStyle T={T}/>
       {/* Sin "Volver" ni "Iniciar sesión" (Thiago, 26-sept): solo el logo y los sellos de partner. */}
-      {/* Sin header (Thiago, 27-sept): la página de la demo va directo al grano. Solo el logo, chico. */}
-      <div className="rec-demo-wrap" style={{ paddingTop: 22 }}>
-        <a href="#/" style={{ display: "inline-flex", alignItems: "center", gap: 8, textDecoration: "none", color: T.text }}><RecLogo size={24}/><span style={{ fontWeight: 800, fontSize: 15, letterSpacing: -0.2 }}>Recurrentes</span></a>
-      </div>
-
+      {/* Sin header ni logo arriba (Thiago, 27-sept): la página de la demo arranca directo en el contenido. */}
       <div style={{ position: "relative" }}>
         <div className="rec-demo-bg" aria-hidden="true"/>
         <div className="rec-demo-wrap" style={{ position: "relative", zIndex: 1 }}>
