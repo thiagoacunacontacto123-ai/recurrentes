@@ -260,6 +260,8 @@ export default function DemoPage() {
         .rec-demo .rc-f.is-err input,.rec-demo .rc-f.is-err select,.rec-demo .rc-f.is-err > div > button{border-color:#d92d20!important;box-shadow:0 0 0 1px #d92d20!important;}
         .rec-demo .rc-f.is-err > label{color:#d92d20!important;}
         .rec-demo .rc-f.is-err .rec-demo-check{border-color:#d92d20!important;box-shadow:0 0 0 1px #d92d20;}
+        /* iOS hace zoom al enfocar un campo con letra menor a 16px (mismo arreglo que el checkout). */
+        .rec-demo-form input,.rec-demo-form select,.rec-demo-form .rc-f > div > button{font-size:16px!important;padding-top:12px!important;padding-bottom:12px!important;border-radius:10px!important;}
         .rec-demo button:focus-visible{outline:2px solid ${T.accentSolid};outline-offset:2px;}
         .rec-demo .rc-fe{color:#d92d20;font-size:13px;line-height:1.35;margin-top:6px;padding-left:2px;}
         .ls-card{background:${T.card};border:1px solid ${T.border};border-radius:20px;position:relative;overflow:hidden;}
