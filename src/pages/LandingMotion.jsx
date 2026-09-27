@@ -743,7 +743,8 @@ const INTEG = [
   { n: "Shopify", s: "Tienda", ok: true }, { n: "Tiendanube", s: "Tienda", ok: true }, { n: "Mercado Pago", s: "Pasarela", ok: true },
   { n: "Andreani", s: "Envíos, vía tu tienda", ok: true }, { n: "OCA", s: "Envíos, vía tu tienda", ok: true }, { n: "Correo Argentino", s: "Envíos, vía tu tienda", ok: true },
   { n: "Meta Ads", s: "Conversions API", ok: true }, { n: "WhatsApp", s: "Avisos automáticos", ok: true }, { n: "Email", s: "Flujos con tu marca", ok: true },
-  { n: "WooCommerce", s: "Próximamente", ok: false }, { n: "Mobbex", s: "Próximamente", ok: false },
+  { n: "WooCommerce", s: "La conectamos a tu medida", ok: true }, { n: "Empretienda", s: "La conectamos a tu medida", ok: true }, { n: "VTEX", s: "La conectamos a tu medida", ok: true },
+  { n: "Desarrollo propio", s: "La conectamos a tu medida", ok: true }, { n: "Mobbex", s: "Próximamente", ok: false },
 ];
 function Chip({ T, it }) {
   return (
@@ -1049,7 +1050,7 @@ export function ComparisonArena({ T, onDemo }) {
         <div className="lm-arena" data-reveal="rise">
           <div className="lm-arena-h" style={{ color: "#8fa69c", fontSize: 11, letterSpacing: .6, textTransform: "uppercase", alignSelf: "end" }}>Qué mirar</div>
           <div className="lm-arena-h lm-arena-rec" style={{ color: "#fff", display: "flex", alignItems: "center", gap: 8, fontSize: 15 }}><RecLogoMini/> Recurrentes</div>
-          {oth.map((c, k) => <div key={c.key} className={"lm-arena-h lm-arena-oth " + (pick === k + 1 ? "pick" : "")} style={{ color: "#c5d6ce", display: "flex", flexDirection: "column", gap: 3 }}><span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}><CompareMark ini={c.ini} c={c.c}/>{c.title}</span><span style={{ fontSize: 10.5, color: "#8fa69c", letterSpacing: .4, textTransform: "uppercase", paddingLeft: 27 }}>{c.sub}</span></div>)}
+          {oth.map((c, k) => <div key={c.key} className={"lm-arena-h lm-arena-oth " + (pick === k + 1 ? "pick" : "")} style={{ color: "#c5d6ce", display: "flex", alignItems: "center", gap: 8 }}><CompareMark logo={c.logo}/>{c.title}</div>)}
           {COMPARE_ROWS.map(([label, ...vals], i) => {
             const last = i === COMPARE_ROWS.length - 1;
             return (

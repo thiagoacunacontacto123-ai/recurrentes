@@ -672,7 +672,7 @@ const FAQS = [
   ["¿Mis clientes pueden pausar o cancelar?", "Sí, desde su portal y sin escribirte. Si querés, antes de cancelar les ofrecemos pausar uno, dos o tres meses."],
   ["¿Con qué medios paga el cliente?", "Con tarjeta de crédito, y con débito o dinero en cuenta cuando Mercado Pago lo habilita para suscripciones."],
   ["¿Funciona con Tiendanube?", "Sí, ya funciona: instalás la app desde Tiendanube en un clic y el widget de suscripción aparece solo en tus productos con plan. Con Shopify es una línea en el tema."],
-  ["¿Y con WooCommerce o Empretienda?", "Están en camino. Mientras tanto, el link de suscripción sirve para cualquier negocio, tenga la tienda que tenga."],
+  ["¿Y con WooCommerce, Empretienda o VTEX?", "Sí. Esas no tienen la app hecha de antemano: la conexión la armamos nosotros para tu tienda en la puesta en marcha, sin costo extra. Y desde el primer día podés vender con el link de suscripción, que funciona con cualquier tienda."],
   ["¿Puedo vender sin tienda online?", "Sí. Cada plan tiene su link: lo compartís por Instagram, WhatsApp o tu web, y el cliente se suscribe desde ahí."],
   ["¿Cuánto cuesta Recurrentes?", `El abono es gratis hasta ${FREE_SUBSCRIBERS} suscriptores activos; después pagás según cuántos clientes tenés cobrando, desde USD ${PRECIO_DESDE} por mes, con todo incluido. Aparte, la puesta en marcha (dejarte la suscripción integrada y funcionando en tu tienda) sale USD ${INSTALL_USD} una sola vez, y se paga recién cuando está terminada.`],
   ["¿Qué cuenta como suscriptor activo?", "Un cliente con su suscripción cobrando, o con un pago que Mercado Pago está reintentando. Los pausados y cancelados no cuentan."],
@@ -832,7 +832,6 @@ export const COMPARE_ROWS = [
     ["No", "te hacen pasar a Shopify"],
     true, false, false],
   ["Suscribir una variante puntual", true, false, false, false, true, "?"],
-  ["Dos productos con suscripción en el mismo carrito", true, false, false, false, true, true],
   ["Diseños de widget listos para usar",
     ["Más de 10 diseños con tus fotos", true], false, false, false, false,
     ["3 modos", "toggle, selector, suscripción primero"]],
@@ -846,11 +845,11 @@ export const COMPARE_ROWS = [
 ];
 export const COMPARE_COLS = [
   { key:"rec",  title:"Recurrentes", real:true },
-  { key:"orq",  title:"Orquesty",    sub:"Latam",      ini:"O", c:"#FB923C" },
-  { key:"f1",   title:"Fácil Uno",   sub:"Argentina",  ini:"F", c:"#4ADE80" },
-  { key:"rev",  title:"Reval",       sub:"Latam",      ini:"R", c:"#60A5FA" },
-  { key:"pue",  title:"Puentify",    sub:"Argentina",  ini:"P", c:"#A78BFA" },
-  { key:"rch",  title:"Recharge",    sub:"Internacional", ini:"R", c:"#F472B6" },
+  { key:"orq",  title:"Orquesty",  logo:"/marcas/orquesty.png" },
+  { key:"f1",   title:"Fácil Uno", logo:"/marcas/facil-uno.png" },
+  { key:"rev",  title:"Reval",     logo:"/marcas/reval.png" },
+  { key:"pue",  title:"Puentify",  logo:"/marcas/puentify.png" },
+  { key:"rch",  title:"Recharge",  logo:"/marcas/recharge.png" },
 ];
 // Las filas de arriba están cargadas en el orden histórico (rec, Fácil Uno, Reval,
 // Puentify, Recharge, Orquesty); acá se acomodan al orden de las columnas.
@@ -864,10 +863,14 @@ export const COMPARE_SOURCES = [
   { t:"Recharge", u:"https://getrecharge.com/pricing/" },
   { t:"Orquesty", u:"https://orquesty.com/" },
 ];
-// Marca de cada competidor: inicial en un círculo con su color. No usamos sus
-// logos: son marcas registradas y no tenemos permiso para reproducirlos.
-export function CompareMark({ ini, c }) {
-  return <span aria-hidden="true" style={{width:20,height:20,borderRadius:"50%",background:c+"22",color:c,border:`1.5px solid ${c}55`,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:900,flexShrink:0}}>{ini}</span>;
+// Marca de cada competidor: su logo, bajado del ícono público de su sitio y
+// guardado en public/marcas/ (26-sept-2026, Thiago: "cambiá las iniciales por
+// sus logos"). Es uso nominativo en una comparativa de datos verificables: los
+// identificamos por su marca, sin sugerir que nos respaldan. Fondo blanco y
+// esquinas redondeadas para que los cinco se vean parejos en cualquier tema.
+export function CompareMark({ logo }) {
+  return <img src={logo} alt="" aria-hidden="true" width="22" height="22" loading="lazy"
+    style={{width:22,height:22,borderRadius:6,objectFit:"cover",background:"#fff",border:"1px solid rgba(0,0,0,.10)",flexShrink:0,display:"block"}}/>;
 }
 export function CompareCell({ T, v }) {
   const ok = (c) => <Check c={c} size={16}/>;
@@ -906,10 +909,7 @@ export function ComparisonSection({ T }) {
                   <th key={c.key} style={{textAlign:"left",padding:"14px 16px",borderBottom:`1px solid ${T.border}`,background:c.real ? T.accentSolid + "12" : "transparent",borderTop:c.real ? `3px solid ${T.accentSolid}` : "3px solid transparent"}}>
                     {c.real
                       ? <span style={{display:"inline-flex",alignItems:"center",gap:8,fontSize:15,fontWeight:800,color:T.text}}><RecLogoMini/> {c.title}</span>
-                      : <span style={{display:"flex",flexDirection:"column",gap:3}}>
-                          <span style={{display:"inline-flex",alignItems:"center",gap:7,fontSize:14.5,fontWeight:800,color:T.textMd}}><CompareMark ini={c.ini} c={c.c}/>{c.title}</span>
-                          <span style={{fontSize:10.5,fontWeight:700,color:T.textSm,letterSpacing:0.4,textTransform:"uppercase",paddingLeft:27}}>{c.sub}</span>
-                        </span>}
+                      : <span style={{display:"inline-flex",alignItems:"center",gap:8,fontSize:14.5,fontWeight:800,color:T.textMd}}><CompareMark logo={c.logo}/>{c.title}</span>}
                   </th>
                 ))}
               </tr>

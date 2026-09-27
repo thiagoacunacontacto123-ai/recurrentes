@@ -26,9 +26,12 @@ const FLOW_STORES = [
   { n:"Tiendanube", s:"live" },
   { n:"Link de pago", s:"live" },
   { n:"Tu propia web", s:"live" },
-  { n:"WooCommerce", d:null, s:"soon" },
-  { n:"Empretienda", s:"soon" },
-  { n:"VTEX", s:"soon" },
+  // Sin app propia: la conexión se arma a mano en la puesta en marcha, pero se
+  // arma (Thiago, 26-sept). Van en verde con su propia etiqueta, no como
+  // "Próximamente".
+  { n:"WooCommerce", d:null, s:"live", lbl:"A medida" },
+  { n:"Empretienda", s:"live", lbl:"A medida" },
+  { n:"VTEX", s:"live", lbl:"A medida" },
 ];
 const FLOW_PAYMENTS = [
   { n:"Mercado Pago", s:"live" },
@@ -41,6 +44,8 @@ const FLOW_ACTIONS = [
   { t:"Mail y WhatsApp de confirmación de pedido", short:"Mail y WhatsApp de confirmación de pedido", s:"live" },
 ];
 const FLOW_STATUS = { live:"Disponible", soon:"Próximamente", radar:"En el radar" };
+// Etiqueta del ítem: la propia si la trae, si no la del estado.
+const flowLabel = (it) => it.lbl || FLOW_STATUS[it.s];
 const FLOW_ITEM_H = 44;
 const FLOW_ITEM_H_SM = 30;   // versión chica: el mapa dentro del panel del hero
 
@@ -76,14 +81,14 @@ function FlowItem({ T, it, compact }) {
   const live = it.s === "live", soon = it.s === "soon";
   const c = live ? T.accentSolid : soon ? T.yellow : T.textSm;
   return (
-    <div title={compact ? FLOW_STATUS[it.s] : undefined}
+    <div title={compact ? flowLabel(it) : undefined}
       style={{height:compact ? FLOW_ITEM_H_SM : FLOW_ITEM_H,display:"flex",alignItems:"center",gap:compact ? 6 : 8,padding:compact ? "0 8px" : "0 12px",borderRadius:compact ? 8 : 10,background:T.card,
       border:`${compact ? 1 : 1.5}px ${live ? "solid" : "dashed"} ${live ? T.accentSolid : c + "88"}`,minWidth:0}}>
       <span style={{width:compact ? 6 : 7,height:compact ? 6 : 7,borderRadius:99,background:c,flexShrink:0}}/>
       <span style={{flex:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:compact ? 11 : 13,fontWeight:700,color:live ? T.text : T.textMd}}>
         {it.n}{it.d && <span style={{fontWeight:500,color:T.textSm}}> · {it.d}</span>}
       </span>
-      {!compact && <span style={{fontSize:10,fontWeight:700,color:c,whiteSpace:"nowrap",textTransform:"uppercase",letterSpacing:0.3}}>{FLOW_STATUS[it.s]}</span>}
+      {!compact && <span style={{fontSize:10,fontWeight:700,color:c,whiteSpace:"nowrap",textTransform:"uppercase",letterSpacing:0.3}}>{flowLabel(it)}</span>}
     </div>
   );
 }

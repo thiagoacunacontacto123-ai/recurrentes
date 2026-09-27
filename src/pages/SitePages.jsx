@@ -50,13 +50,13 @@ export default function SitePage({ T, darkMode, onToggleDark, onLogin, page }) {
         <ClosingCta T={T} onDemo={IR_DEMO}/>
       </>}
       {key === "integraciones" && <>
-        <PageHead T={T} eyebrow="Integraciones" title={<>Tu tienda, tu pasarela,<br/>tu panel. Todo conectado.</>} sub="Shopify y Tiendanube como tienda, Mercado Pago como pasarela. Los envíos se cotizan con los correos que ya tenés en tu tienda." reveal="spin"/>
+        <PageHead T={T} eyebrow="Integraciones" title={<>Tu tienda, tu pasarela,<br/>tu panel. Todo conectado.</>} sub="Shopify y Tiendanube en un clic; WooCommerce, VTEX, Empretienda o tu desarrollo propio los conectamos a tu medida. Mercado Pago como pasarela y los envíos con los correos que ya tenés en tu tienda." reveal="spin"/>
         <section className="rec-land-wrap" style={{ padding: "24px 24px 64px" }} data-reveal="rise">
           <div className="lm-card" style={{ padding: 24 }}><FlowMap T={T}/></div>
         </section>
         <IntegrationsMarquee T={T}/>
         <section className="lm-wrap" style={{ padding: "80px 24px" }}>
-          <SectionHead T={T} eyebrow="Tu plataforma no está" title="¿Vendés con *otra* plataforma?" sub="WooCommerce, Empretienda, VTEX o desarrollo propio: escribinos y lo conectamos a mano. El link de suscripción funciona con cualquier tienda desde hoy."/>
+          <SectionHead T={T} eyebrow="Tu plataforma no está" title="¿Vendés con *otra* plataforma?" sub="WooCommerce, Empretienda, VTEX o desarrollo propio: sí, también. Esas no tienen app hecha de antemano: la conexión la armamos para tu tienda en la puesta en marcha, sin costo extra. Y el link de suscripción funciona con cualquier tienda desde hoy."/>
           <div style={{ textAlign: "center" }}><button onClick={IR_DEMO} style={{ ...BtnSolid(T), padding: "14px 24px", fontSize: 15, borderRadius: 14 }}>Pedir demo</button></div>
         </section>
         <ClosingCta T={T} onDemo={IR_DEMO}/>

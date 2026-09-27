@@ -34,3 +34,7 @@ secrets/
 # Worktrees y estado local de Claude Code (no son parte del producto)
 .claude/worktrees/
 .claude/agents/
+
+# Config local de Claude Code (worktrees, permisos); launch.json sí va.
+.claude/settings.local.json
+.claude/worktrees/
