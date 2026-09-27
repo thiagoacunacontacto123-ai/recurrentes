@@ -506,6 +506,15 @@ export default function Checkout() {
       const r = await fetch("/api/checkout/init", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const d = await r.json();
       if (d.error) { setFormErr(d.error); setSubmitting(false); return; }
+      // La tarjeta rebotó: se lo decimos acá y elige (otra tarjeta, o la cuenta de
+      // Mercado Pago que tiene justo abajo). NO lo mandamos a MP de prepo: eso se
+      // veía como que el botón no hacía nada.
+      if (d.card_declined) {
+        setFormErr(d.card_error || "No pudimos cobrar con esa tarjeta. Probá con otra, o pagá con tu cuenta de Mercado Pago.");
+        setSubmitting(false);
+        try { document.querySelector(".rc-ck .rc-pay")?.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (_) {}
+        return;
+      }
       redirected.current = true;
       // Con tarjeta: si MP la autorizó, ya está cobrada y no hay a dónde mandarlo
       // más que a la pantalla de gracias (que igual espera la orden).

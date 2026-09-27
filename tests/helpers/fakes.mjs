@@ -96,7 +96,10 @@ export function createFakeMp(router) {
     // rechace una tarjeta buena, y se borra sin que se note.
     mp.preapprovalsCreated.push({ token: bearer(call), body: clone(b), deviceId: call.headers["x-meli-session-id"] || null });
     if (mp.rejectCardToken && b.card_token_id) {
-      return { status: 400, json: { message: "Invalid card_token_id", error: "bad_request", status: 400, cause: [{ code: 3034, description: "Invalid card token" }] } };
+      // `rejectCardToken` puede ser true o el mensaje exacto que queremos que
+      // devuelva MP (así se prueba cómo se traduce cada rechazo).
+      const msg = typeof mp.rejectCardToken === "string" ? mp.rejectCardToken : "CC_VAL_433 Credit card validation has failed";
+      return { status: 400, json: { message: msg, code: "rejected", status: 400 } };
     }
     const id = `2c938084pre${String(mp.nextPreapproval++).padStart(8, "0")}`;
     const pre = {

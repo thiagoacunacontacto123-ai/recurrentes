@@ -109,12 +109,16 @@ test("sin Device ID (navegador que no lo dejó) se manda igual, sin el header", 
   assert.equal(r.body.authorized, true, "se crea igual: el header ayuda, no es obligatorio");
 });
 
-test("MP rechaza la tarjeta: NADIE queda colgado, vuelve el init_point para pagar en Mercado Pago", async () => {
+test("MP rechaza la tarjeta: se le DICE por qué y le queda Mercado Pago como salida", async () => {
   tiendaConTarjeta();
-  W.mp.rejectCardToken = true;
+  W.mp.rejectCardToken = true;   // CC_VAL_433: el antifraude de MP
   const r = await post(body({ card_token_id: "tok_rechazado" }));
   assert.equal(r.statusCode, 200, "la respuesta es 200: el comprador tiene por dónde seguir");
   assert.equal(r.body.authorized, undefined, "no mentimos: no quedó autorizada");
+  assert.equal(r.body.card_declined, true, "el checkout se entera de que rebotó");
+  assert.match(r.body.card_error, /por seguridad/i, "y le dice el motivo, no 'error 400'");
+  assert.match(r.body.card_error, /otra tarjeta|Mercado Pago/i, "siempre con una salida");
+  assert.ok(!/CC_VAL|HTTP 400|preapproval/.test(r.body.card_error), "sin códigos internos de MP");
   assert.ok(/mercadopago\.com/.test(r.body.init_point), "le queda el checkout de MP");
   assert.ok(r.body.portal_token, "y su token de portal");
   const sub = rawGet(`merchants/${MID}/subscribers/${r.body.subscriber_id}`);
@@ -161,6 +165,25 @@ test("el panel no deja prenderlo sin la clave pública, y con la clave sí", asy
   r = await guardar({ mp_checkout_api: false });
   assert.equal(r.statusCode, 200);
   assert.equal(rawGet(`merchants/${MID}`).mp_checkout_api, false);
+});
+
+test("cada rechazo de MP se traduce a algo que el comprador puede hacer", async () => {
+  const casos = [
+    ["cc_rejected_insufficient_amount", /fondos/i],
+    ["cc_rejected_bad_filled_security_code", /código de seguridad/i],
+    ["cc_rejected_bad_filled_date", /vencimiento/i],
+    ["cc_rejected_call_for_authorize", /banco/i],
+    ["cc_rejected_max_attempts", /límite de intentos/i],
+    ["algo que nunca vimos", /Probá con otra/i],
+  ];
+  for (const [msgMp, espera] of casos) {
+    W = createWorld();
+    tiendaConTarjeta();
+    W.mp.rejectCardToken = msgMp;
+    const r = await post(body({ card_token_id: "tok_x" }));
+    assert.equal(r.body.card_declined, true, msgMp);
+    assert.match(r.body.card_error, espera, `${msgMp} → "${r.body.card_error}"`);
+  }
 });
 
 test("token de tarjeta con basura: se limpia antes de mandarlo a MP", async () => {

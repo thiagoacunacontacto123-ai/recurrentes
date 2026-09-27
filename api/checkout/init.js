@@ -33,7 +33,7 @@
 // distintos). Sin pack_index → 400 "Elegí un pack". Planes "theme" (Lumina, el
 // tema manda base/sub_off/freq_days por URL) siguen el flujo de computeSubtotal.
 import { db } from "../_lib/firebase.js";
-import { mpCreatePreapprovalPlan, mpCreatePreapproval, mpReason } from "../_lib/mp.js";
+import { mpCreatePreapprovalPlan, mpCreatePreapproval, mpCardErrorText, mpReason } from "../_lib/mp.js";
 import { generatePortalToken, verifyPortalToken, merchantStoreUrl } from "../public.js";
 import { syncSubscriber } from "../_lib/sync.js";
 import { verifyToken } from "../_lib/token.js";
@@ -971,7 +971,7 @@ export default async function handler(req, res) {
   // REGLA: si esto falla por lo que sea (tarjeta de débito que MP no toma,
   // token vencido, fondos, MP caído) NO se le corta la compra a nadie —
   // devolvemos el init_point de siempre y paga en Mercado Pago como hasta hoy.
-  let authorized = null;
+  let authorized = null, cardDeclined = null;
   if (merchant.mp_checkout_api === true && cardTokenId) {
     try {
       const pre = await mpCreatePreapproval(merchant.mp_access_token, {
@@ -994,7 +994,8 @@ export default async function handler(req, res) {
       // de saber por qué MP dijo que no (el comprador solo ve que lo mandamos a
       // Mercado Pago). No se muestra en ningún lado del panel ni del checkout.
       const detalle = e?.message || String(e);
-      console.error("[checkout/init] preapproval con tarjeta falló, cae al init_point:", { merchantId, subscriberId, detail: detalle });
+      cardDeclined = mpCardErrorText(e);
+      console.error("[checkout/init] preapproval con tarjeta falló:", { merchantId, subscriberId, detail: detalle });
       await subRef.update({ mp_card_error: String(detalle).slice(0, 500), mp_card_error_at: new Date().toISOString() }).catch(() => {});
     }
   }
@@ -1017,5 +1018,8 @@ export default async function handler(req, res) {
     preapproval_plan_id: preapprovalPlan.id,
     portal_token: portalToken,
     ...(authorized ? { authorized: true, preapproval_id: authorized.id } : {}),
+    // La tarjeta rebotó: el checkout lo DICE y lo deja elegir (otra tarjeta o
+    // Mercado Pago). Mandarlo a MP sin avisar parecía que el botón no andaba.
+    ...(cardDeclined ? { card_declined: true, card_error: cardDeclined } : {}),
   });
 }
