@@ -594,13 +594,42 @@ export function AppPromptHost({ T }) {
   );
 }
 
+// "Failed to fetch dynamically imported module": la pestaña quedó abierta de un
+// deploy anterior y el archivo que va a buscar ya no existe con ese nombre. No
+// es un bug de la pantalla: es el navegador pidiendo un archivo viejo.
+//
+// Pasó con un comprador que ACABABA DE PAGAR (27-sept-2026): el cobro salió, le
+// llegaron los mails, y vio "algo se rompió". Recargar lo arregla siempre, así
+// que lo hacemos solos en vez de dejarlo apretar un botón asustado.
+const esChunkViejo = (err) => /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Unable to preload/i.test(String(err?.message || err || ""));
+const YA_RECARGUE = "rec_chunk_reload";
+const leer = (k) => { try { return sessionStorage.getItem(k); } catch (_) { return null; } };
+const anotar = (k, v) => { try { sessionStorage.setItem(k, v); } catch (_) {} };
+// Si la app arrancó bien, la marca no tiene que quedar pegada: un deploy más
+// tarde, en la misma pestaña, merece su propia recarga.
+export function chunkReloadOk(){ try { sessionStorage.removeItem(YA_RECARGUE); } catch (_) {} }
+
 // Error Boundary: un crash de render en una sección muestra el error y un
 // botón de recarga en vez de dejar la pantalla en blanco.
 export class ErrorBoundary extends React.Component {
-  constructor(props){ super(props); this.state={err:null}; }
+  constructor(props){ super(props); this.state={err:null,recargando:false}; }
   static getDerivedStateFromError(err){ return {err}; }
-  componentDidCatch(err, info){ try{ console.error("[recurrentes crash]", err, info?.componentStack); }catch(_){} }
+  componentDidCatch(err, info){
+    try{ console.error("[recurrentes crash]", err, info?.componentStack); }catch(_){}
+    // Una sola vez por pestaña: si al recargar vuelve a romperse es otra cosa,
+    // y hay que mostrarla en vez de quedarse en un bucle de recargas.
+    if(esChunkViejo(err) && !leer(YA_RECARGUE)){
+      anotar(YA_RECARGUE, "1");
+      this.setState({recargando:true});
+      window.location.reload();
+    }
+  }
   render(){
+    // Mientras recarga no mostramos el cartel de error: el que acaba de pagar ve
+    // "Cargando…" y enseguida su pantalla de gracias.
+    if(this.state.recargando) return (
+      <div style={{minHeight:"60vh",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:F,fontSize:14,color:(this.props.T||{}).textSm||"#9ca3af"}}>Cargando…</div>
+    );
     if(!this.state.err) return this.props.children;
     const T=this.props.T||{};
     return (
