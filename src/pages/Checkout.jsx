@@ -107,6 +107,28 @@ function freqText(days, unit) {
   return `cada ${d} días`;
 }
 
+// Las marcas que se aceptan, a la derecha de la fila de tarjeta (así lo hace el
+// checkout nativo de Shopify y es lo primero que mira el que va a pagar).
+function CardBrands() {
+  return (
+    <span aria-label="Visa, Mastercard y American Express" style={{ display: "inline-flex", gap: 4, flexShrink: 0, alignItems: "center" }}>
+      <svg width="30" height="20" viewBox="0 0 36 24" aria-hidden="true">
+        <rect width="36" height="24" rx="3" fill="#fff" stroke="#E4E7EC"/>
+        <text x="18" y="16" textAnchor="middle" fontFamily="Helvetica,Arial,sans-serif" fontSize="9.5" fontWeight="700" fontStyle="italic" fill="#1434CB">VISA</text>
+      </svg>
+      <svg width="30" height="20" viewBox="0 0 36 24" aria-hidden="true">
+        <rect width="36" height="24" rx="3" fill="#fff" stroke="#E4E7EC"/>
+        <circle cx="15" cy="12" r="6.4" fill="#EB001B"/>
+        <circle cx="21" cy="12" r="6.4" fill="#F79E1B" fillOpacity=".9"/>
+      </svg>
+      <svg width="30" height="20" viewBox="0 0 36 24" aria-hidden="true">
+        <rect width="36" height="24" rx="3" fill="#006FCF"/>
+        <text x="18" y="15.5" textAnchor="middle" fontFamily="Helvetica,Arial,sans-serif" fontSize="7" fontWeight="700" fill="#fff">AMEX</text>
+      </svg>
+    </span>
+  );
+}
+
 export default function Checkout() {
   const p = qParams();
   const merchant = p.get("merchant") || "";
@@ -666,6 +688,7 @@ export default function Checkout() {
   const payBlock = (
     <section>
       <h2 className="rc-h2">Pago</h2>
+      {cardForm ? <div style={{ fontSize: 13, color: theme.text_muted, margin: "-4px 0 12px" }}>Todas las transacciones son seguras y están encriptadas.</div> : null}
       {cardForm ? (
         // Dos caminos: la tarjeta acá mismo (no se va del checkout) o la cuenta de
         // Mercado Pago de siempre. El segundo NO se saca nunca: es el que cubre al
@@ -680,7 +703,8 @@ export default function Checkout() {
             <label className={"rc-opt " + (payWith === "card" ? "on" : "")}>
               <input type="radio" name="rec-pay" checked={payWith === "card"} onChange={() => setPayWith("card")}/>
               <img src="/brand/mercadopago.png" alt="" style={{ width: 30, height: 30, borderRadius: 7, objectFit: "contain", flexShrink: 0 }}/>
-              <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0 }}><b style={{ fontWeight: 600 }}>Tarjeta de crédito o débito</b><div style={{ color: theme.text_muted, fontSize: 13 }}>{isService ? `La cuota se cobra ${freqTxt} a la tarjeta que pongas acá.` : `Se cobra ${freqTxt} a la tarjeta que pongas acá.`}</div></div>
+              <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0, flex: 1 }}><b style={{ fontWeight: 600 }}>Tarjeta de crédito o débito</b><div style={{ color: theme.text_muted, fontSize: 13 }}>{isService ? `La cuota se cobra ${freqTxt} a la tarjeta que pongas acá.` : `Se cobra ${freqTxt} a la tarjeta que pongas acá.`}</div></div>
+              <CardBrands/>
             </label>
             {payWith === "card" ? (
               <div className="rc-card-body">
@@ -706,9 +730,13 @@ export default function Checkout() {
                   </Field>
                 </div>
                 <div className="rc-mpf-wrap">
-                  <div className="rc-mpf rc-mpf-full"><span>Número de tarjeta</span><div id="rec-card-number"/></div>
+                  <div className="rc-mpf rc-mpf-full"><span>Número de tarjeta</span><div id="rec-card-number"/>
+                    <svg className="rc-mpf-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+                  </div>
                   <div className="rc-mpf"><span>Vencimiento</span><div id="rec-card-exp"/></div>
-                  <div className="rc-mpf"><span>Código de seguridad</span><div id="rec-card-cvv"/></div>
+                  <div className="rc-mpf"><span>Código de seguridad</span><div id="rec-card-cvv"/>
+                    <svg className="rc-mpf-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><title>Son los 3 números del dorso de la tarjeta</title><circle cx="12" cy="12" r="9"/><path d="M9.2 9.3a2.9 2.9 0 015.6 1c0 1.9-2.8 2.3-2.8 4"/><path d="M12 17.8h.01"/></svg>
+                  </div>
                 </div>
                 {!cardReady ? <div style={{ fontSize: 12.5, color: theme.text_muted, marginTop: 8 }}>Cargando el formulario seguro de {providerLabel}…</div> : null}
                 {/* Sin esto, "esperá a que cargue" se guardaba en errs y no se
@@ -794,6 +822,10 @@ export default function Checkout() {
         .rc-mpf-wrap{display:grid;grid-template-columns:1fr 1fr;gap:12px}
         .rc-mpf{position:relative;border:1px solid ${theme.border};border-radius:${R}px;background:${theme.input_bg};height:52px;padding:7px 13px 6px;min-width:0;overflow:hidden}
         .rc-mpf-full{grid-column:1 / -1}
+        /* El icono va sobre la caja, nunca adentro del iframe de MP: ahi no
+           podemos dibujar nada. Sin eventos, para no robarle el click. */
+        .rc-mpf-ic{position:absolute;right:12px;top:19px;color:${theme.text_muted};pointer-events:none}
+        .rc-mpf>div{padding-right:22px}
         .rc-mpf>span{display:block;font-size:11.5px;color:${theme.text_muted};line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .rc-mpf>div{height:24px}
         .rc-mpf iframe{width:100%;height:24px;border:0;display:block}
