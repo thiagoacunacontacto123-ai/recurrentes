@@ -21,7 +21,7 @@ import { seedDoc, rawGet } from "../helpers/fake-firestore.mjs";
 const { default: init } = await loadApi("api/checkout/init.js");
 const { default: pub } = await loadApi("api/public.js");
 const { default: merchantApi } = await loadApi("api/merchant.js");
-const { mpTokenErrorText, mpDeclineText } = await loadApi("shared/platform/mpCardError.js");
+const { mpTokenErrorText, mpDeclineText, mpDeclineReason } = await loadApi("shared/platform/mpCardError.js");
 
 const PK = "APP_USR-0000aaaa-1111-2222-3333-444455556666";
 
@@ -237,6 +237,21 @@ test("el error del tokenizador dice QUÉ campo está mal, no 'revisá todo'", ()
   assert.match(mpTokenErrorText(null), /Revisá el número/i);
   // Y nunca sale un código crudo.
   for (const [err] of casos) assert.ok(!/E30|cc_rejected|\bcode\b/i.test(mpTokenErrorText(err)));
+});
+
+test("el panel dice POR QUÉ rebotó, corto y en tercera persona", () => {
+  // El carrito abandonado porque reboto la tarjeta no es lo mismo que el que se
+  // fue solo: a ese cliente lo podés llamar.
+  const crudo = 'MP POST /preapproval: HTTP 400 CC_VAL_433 Credit card validation has failed — {"message":"CC_VAL_433..."}';
+  assert.equal(mpDeclineReason(crudo), "Rechazada por seguridad de Mercado Pago");
+  assert.equal(mpDeclineReason("cc_rejected_insufficient_amount"), "Sin fondos");
+  assert.equal(mpDeclineReason("cc_rejected_call_for_authorize"), "El banco pidió autorizarla");
+  assert.equal(mpDeclineReason("algo raro"), "Rechazada por Mercado Pago");
+  // Sin rechazo no hay chip: la columna queda en "—".
+  assert.equal(mpDeclineReason(""), "");
+  assert.equal(mpDeclineReason(null), "");
+  // Y nunca el código crudo de MP.
+  assert.ok(!/CC_VAL|HTTP 400/.test(mpDeclineReason(crudo)));
 });
 
 test("token de tarjeta con basura: se limpia antes de mandarlo a MP", async () => {

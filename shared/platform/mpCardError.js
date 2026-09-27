@@ -79,3 +79,25 @@ export function mpDeclineText(e) {
   for (const [re, msg] of DECLINE) if (re.test(txt)) return msg;
   return MP_CARD_FALLBACK;
 }
+
+// ─── Panel: el mismo rechazo, contado para el COMERCIO ──────────────────────
+// Corto y en tercera persona: en una tabla no entra "probá con otra tarjeta", y
+// además el que lee no es el que tiene que hacer algo.
+const REASONS = [
+  [/insufficient/i,                             "Sin fondos"],
+  [/security_code|cvv/i,                        "Código de seguridad mal"],
+  [/bad_filled_date|expiration/i,               "Vencimiento mal"],
+  [/call_for_authorize/i,                       "El banco pidió autorizarla"],
+  [/card_disabled|disabled_card/i,              "Tarjeta inhabilitada"],
+  [/max_attempts/i,                             "Demasiados intentos"],
+  [/duplicated/i,                               "Pago duplicado"],
+  [/not_supported|invalid_payment_type/i,       "No admitida para suscripciones"],
+  [/CC_VAL_433|high_risk|blacklist/i,           "Rechazada por seguridad de Mercado Pago"],
+  [/bad_filled|invalid_card|card token|token/i, "Datos de la tarjeta mal"],
+];
+export function mpDeclineReason(crudo) {
+  const txt = typeof crudo === "string" ? crudo : `${crudo?.mp_code || ""} ${crudo?.mp_message || ""} ${crudo?.message || ""}`;
+  if (!txt.trim()) return "";
+  for (const [re, msg] of REASONS) if (re.test(txt)) return msg;
+  return "Rechazada por Mercado Pago";
+}

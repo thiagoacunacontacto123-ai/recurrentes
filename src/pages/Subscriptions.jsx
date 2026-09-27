@@ -3,6 +3,7 @@ import { useTabRefresh, TAB_SHOWN_EVENT } from "../lib/tabs.js";
 import { apiGet, apiPost, apiPatch, apiDelete, apiSend } from "../lib/api.js";
 import { auth } from "../lib/firebase.js";
 import { DS, useT } from "../ui/theme.js";
+import { mpDeclineReason } from "../../shared/platform/mpCardError.js";
 import { Btn, BtnSecondary, DSBadge, Modal, Field, InputStyle, Spinner, DSTable, CellStack, PageHeader, SubTabs, Hint, Loading, appConfirm, appAlert, appPrompt, toast } from "../ui/components.jsx";
 import { Segmented } from "../ui/charts.jsx";
 import { OnbEmpty } from "./Onboarding.jsx";
@@ -343,6 +344,15 @@ export function SubscriptionsPage({ devMode = false, shop = null, carts = false 
 
   const columns = isUnpaid ? [
     clienteCol, planCol, montoCol,
+    // Un carrito abandonado porque REBOTÓ la tarjeta no es lo mismo que uno que
+    // se fue solo: a ese cliente lo podés llamar. 27-sept-2026, Thiago.
+    { key:"motivo", label:"Motivo", nowrap:true, render: s => {
+      const r = mpDeclineReason(s.mp_card_error || "");
+      if (!r) return <span style={{ color:T.textSm, fontSize:DS.font.sm }}>—</span>;
+      return <span title={s.mp_card_error_at ? `Tarjeta rechazada · ${fmtDateTime(s.mp_card_error_at)}` : "Tarjeta rechazada"}
+        style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize:DS.font.sm, fontWeight:700, color:T.red, background:T.red + "14", border:`1px solid ${T.red}33`, borderRadius:99, padding:"2px 9px", whiteSpace:"nowrap" }}>
+        <span style={{ width:5, height:5, borderRadius:99, background:T.red, flexShrink:0 }}/>{r}</span>;
+    } },
     { key:"act", label:"Última actividad", nowrap:true, hideMobile:true, render: s => { const ts = s.last_activity_at || s.updated_at || s.created_at; return <span title={ts ? fmtDateTime(ts) : ""} style={{ color:T.textSm, fontSize:DS.font.sm }}>{ts ? fmtAgo(ts) : "—"}</span>; } },
     { key:"alta", label:"Inició", nowrap:true, hideMobile:true, render: s => <span style={{ color:T.textSm, fontSize:DS.font.sm }}>{s.created_at ? fmtDateShort(s.created_at) : "—"}</span> },
     { key:"acciones", label:"", align:"right", nowrap:true, render: s => (
@@ -495,6 +505,7 @@ export function SubscriberDetailModal({ sub, onClose, devMode = false, shop = nu
     push(s.paused_at, "Pausada", T.yellow);
     push(s.resumed_at, "Reactivada", T.green);
     push(s.payment_failed_at, "Pago rechazado por MP", T.red);
+    if (s.mp_card_error) push(s.mp_card_error_at, `Tarjeta rechazada en el checkout · ${mpDeclineReason(s.mp_card_error)}`, T.red);
     push(s.cancelled_at, "Cancelada", T.red, s.cancel_reason_label || s.cancel_reason || s.cancellation_reason || null);
     for (const c of charges) push(c.created_at, c.error ? `Cobro con error · ${fmtARS(c.amount_ars)}` : `Cobro OK · ${fmtARS(c.amount_ars)}`, c.error ? T.red : T.accent, c.shopify_order_id ? (orderLabel(c.shopify_order_id).startsWith("#") ? `Orden ${orderLabel(c.shopify_order_id)}` : orderLabel(c.shopify_order_id)) : (c.error || null));
     return ev.sort((a, b) => String(b.at).localeCompare(String(a.at)));
