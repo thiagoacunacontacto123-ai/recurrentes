@@ -7,7 +7,6 @@ import { KpiCard, Segmented, AreaChart, BarList, Panel } from "../ui/charts.jsx"
 import DateRangePicker, { PRESETS_MESES, rangoDePreset, hoyAR } from "../ui/DateRangePicker.jsx";
 import { OnbEmpty } from "./Onboarding.jsx";
 import { MoneyBackAlert } from "./_shared.jsx";
-import { fetchErrors } from "./Charges.jsx";
 import { fmtARS, fmtPct, downloadCsv } from "./_shared.jsx";
 
 // GET /api/stats?action=analytics&months=N. Si el backend todavía no lo tiene,
@@ -52,20 +51,37 @@ const monthTick = (ym) => `${MONTH_LABEL(ym)} ${String(ym).slice(2, 4)}`;
 
 // ─── Página: Analíticas — estilo Growith: KPIs con sparkline mensual,
 // gráfico con pestañas, próximos 30 días por semana, motivos de baja y mes a mes.
+// Hora en punto, sin segundos: "14:32".
+const hhmm = (ms) => new Date(ms).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+// El cron de Mercado Pago corre cada 5 minutos (vercel.json: "*/5 * * * *"):
+// el próximo dato entra en el próximo múltiplo de 5.
+const CRON_CADA_MIN = 5;
+export function proximoCron(desde = Date.now()) {
+  const d = new Date(desde);
+  d.setSeconds(0, 0);
+  d.setMinutes(d.getMinutes() + (CRON_CADA_MIN - (d.getMinutes() % CRON_CADA_MIN)));
+  return d.getTime();
+}
+
 export function AnalyticsPage({ merchant, goTab }) {
   const T = useT();
   const [range, setRange] = useState(readRange);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
-  const [chargeErrors, setChargeErrors] = useState(null); // cobros OK sin orden creada (antes vivía en Cobros)
+  // El dato no cambia solo: entra cuando corre el cron que sincroniza con
+  // Mercado Pago (cada 5 minutos, ver vercel.json). Mostrarlo evita el
+  // "¿por qué no se actualiza?" (27-sept-2026, Thiago).
+  const [lastAt, setLastAt] = useState(null);
+  const [, tick] = useState(0);
+  useEffect(() => { const t = setInterval(() => tick(n => n + 1), 30000); return () => clearInterval(t); }, []);
 
   async function load(r = range, { silent = false } = {}) {
     if (!silent) setLoading(true);
     try {
-      const [d, ce] = await Promise.all([fetchAnalytics(r), fetchErrors().catch(() => null)]);
-      if (Array.isArray(ce)) setChargeErrors(ce.length);
+      const d = await fetchAnalytics(r);
       if (!d) setErr("No pudimos cargar las métricas"); else { setData(d); setErr(""); }
+      setLastAt(Date.now());
     } catch (e) { setErr(e.message || "Error"); }
     finally { setLoading(false); }
   }
@@ -112,6 +128,9 @@ export function AnalyticsPage({ merchant, goTab }) {
     <div>
       <PageHeader T={T} title="Analíticas" subtitle="Cómo viene el negocio recurrente: ingresos, base de suscriptores, churn y recupero."
         right={<>
+          {lastAt && <span style={{ fontSize:DS.font.sm, color:T.textSm, whiteSpace:"nowrap", alignSelf:"center" }}>
+            Actualizado {hhmm(lastAt)} · próximo dato {hhmm(proximoCron())}
+          </span>}
           <Btn T={T} variant="secondary" size="sm" onClick={exportCsv} disabled={monthly.length === 0} style={{ height:34 }}>⬇ CSV mensual</Btn>
           <Btn T={T} variant="secondary" size="sm" onClick={() => load()} disabled={loading} style={{ height:34 }}>{loading ? <Spinner size={12} color={T.textMd}/> : "↻"} Actualizar</Btn>
         </>}/>
@@ -127,28 +146,23 @@ export function AnalyticsPage({ merchant, goTab }) {
         <OnbEmpty section="analiticas" icon="📈" title="Todavía no hay datos para analizar" desc="Cuando tengas suscripciones activas y cobros, acá ves MRR, churn, LTV y la evolución mes a mes."/>
       ) : (
         <>
-          {/* KPIs principales: delta vs mes anterior + sparkline mensual */}
-          <div className="kpi-grid kpi-grid-4" style={{ display:"grid", gap:10, marginBottom:10 }}>
-            <KpiCard T={T} hero loading={first} label={kpiLabel("MRR", "Ingresos mensuales recurrentes: suma de lo que cobra cada suscripción activa, normalizado a 30 días. Incluye envío y cantidad.")}
+          {/* Un solo bloque, todas las tarjetas del MISMO tamaño (27-sept-2026,
+              Thiago). Fuera "Pago fallido", "Con error" y "Recupero de fallidos":
+              eso ya se ve en Cobros y acá solo agregaba ruido. Quedan 8, que la
+              grilla acomoda en 4 + 4 sin huecos. */}
+          <div className="kpi-grid" style={{ display:"grid", gap:10, marginBottom:18 }}>
+            <KpiCard T={T} loading={first} label={kpiLabel("MRR", "Ingresos mensuales recurrentes: suma de lo que cobra cada suscripción activa, normalizado a 30 días. Incluye envío y cantidad.")}
               value={fmtARS(a.mrr)} curr={a.mrr} prev={a.mrr_prev_month || null} valueColor={T.accent} color={T.accentSolid}
               hint="vs. cierre del mes pasado · línea: cobrado por mes" spark={series("revenue_ars")}/>
-            <KpiCard T={T} hero loading={first} label={kpiLabel("Activas", "Suscripciones en estado activo hoy. Las pausadas y con pago fallido no cuentan.")}
+            <KpiCard T={T} loading={first} label={kpiLabel("Activas", "Suscripciones en estado activo hoy. Las pausadas y con pago fallido no cuentan.")}
               value={fmtN(a.active)} curr={curMonth ? Number(curMonth.active_end) : null} prev={prevMonth ? Number(prevMonth.active_end) : null} color={T.green}
               hint={`${fmtN(a.paused)} pausadas · ${fmtN(a.payment_failed)} con pago fallido`} spark={series("active_end")}/>
-            <KpiCard T={T} hero loading={first} label={kpiLabel("Altas 30 días", "Suscripciones que se activaron en los últimos 30 días. El % compara este mes con el anterior.")}
+            <KpiCard T={T} loading={first} label={kpiLabel("Altas 30 días", "Suscripciones que se activaron en los últimos 30 días. El % compara este mes con el anterior.")}
               value={fmtN(a.new_30d)} curr={curMonth ? Number(curMonth.new) : null} prev={prevMonth ? Number(prevMonth.new) : null} color={T.accentSolid}
               hint="este mes vs. el anterior" spark={series("new")}/>
-            <KpiCard T={T} hero loading={first} label={kpiLabel("Churn 30 días", "Canceladas en 30 días ÷ (activas + pausadas + con pago fallido + canceladas del período). Menos es mejor.")}
+            <KpiCard T={T} loading={first} label={kpiLabel("Churn 30 días", "Canceladas en 30 días ÷ (activas + pausadas + con pago fallido + canceladas del período). Menos es mejor.")}
               value={`${(Number(a.churn_30d_pct) || 0).toLocaleString("es-AR", { maximumFractionDigits:1 })}%`} valueColor={(a.churn_30d_pct || 0) > 5 ? T.red : T.text} color={T.red}
               hint={`${fmtN(a.cancelled_30d)} baja${a.cancelled_30d === 1 ? "" : "s"} · línea: bajas por mes`} spark={series("cancelled")}/>
-          </div>
-          <div className="kpi-grid" style={{ display:"grid", gap:10, marginBottom:18 }}>
-            <KpiCard T={T} loading={first} label={kpiLabel("Pago fallido", "Suscripciones que hoy tienen el último cobro rechazado. Mercado Pago reintenta solo y nosotros le avisamos al cliente para que cambie la tarjeta.")}
-              value={fmtN(a.payment_failed)} hint="MP reintenta solo" color={T.red} valueColor={(a.payment_failed || 0) > 0 ? T.red : T.text}
-              onClick={() => goTab?.("suscripciones", "status=payment_failed")}/>
-            <KpiCard T={T} loading={first} label={kpiLabel("Con error", "Cobros que Mercado Pago aprobó pero cuya orden no se pudo crear en tu tienda. Desde Cobros → Con error se reintenta con un clic.")}
-              value={chargeErrors == null ? "—" : fmtN(chargeErrors)} hint={chargeErrors ? "Cobrados sin orden creada" : "Todo en orden"} color={T.red} valueColor={chargeErrors ? T.red : T.text}
-              onClick={() => goTab?.("cobros", "view=errors")}/>
             <KpiCard T={T} loading={first} label={kpiLabel("Bajas 30 días", "Suscripciones canceladas en los últimos 30 días. El % compara este mes con el anterior; menos es mejor.")}
               value={fmtN(a.cancelled_30d)} curr={curMonth ? Number(curMonth.cancelled) : null} prev={prevMonth ? Number(prevMonth.cancelled) : null} invert
               hint={`Churn ${(Number(a.churn_30d_pct) || 0).toLocaleString("es-AR", { maximumFractionDigits:1 })}% · línea: bajas por mes`} spark={series("cancelled")} color={T.textSm}
@@ -159,9 +173,6 @@ export function AnalyticsPage({ merchant, goTab }) {
               value={a.avg_charges_per_sub != null ? Number(a.avg_charges_per_sub).toLocaleString("es-AR", { maximumFractionDigits:1 }) : "—"} hint="promedio de renovaciones" color={T.blue}/>
             <KpiCard T={T} loading={first} label={kpiLabel("Próximos 30 días", "Lo que Mercado Pago tiene programado cobrar en los próximos 30 días según el ciclo de cada suscripción activa.")}
               value={fmtARS(a.next_30d?.amount_ars)} hint={`${fmtN(a.next_30d?.count)} cobros programados`} color={T.accentSolid}/>
-            <KpiCard T={T} loading={first} label={kpiLabel("Recupero de fallidos", "De los cobros que MP rechazó en 30 días, cuántos terminaron cobrándose (reintento de MP o tarjeta actualizada).")}
-              value={a.recovery ? `${a.recovery.recovered_30d || 0}/${a.recovery.failed_30d || 0}` : "—"}
-              hint={a.recovery?.failed_30d ? fmtPct((a.recovery.recovered_30d / a.recovery.failed_30d) * 100, 0) + " recuperado" : "sin pagos fallidos"} color={T.yellow}/>
           </div>
 
           {/* Evolución mensual */}
