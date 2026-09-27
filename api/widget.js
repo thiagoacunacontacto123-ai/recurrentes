@@ -477,6 +477,15 @@ export default async function handler(req, res) {
   var HIDE_SELECTOR = ${JSON.stringify(hideSelector)};
   var MODE_ORDER = ${JSON.stringify(widgetModeOrder)};
   var MODE_DEFAULT = ${JSON.stringify(widgetModeDefault)};
+  // El link manda sobre el default de la tienda: ?rec_modo=sub hace que la
+  // ficha arranque en Suscripción aunque la tienda tenga Compra única, y
+  // ?rec_modo=once al revés (27-sept-2026, Thiago). Sirve para mandar a una
+  // campaña directo al modo que queremos vender, sin tocar la configuración.
+  // Solo cambia cuál arranca elegida: el comprador puede cambiarla igual.
+  try {
+    var _m = /[?&]rec_modo=(sub|once)(&|$)/i.exec(location.search || "");
+    if (_m) MODE_DEFAULT = _m[1].toLowerCase();
+  } catch (e) {}
   var CHECKOUT_FLOW = ${JSON.stringify(checkoutFlow)};
   var CHECKOUT_PAGE_PATH = ${JSON.stringify(checkoutPagePath)};
   var WIDGET_COLOR = ${JSON.stringify(widgetColor)};

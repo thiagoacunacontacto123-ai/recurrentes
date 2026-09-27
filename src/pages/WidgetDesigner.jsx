@@ -625,6 +625,15 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
               </select>
             </Field>
           </div>
+          {/* El link puede pisar esto sin tocar la configuración: sirve para
+              mandar una campaña directo al modo que se quiere vender
+              (27-sept-2026, Thiago). Si no se cuenta acá, nadie se entera. */}
+          <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.6, margin:"-6px 0 14px" }}>
+            Para una campaña podés mandar a la ficha con el otro modo ya elegido, sin cambiar esto:
+            agregale <code style={{ fontFamily:MONO, color:T.textMd, background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:5, padding:"1px 5px" }}>
+              ?rec_modo={modeDefault === "sub" ? "once" : "sub"}
+            </code> al link del producto. El comprador igual puede cambiarlo.
+          </div>
           <div style={{display:"flex",gap:18,flexWrap:"wrap",marginBottom:14}}>
             <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:T.textMd}}>Precio tachado <DSToggle T={T} active={showCompare} onToggle={()=>setShowCompare(v=>!v)}/></label>
             <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:T.textMd}}>Precio por unidad <DSToggle T={T} active={showPerUnit} onToggle={()=>setShowPerUnit(v=>!v)}/></label>
