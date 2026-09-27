@@ -122,6 +122,10 @@ export function MotionStyle({ T }) {
       /* Bloque clavado que mide lo que su contenido (el top lo pone JS para centrarlo). */
       .lm-pin-inner.lm-pin-fit{height:auto;overflow:visible;}
       .lm-track{display:flex;gap:28px;will-change:transform;transform:translateX(calc(var(--p,0) * var(--travel,0px)));}
+      /* Carril "centrado" (Thiago, 27-sept: "que queden en el medio"): la primera tarjeta
+         arranca centrada y la última termina centrada. --w ancho de tarjeta · --n cantidad ·
+         --cw ancho del contenedor (.lm-wrap). */
+      .lm-track.lm-track-center{--cw:calc(min(1120px, 100vw) - 48px);transform:translateX(calc((var(--cw) - var(--w, 440px)) / 2 - var(--p,0) * (var(--w, 440px) + 28px) * (var(--n, 1) - 1)));}
       .lm-progress{height:3px;border-radius:99px;background:${T.border};overflow:hidden;}
       .lm-progress > i{display:block;height:100%;width:calc(var(--p,0) * 100%);background:${T.accentSolid};transition:width .08s linear;}
       /* ── Marquee de integraciones ── */
@@ -148,7 +152,7 @@ export function MotionStyle({ T }) {
         .lm-pin:not(.lm-pin-all) .lm-pin-inner{position:static;height:auto;display:block;overflow:visible;}
         /* Celular: cada tarjeta pasa por el CENTRO de la pantalla (la primera arranca
            centrada y la última termina centrada). --w = ancho de tarjeta, --n = cantidad. */
-        .lm-pin-all .lm-track{transform:translateX(calc((100vw - 32px - var(--w, 86vw)) / 2 - var(--p,0) * (var(--w, 86vw) + 28px) * (var(--n, 1) - 1)))!important;overflow:visible;scroll-snap-type:none;padding:4px 0 8px;margin:0;}
+        .lm-pin-all .lm-track{--cw:calc(100vw - 32px);transform:translateX(calc((var(--cw) - var(--w, 86vw)) / 2 - var(--p,0) * (var(--w, 86vw) + 28px) * (var(--n, 1) - 1)))!important;overflow:visible;scroll-snap-type:none;padding:4px 0 8px;margin:0;}
         .lm-pin-all .lm-progress{display:block;width:100px!important;}
         .lm-pin-all .lm-pin-inner{justify-content:center;padding:12px 0!important;}
         .lm-stepper{grid-auto-flow:column;gap:4px!important;}
@@ -529,7 +533,7 @@ const DESIGNS = [
 function DesignCard({ T, d }) {
   const merchant = useMemo(() => ({ widget_variant: d.variant, widget_color: d.color, widget_radius: d.radius, widget_mode_default: "sub", widget_show_per_unit: true, widget_texts: d.texts }), [d]);
   return (
-    <div className="lm-step" style={{ flex: "0 0 min(440px, 86vw)" }}>
+    <div className="lm-step" style={{ flex: "0 0 min(400px, 86vw)" }}>
       <div className="lm-card" style={{ padding: 0 }}>
         {/* Barra de la "tienda" con el color de marca */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: d.color, color: "#fff" }}>
@@ -537,8 +541,8 @@ function DesignCard({ T, d }) {
           <span style={{ fontSize: 11.5, opacity: .85 }}>{d.niche}</span>
           <span style={{ marginLeft: "auto", fontSize: 10.5, fontWeight: 700, opacity: .9, letterSpacing: .3, textTransform: "uppercase" }}>{d.variant === "v08" ? "Oscuro" : d.variant === "v05" ? "Tarjetas" : d.variant === "v11" ? "Foto" : d.variant === "v13" ? "Foto + check" : "Clásico"}</span>
         </div>
-        <div style={{ padding: "14px 14px 12px", background: T.isDark ? "#fff" : "#fff", color: "#161616" }}>
-          <LiveWidget plan={SAMPLE_PLANS[d.key]} merchant={merchant} mode={d.mode} idx={d.idx} style={{ fontSize: 12.5 }}/>
+        <div style={{ padding: "10px 10px 8px", background: "#fff", color: "#161616" }}>
+          <LiveWidget plan={SAMPLE_PLANS[d.key]} merchant={merchant} mode={d.mode} idx={d.idx} style={{ fontSize: 11 }}/>
         </div>
       </div>
       <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: T.textSm }}>
@@ -573,7 +577,7 @@ export function StickyDesigns({ T }) {
         </div>
         <div className="lm-wrap" style={{ width: "100%", overflow: "visible" }}>
           {/* --travel: cuánto se corre el carril de punta a punta (lo que sobra del ancho) */}
-          <div className="lm-track" style={{ "--travel": `calc(-1 * ((min(440px, 86vw) + 28px) * ${n} - 100%))`, "--w": "min(440px, 86vw)", "--n": n, alignItems: "flex-start" }}>
+          <div className="lm-track lm-track-center" style={{ "--w": "min(400px, 86vw)", "--n": n, alignItems: "flex-start" }}>
             {DESIGNS.map((d) => <DesignCard key={d.key} T={T} d={d}/>)}
           </div>
         </div>
@@ -1066,7 +1070,7 @@ export function PanelTour({ T }) {
           </div>
         </div>
         <div className="lm-wrap" style={{ width: "100%" }}>
-          <div className="lm-track" style={{ "--travel": `calc(-1 * ((min(640px, 86vw) + 28px) * ${n} - 100%))`, "--w": "min(640px, 86vw)", "--n": n, alignItems: "flex-start" }}>
+          <div className="lm-track lm-track-center" style={{ "--w": "min(640px, 86vw)", "--n": n, alignItems: "flex-start" }}>
             {TOUR.map((sc, i) => (
               <div key={sc.t} className="lm-tour-item" style={{ flex: "0 0 min(640px, 86vw)" }}>
                 {PANEL_SHOTS[sc.t]
