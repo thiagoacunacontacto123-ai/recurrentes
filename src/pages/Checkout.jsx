@@ -664,6 +664,10 @@ export default function Checkout() {
                   <div className="rc-mpf"><span>Código de seguridad</span><div id="rec-card-cvv"/></div>
                 </div>
                 {!cardReady ? <div style={{ fontSize: 12.5, color: theme.text_muted, marginTop: 8 }}>Cargando el formulario seguro de {providerLabel}…</div> : null}
+                {/* Sin esto, "esperá a que cargue" se guardaba en errs y no se
+                    pintaba en ningún lado: el botón no hacía nada y el comprador
+                    no sabía por qué. */}
+                {errs.card ? <div className="rc-fe" data-f="card" role="alert" style={{ marginTop: 8 }}>{errs.card}</div> : null}
               </div>
             ) : null}
           </div>
