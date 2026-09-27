@@ -131,7 +131,22 @@ export default function DemoPage() {
   const iS = InputStyle(T);
   const [f, setF] = useState({ nombre: "", marca: "", whatsapp: "", email: "", pedidos: "", objetivo: "", recurrencia: "" });
   const [oks, setOks] = useState({});
-  const [error, setError] = useState("");
+  // Error por campo, como el checkout: { field, msg }. Sin cartel general: se pinta el campo
+  // en rojo, el texto va debajo y la página desliza hasta ahí (Thiago, 27-sept-2026).
+  const [error, setErrorState] = useState(null);
+  const setError = (msg, field) => setErrorState(msg ? { msg, field: field || "_form" } : null);
+  const errOf = (id) => (error && error.field === id ? error.msg : "");
+  const fix = (id) => { if (error && error.field === id) setErrorState(null); };
+  function scrollToError() {
+    requestAnimationFrame(() => {
+      try {
+        const el = document.querySelector(".rec-demo .rc-f.is-err");
+        if (!el) return;
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.querySelector("input,select")?.focus({ preventScroll: true });
+      } catch (_) {}
+    });
+  }
   const [loading, setLoading] = useState(false);
   const [listo, setListo] = useState(false);
   // Id del lead guardado: con eso marcamos "agendó" cuando Calendly avisa.
@@ -153,13 +168,13 @@ export default function DemoPage() {
     setError("");
     // Se valida con la MISMA función que el backend: un solo lugar donde están
     // las reglas, y el visitante ve el error antes de mandar.
-    const { value, error: err } = sanitizeDemoLead({ ...f, ...oks }, { emailRe: EMAIL_RE, normalizeWhatsapp });
-    if (err) return setError(err);
+    const { value, error: err, field } = sanitizeDemoLead({ ...f, ...oks }, { emailRe: EMAIL_RE, normalizeWhatsapp });
+    if (err) { setError(err, field); scrollToError(); return; }
     setLoading(true);
     // apiPost NO lanza: devuelve { error } (ver src/lib/api.js).
     const r = await apiPost("public", { ...value, attribution: readAttribution() }, { action: "demo-lead" });
     setLoading(false);
-    if (r?.error) return setError(r.error);
+    if (r?.error) { setError(r.error, r.field || "_form"); scrollToError(); return; }
     // El pixel del navegador con el MISMO nombre que manda el servidor: Meta
     // deduplica por event_id y el que tenga el navegador bloqueado igual cuenta.
     pixelTrack("RegistroCalificado", {}, r?.id ? `acq_qualified_${r.id}` : null);
@@ -188,6 +203,10 @@ export default function DemoPage() {
           background-image:linear-gradient(${T.border} 1px,transparent 1px),linear-gradient(90deg,${T.border} 1px,transparent 1px);background-size:56px 56px;
           -webkit-mask-image:radial-gradient(ellipse 70% 60% at 30% 0%,#000 20%,transparent 100%);mask-image:radial-gradient(ellipse 70% 60% at 30% 0%,#000 20%,transparent 100%);opacity:.5;}
         .rec-demo-reviews{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;}
+        .rec-demo .rc-f.is-err input,.rec-demo .rc-f.is-err select{border-color:#d92d20!important;box-shadow:0 0 0 1px #d92d20!important;}
+        .rec-demo .rc-f.is-err > label{color:#d92d20!important;}
+        .rec-demo .rc-f.is-err .rec-demo-check{border-color:#d92d20!important;box-shadow:0 0 0 1px #d92d20;}
+        .rec-demo .rc-fe{color:#d92d20;font-size:13px;line-height:1.35;margin-top:6px;padding-left:2px;}
         .ls-card{background:${T.card};border:1px solid ${T.border};border-radius:20px;position:relative;overflow:hidden;}
         @media(max-width:960px){
           .rec-demo-reviews{grid-template-columns:1fr;}
@@ -237,32 +256,37 @@ export default function DemoPage() {
               <div data-reveal="swing" className="rec-demo-form" style={{ position: "static", maxWidth: 560, margin: "0 auto" }}>
                 <h2 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.03em", margin: "0 0 16px" }}>Tus datos</h2>
 
-                <div style={campo}>
+<div className={"rc-f" + (errOf("nombre") ? " is-err" : "")} style={campo} onInput={() => fix("nombre")} onChange={() => fix("nombre")}>
                   <label style={label}>Tu nombre</label>
                   <input style={iS} value={f.nombre} onChange={(e) => set("nombre", e.target.value)} placeholder="Nombre y apellido" autoComplete="name"/>
+                  {errOf("nombre") && <div className="rc-fe" role="alert">{errOf("nombre")}</div>}
                 </div>
-                <div style={campo}>
+<div className={"rc-f" + (errOf("marca") ? " is-err" : "")} style={campo} onInput={() => fix("marca")} onChange={() => fix("marca")}>
                   <label style={label}>¿Cuál es tu marca?</label>
                   <input style={iS} value={f.marca} onChange={(e) => set("marca", e.target.value)} placeholder="Nombre de la marca o link de tu tienda"/>
+                  {errOf("marca") && <div className="rc-fe" role="alert">{errOf("marca")}</div>}
                 </div>
-                <div style={campo}>
+<div className={"rc-f" + (errOf("whatsapp") ? " is-err" : "")} style={campo} onInput={() => fix("whatsapp")} onChange={() => fix("whatsapp")}>
                   <label style={label}>WhatsApp</label>
                   <input style={iS} value={f.whatsapp} onChange={(e) => set("whatsapp", e.target.value)} placeholder="11 6411 7974" inputMode="tel" autoComplete="tel"/>
+                  {errOf("whatsapp") && <div className="rc-fe" role="alert">{errOf("whatsapp")}</div>}
                 </div>
-                <div style={campo}>
+<div className={"rc-f" + (errOf("email") ? " is-err" : "")} style={campo} onInput={() => fix("email")} onChange={() => fix("email")}>
                   <label style={label}>Email</label>
                   <input style={iS} value={f.email} onChange={(e) => set("email", e.target.value)} placeholder="vos@tumarca.com" inputMode="email" autoComplete="email"/>
+                  {errOf("email") && <div className="rc-fe" role="alert">{errOf("email")}</div>}
                 </div>
 
                 {/* Las tres salen de DEMO_PREGUNTAS: el aviso que le llega a Thiago
                     repite EXACTAMENTE estas preguntas con la respuesta elegida. */}
                 {DEMO_PREGUNTAS.map((q) => (
-                  <div key={q.id} style={campo}>
+                  <div key={q.id} className={"rc-f" + (errOf(q.id) ? " is-err" : "")} style={campo} onChange={() => fix(q.id)}>
                     <label style={label}>{q.label}</label>
                     <select style={iS} value={f[q.id]} onChange={(e) => set(q.id, e.target.value)}>
                       <option value="">Elegí una opción</option>
                       {q.options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
                     </select>
+                    {errOf(q.id) && <div className="rc-fe" role="alert">{errOf(q.id)}</div>}
                   </div>
                 ))}
 
@@ -270,18 +294,22 @@ export default function DemoPage() {
                     marca no manda el formulario y no nos come una llamada. */}
                 <div style={{ margin: "18px 0 16px", display: "grid", gap: 10 }}>
                   {DEMO_CONFIRMACIONES.map((c) => (
-                    <label key={c.id} style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer",
-                      padding: "12px 13px", borderRadius: 12, background: T.surface,
-                      border: `1.5px solid ${oks[c.id] ? T.accentSolid : T.borderL}`, transition: "border-color .15s" }}>
-                      <input type="checkbox" checked={!!oks[c.id]} onChange={(e) => setOks((p) => ({ ...p, [c.id]: e.target.checked }))}
-                        style={{ width: 17, height: 17, marginTop: 2, flexShrink: 0, accentColor: T.accentSolid, cursor: "pointer" }}/>
-                      <span style={{ fontSize: 12.5, color: T.textMd, lineHeight: 1.5 }}>{c.text}</span>
-                    </label>
+                    <div key={c.id} className={"rc-f" + (errOf(c.id) ? " is-err" : "")} onChange={() => fix(c.id)}>
+                      <label className="rec-demo-check" style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer",
+                        padding: "12px 13px", borderRadius: 12, background: T.surface,
+                        border: `1.5px solid ${oks[c.id] ? T.accentSolid : T.borderL}`, transition: "border-color .15s" }}>
+                        <input type="checkbox" checked={!!oks[c.id]} onChange={(e) => setOks((p) => ({ ...p, [c.id]: e.target.checked }))}
+                          style={{ width: 17, height: 17, marginTop: 2, flexShrink: 0, accentColor: T.accentSolid, cursor: "pointer" }}/>
+                        <span style={{ fontSize: 12.5, color: T.textMd, lineHeight: 1.5 }}>{c.text}</span>
+                      </label>
+                      {errOf(c.id) && <div className="rc-fe" role="alert">{errOf(c.id)}</div>}
+                    </div>
                   ))}
                 </div>
 
-                {error && (
-                  <div role="alert" style={{ background: T.redBg, border: `1.5px solid ${T.red}55`, borderRadius: 10, padding: "10px 14px", fontSize: 13, color: T.red, marginBottom: 14, lineHeight: 1.45 }}>{error}</div>
+                {/* Solo los errores del servidor (red, límite) van acá; los de campo se pintan en el campo. */}
+                {error && error.field === "_form" && (
+                  <div className="rc-f is-err" role="alert" style={{ background: T.redBg, border: "1.5px solid #d92d20", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "#d92d20", marginBottom: 14, lineHeight: 1.45 }}>{error.msg}</div>
                 )}
                 <button onClick={enviar} disabled={loading} style={{ ...BtnSolid(T), width: "100%", padding: 15, fontSize: 15.5, borderRadius: 14, opacity: loading ? 0.7 : 1 }}>
                   {loading ? <Spinner size={16}/> : "Reservar mi llamada →"}

@@ -167,8 +167,8 @@ async function handleDemoLead(req, res) {
   const rl = await rateLimit(`demo:${ip}`, { limit: 10, windowSec: 3600 });
   if (!rl.ok) return res.status(429).json({ error: "Demasiados envíos. Probá de nuevo en un rato." });
 
-  const { value: lead, error } = sanitizeDemoLead(req.body, { emailRe: EMAIL_RE, normalizeWhatsapp });
-  if (error) return res.status(400).json({ error });
+  const { value: lead, error, field } = sanitizeDemoLead(req.body, { emailRe: EMAIL_RE, normalizeWhatsapp });
+  if (error) return res.status(400).json({ error, field });
 
   const id = `dl_${Date.now().toString(36)}${crypto.randomBytes(4).toString("hex")}`;
   const attribution = sanitizeDemoAttribution(req.body?.attribution);

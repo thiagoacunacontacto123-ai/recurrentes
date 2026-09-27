@@ -62,7 +62,8 @@ test("(r) un pedido completo queda guardado y manda RegistroCalificado con el an
 test("(r) sin aceptar los USD 100 no entra: ni lead, ni evento", async () => {
   const res = await post({ ...OK, confirma_pago: false });
   assert.equal(res.statusCode, 400);
-  assert.match(res.body.error, /casillas/);
+  assert.match(res.body.error, /casilla/);
+  assert.equal(res.body.field, "confirma_pago", "el formulario marca en rojo la casilla que falta");
   assert.equal(meta.length, 0, "no se manda conversión de alguien que no calificó");
   assert.deepEqual(leads(), [], "no se guarda nada de quien no aceptó");
 });

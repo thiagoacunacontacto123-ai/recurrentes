@@ -75,29 +75,30 @@ export const labelDe = (list, id) => list.find((o) => o.id === id)?.label || "";
 
 const txt = (v, max) => String(v ?? "").trim().replace(/\s+/g, " ").slice(0, max);
 
-// Valida lo que manda el navegador. Devuelve { value } o { error } (texto que se
-// le muestra al visitante, en castellano).
+// Valida lo que manda el navegador. Devuelve { value } o { error, field } (texto que se
+// le muestra al visitante, en castellano, y el id del campo que falla: el formulario
+// marca ESE campo en rojo y desliza hasta él, como el checkout; 27-sept-2026).
 export function sanitizeDemoLead(input, { emailRe, normalizeWhatsapp } = {}) {
   const b = input && typeof input === "object" ? input : {};
   const nombre = txt(b.nombre, 80);
-  if (nombre.length < 2) return { error: "Ingresá tu nombre." };
+  if (nombre.length < 2) return { error: "Ingresá tu nombre.", field: "nombre" };
   const marca = txt(b.marca, 120);
-  if (marca.length < 2) return { error: "Ingresá el nombre de tu marca o el link de tu tienda." };
+  if (marca.length < 2) return { error: "Ingresá el nombre de tu marca o el link de tu tienda.", field: "marca" };
   const whatsapp = normalizeWhatsapp ? normalizeWhatsapp(b.whatsapp) : txt(b.whatsapp, 25);
-  if (!whatsapp) return { error: "Ingresá tu WhatsApp con código de área (ej: 11 6411 7974)." };
+  if (!whatsapp) return { error: "Ingresá tu WhatsApp con código de área (ej: 11 6411 7974).", field: "whatsapp" };
   const email = txt(b.email, 160).toLowerCase();
-  if (emailRe && !emailRe.test(email)) return { error: "Ingresá un email válido." };
+  if (emailRe && !emailRe.test(email)) return { error: "Ingresá un email válido.", field: "email" };
 
   const respuestas = {};
   for (const q of DEMO_PREGUNTAS) {
     const v = txt(b[q.id], 20);
-    if (!q.options.some((o) => o.id === v)) return { error: q.error };
+    if (!q.options.some((o) => o.id === v)) return { error: q.error, field: q.id };
     respuestas[q.id] = v;
   }
 
   // Las dos casillas son el filtro entero: sin ellas no hay lead.
   for (const c of DEMO_CONFIRMACIONES) {
-    if (b[c.id] !== true) return { error: "Para reservar la llamada tenés que marcar las dos casillas." };
+    if (b[c.id] !== true) return { error: "Marcá esta casilla para reservar la llamada.", field: c.id };
   }
 
   return {
