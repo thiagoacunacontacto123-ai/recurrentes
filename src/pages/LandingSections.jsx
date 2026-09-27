@@ -716,7 +716,7 @@ export function BigFooter({ T, onGo, onRegister, darkMode, onToggleDark }) {
   const cols = [
     // 26-sept-2026 (Thiago): fuera la columna "Para". Las secciones viven también
     // como páginas propias (#/como-funciona, #/funciones…), con el mismo nav y pie.
-    ["Producto", [["Cómo funciona","#/como-funciona"],["Funciones","#/funciones"],["Diseños","#/funciones"],["Integraciones","#/integraciones"],["Precios","#/precios"],["Calculadora de comisión","#/calculadora"],["Tienda de ejemplo","#/tostado"]]],
+    ["Producto", [["Cómo funciona","#/como-funciona"],["Funciones","#/funciones"],["Diseños","#/funciones"],["Integraciones","#/integraciones"],["Precios","#/precios"],["Calculadora de comisión","#/calculadora"],["Tienda de ejemplo","/demos/tostado.html"]]],
     ["Recurrentes", [["Preguntas frecuentes","#/preguntas"],["Pedir demo","#/demo"],["Términos","#/terminos"],["Privacidad","#/privacidad"],["Soporte por WhatsApp","https://wa.me/5491164117974"],["soporte@recurrentesapp.com","mailto:soporte@recurrentesapp.com"]]],
   ];
   return (

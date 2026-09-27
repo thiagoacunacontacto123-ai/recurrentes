@@ -383,7 +383,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
                 Pedir una demo
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </button>
-              <a href="#/tostado" style={{...BtnSecondary(T),padding:"14px 20px",fontSize:15,borderRadius:14,textDecoration:"none",display:"inline-flex",alignItems:"center",gap:8}}>Probar la tienda de ejemplo</a>
+              <a href="/demos/tostado.html" style={{...BtnSecondary(T),padding:"14px 20px",fontSize:15,borderRadius:14,textDecoration:"none",display:"inline-flex",alignItems:"center",gap:8}}>Probar la tienda de ejemplo</a>
             </div>
             <div style={{marginTop:18,display:"flex",gap:"6px 16px",flexWrap:"wrap",fontSize:13,color:T.textSm}}>
               {["0% de comisión por venta","Demo de 15 minutos, con casos reales"].map(t => (

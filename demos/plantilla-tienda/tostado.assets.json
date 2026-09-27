@@ -1,0 +1,163 @@
+{
+ "logo": "/demos/tostado-logo.svg",
+ "main": "finca-la-esperanza-250g",
+ "gallery": [
+  "https://www.recurrentesapp.com/landing/prod-cafe.jpg",
+  "https://www.recurrentesapp.com/landing/prod-cafe2.jpg",
+  "https://www.recurrentesapp.com/landing/prod-cafe3.jpg"
+ ],
+ "items": [
+  {
+   "h": "finca-la-esperanza-250g",
+   "title": "Finca La Esperanza",
+   "sub": "Colombia · notas a chocolate y ciruela · 250 g",
+   "price": 12900,
+   "img": "https://www.recurrentesapp.com/landing/prod-cafe.jpg"
+  },
+  {
+   "h": "brasil-cerrado-250g",
+   "title": "Brasil Cerrado",
+   "sub": "Brasil · achocolatado, cuerpo alto · 250 g",
+   "price": 11900,
+   "img": "https://www.recurrentesapp.com/landing/prod-cafe2.jpg"
+  },
+  {
+   "h": "etiopia-yirgacheffe-250g",
+   "title": "Etiopía Yirgacheffe",
+   "sub": "Etiopía · floral y cítrico · 250 g",
+   "price": 14900,
+   "img": "https://www.recurrentesapp.com/landing/prod-cafe3.jpg"
+  },
+  {
+   "h": "blend-espresso-250g",
+   "title": "Blend Espresso",
+   "sub": "Brasil + Colombia · para máquina · 250 g",
+   "price": 12400,
+   "img": "https://www.recurrentesapp.com/landing/prod-cafe2.jpg"
+  },
+  {
+   "h": "descafeinado-250g",
+   "title": "Descafeinado natural",
+   "sub": "Colombia · proceso al agua · 250 g",
+   "price": 13400,
+   "img": "https://www.recurrentesapp.com/landing/prod-cafe.jpg"
+  },
+  {
+   "h": "capsulas-compatibles-x10",
+   "title": "Cápsulas compatibles × 10",
+   "sub": "Blend Espresso · compatibles Nespresso®",
+   "price": 6900,
+   "img": "https://www.recurrentesapp.com/landing/prod-cafe3.jpg"
+  }
+ ],
+ "icons": [
+  "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2048%2048%22%20fill%3D%22none%22%20stroke%3D%22%236b3f2a%22%20stroke-width%3D%222.4%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2224%22%20cy%3D%2224%22%20r%3D%2222%22%20fill%3D%22%23f3e2cf%22%20stroke%3D%22none%22/%3E%3Cpath%20d%3D%22M24%2012c-7%200-11%206-11%2012s4%2012%2011%2012%2011-6%2011-12-4-12-11-12z%22/%3E%3Cpath%20d%3D%22M24%2012c3%204%203%2020%200%2024%22/%3E%3C/svg%3E",
+  "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2048%2048%22%20fill%3D%22none%22%20stroke%3D%22%236b3f2a%22%20stroke-width%3D%222.4%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2224%22%20cy%3D%2224%22%20r%3D%2222%22%20fill%3D%22%23f3e2cf%22%20stroke%3D%22none%22/%3E%3Cpath%20d%3D%22M14%2030c0-6%204-10%2010-10s10%204%2010%2010%22/%3E%3Cpath%20d%3D%22M12%2034h24%22/%3E%3Cpath%20d%3D%22M20%2016l4-6%204%206%22/%3E%3C/svg%3E",
+  "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2048%2048%22%20fill%3D%22none%22%20stroke%3D%22%236b3f2a%22%20stroke-width%3D%222.4%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2224%22%20cy%3D%2224%22%20r%3D%2222%22%20fill%3D%22%23f3e2cf%22%20stroke%3D%22none%22/%3E%3Ccircle%20cx%3D%2224%22%20cy%3D%2224%22%20r%3D%2210%22/%3E%3Cpath%20d%3D%22M24%2018v6l4%203%22/%3E%3C/svg%3E",
+  "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2048%2048%22%20fill%3D%22none%22%20stroke%3D%22%236b3f2a%22%20stroke-width%3D%222.4%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2224%22%20cy%3D%2224%22%20r%3D%2222%22%20fill%3D%22%23f3e2cf%22%20stroke%3D%22none%22/%3E%3Cpath%20d%3D%22M16%2032c0-10%206-16%2016-16%200%2010-6%2016-16%2016z%22/%3E%3Cpath%20d%3D%22M16%2032c4-6%208-9%2012-11%22/%3E%3C/svg%3E"
+ ],
+ "reviews": [
+  [
+   "Sofía",
+   4,
+   "Me llega el primero de cada mes y no tengo que pensar en comprar café nunca más. El tueste siempre parejo.",
+   "2026-09-20",
+   "https://www.recurrentesapp.com/landing/rev-f1.jpg"
+  ],
+  [
+   "Martín",
+   5,
+   "Cambié de dirección cuando me mudé y el siguiente pedido llegó a la casa nueva. Sin escribir a nadie.",
+   "2026-09-14",
+   "https://www.recurrentesapp.com/landing/rev-m1.jpg"
+  ],
+  [
+   "Lucía",
+   5,
+   "Lo pausé un mes cuando me fui de viaje y volvió solo. Así tiene que ser.",
+   "2026-09-09",
+   "https://www.recurrentesapp.com/landing/rev-f2.jpg"
+  ],
+  [
+   "Joaquín",
+   5,
+   "El de Colombia tiene una acidez linda, nada quemado. Se nota que está recién tostado.",
+   "2026-09-02",
+   "https://www.recurrentesapp.com/landing/rev-m2.jpg"
+  ],
+  [
+   "Valentina",
+   4,
+   "Pedí 2 bolsas por mes y me dura justo. El descuento ayuda, y el envío llegó en 2 días.",
+   "2026-08-28",
+   "https://www.recurrentesapp.com/landing/rev-f3.jpg"
+  ],
+  [
+   "Lucas",
+   5,
+   "Probé el Etiopía por curiosidad y ahora es mi favorito. La fecha de tueste impresa es un detalle que valoro.",
+   "2026-08-21",
+   "https://www.recurrentesapp.com/landing/rev-m3.jpg"
+  ],
+  [
+   "Sofía",
+   5,
+   "Primer pedido y ya me suscribí. La bolsa con válvula mantiene el aroma una semana entera.",
+   "2026-08-15",
+   "https://www.recurrentesapp.com/landing/rev-f1.jpg"
+  ],
+  [
+   "Martín",
+   5,
+   "Punto de retiro Andreani a dos cuadras, gratis. Cero drama.",
+   "2026-08-10",
+   "https://www.recurrentesapp.com/landing/rev-m1.jpg"
+  ],
+  [
+   "Lucía",
+   4,
+   "Muy buen café, y la atención por WhatsApp rapidísima cuando quise cambiar la molienda.",
+   "2026-08-03",
+   "https://www.recurrentesapp.com/landing/rev-f2.jpg"
+  ],
+  [
+   "Joaquín",
+   5,
+   "Se lo regalé a mi papá por tres meses y ahora lo sigue pagando él. Dice que es el mejor que tomó.",
+   "2026-07-27",
+   "https://www.recurrentesapp.com/landing/rev-m2.jpg"
+  ],
+  [
+   "Valentina",
+   5,
+   "El blend espresso rinde muy bien en la máquina, crema linda. Repetiría siempre.",
+   "2026-07-19",
+   "https://www.recurrentesapp.com/landing/rev-f3.jpg"
+  ],
+  [
+   "Lucas",
+   5,
+   "Me gusta que se pueda pausar. Lo hice en enero y en febrero volvió sin hacer nada.",
+   "2026-07-11",
+   "https://www.recurrentesapp.com/landing/rev-m3.jpg"
+  ]
+ ],
+ "review_summary": {
+  "count": 312,
+  "avg": 4.9
+ },
+ "testimonials": [
+  [
+   "“Me llega el primero de cada mes y no tengo que pensar en comprar café nunca más.”",
+   "— Sofía R., suscriptora hace 8 meses"
+  ],
+  [
+   "“Lo pausé un mes cuando me fui de viaje y volvió solo. Así tiene que ser.”",
+   "— Lucía M., pack de 2 bolsas"
+  ],
+  [
+   "“El tueste siempre parejo, se nota que está recién hecho. Y el envío gratis con el pack.”",
+   "— Martín G., 4 bolsas al mes"
+  ]
+ ]
+}

@@ -543,20 +543,20 @@ const DESIGNS = [
 function DesignCard({ T, d }) {
   const merchant = useMemo(() => ({ widget_variant: d.variant, widget_color: d.color, widget_radius: d.radius, widget_mode_default: "sub", widget_show_per_unit: true, widget_texts: d.texts }), [d]);
   return (
-    <div className="lm-step" style={{ flex: "0 0 min(400px, 86vw)" }}>
+    <div className="lm-step" style={{ flex: "0 0 min(330px, 82vw)" }}>
       <div className="lm-card" style={{ padding: 0 }}>
         {/* Barra de la "tienda" con el color de marca */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", background: d.color, color: "#fff" }}>
-          <span style={{ fontFamily: FD, fontWeight: 800, fontSize: 15, letterSpacing: -0.2 }}>{d.brand}</span>
-          <span style={{ fontSize: 11.5, opacity: .85 }}>{d.niche}</span>
-          <span style={{ marginLeft: "auto", fontSize: 10.5, fontWeight: 700, opacity: .9, letterSpacing: .3, textTransform: "uppercase" }}>{d.variant === "v08" ? "Oscuro" : d.variant === "v05" ? "Tarjetas" : d.variant === "v11" ? "Foto" : d.variant === "v13" ? "Foto + check" : "Clásico"}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", background: d.color, color: "#fff" }}>
+          <span style={{ fontFamily: FD, fontWeight: 800, fontSize: 13, letterSpacing: -0.2 }}>{d.brand}</span>
+          <span style={{ fontSize: 10.5, opacity: .85 }}>{d.niche}</span>
+          <span style={{ marginLeft: "auto", fontSize: 9.5, fontWeight: 700, opacity: .9, letterSpacing: .3, textTransform: "uppercase" }}>{d.variant === "v08" ? "Oscuro" : d.variant === "v05" ? "Tarjetas" : d.variant === "v11" ? "Foto" : d.variant === "v13" ? "Foto + check" : "Clásico"}</span>
         </div>
-        <div style={{ padding: "10px 10px 8px", background: "#fff", color: "#161616" }}>
-          <LiveWidget plan={SAMPLE_PLANS[d.key]} merchant={merchant} mode={d.mode} idx={d.idx} style={{ fontSize: 11 }}/>
+        <div style={{ padding: "8px 8px 6px", background: "#fff", color: "#161616" }}>
+          <LiveWidget plan={SAMPLE_PLANS[d.key]} merchant={merchant} mode={d.mode} idx={d.idx} style={{ fontSize: 9.5 }}/>
         </div>
       </div>
-      <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8, fontSize: 12.5, color: T.textSm }}>
-        <span style={{ width: 10, height: 10, borderRadius: 99, background: d.color, boxShadow: `0 0 0 3px ${d.color}33` }}/>
+      <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, fontSize: 11.5, color: T.textSm }}>
+        <span style={{ width: 9, height: 9, borderRadius: 99, background: d.color, boxShadow: `0 0 0 3px ${d.color}33` }}/>
         Color, letra, bordes, fotos y textos: todo de la tienda. Diseños 100% personalizables.
       </div>
     </div>
@@ -650,7 +650,7 @@ export function StickyDesigns({ T }) {
         </div>
         <div style={{ display: "grid" }}>
           <div className="lm-wrap lm-phase" style={{ width: "100%", overflow: "visible", gridArea: "1/1", opacity: pinned && phase === 1 ? 0 : 1, pointerEvents: pinned && phase === 1 ? "none" : "auto", transition: "opacity .45s" }}>
-            <div className="lm-track lm-track-center" style={{ "--w": "min(400px, 86vw)", "--n": n, "--pp": "var(--pa)", alignItems: "flex-start" }}>
+            <div className="lm-track lm-track-center" style={{ "--w": "min(330px, 82vw)", "--n": n, "--pp": "var(--pa)", alignItems: "flex-start" }}>
               {DESIGNS.map((d) => <DesignCard key={d.key} T={T} d={d}/>)}
             </div>
           </div>
