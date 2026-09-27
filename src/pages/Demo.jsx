@@ -80,6 +80,13 @@ function AgendaEmbed({ T, url, nombre, email, leadId, wa }) {
   useEffect(() => {
     const onMsg = async (e) => {
       if (!/calendly\.com$/.test(String(e.origin || "").replace(/^https?:\/\//, "")) ) return;
+      // Alto real del calendario: en celular arranca corto (mes) y crece al elegir
+      // el día; con un alto fijo quedaba un hueco blanco enorme (Thiago, 27-sept).
+      if (e.data?.event === "calendly.page_height") {
+        const h = parseInt(String(e.data?.payload?.height || "").replace(/px$/, ""), 10);
+        if (h > 0 && box.current) box.current.style.height = Math.max(420, Math.min(1400, h)) + "px";
+        return;
+      }
       if (e.data?.event !== "calendly.event_scheduled" || avisado.current) return;
       avisado.current = true;
       setAgendado(true);
@@ -107,7 +114,8 @@ function AgendaEmbed({ T, url, nombre, email, leadId, wa }) {
       </div>
       {/* ALTO FIJO, no min-height: el iframe de Calendly se estira al alto del
           contenedor, y con min-height quedaba corto y abajo se veía una franja
-          de nuestro fondo — parecía roto.
+          de nuestro fondo — parecía roto. El alto de arranque es una estimación;
+          después manda el que reporta Calendly (calendly.page_height, arriba).
 
           Y el fondo va BLANCO: Calendly solo pinta el calendario con los
           colores de la marca en plan pago, así que en el gratis siempre llega
@@ -115,7 +123,7 @@ function AgendaEmbed({ T, url, nombre, email, leadId, wa }) {
           dentro de la página oscura, en vez de un recuadro ajeno mal pegado.
           El día que se pague el plan, los parámetros de color ya van en la URL
           y esto se cambia por T.card. */}
-      <style>{`.rec-agenda{height:720px}@media(max-width:760px){.rec-agenda{height:1100px}}`}</style>
+      <style>{`.rec-agenda{height:720px;transition:height .25s ease}@media(max-width:760px){.rec-agenda{height:640px}}`}</style>
       <div ref={box} className="rec-agenda" style={{ background: "#fff", border: `1px solid ${T.border}`, borderRadius: 18, overflow: "hidden" }}/>
       <div style={{ textAlign: "center", marginTop: 14 }}>
         <a href={wa} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13.5, color: T.textMd, fontWeight: 600 }}>
