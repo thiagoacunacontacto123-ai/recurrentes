@@ -4,7 +4,7 @@
 //   #/como-funciona · #/funciones · #/integraciones · #/precios (+ #/calculadora) · #/preguntas
 import React from "react";
 import { LandingShell, FlowMap } from "./Landing.jsx";
-import { HorizontalSteps, StickyDesigns, FeatureStack, PriceWeapon, ComparisonArena, IntegrationsMarquee, ClosingCta, PanelTour, BuyJourney } from "./LandingMotion.jsx";
+import { HorizontalSteps, StickyDesigns, FeatureStack, PriceWeapon, ComparisonArena, IntegrationsMarquee, ClosingCta, PanelTour, BuyJourney, FlowsSection, MetaAdsSection } from "./LandingMotion.jsx";
 import { FaqSection, SectionHead } from "./LandingSections.jsx";
 import { BtnSolid } from "../ui/components.jsx";
 
@@ -44,7 +44,6 @@ export default function SitePage({ T, darkMode, onToggleDark, onLogin, page }) {
       </>}
       {key === "funciones" && <>
         <PageHead T={T} eyebrow="Funciones" title={<>Todo lo que la suscripción necesita,<br/>en un solo lugar</>} sub="Widget con tu marca, checkout con envíos en vivo, portal del cliente, avisos por WhatsApp y mail, panel con todo. Sin apps sueltas." reveal="flip"/>
-        <FeatureStack T={T} hideHead/>
         <PanelTour T={T}/>
         <StickyDesigns T={T}/>
         <ClosingCta T={T} onDemo={IR_DEMO}/>
@@ -55,6 +54,8 @@ export default function SitePage({ T, darkMode, onToggleDark, onLogin, page }) {
           <div className="lm-card" style={{ padding: 24 }}><FlowMap T={T}/></div>
         </section>
         <IntegrationsMarquee T={T}/>
+        <FlowsSection T={T}/>
+        <MetaAdsSection T={T}/>
         <section className="lm-wrap" style={{ padding: "80px 24px" }}>
           <SectionHead T={T} eyebrow="Tu plataforma no está" title="¿Vendés con *otra* plataforma?" sub="WooCommerce, Empretienda, VTEX o desarrollo propio: sí, también. Esas no tienen app hecha de antemano: la conexión la armamos para tu tienda en la puesta en marcha, sin costo extra. Y el link de suscripción funciona con cualquier tienda desde hoy."/>
           <div style={{ textAlign: "center" }}><button onClick={IR_DEMO} style={{ ...BtnSolid(T), padding: "14px 24px", fontSize: 15, borderRadius: 14 }}>Pedir demo</button></div>

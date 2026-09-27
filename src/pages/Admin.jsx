@@ -30,7 +30,7 @@ const planText = (v) => v === "beta" ? "Beta" : v === "none" ? "Sin plan activad
 const FILTERS = [
   { id:"todos", label:"Todos" },
   { id:"pagan", label:"Pagan" },
-  { id:"free", label:"Free" },
+  { id:"free", label:"Inicial" },
   { id:"beta", label:"Beta" },
   { id:"activar", label:"A activar" },
   { id:"sin_conectar", label:"Sin conectar" },

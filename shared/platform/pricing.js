@@ -32,7 +32,7 @@ export const INSTALL_USD = 100;
 // Los ids viejos (starter/growth/scale/pro/unlimited) se conservan para que
 // `plan_activated` de cuentas existentes siga resolviendo.
 export const PRICING_TIERS = [
-  { id: "free",       label: "Free",       usd: 0,    min: 0,     max: 10 },
+  { id: "free",       label: "Inicial",       usd: 0,    min: 0,     max: 10 },
   { id: "starter",    label: "Starter",    usd: 99,   min: 11,    max: 50 },
   { id: "growth",     label: "Growth",     usd: 199,  min: 51,    max: 100 },
   { id: "scale",      label: "Scale",      usd: 399,  min: 101,   max: 300 },

@@ -3,7 +3,7 @@ import { BtnSolid, BtnSecondary } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
 import { FREE_SUBSCRIBERS } from "../../shared/platform/pricing.js";
 import { SectionsStyle, FaqSection, BigFooter } from "./LandingSections.jsx";
-import { MotionStyle, useReveal, HeroWidgetLoop, StickyDesigns, HorizontalSteps, PriceWeapon, IntegrationsMarquee, ClosingCta, FeatureStack, ComparisonArena, PanelTour, BuyJourney, PartnerBadges /*, ReviewsBlock */ } from "./LandingMotion.jsx";
+import { MotionStyle, useReveal, HeroWidgetLoop, StickyDesigns, HorizontalSteps, PriceWeapon, IntegrationsMarquee, ClosingCta, FeatureStack, ComparisonArena, PanelTour, BuyJourney, PartnerBadges, FlowsSection, MetaAdsSection /*, ReviewsBlock */ } from "./LandingMotion.jsx";
 
 const F = "'Inter',system-ui,sans-serif";
 // Display (25-sept-2026, Thiago: "bien zarpado, estético"): Manrope apretada para los
@@ -419,11 +419,12 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
           confiar → precio → comparar → integraciones → dudas → acción). */}
       <BuyJourney T={T}/>
       <StickyDesigns T={T}/>
-      <FeatureStack T={T}/>
       <PanelTour T={T}/>
       <PriceWeapon T={T} onDemo={irDemo}/>
       <ComparisonArena T={T}/>
       <IntegrationsMarquee T={T}/>
+      <FlowsSection T={T}/>
+      <MetaAdsSection T={T}/>
       {/* Reseñas: ReviewsBlock en LandingMotion.jsx, se monta cuando haya clientes reales. */}
       <FaqSection T={T}/>
       <ClosingCta T={T} onDemo={irDemo}/>

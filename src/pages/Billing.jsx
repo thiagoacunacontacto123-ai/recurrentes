@@ -18,7 +18,7 @@ const fmtDia = (iso) => { const t = Date.parse(iso || ""); return Number.isFinit
 export function planLabel(id) {
   if (TIER_BY_ID[id]) return TIER_BY_ID[id].label;
   if (id === "beta") return "Beta";
-  return "Free";
+  return "Inicial";
 }
 
 function Check({ c }) {

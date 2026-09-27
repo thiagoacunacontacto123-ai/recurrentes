@@ -1,11 +1,13 @@
 import { AppLoader } from "./ui/components.jsx";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { auth, onAuthStateChanged } from "./lib/firebase.js";
 import { signOut } from "firebase/auth";
 import "./ui/globalStyles.js";
 import { DARK, LIGHT, readStoredDark } from "./ui/theme.js";
 import PublicSite from "./pages/Auth.jsx";
-import Dashboard from "./pages/Dashboard.jsx";
+// El panel del comerciante va en su propio paquete: la landing (que entra por pauta y desde
+// el celular) no tiene que bajar el Dashboard entero para mostrarse.
+const Dashboard = React.lazy(() => import("./pages/Dashboard.jsx"));
 import Portal from "./pages/Portal.jsx";
 import CheckoutSuccess from "./pages/CheckoutSuccess.jsx";
 import Checkout from "./pages/Checkout.jsx";
@@ -69,7 +71,7 @@ export default function App() {
   }
 
   if (!user) return <PublicSite/>;
-  return <Dashboard user={user} onLogout={() => signOut(auth)}/>;
+  return <Suspense fallback={<AppLoader/>}><Dashboard user={user} onLogout={() => signOut(auth)}/></Suspense>;
 }
 
 // Devuelve el "nombre" de la ruta basado en el hash.

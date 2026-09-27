@@ -745,7 +745,7 @@ export function BigFooter({ T, onGo, onRegister, darkMode, onToggleDark }) {
         </div>
         <div style={{borderTop:`1px solid ${T.border}`,marginTop:32,paddingTop:18,fontSize:12,color:T.textSm,display:"flex",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
           <span>© {new Date().getFullYear()} Recurrentes · Buenos Aires, Argentina</span>
-          {onToggleDark && <button onClick={onToggleDark} style={{background:"transparent",border:`1px solid ${T.border}`,borderRadius:8,color:T.textSm,cursor:"pointer",padding:"5px 10px",fontFamily:F,fontSize:12,display:"inline-flex",alignItems:"center",gap:6}}>{darkMode ? "Modo claro" : "Modo oscuro"}</button>}
+          <a href="mailto:soporte@recurrentesapp.com" style={{color:T.textSm,textDecoration:"none"}}>soporte@recurrentesapp.com</a>
         </div>
       </div>
     </footer>

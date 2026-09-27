@@ -84,8 +84,7 @@ export function MotionStyle({ T }) {
       @keyframes lmStepIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
       .lm-stack-panel{position:absolute;inset:0;opacity:0;transform:translateY(40px) scale(.96) rotate(1.5deg);transition:opacity .5s cubic-bezier(.22,1,.36,1),transform .6s cubic-bezier(.22,1,.36,1);pointer-events:none;}
       .lm-stack-panel.on{opacity:1;transform:none;pointer-events:auto;}
-      .lm-stack-panel > .lm-card{max-height:100%;overflow:auto;scrollbar-width:none;}
-      .lm-stack-panel > .lm-card::-webkit-scrollbar{display:none;}
+      .lm-stack-panel > .lm-card{overflow:hidden;}
       .lm-stack-panel.was{opacity:0;transform:translateY(-40px) scale(.96) rotate(-1.5deg);}
       @media(max-width:640px){.lm-tour-side{display:none!important}.lm-tour-body{grid-template-columns:1fr!important}}
       /* ── Comparativa "arena" ── */
@@ -154,6 +153,10 @@ export function MotionStyle({ T }) {
         .lm-pin:not(.lm-pin-all) .lm-pin-inner{position:static;height:auto;display:block;overflow:visible;}
         /* Celular: cada tarjeta pasa por el CENTRO de la pantalla (la primera arranca
            centrada y la última termina centrada). --w = ancho de tarjeta, --n = cantidad. */
+        .lm-pin:not(.lm-pin-all) .lm-track{transform:none!important;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;padding:4px 16px 18px;margin:0 -16px;scrollbar-width:none;}
+        .lm-pin:not(.lm-pin-all) .lm-track::-webkit-scrollbar{display:none;}
+        .lm-pin:not(.lm-pin-all) .lm-track > *{scroll-snap-align:center;}
+        .lm-pin:not(.lm-pin-all) .lm-progress{display:none;}
         .lm-pin-all .lm-track{--cw:calc(100vw - 32px);transform:translateX(calc((var(--cw) - var(--w, 86vw)) / 2 - var(--pp, var(--p,0)) * (var(--w, 86vw) + 28px) * (var(--n, 1) - 1)))!important;overflow:visible;scroll-snap-type:none;padding:4px 0 8px;margin:0;}
         .lm-pin-all .lm-progress{display:block;width:100px!important;}
         .lm-pin-all .lm-pin-inner{justify-content:center;padding:12px 0!important;}
@@ -247,16 +250,40 @@ function useScrollProgress(ref, { enabled = true, steps = 0 } = {}) {
 
 // Bloque clavado que mide lo que su contenido: el `top` del sticky se calcula con
 // el alto real para que quede centrado en la pantalla (Thiago, 27-sept).
+// Escala su contenido para que entre entero en el espacio disponible (ancho y alto),
+// sin scroll interno: en celular un panel con scroll adentro se pelea con el scroll
+// de la página y "vibra" (Thiago, 27-sept).
+function FitBox({ children, maxH }) {
+  const outer = useRef(null), inner = useRef(null);
+  const [st, setSt] = useState({ s: 1, h: null });
+  useEffect(() => {
+    const o = outer.current, i = inner.current; if (!o || !i) return;
+    let raf = 0;
+    const fit = () => { raf = 0; const w = o.clientWidth, ih = i.offsetHeight, iw = i.offsetWidth; if (!w || !ih) return; const s = Math.min(1, w / iw, (maxH || 1e9) / ih); setSt(prev => (Math.abs(prev.s - s) < 0.005 && prev.h === Math.round(ih * s)) ? prev : { s, h: Math.round(ih * s) }); };
+    const onR = () => { if (!raf) raf = requestAnimationFrame(fit); };
+    fit(); const t = setTimeout(fit, 600); const t2 = setTimeout(fit, 1800);
+    const ro = "ResizeObserver" in window ? new ResizeObserver(onR) : null; ro?.observe(i);
+    window.addEventListener("resize", onR);
+    return () => { clearTimeout(t); clearTimeout(t2); ro?.disconnect(); window.removeEventListener("resize", onR); if (raf) cancelAnimationFrame(raf); };
+  }, [maxH]);
+  return (
+    <div ref={outer} style={{ width: "100%", height: st.h || "auto", overflow: "hidden", position: "relative" }}>
+      <div ref={inner} style={{ position: st.h ? "absolute" : "relative", left: 0, top: 0, width: st.s < 1 ? `${(100 / st.s).toFixed(2)}%` : "100%", transform: `scale(${st.s})`, transformOrigin: "top left" }}>{children}</div>
+    </div>
+  );
+}
+
 function usePinFit(innerRef, enabled, dep) {
   useEffect(() => {
     if (!enabled) return;
     const el = innerRef.current; if (!el) return;
     let raf = 0;
     const fit = () => { raf = 0; const h = el.offsetHeight, vh = window.innerHeight; el.style.top = Math.max(0, Math.round((vh - h) / 2)) + "px"; };
-    const onR = () => { if (!raf) raf = requestAnimationFrame(fit); };
+    let lastW = window.innerWidth;
+    // En celular el scroll esconde la barra del navegador y dispara resize: eso NO
+    // cuenta (si no, el top del sticky salta y "late"). Solo si cambia el ancho.
+    const onR = () => { if (window.innerWidth === lastW) return; lastW = window.innerWidth; if (!raf) raf = requestAnimationFrame(fit); };
     fit();
-    // Solo al cambiar el tamaño de la ventana (o de fuentes/imagenes al cargar), NUNCA
-    // al cambiar de paso: si el top del sticky se mueve mientras bajás, "late".
     const t1 = setTimeout(fit, 400), t2 = setTimeout(fit, 1500);
     window.addEventListener("resize", onR);
     return () => { clearTimeout(t1); clearTimeout(t2); window.removeEventListener("resize", onR); if (raf) cancelAnimationFrame(raf); };
@@ -588,6 +615,7 @@ function SubLandingMock({ T }) {
       </div>
       <div className="lm-sublanding" ref={viewRef} style={{ background: cream, color: ink, fontFamily: F2, height: "min(62vh, 640px)", overflow: "hidden" }}>
        <div ref={contentRef} className="lm-sublanding-content" style={{ transform: "translateY(calc(-1 * var(--pb, 0) * var(--ov, 0px)))", willChange: "transform" }}>
+        <style>{`@media(max-width:900px){.lm-sublanding{height:auto!important;overflow:visible!important}.lm-sublanding-content{transform:none!important}.lm-sublanding-steps{grid-template-columns:1fr!important}}`}</style>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", borderBottom: "1px solid #e8e2da" }}><span style={{ fontFamily: "Georgia,serif", fontWeight: 700, fontSize: 17, letterSpacing: 2, color: c }}>TOSTADO</span><span style={{ fontSize: 11, color: "#6b5b52" }}>Cafés · <b style={{ color: c }}>Suscripción</b> · Equipos</span></div>
         <div style={{ display: "grid", gridTemplateColumns: "1.1fr .9fr", gap: 16, padding: 18, alignItems: "center" }} className="lm-sublanding-hero">
           <style>{`@media(max-width:640px){.lm-sublanding-hero{grid-template-columns:1fr!important}}`}</style>
@@ -604,7 +632,7 @@ function SubLandingMock({ T }) {
             <LiveWidget plan={SAMPLE_PLANS.cafe} merchant={merchant} mode="sub" idx={1} style={{ fontSize: 11.5 }}/>
           </div>
         </div>
-        <div style={{ padding: "0 18px 18px", display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
+        <div className="lm-sublanding-steps" style={{ padding: "0 18px 18px", display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
           {[["1", "Elegís tus bolsas", "1, 2 o 4 por mes."], ["2", "Te llega cada mes", "Tostado esa semana."], ["3", "Lo manejás vos", "Pausá, cambiá, cancelá."]].map(([n, t, d]) => <div key={n} style={{ background: "#fff", border: "1px solid #e8e2da", borderRadius: 12, padding: "10px 12px" }}><div style={{ fontFamily: "Georgia,serif", fontSize: 20, color: c, fontWeight: 700 }}>{n}</div><b style={{ fontSize: 12, display: "block", marginTop: 2 }}>{t}</b><span style={{ fontSize: 11, color: "#6b5b52" }}>{d}</span></div>)}
         </div>
         <div style={{ padding: "0 18px 20px", display: "grid", gap: 8 }}>
@@ -621,7 +649,8 @@ export function StickyDesigns({ T }) {
   const ref = useRef(null);
   const innerRef = useRef(null);
   const reduce = useReducedMotion();
-  const pinned = !reduce;
+  const desktop = useDesktop();
+  const pinned = desktop && !reduce; // en celular: carrusel deslizable + la página debajo (sin sticky)
   // Dos fases con el mismo scroll (Thiago, 27-sept): 0–50 % pasan los widgets,
   // 50–100 % la página de suscripción: primero quieta arriba de todo (hasta el 60 %)
   // y después se recorre entera. data-step 0/1 = fase.
@@ -648,14 +677,15 @@ export function StickyDesigns({ T }) {
         <div className="lm-wrap" style={{ width: "100%", marginBottom: 14 }}>
           <h2 key={phase} className="lm-h2 lm-stack-active" style={{ fontSize: "clamp(22px,2.6vw,32px)", margin: 0 }}>{phase === 0 || !pinned ? <>Un widget por marca, <span style={{ color: T.textSm }}>no una marca por widget</span></> : <>O una página entera <span style={{ color: T.textSm }}>enfocada a suscripción</span></>}</h2>
         </div>
-        <div style={{ display: "grid" }}>
-          <div className="lm-wrap lm-phase" style={{ width: "100%", overflow: "visible", gridArea: "1/1", opacity: pinned && phase === 1 ? 0 : 1, pointerEvents: pinned && phase === 1 ? "none" : "auto", transition: "opacity .45s" }}>
+        <div style={{ display: pinned ? "grid" : "block" }}>
+          <div className="lm-wrap lm-phase" style={{ width: "100%", overflow: "visible", gridArea: pinned ? "1/1" : "auto", opacity: pinned && phase === 1 ? 0 : 1, pointerEvents: pinned && phase === 1 ? "none" : "auto", transition: "opacity .45s" }}>
             <div className="lm-track lm-track-center" style={{ "--w": "min(330px, 82vw)", "--n": n, "--pp": "var(--pa)", alignItems: "flex-start" }}>
               {DESIGNS.map((d) => <DesignCard key={d.key} T={T} d={d}/>)}
             </div>
           </div>
-          <div className="lm-wrap lm-phase" style={{ width: "100%", gridArea: "1/1", opacity: !pinned || phase === 1 ? 1 : 0, pointerEvents: !pinned || phase === 1 ? "auto" : "none", transition: "opacity .45s", marginTop: pinned ? 0 : 40 }}>
-            <div style={{ maxWidth: 860, margin: "0 auto" }}><SubLandingMock T={T}/></div>
+          <div className="lm-wrap lm-phase" style={{ width: "100%", gridArea: pinned ? "1/1" : "auto", opacity: !pinned || phase === 1 ? 1 : 0, pointerEvents: !pinned || phase === 1 ? "auto" : "none", transition: "opacity .45s", marginTop: pinned ? 0 : 44 }}>
+            {!pinned && <h2 className="lm-h2" style={{ fontSize: 24, margin: "0 0 14px" }} data-reveal="swing">O una página entera <span style={{ color: T.textSm }}>enfocada a suscripción</span></h2>}
+            <div style={{ maxWidth: 860, margin: "0 auto" }} data-reveal="rise"><SubLandingMock T={T}/></div>
             <div style={{ textAlign: "center", fontSize: 12.5, color: T.textSm, marginTop: 12 }}>Misma tienda, mismo producto, otra página: solo suscripción, con el bundle, los beneficios y las preguntas. La armamos nosotros con tu marca.</div>
           </div>
         </div>
@@ -878,12 +908,84 @@ export function IntegrationsMarquee({ T }) {
       <div className="lm-wrap" style={{ textAlign: "center", marginBottom: 32 }} data-reveal="spin">
         <div className="lm-eyebrow">Integraciones</div>
         <h2 className="lm-h2">Se conecta con lo que ya usás</h2>
-        <p className="lm-sub" style={{ margin: "0 auto" }}>Conectás tu tienda y tu pasarela, nada más. Los envíos se cotizan con los correos que ya tenés configurados en tu tienda, y la orden sale lista para despachar.</p>
+        <p className="lm-sub" style={{ margin: "0 auto" }}>Conectás tu tienda, tu pasarela y tu Meta Ads. Nada más. Los envíos se cotizan con los correos que ya tenés configurados en tu tienda, y la orden sale lista para despachar.</p>
         <PartnerBadges T={T} style={{ justifyContent: "center", marginTop: 18 }}/>
       </div>
       <div className="lm-marquee" style={{ display: "grid", gap: 14 }}>
         <div className="lm-marquee-row">{[...a, ...a].map((it, i) => <Chip key={it.n + i} T={T} it={it}/>)}</div>
         <div className="lm-marquee-row rev">{[...b, ...b].map((it, i) => <Chip key={it.n + i} T={T} it={it}/>)}</div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Flujos de mail y WhatsApp (Thiago, 27-sept): sección propia, el recupero de carritos primero ──
+export function FlowsSection({ T }) {
+  const flows = [
+    ["Carrito sin pagar", "Dejó sus datos y no pagó: WhatsApp a la hora, mail a las 24 h, con su carrito guardado. Es lo que más plata recupera.", true],
+    ["Próximo cobro", "Aviso 2 días antes de cada renovación, con el link a su portal por si quiere pausar.", true],
+    ["Pago rechazado", "Reintento automático y mensaje con el link para cambiar la tarjeta. Sin cortar la entrega.", true],
+    ["Pedido en camino", "Cuando el cobro se aprueba y la orden sale de tu tienda.", false],
+    ["Bienvenida y cancelación", "Primer cobro aprobado, y un mensaje para volver cuando alguien se da de baja.", false],
+  ];
+  return (
+    <section id="rec-flujos" className="lm-wrap" style={{ padding: "96px 24px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 40, alignItems: "center" }} className="lm-price-grid">
+        <div data-reveal="tilt">
+          <div className="lm-eyebrow">Flujos de mail y WhatsApp</div>
+          <h2 className="lm-h2">Primero recupera el carrito.<br/>Después, todo lo demás.</h2>
+          <p className="lm-sub">Mensajes automáticos con el nombre de tu tienda, desde el número de Recurrentes. Vos prendés los que querés; los textos ya están aprobados por Meta. El mail sale gratis; el WhatsApp cuesta centavos por mensaje.</p>
+          <div style={{ display: "grid", gap: 8, marginTop: 22 }}>
+            {flows.map(([t, d, on], i) => (
+              <div key={t} data-reveal="swing" style={{ transitionDelay: `${i * 0.06}s`, display: "flex", gap: 12, alignItems: "flex-start", padding: "12px 14px", borderRadius: 14, background: T.card, border: `1px solid ${i === 0 ? T.accentSolid + "88" : T.border}` }}>
+                <i style={{ width: 30, height: 17, borderRadius: 99, background: on ? T.accentSolid : T.border, position: "relative", flexShrink: 0, marginTop: 2 }}><b style={{ position: "absolute", top: 2, left: on ? 15 : 2, width: 13, height: 13, borderRadius: 99, background: "#fff" }}/></i>
+                <div><b style={{ display: "block", fontSize: 14, color: T.text }}>{t}{i === 0 && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, color: T.accent, background: T.accentSolid + "18", borderRadius: 99, padding: "2px 8px", verticalAlign: "middle" }}>EL QUE MÁS RINDE</span>}</b><span style={{ fontSize: 13, color: T.textSm, lineHeight: 1.5 }}>{d}</span></div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div data-reveal="pop" style={{ display: "grid", gap: 14 }}>
+          <div className="lm-card" style={{ padding: 14 }}><WaPanel T={T} b={TOSTADO}/></div>
+          <div className="lm-card" style={{ padding: 16, fontSize: 12.5, color: T.textMd }}>
+            <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: .6, textTransform: "uppercase", color: T.textSm, marginBottom: 8 }}>Mail · carrito sin pagar</div>
+            <div style={{ background: "#fff", color: "#111", borderRadius: 10, padding: 14 }}>
+              <div style={{ fontFamily: "Georgia,serif", color: "#6b3f2a", fontWeight: 700, letterSpacing: 2, marginBottom: 8 }}>TOSTADO</div>
+              <b style={{ display: "block", fontSize: 14, marginBottom: 6 }}>Ana, te guardamos tu café</b>
+              <div style={{ fontSize: 12.5, lineHeight: 1.5, color: "#444" }}>Dejaste tu suscripción de Café de especialidad · 2 bolsas sin terminar. Tu pack sigue ahí, con el 10% de descuento.</div>
+              <div style={{ marginTop: 10, background: "#6b3f2a", color: "#fff", borderRadius: 8, padding: "9px 12px", display: "inline-block", fontWeight: 800, fontSize: 12.5 }}>Terminar mi suscripción</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Meta Ads (Thiago, 27-sept): cada suscripción le avisa a tu pixel ──
+export function MetaAdsSection({ T }) {
+  const ev = [["AddToCart", "abre el checkout", "#60A5FA"], ["InitiateCheckout", "deja el mail", "#A78BFA"], ["Purchase", "paga la suscripción · con el monto", "#34d399"]];
+  return (
+    <section id="rec-meta" style={{ padding: "96px 0", background: T.surface, borderTop: `1px solid ${T.border}`, borderBottom: `1px solid ${T.border}` }}>
+      <div className="lm-wrap" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 40, alignItems: "center" }}>
+        <div data-reveal="flip" style={{ order: 2 }}>
+          <div className="lm-eyebrow">Meta Ads</div>
+          <h2 className="lm-h2">Tu pixel se entera<br/>de cada suscripción</h2>
+          <p className="lm-sub">Conectás tu pixel y Recurrentes le manda los eventos del checkout por la Conversions API, desde el servidor: nada se pierde por bloqueadores ni por iOS. Así Meta aprende quién se suscribe y optimiza tus campañas para eso, no para compras sueltas.</p>
+          <div style={{ display: "flex", gap: "6px 16px", flexWrap: "wrap", fontSize: 13, color: T.textSm, marginTop: 18 }}>{["Conversions API + pixel del navegador", "Deduplicado por event_id", "Purchase con el valor real del pack"].map(t => <span key={t} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 5, height: 5, borderRadius: 99, background: T.accentSolid }}/>{t}</span>)}</div>
+        </div>
+        <div data-reveal="spin" style={{ order: 1 }} className="lm-card">
+          <div style={{ padding: 18 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}><span style={{ width: 28, height: 28, borderRadius: 8, background: "linear-gradient(135deg,#0866ff,#a033ff)", display: "grid", placeItems: "center", color: "#fff", fontWeight: 900, fontSize: 13 }}>∞</span><b style={{ fontSize: 14, color: T.text }}>Administrador de eventos · Tostado</b><span style={{ marginLeft: "auto", fontSize: 10.5, fontWeight: 800, color: T.accent, background: T.accentSolid + "18", borderRadius: 99, padding: "3px 9px" }}>ACTIVO</span></div>
+            {ev.map(([e, d, c], i) => (
+              <div key={e} style={{ display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 12, alignItems: "center", padding: "12px 0", borderTop: i ? `1px solid ${T.borderL || T.border}` : "none" }}>
+                <span style={{ width: 10, height: 10, borderRadius: 99, background: c, boxShadow: `0 0 0 4px ${c}33` }}/>
+                <span><b style={{ display: "block", fontFamily: MONO, fontSize: 13, color: T.text }}>{e}</b><span style={{ fontSize: 12, color: T.textSm }}>cuando el cliente {d}</span></span>
+                <span style={{ fontSize: 11, color: T.textSm, textAlign: "right" }}>servidor + navegador<br/><b style={{ color: T.accent }}>deduplicado</b></span>
+              </div>
+            ))}
+            <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 10, background: T.bg, border: `1px solid ${T.border}`, fontSize: 12, color: T.textSm, display: "flex", justifyContent: "space-between" }}><span>Purchase · Café de especialidad · 2 bolsas</span><b style={{ color: T.text }}>{fmtARS(21510)}</b></div>
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -1067,7 +1169,9 @@ function ScrollStack({ T, id, items, eyebrow, title, hideHead = false, panelMinH
   const ref = useRef(null);
   const desktop = useDesktop();
   const reduce = useReducedMotion();
-  const pinned = !reduce; // también en celular: la pantalla queda fija y cambia el panel
+  // Clavado SOLO en compu (27-sept, Thiago: en celular "vibra todo": la barra del navegador
+  // aparece y desaparece al deslizar y cualquier sticky con alto de pantalla salta).
+  const pinned = desktop && !reduce;
   useScrollProgress(ref, { enabled: pinned, steps: items.length });
   const [step, setStep] = useState(0);
   // El data-step lo escribe el listener del scroll; acá lo leemos para React.
@@ -1089,8 +1193,8 @@ function ScrollStack({ T, id, items, eyebrow, title, hideHead = false, panelMinH
   // Thiago, 26-sept: "lo seleccionado debe quedar perfecto en el centro". Solo se
   // ve el paso activo (grande) con un stepper de números; el panel, al lado.
   return (
-    <section id={id} ref={ref} className="lm-pin lm-pin-all" style={{ height: pinned ? `${n * (n > 8 ? 55 : 75) + 40}vh` : "auto" }}>
-      <div ref={innerRef} className="lm-pin-inner lm-pin-fit" style={{ padding: pinned ? "24px 0" : "72px 0" }}>
+    <section id={id} ref={ref} className={"lm-pin " + (pinned ? "lm-pin-all" : "")} style={{ height: pinned ? `${n * (n > 8 ? 55 : 75) + 40}vh` : "auto" }}>
+      <div ref={innerRef} className={"lm-pin-inner " + (pinned ? "lm-pin-fit" : "")} style={pinned ? { padding: "24px 0" } : { position: "static", height: "auto", display: "block", overflow: "visible", padding: "64px 0" }}>
         <div className="lm-wrap" style={{ width: "100%" }}>
           {!hideHead && <div data-reveal="spin" style={{ marginBottom: desktop ? 26 : 18, paddingTop: pinned && !desktop ? 0 : 8 }}>
             <div className="lm-eyebrow">{eyebrow}</div>
@@ -1108,8 +1212,8 @@ function ScrollStack({ T, id, items, eyebrow, title, hideHead = false, panelMinH
                   <div style={{ marginTop: 14, fontSize: 12.5, color: T.textSm }}>{step + 1} de {n} · seguí bajando</div>
                 </div>
               </div>
-              <div className="lm-stack-stage" style={{ position: "relative", height: desktop ? panelMinH : "min(56svh, 520px)" }}>
-                {items.map((f, i) => <div key={f.t} className={"lm-stack-panel " + (i === step ? "on" : i < step ? "was" : "")} style={{ display: "grid", alignContent: "center", overflow: "hidden" }}><div className="lm-card" style={{ padding: desktop ? 14 : 10, boxShadow: "0 30px 70px -30px rgba(0,0,0,.5)" }}><f.C T={T}/></div></div>)}
+              <div className="lm-stack-stage" style={{ position: "relative", height: desktop ? panelMinH : "min(46svh, 420px)" }}>
+                {items.map((f, i) => <div key={f.t} className={"lm-stack-panel " + (i === step ? "on" : i < step ? "was" : "")} style={{ display: "grid", alignContent: "center", overflow: "hidden" }}><div className="lm-card" style={{ padding: desktop ? 14 : 8, boxShadow: "0 30px 70px -30px rgba(0,0,0,.5)" }}><FitBox maxH={(desktop ? panelMinH : Math.min(420, Math.round(window.innerHeight * 0.46))) - (desktop ? 30 : 18)}><f.C T={T}/></FitBox></div></div>)}
               </div>
             </div>
           ) : (
@@ -1129,7 +1233,7 @@ function ScrollStack({ T, id, items, eyebrow, title, hideHead = false, panelMinH
 }
 
 export function FeatureStack({ T, hideHead = false }) {
-  return <ScrollStack T={T} id="rec-funciones" items={FEATURES} eyebrow="Todo lo que hace · el panel, sección por sección" title={<>Todo lo que la suscripción necesita,<br/>en un solo lugar</>} hideHead={hideHead} panelMinH={420}/>;
+  return <ScrollStack T={T} id="rec-funciones" items={FEATURES} eyebrow="Todo lo que hace" title={<>Todo lo que la suscripción necesita,<br/>en un solo lugar</>} hideHead={hideHead} panelMinH={420}/>;
 }
 
 // ─── El proceso de compra, manejado por el scroll (Thiago, 26-sept: "que cada
@@ -1183,19 +1287,20 @@ export function PanelTour({ T }) {
   const ref = useRef(null);
   const innerRef = useRef(null);
   const reduce = useReducedMotion();
-  const pinned = !reduce;
+  const desktop = useDesktop();
+  const pinned = desktop && !reduce; // en celular: carrusel deslizable
   useScrollProgress(ref, { enabled: pinned });
   usePinFit(innerRef, pinned);
   const n = TOUR.length;
   return (
-    <section id="rec-panel" ref={ref} className="lm-pin lm-pin-all" style={{ height: pinned ? `${n * 60 + 40}vh` : "auto" }}>
-      <div ref={innerRef} className="lm-pin-inner lm-pin-fit" style={{ padding: pinned ? "24px 0" : "72px 0 40px" }}>
+    <section id="rec-panel" ref={ref} className={"lm-pin " + (pinned ? "lm-pin-all" : "")} style={{ height: pinned ? `${n * 60 + 40}vh` : "auto" }}>
+      <div ref={innerRef} className={"lm-pin-inner " + (pinned ? "lm-pin-fit" : "")} style={pinned ? { padding: "24px 0" } : { position: "static", height: "auto", display: "block", overflow: "visible", padding: "72px 0 40px" }}>
         <div className="lm-wrap" style={{ width: "100%" }}>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 24, alignItems: "end", marginBottom: 22 }} data-reveal="flip">
             <div>
               <div className="lm-eyebrow">El panel, por dentro</div>
               <h2 className="lm-h2">Pantalla por pantalla,<br/>así lo vas a usar</h2>
-              <p className="lm-sub">Seguí bajando y el panel va pasando. Capturas reales de nuestra tienda de pruebas: en la demo lo ves con tus productos.</p>
+              <p className="lm-sub">Seguí bajando y el panel va pasando. Capturas reales de nuestra tienda de pruebas.</p>
             </div>
             <div className="lm-progress" style={{ width: 160, marginBottom: 10 }}><i/></div>
           </div>
