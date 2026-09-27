@@ -90,6 +90,8 @@ footer .soc a{color:var(--ac);display:inline-flex;align-items:center;gap:6px;pad
 @media(max-width:900px){.hero .wrap{grid-template-columns:1fr;gap:28px}.grid,.grid3,.otras{grid-template-columns:1fr}footer .cols{grid-template-columns:1fr 1fr}footer .cols>:first-child{grid-column:1/-1}.hero{padding:40px 0 28px}section{padding:44px 0}.wrap{padding:0 16px}}
 `.trim();
 
+const CSS_EXTRA = `.meta{font-size:13px;color:var(--sm);margin:10px 0 0}.meta a{color:var(--ac);text-decoration:none}
+.hub{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:18px}.hub a{display:block;background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:18px 18px 16px;color:inherit;text-decoration:none;transition:border-color .15s}.hub a:hover{border-color:var(--ac)}.hub .k{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--ac)}.hub h3{margin:8px 0 6px;font-size:17px;line-height:1.25}.hub p{margin:0;font-size:13.5px;color:var(--sm);line-height:1.5}.hub .d{display:block;margin-top:10px;font-size:12px;color:var(--sm)}`;
 const LOGO = `<svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#34d399"/><stop offset="1" stop-color="#059669"/></linearGradient></defs><circle cx="16" cy="16" r="16" fill="url(#g)"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const BADGES = `<div class="badges">
   <span class="badge"><i><img src="/brand/shopify-bag.svg" alt=""></i>Shopify <small>Partner</small></span>
@@ -105,6 +107,10 @@ const vsTable = (vs) => `<div class="vs-wrap"><table class="vs">
 ${vs.filas.map(([q, a, b]) => `<tr><td>${esc(q)}</td><td class="rec">${a}</td><td>${b}</td></tr>`).join("\n")}
 </table></div>
 <p style="font-size:12px;color:var(--sm);margin-top:12px">${esc(vs.fuente)}</p>`;
+
+const hoy = new Date().toISOString().slice(0, 10);
+const FECHA_BASE = "2026-09-26"; // cuando nacieron las primeras páginas
+const fechaLarga = (iso) => new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(iso + "T00:00:00Z"));
 
 function pagina(p, todas) {
   const url = `${SITIO}/${p.slug}`;
@@ -122,6 +128,16 @@ function pagina(p, todas) {
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "Gratis hasta 10 suscriptores activos. Desde USD 99 por mes, sin comisión por venta." },
     publisher: { "@type": "Organization", name: "Recurrentes", url: SITIO, email: "soporte@recurrentesapp.com", logo: `${SITIO}/icon-512.png`, sameAs: ["https://www.linkedin.com/company/recurrentes-app", "https://www.instagram.com/recurrentes.app/"] },
   };
+  // Marcado de artículo con fecha y autor (Reval lo tiene; Google lo usa para el "Actualizado el…").
+  const publicado = p.fecha || FECHA_BASE;
+  const artLd = {
+    "@context": "https://schema.org", "@type": "Article",
+    headline: p.h1, description: p.description, inLanguage: "es-AR",
+    mainEntityOfPage: url, image: `${SITIO}${p.imagen || "/landing/panel-analiticas.jpg"}`,
+    datePublished: publicado, dateModified: hoy,
+    author: { "@type": "Organization", name: "Recurrentes", url: SITIO },
+    publisher: { "@type": "Organization", name: "Recurrentes", url: SITIO, logo: { "@type": "ImageObject", url: `${SITIO}/icon-512.png` } },
+  };
   const faqLd = p.faq?.length ? { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: p.faq.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) } : null;
   const crumbLd = { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "Recurrentes", item: SITIO + "/" }, { "@type": "ListItem", position: 2, name: p.h1, item: url }] };
   const heroImg = p.imagen || "/landing/panel-analiticas.jpg";
@@ -138,6 +154,7 @@ function pagina(p, todas) {
 <link rel="canonical" href="${url}">
 <meta name="robots" content="index, follow, max-image-preview:large">
 <meta name="theme-color" content="#10b981">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png">
 <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
@@ -152,9 +169,10 @@ function pagina(p, todas) {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Manrope:wght@700;800&display=swap">
-<style>${CSS}</style>
+<style>${CSS}${CSS_EXTRA}</style>
 <script type="application/ld+json">${JSON.stringify(orgLd)}</script>
 <script type="application/ld+json">${JSON.stringify(crumbLd)}</script>
+<script type="application/ld+json">${JSON.stringify(artLd)}</script>
 ${faqLd ? `<script type="application/ld+json">${JSON.stringify(faqLd)}</script>` : ""}
 </head>
 <body>
@@ -168,6 +186,7 @@ ${faqLd ? `<script type="application/ld+json">${JSON.stringify(faqLd)}</script>`
     <p class="eyebrow">${esc(p.eyebrow || "Recurrentes · suscripciones para tu tienda")}</p>
     <h1>${esc(p.h1)}</h1>
     <p class="lead">${esc(p.intro)}</p>
+    <p class="meta"><a href="/blog">Blog</a> · Publicado el ${fechaLarga(publicado)} · Actualizado el ${fechaLarga(hoy)}</p>
     <p style="margin-top:22px"><a class="cta big" href="/#/demo">Pedir una demo →</a></p>
     ${BADGES}
   </div>
@@ -216,7 +235,7 @@ ${p.faq?.length ? `<section class="alt"><div class="wrap narrow">
 <footer><div class="wrap">
   <div class="cols">
     <div><a class="logo" href="/" style="margin-bottom:12px">${LOGO}Recurrentes</a><p style="max-width:300px;font-size:13.5px">Suscripciones con Mercado Pago para tiendas online de Argentina. Cada cobro crea el pedido en tu tienda.</p><a class="cta" href="/#/demo" style="display:inline-flex">Pedir una demo</a></div>
-    <div><h4>Producto</h4><a href="/">Inicio</a><a href="/#/como-funciona">Cómo funciona</a><a href="/#/funciones">Funciones</a><a href="/#/integraciones">Integraciones</a><a href="/#/precios">Precios</a><a href="/demos/tostado">Tienda de ejemplo</a></div>
+    <div><h4>Producto</h4><a href="/">Inicio</a><a href="/#/como-funciona">Cómo funciona</a><a href="/#/funciones">Funciones</a><a href="/#/integraciones">Integraciones</a><a href="/#/precios">Precios</a><a href="/demos/tostado">Tienda de ejemplo</a><a href="/blog">Blog</a></div>
     <div><h4>Recurrentes</h4><a href="/#/preguntas">Preguntas frecuentes</a><a href="/#/demo">Pedir demo</a><a href="/#/terminos">Términos</a><a href="/#/privacidad">Privacidad</a><a href="https://wa.me/5491164117974" target="_blank" rel="noreferrer">Soporte por WhatsApp</a></div>
   </div>
   <div class="bottom">
@@ -229,15 +248,74 @@ ${p.faq?.length ? `<section class="alt"><div class="wrap narrow">
 `;
 }
 
+// ── /blog: el índice de todo lo publicado, agrupado por sección ─────────────
+// (28-sept-2026: Reval tiene su /blog y /comparativas; sin un índice, Google y la
+// gente llegan a una página y no saben que hay otras 30).
+const SECCIONES = [
+  ["guias", "Guías"], ["rubros", "Por rubro"], ["comparativas", "Comparativas"], ["plataformas", "Por plataforma"],
+];
+function seccionDe(p) {
+  if (p.seccion) return p.seccion;
+  if (p.vs || /^(alternativa-a-|puentify)/.test(p.slug)) return "comparativas";
+  if (/^suscripcion-de-|^suscripcion-alimento|^suscripcion-cosmetica|club-de-vinos|yerba/.test(p.slug)) return "rubros";
+  if (/shopify|tiendanube/.test(p.slug)) return "plataformas";
+  return "guias";
+}
+function hub(todas) {
+  const url = `${SITIO}/blog`;
+  const grupos = SECCIONES.map(([id, nombre]) => [nombre, todas.filter((p) => seccionDe(p) === id)]).filter(([, l]) => l.length);
+  const ld = { "@context": "https://schema.org", "@type": "CollectionPage", name: "Blog de Recurrentes", url, inLanguage: "es-AR",
+    hasPart: todas.map((p) => ({ "@type": "Article", headline: p.h1, url: `${SITIO}/${p.slug}` })) };
+  return `<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Blog · Suscripciones y cobro recurrente para tiendas online en Argentina | Recurrentes</title>
+<meta name="description" content="Guías, comparativas y casos por rubro para vender por suscripción con Mercado Pago en Shopify y Tiendanube. ${todas.length} artículos, escritos por el equipo de Recurrentes.">
+<link rel="canonical" href="${url}">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="theme-color" content="#10b981">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<meta property="og:site_name" content="Recurrentes"><meta property="og:type" content="website"><meta property="og:title" content="Blog de Recurrentes"><meta property="og:url" content="${url}"><meta property="og:image" content="${SITIO}/landing/panel-analiticas.jpg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Manrope:wght@700;800&display=swap">
+<style>${CSS}${CSS_EXTRA}</style>
+<script type="application/ld+json">${JSON.stringify(ld)}</script>
+</head>
+<body>
+<header><div class="wrap"><a class="logo" href="/">${LOGO}Recurrentes</a><a class="cta" href="/#/demo">Pedir demo</a></div></header>
+<div class="hero"><div class="bg"></div><div class="wrap" style="grid-template-columns:1fr"><div>
+  <p class="eyebrow">Blog de Recurrentes</p>
+  <h1>Vender por suscripción en Argentina, explicado</h1>
+  <p class="lead">Guías para armar tu suscripción, comparativas con datos públicos y cómo lo hacen las tiendas de cada rubro. Todo pensado para Shopify y Tiendanube con Mercado Pago.</p>
+  ${BADGES}
+</div></div></div>
+${grupos.map(([nombre, lista]) => `<section><div class="wrap">
+  <p class="eyebrow">${esc(nombre)}</p>
+  <div class="hub">
+    ${lista.map((p) => `<a href="/${p.slug}"><span class="k">${esc(p.eyebrow || nombre)}</span><h3>${esc(p.h1)}</h3><p>${esc(p.description)}</p><span class="d">Actualizado el ${fechaLarga(hoy)}</span></a>`).join("\n    ")}
+  </div>
+</div></section>`).join("\n")}
+<section><div class="wrap"><div class="box"><h2>Te lo mostramos funcionando en 15 minutos</h2><p>Vemos tiendas que ya venden por suscripción con Recurrentes y qué se podría armar en la tuya.</p><a class="cta big" href="/#/demo">Pedir una demo →</a></div></div></section>
+<footer><div class="wrap"><div class="bottom"><span>© ${new Date().getFullYear()} Recurrentes · Desarrollado y codeado con <span style="color:var(--ac)">♥</span> en Buenos Aires, Argentina</span><span class="soc"><a href="/">Inicio</a><a href="mailto:soporte@recurrentesapp.com">soporte@recurrentesapp.com</a><a href="https://www.linkedin.com/company/recurrentes-app" target="_blank" rel="noreferrer">LinkedIn</a><a href="https://www.instagram.com/recurrentes.app/" target="_blank" rel="noreferrer">Instagram</a></span></div></div></footer>
+</body>
+</html>
+`;
+}
+
 // ── Escribir ────────────────────────────────────────────────────────────────
 fs.mkdirSync(PUBLIC, { recursive: true });
 for (const p of PAGINAS) {
   fs.writeFileSync(path.join(PUBLIC, `${p.slug}.html`), pagina(p, PAGINAS));
   console.log("  página →", `public/${p.slug}.html`);
 }
+fs.writeFileSync(path.join(PUBLIC, "blog.html"), hub(PAGINAS));
+console.log("  índice →", "public/blog.html");
 
-const hoy = new Date().toISOString().slice(0, 10);
-const urls = [{ loc: SITIO + "/", pri: "1.0" }, ...PAGINAS.map((p) => ({ loc: `${SITIO}/${p.slug}`, pri: "0.8" }))];
+const urls = [{ loc: SITIO + "/", pri: "1.0" }, { loc: SITIO + "/blog", pri: "0.9" }, ...PAGINAS.map((p) => ({ loc: `${SITIO}/${p.slug}`, pri: "0.8" }))];
 fs.writeFileSync(path.join(PUBLIC, "sitemap.xml"),
   `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`
   + urls.map((u) => `  <url><loc>${u.loc}</loc><lastmod>${hoy}</lastmod><priority>${u.pri}</priority></url>`).join("\n")

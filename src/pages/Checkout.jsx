@@ -824,8 +824,12 @@ export default function Checkout() {
         /* El borde de "elegido" rodea TODO el cuadro (el renglón y los campos de
            la tarjeta), no solo el renglón. Pintado sigue estando únicamente el
            renglón de arriba. Los métodos de ENVÍO no se tocan: ahí varias filas
-           viven en un mismo cuadro y el anillo tiene que marcar la fila. */
-        .rc-pay-box.rc-sel{box-shadow:inset 0 0 0 1px ${theme.color};border-color:${theme.color}}
+           viven en un mismo cuadro y el anillo tiene que marcar la fila.
+           El anillo va por FUERA del borde, no por dentro: adentro el fondo
+           blanco del desglose lo tapaba en los costados y abajo, y el borde se
+           veía grueso arriba y fino abajo. Por fuera nadie lo pisa y el grosor
+           es el mismo en los cuatro lados, plegado o desplegado. */
+        .rc-pay-box.rc-sel{box-shadow:0 0 0 1px ${theme.color};border-color:${theme.color}}
         .rc-pay-box .rc-opt.on{box-shadow:none}
         .rc-card-wrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows .34s cubic-bezier(.4,0,.2,1)}
         .rc-card-wrap.open{grid-template-rows:1fr}
