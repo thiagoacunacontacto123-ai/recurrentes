@@ -159,7 +159,8 @@ export function MotionStyle({ T }) {
         .lm-pin:not(.lm-pin-all) .lm-progress{display:none;}
         .lm-pin-all .lm-track{--cw:calc(100vw - 32px);transform:translateX(calc((var(--cw) - var(--w, 86vw)) / 2 - var(--pp, var(--p,0)) * (var(--w, 86vw) + 28px) * (var(--n, 1) - 1)))!important;overflow:visible;scroll-snap-type:none;padding:4px 0 8px;margin:0;}
         .lm-pin-all .lm-progress{display:block;width:100px!important;}
-        .lm-pin-all .lm-pin-inner{justify-content:center;padding:12px 0!important;}
+        .lm-pin-all .lm-pin-inner{position:sticky;top:64px;height:auto;justify-content:center;padding:12px 0!important;overflow:visible;}
+        .lm-pin-all .lm-pin-fit{top:64px!important;}
         .lm-stepper{grid-auto-flow:column;gap:4px!important;}
         .lm-stepper-n{width:28px;height:24px;font-size:10px;}
         .lm-stack-grid > div:first-child{grid-template-columns:1fr!important;}
@@ -653,7 +654,7 @@ function SubLandingMock({ T }) {
       </div>
       <div className="lm-sublanding" ref={viewRef} style={{ background: cream, color: ink, fontFamily: F2, height: "min(52vh, 520px)", overflow: "hidden" }}>
        <div ref={contentRef} className="lm-sublanding-content" style={{ transform: "translateY(calc(-1 * var(--pb, 0) * var(--ov, 0px)))", willChange: "transform" }}>
-        <style>{`@media(max-width:900px){.lm-sublanding{height:auto!important;overflow:visible!important}.lm-sublanding-content{transform:none!important}.lm-sublanding-steps{grid-template-columns:1fr!important}}`}</style>
+        <style>{`@media(max-width:900px){.lm-pin:not(.lm-pin-all) .lm-sublanding{height:auto!important;overflow:visible!important}.lm-pin:not(.lm-pin-all) .lm-sublanding-content{transform:none!important}.lm-sublanding-steps{grid-template-columns:1fr!important}.lm-sublanding{height:min(58svh,520px)}}`}</style>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", borderBottom: "1px solid #e8e2da" }}><span style={{ fontFamily: "Georgia,serif", fontWeight: 700, fontSize: 17, letterSpacing: 2, color: c }}>TOSTADO</span><span style={{ fontSize: 11, color: "#6b5b52" }}>Cafés · <b style={{ color: c }}>Suscripción</b> · Equipos</span></div>
         <div style={{ display: "grid", gridTemplateColumns: "1.1fr .9fr", gap: 16, padding: 18, alignItems: "center" }} className="lm-sublanding-hero">
           <style>{`@media(max-width:640px){.lm-sublanding-hero{grid-template-columns:1fr!important}}`}</style>
@@ -688,14 +689,16 @@ export function StickyDesigns({ T }) {
   const innerRef = useRef(null);
   const reduce = useReducedMotion();
   const desktop = useDesktop();
-  const pinned = desktop && !reduce; // en celular: carrusel que se desliza solo al bajar + la página debajo (sin sticky)
+  // Clavado también en celular (Thiago, 27-sept: "que se frene hasta que pasen todas"). Lo que
+  // vibraba era recalcular el top y los paneles con scroll interno; acá el top es fijo por CSS.
+  const pinned = !reduce;
   const trackRef = useRef(null);
-  useScrollDriveTrack(trackRef, !pinned && !reduce);
+  useScrollDriveTrack(trackRef, false);
   // Dos fases con el mismo scroll (Thiago, 27-sept): 0–50 % pasan los widgets,
   // 50–100 % la página de suscripción: primero quieta arriba de todo (hasta el 60 %)
   // y después se recorre entera. data-step 0/1 = fase.
   useScrollProgress(ref, { enabled: pinned, steps: 2 });
-  usePinFit(innerRef, pinned);
+  usePinFit(innerRef, pinned && desktop);
   const [phase, setPhase] = useState(0);
   useEffect(() => {
     if (!pinned) return;
@@ -1331,11 +1334,11 @@ export function PanelTour({ T }) {
   const innerRef = useRef(null);
   const reduce = useReducedMotion();
   const desktop = useDesktop();
-  const pinned = desktop && !reduce; // en celular: carrusel que se desliza solo al bajar
+  const pinned = !reduce; // clavado también en celular, con top fijo por CSS (sin recálculo)
   useScrollProgress(ref, { enabled: pinned });
-  usePinFit(innerRef, pinned);
+  usePinFit(innerRef, pinned && desktop);
   const trackRef = useRef(null);
-  useScrollDriveTrack(trackRef, !pinned && !reduce);
+  useScrollDriveTrack(trackRef, false);
   const n = TOUR.length;
   return (
     <section id="rec-panel" ref={ref} className={"lm-pin " + (pinned ? "lm-pin-all" : "")} style={{ height: pinned ? `${n * 55 + 60}vh` : "auto" }}>
