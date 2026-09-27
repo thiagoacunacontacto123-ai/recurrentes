@@ -4,6 +4,8 @@
 // `err.status` = HTTP status para que el caller distinga 401/403 (token) de
 // 429/5xx (transitorio). Nunca devuelven "vacío" ante un error HTTP.
 import { fetchWithTimeout } from "./http.js";
+// Los textos de rechazo de tarjeta viven en un solo lugar (navegador + servidor).
+export { mpDeclineText as mpCardErrorText } from "../../shared/platform/mpCardError.js";
 
 const MP_BASE = "https://api.mercadopago.com";
 const MP_TIMEOUT_MS = 10000;
@@ -79,8 +81,13 @@ export const mpCancelPreapprovalPlan = (token, id) =>
 // Preapproval — la suscripción de UN cliente al plan. Se crea cuando el
 // cliente toca "Suscribirme". Devuelve init_point para redirigirlo.
 // Doc: https://www.mercadopago.com.ar/developers/es/reference/subscriptions/_preapproval/post
-export const mpCreatePreapproval = (token, preapproval) =>
-  call("POST", "/preapproval", token, preapproval);
+export const mpCreatePreapproval = (token, preapproval, { deviceId } = {}) =>
+  // `deviceId` = huella del dispositivo del comprador (window.MP_DEVICE_SESSION_ID,
+  // lo genera el SDK de MP en el navegador). Va en el header X-meli-session-id y es
+  // lo que mira el antifraude de MP: sin esto rechaza como "alto riesgo" tarjetas
+  // legítimas (CC_VAL_433). Si no viene, se manda igual sin el header.
+  call("POST", "/preapproval", token, preapproval,
+    deviceId ? { "X-meli-session-id": deviceId } : null);
 
 // Get/Update/Cancel preapproval (para pause / cancel desde el admin).
 export const mpGetPreapproval = (token, id) =>

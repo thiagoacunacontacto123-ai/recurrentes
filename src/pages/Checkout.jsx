@@ -3,6 +3,7 @@ import { resolvePack } from "../../shared/bundle/viewmodel.js";
 import { AppLoader } from "../ui/components.jsx";
 import { discountAmountFor } from "../../shared/platform/discounts.js";
 import { resolveCheckoutTheme, ctaText } from "../../shared/platform/checkoutTheme.js";
+import { mpTokenErrorText } from "../../shared/platform/mpCardError.js";
 
 // Checkout propio de Recurrentes (hosteado). Dos entradas:
 //   · Link de suscripción (negocios sin tienda: servicios, digitales, venta por link):
@@ -213,6 +214,54 @@ export default function Checkout() {
   const [errs, setErrs] = useState({}); // por campo: { email: "Ingresá un email válido", ... }
   const fix = (k) => () => setErrs(e => (e[k] ? Object.fromEntries(Object.entries(e).filter(([kk]) => kk !== k)) : e));
 
+  // ─── Tarjeta acá mismo (Checkout API de Mercado Pago) ──────────────────────
+  // Solo si la tienda lo tiene prendido (`cfg.card_form`, bandera mp_checkout_api).
+  // Los tres campos de la tarjeta son IFRAMES de Mercado Pago (Secure Fields):
+  // el número, el vencimiento y el código NO tocan nuestro javascript ni nuestro
+  // servidor en ningún momento. Lo único que sale de acá es un token de un solo
+  // uso. Por eso no hay estado de React para el número de tarjeta: no existe.
+  const [payWith, setPayWith] = useState("card");   // card | mp
+  const [cardholder, setCardholder] = useState("");
+  const [cardReady, setCardReady] = useState(false);
+  const mpRef = useRef(null);
+  const cardForm = !isPreview && cfg?.card_form?.public_key ? cfg.card_form : null;
+  const useCard = Boolean(cardForm) && payWith === "card";
+
+  useEffect(() => {
+    if (!useCard) return;
+    let vivo = true, campos = [];
+    (async () => {
+      try {
+        if (!window.MercadoPago) {
+          await new Promise((ok, err) => {
+            const ya = document.querySelector('script[src="https://sdk.mercadopago.com/js/v2"]');
+            if (ya) { ya.addEventListener("load", ok); ya.addEventListener("error", err); return; }
+            const sc = document.createElement("script");
+            sc.src = "https://sdk.mercadopago.com/js/v2"; sc.async = true;
+            sc.onload = ok; sc.onerror = err;
+            document.head.appendChild(sc);
+          });
+        }
+        if (!vivo || !window.MercadoPago) return;
+        const mp = new window.MercadoPago(cardForm.public_key, { locale: "es-AR" });
+        mpRef.current = mp;
+        // Los iframes no heredan nuestro CSS: hay que pasarles el estilo.
+        const estilo = { fontSize: "15px", color: theme.text, placeholderColor: theme.text_muted };
+        campos = [
+          mp.fields.create("cardNumber", { placeholder: "1234 1234 1234 1234", style: estilo }).mount("rec-card-number"),
+          mp.fields.create("expirationDate", { placeholder: "MM/AA", style: estilo }).mount("rec-card-exp"),
+          mp.fields.create("securityCode", { placeholder: "123", style: estilo }).mount("rec-card-cvv"),
+        ];
+        if (vivo) setCardReady(true);
+      } catch (_) {
+        // Si el SDK de MP no carga (bloqueador, red), no dejamos al comprador sin
+        // pagar: se cae al botón de siempre.
+        if (vivo) { setCardReady(false); setPayWith("mp"); }
+      }
+    })();
+    return () => { vivo = false; setCardReady(false); for (const c of campos) { try { c.unmount(); } catch (_) {} } };
+  }, [useCard, cardForm?.public_key]);
+
   // Cargar el plan activo (por id o por producto) + qué pedir según el negocio.
   useEffect(() => {
     if (!merchant || (!product && !planParam)) { setLoadErr("Faltan datos de la suscripción. Volvé al link que te pasaron e intentá de nuevo."); setLoading(false); return; }
@@ -391,12 +440,46 @@ export default function Checkout() {
       if (!province.trim()) miss.province = "Elegí la provincia";
       if (!rates.length && zip.trim() && province.trim()) miss.ship = ratesLoading ? "Esperá a que carguen las opciones de envío" : "Elegí un método de envío";
     }
+    // Con tarjeta, Mercado Pago pide sí o sí el documento del titular: el campo
+    // de Contacto deja de ser opcional en vez de pedirle el DNI dos veces.
+    if (useCard) {
+      if (!cardholder.trim()) miss.cardholder = "Ingresá el nombre como figura en la tarjeta";
+      if (!/^\d{7,11}$/.test(taxid.replace(/\D/g, ""))) miss.taxid = "Ingresá tu DNI o CUIT: Mercado Pago lo pide para cobrar con tarjeta";
+      if (!cardReady) miss.card = "Esperá a que cargue el formulario de la tarjeta";
+    }
     setErrs(miss);
     if (Object.keys(miss).length) { scrollToFirstError(); return; }
     setSubmitting(true);
 
+    // Token de la tarjeta: lo genera Mercado Pago con los datos que están dentro
+    // de SUS iframes. Si falla (tarjeta inválida, vencida, red), se lo decimos y
+    // no llamamos al backend: no queremos dejar una suscripción a medias.
+    let cardTokenId = "";
+    if (useCard) {
+      try {
+        const doc = taxid.replace(/\D/g, "");
+        const t = await mpRef.current.fields.createCardToken({
+          cardholderName: cardholder.trim(),
+          identificationType: doc.length === 11 ? "CUIT" : "DNI",
+          identificationNumber: doc,
+        });
+        cardTokenId = t?.id || "";
+      } catch (e) {
+        // MP dice qué campo está mal; mostrar "revisá todo" era tirar esa
+        // información a la basura y dejarlo adivinando.
+        setFormErr(mpTokenErrorText(e));
+        setSubmitting(false);
+        return;
+      }
+      if (!cardTokenId) { setFormErr("No pudimos validar la tarjeta. Revisá los datos e intentá de nuevo."); setSubmitting(false); return; }
+    }
+
     try {
       const body = {
+        ...(cardTokenId ? { card_token_id: cardTokenId } : {}),
+        // La deja el SDK de Mercado Pago al cargar: identifica el dispositivo del
+        // comprador para el antifraude. Sin ella MP rechaza tarjetas buenas.
+        ...(cardTokenId && window.MP_DEVICE_SESSION_ID ? { device_id: String(window.MP_DEVICE_SESSION_ID) } : {}),
         merchant_id: merchant,
         plan_id: plan.id,
         quantity: qty,
@@ -426,7 +509,25 @@ export default function Checkout() {
       const r = await fetch("/api/checkout/init", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const d = await r.json();
       if (d.error) { setFormErr(d.error); setSubmitting(false); return; }
+      // La tarjeta rebotó: se lo decimos acá y elige (otra tarjeta, o la cuenta de
+      // Mercado Pago que tiene justo abajo). NO lo mandamos a MP de prepo: eso se
+      // veía como que el botón no hacía nada.
+      if (d.card_declined) {
+        setFormErr(d.card_error || "No pudimos cobrar con esa tarjeta. Probá con otra, o pagá con tu cuenta de Mercado Pago.");
+        setSubmitting(false);
+        try { document.querySelector(".rc-ck .rc-pay")?.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (_) {}
+        return;
+      }
       redirected.current = true;
+      // Con tarjeta: si MP la autorizó, ya está cobrada y no hay a dónde mandarlo
+      // más que a la pantalla de gracias (que igual espera la orden).
+      // Si NO la autorizó (débito que MP no toma, token vencido, fondos), el
+      // backend devolvió el init_point de siempre: lo mandamos a pagar a Mercado
+      // Pago en vez de dejarlo con un error y el carrito hecho.
+      if (d.authorized && d.portal_token) {
+        window.location.hash = `#/checkout-success?sub=${encodeURIComponent(d.subscriber_id)}&token=${encodeURIComponent(d.portal_token)}`;
+        return;
+      }
       window.location.href = d.init_point;
     } catch (e) {
       setFormErr(`No pudimos conectar con ${providerLabel}. Revisá tu conexión y reintentá.`);
@@ -450,7 +551,7 @@ export default function Checkout() {
   const storeName = theme.header_text || cfg?.store_name || "";
   const logo = theme.show_logo ? (cfg?.store_logo || "") : "";
   const footerTxt = theme.footer_text || `Se cobra ${money(total)} ahora y se renueva automáticamente ${freqTxt}. Podés pausar o cancelar cuando quieras.`;
-  const cta = submitting ? `Redirigiendo a ${providerLabel}…` : ctaText(theme, money(total));
+  const cta = submitting ? (useCard ? "Procesando el pago…" : `Redirigiendo a ${providerLabel}…`) : ctaText(theme, money(total));
   const policiesTxt = theme.policies_text || "Al pagar aceptás los términos y la política de privacidad.";
   // "← Volver a la tienda": a la página del producto de donde vino (el widget la pasa en &src=) o a la tienda.
   const backUrl = (() => { const s = p.get("src") || ""; if (/^https?:\/\//.test(s)) return s; return cfg?.store_url || ""; })();
@@ -548,14 +649,60 @@ export default function Checkout() {
   const payBlock = (
     <section>
       <h2 className="rc-h2">Pago</h2>
-      {/* Una sola opción: el cobro se completa en Mercado Pago. Probamos el
-          formulario de tarjeta acá mismo (Checkout API) y lo sacamos: ver
-          CLAUDE.md, 27-sept-2026. */}
-      <div className="rc-opts"><label className="rc-opt on" style={{ cursor: "default" }}>
-        <input type="radio" checked readOnly aria-label={providerLabel}/>
-        <img src="/brand/mercadopago.png" alt="" style={{ width: 30, height: 30, borderRadius: 7, objectFit: "contain", flexShrink: 0 }}/>
-        <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0 }}><b style={{ fontWeight: 600 }}>Con tu cuenta de {providerLabel}</b><div style={{ color: theme.text_muted, fontSize: 13 }}>Te redirigiremos a la aplicación de {providerLabel} para que pagues desde ahí.</div></div>
-      </label></div>
+      {cardForm ? (
+        // Dos caminos: la tarjeta acá mismo (no se va del checkout) o la cuenta de
+        // Mercado Pago de siempre. El segundo NO se saca nunca: es el que cubre al
+        // que paga con dinero en cuenta, al que no tiene la tarjeta a mano y al
+        // que la tarjeta le rebota en el formulario.
+        <>
+          {/* Un cuadro por método, separados (26-sept-2026, Thiago). En el de la
+              tarjeta la fila elegida es lo único pintado y los campos viven
+              adentro, debajo de su fila. */}
+          <div className="rc-pay-methods">
+          <div className="rc-opts">
+            <label className={"rc-opt " + (payWith === "card" ? "on" : "")}>
+              <input type="radio" name="rec-pay" checked={payWith === "card"} onChange={() => setPayWith("card")}/>
+              <img src="/brand/mercadopago.png" alt="" style={{ width: 30, height: 30, borderRadius: 7, objectFit: "contain", flexShrink: 0 }}/>
+              <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0 }}><b style={{ fontWeight: 600 }}>Tarjeta de crédito o débito</b><div style={{ color: theme.text_muted, fontSize: 13 }}>{isService ? `La cuota se cobra ${freqTxt} a la tarjeta que pongas acá.` : `Se cobra ${freqTxt} a la tarjeta que pongas acá.`}</div></div>
+            </label>
+            {payWith === "card" ? (
+              <div className="rc-card-body">
+                {/* El titular arriba: es el único que se escribe en NUESTRA página.
+                    Los tres de abajo son iframes de Mercado Pago (Secure Fields):
+                    se escriben adentro de su página, no de la nuestra. */}
+                <Field label="Titular, como figura en la tarjeta" error={errs.cardholder} onFix={fix("cardholder")}>
+                  <input autoComplete="cc-name" placeholder=" " value={cardholder} onChange={e => setCardholder(e.target.value)}/>
+                </Field>
+                <div className="rc-mpf-wrap">
+                  <div className="rc-mpf rc-mpf-full"><span>Número de tarjeta</span><div id="rec-card-number"/></div>
+                  <div className="rc-mpf"><span>Vencimiento</span><div id="rec-card-exp"/></div>
+                  <div className="rc-mpf"><span>Código de seguridad</span><div id="rec-card-cvv"/></div>
+                </div>
+                {!cardReady ? <div style={{ fontSize: 12.5, color: theme.text_muted, marginTop: 8 }}>Cargando el formulario seguro de {providerLabel}…</div> : null}
+                {/* Sin esto, "esperá a que cargue" se guardaba en errs y no se
+                    pintaba en ningún lado: el botón no hacía nada y el comprador
+                    no sabía por qué. */}
+                {errs.card ? <div className="rc-fe" data-f="card" role="alert" style={{ marginTop: 8 }}>{errs.card}</div> : null}
+              </div>
+            ) : null}
+          </div>
+          <div className="rc-opts">
+            <label className={"rc-opt " + (payWith === "mp" ? "on" : "")}>
+              <input type="radio" name="rec-pay" checked={payWith === "mp"} onChange={() => setPayWith("mp")}/>
+              <img src="/brand/mercadopago.png" alt="" style={{ width: 30, height: 30, borderRadius: 7, objectFit: "contain", flexShrink: 0 }}/>
+              <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0 }}><b style={{ fontWeight: 600 }}>Con tu cuenta de {providerLabel}</b><div style={{ color: theme.text_muted, fontSize: 13 }}>Te redirigiremos a la aplicación de {providerLabel} para que pagues desde ahí.</div></div>
+            </label>
+          </div>
+          </div>
+        </>
+      ) : (
+        /* Sin el formulario propio: una sola opción, se ve elegida como un método de envío. */
+        <div className="rc-opts"><label className="rc-opt on" style={{ cursor: "default" }}>
+          <input type="radio" checked readOnly aria-label={providerLabel}/>
+          <img src="/brand/mercadopago.png" alt="" style={{ width: 30, height: 30, borderRadius: 7, objectFit: "contain", flexShrink: 0 }}/>
+          <div style={{ fontSize: 14, lineHeight: 1.45, minWidth: 0 }}><b style={{ fontWeight: 600 }}>{providerLabel}</b><div style={{ color: theme.text_muted, fontSize: 13 }}>{isService ? `La cuota se cobra sola ${freqTxt}.` : `Se cobra ${freqTxt}, sin que hagas nada.`}</div></div>
+        </label></div>
+      )}
       {theme.summary_mobile === "before_pay" ? <div className="rc-inline-summary">{summaryBody}</div> : null}
       {formErr ? <div role="alert" style={{ background: "#fde8e8", border: "1px solid #f5b5b5", color: "#b42318", fontSize: 14, padding: "11px 13px", borderRadius: R, marginTop: 14 }}>{formErr}</div> : null}
       <button onClick={pagar} disabled={submitting} className="rc-pay">{cta}</button>
@@ -604,6 +751,19 @@ export default function Checkout() {
         .rc-f.is-err input,.rc-f.is-err select{border-color:#d92d20;box-shadow:0 0 0 1px #d92d20}
         .rc-f.is-err label{color:#d92d20}
         .rc-fe{color:#d92d20;font-size:13px;line-height:1.35;margin-top:6px;padding-left:2px}
+        /* Campos de tarjeta: cada uno es un iframe de Mercado Pago. No podemos
+           usar la etiqueta flotante (no hay :placeholder-shown de un iframe), así
+           que la etiqueta va fija arriba y el iframe ocupa el resto de la caja. */
+        .rc-pay-methods{display:flex;flex-direction:column;gap:12px}
+        .rc-card-body{padding:14px 16px 4px;border-top:1px solid ${theme.border_soft};background:${theme.input_bg}}
+        .rc-card-body .rc-f input{background:${theme.bg}}
+        .rc-card-body .rc-mpf{background:${theme.bg}}
+        .rc-mpf-wrap{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+        .rc-mpf{position:relative;border:1px solid ${theme.border};border-radius:${R}px;background:${theme.input_bg};height:52px;padding:7px 13px 6px;min-width:0;overflow:hidden}
+        .rc-mpf-full{grid-column:1 / -1}
+        .rc-mpf>span{display:block;font-size:11.5px;color:${theme.text_muted};line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .rc-mpf>div{height:24px}
+        .rc-mpf iframe{width:100%;height:24px;border:0;display:block}
         .rc-ck input::placeholder{color:transparent}
         .rc-ck input:-webkit-autofill,.rc-ck select:-webkit-autofill,.rc-ck input:-webkit-autofill:focus{-webkit-text-fill-color:${theme.text};-webkit-box-shadow:0 0 0 1000px ${theme.dark ? "#1c1c1c" : "#fff"} inset;box-shadow:0 0 0 1000px ${theme.dark ? "#1c1c1c" : "#fff"} inset;caret-color:${theme.text};transition:background-color 9999s ease-out}
         .rc-opts{border:1px solid ${theme.border};border-radius:${R}px;overflow:hidden;background:${theme.input_bg}}
@@ -667,7 +827,7 @@ export default function Checkout() {
               <Field label="Nombre y apellido" error={errs.name} onFix={fix("name")}><input autoComplete="name" placeholder=" " value={name} onChange={e => setName(e.target.value)}/></Field>
               <div className="rc-2">
                 <Field label={requirePhone ? "Teléfono" : "Teléfono (opcional)"} error={errs.phone} onFix={fix("phone")}><input type="tel" autoComplete="tel" placeholder=" " value={phone} onChange={e => setPhone(e.target.value)}/></Field>
-                <Field label={requireTaxId ? "DNI o CUIT" : "DNI o CUIT (opcional)"} error={errs.taxid} onFix={fix("taxid")}><input inputMode="numeric" placeholder=" " value={taxid} onChange={e => setTaxid(e.target.value)}/></Field>
+                <Field label={(requireTaxId || useCard) ? "DNI o CUIT" : "DNI o CUIT (opcional)"} error={errs.taxid} onFix={fix("taxid")}><input inputMode="numeric" placeholder=" " value={taxid} onChange={e => setTaxid(e.target.value)}/></Field>
               </div>
               {askAddress ? (<>
                 <Field label="Calle y número" error={errs.address1} onFix={fix("address1")}><input autoComplete="address-line1" placeholder=" " value={address1} onChange={e => setAddress1(e.target.value)}/></Field>
