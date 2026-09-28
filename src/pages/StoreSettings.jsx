@@ -30,9 +30,13 @@ export default function CheckoutSettings({ merchant, onChange }) {
   const profile = merchantProfile(m);
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
-      {/* Los envíos ya no se configuran acá: el checkout usa los mismos métodos y
-          precios que la tienda tiene para una venta normal (cotización en vivo, se
-          activa en Integraciones → Shopify → Ajustes). Esta sección es solo descuentos. */}
+      {/* Shopify cotiza en vivo contra la tienda en cada compra, así que no hay
+          nada que configurar. Tiendanube NO expone la cotización por código
+          postal: los métodos se traen solos al conectar, pero el precio de cada
+          uno lo tiene que poner el comercio (28-sept-2026, Thiago). */}
+      {profile.channel === "tiendanube" && profile.caps.shipping && (
+        <ShippingRatesCard T={T} m={m} isOwner={isOwner} onChange={onChange} profile={profile}/>
+      )}
       <DiscountCodesCard merchant={m} onChange={onChange}/>
     </div>
   );
@@ -192,9 +196,16 @@ function ShippingRatesCard({ T, m, isOwner, onChange, profile }) {
     onChange?.();
   }
   async function saveRates() {
-    const clean = rates.map(r => ({ name: String(r.name || "").trim(), price: parseInt(r.price, 10) || 0, code: r.code || "" })).filter(r => r.name);
+    // Se manda la tarifa ENTERA, no solo nombre/precio/code: adentro viaja el
+    // transportista (carrier_id, reference…) que la app de envíos del comercio
+    // necesita para despachar. Si acá se arma un objeto nuevo, editar un precio
+    // le borra el carrier a la tarifa (28-sept-2026). El backend descarta lo que
+    // no conoce.
+    const clean = rates
+      .map(r => ({ ...r, name: String(r.name || "").trim(), price: parseInt(r.price, 10) || 0 }))
+      .filter(r => r.name);
     setBusy("save");
-    const d = await apiPatch("merchant", { checkout_shipping_rates: clean.map(r => ({ name: r.name, price: r.price, ...(r.code ? { code: r.code } : {}) })) }, { action: "save-settings" });
+    const d = await apiPatch("merchant", { checkout_shipping_rates: clean }, { action: "save-settings" });
     setBusy("");
     if (d?.error) return toast("Error: " + d.error, "error", 6000);
     toast("Envíos guardados", "success");
@@ -206,7 +217,9 @@ function ShippingRatesCard({ T, m, isOwner, onChange, profile }) {
 
   return (
     <Panel T={T} title="Envíos del checkout"
-      sub="Lo que el cliente elige al suscribirse y queda en cada orden recurrente. Si no cargás ninguno, se usa el envío por defecto de cada plan."
+      sub={esTiendanube
+        ? "Estos son los medios de envío de tu tienda, traídos solos al conectarla. Tiendanube no nos deja cotizar por código postal, así que el precio de cada uno lo ponés vos: el que elija tu cliente sale en la orden con el mismo transportista de siempre y tu app de envíos lo despacha igual que una venta común."
+        : "Lo que el cliente elige al suscribirse y queda en cada orden recurrente. Si no cargás ninguno, se usa el envío por defecto de cada plan."}
       right={<>
         {dirty && <DSBadge T={T} color={T.yellow} size="sm">Cambios sin guardar</DSBadge>}
         {isOwner && fromShopify && <Btn T={T} variant="secondary" size="sm" onClick={fetchFromShopify} disabled={!shopifyOk || !!busy} title={shopifyOk ? "" : "Conectá Shopify primero"}>{busy === "fetch" ? <><Spinner size={12} color={T.textMd}/> Leyendo…</> : "⬇ Importar de Shopify"}</Btn>}

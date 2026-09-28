@@ -133,3 +133,23 @@ test("(e) tarifa sin transportista: el snapshot queda como siempre (nada nuevo p
     assert.ok(!(k in snap), `${k} no tiene que aparecer si la tarifa no lo trae`);
   }
 });
+
+// ── 4. El panel de precios ──────────────────────────────────────────────────
+// Tiendanube no cotiza por CP, así que el comercio pone el precio de cada
+// método a mano. Lo que NO puede pasar: que al tocar un precio se pierda el
+// transportista y el pedido quede sin despachar.
+test("(e) cambiar el precio a mano no le borra el transportista a la tarifa", async () => {
+  seedDoc(`merchants/${MID}`, luminaMerchant({
+    checkout_shipping_rates: [{ name: "Envío a domicilio", price: 4500, code: "southpost_home", carrier_id: "4321", carrier_code: "any", reference: "SP-DOM" }],
+  }));
+  // Lo mismo que manda el panel al guardar: la tarifa entera con el precio nuevo.
+  const res = await invoke(merchantApi, {
+    method: "PATCH", query: { action: "save-settings" }, headers: { authorization: `Bearer test:${MID}` },
+    body: { checkout_shipping_rates: [{ name: "Envío a domicilio", price: 6200, code: "southpost_home", carrier_id: "4321", carrier_code: "any", reference: "SP-DOM" }] },
+  });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  const r = rawGet(`merchants/${MID}`).checkout_shipping_rates[0];
+  assert.equal(r.price, 6200, "el precio nuevo");
+  assert.equal(r.carrier_id, "4321", "y el transportista sigue ahí");
+  assert.equal(r.reference, "SP-DOM");
+});
