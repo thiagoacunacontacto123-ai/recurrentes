@@ -144,6 +144,7 @@ export async function handleWhatsappWebhook(req, res) {
     return res.status(200).end(challenge.replace(/[^\w.-]/g, "").slice(0, 200));
   }
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  try { (await import("./health.js")).touchWebhook("whatsapp"); } catch (_) {}
 
   let raw;
   try { raw = await readRaw(req); } catch (e) { return res.status(400).json({ error: e.message }); }

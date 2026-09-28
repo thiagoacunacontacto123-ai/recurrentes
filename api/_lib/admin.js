@@ -801,7 +801,10 @@ export async function adminHandler(req, res) {
       if (action === "admin-demo-leads") return res.json(await demoLeads(req.query || {}));
       // Plantillas de WhatsApp de Recurrentes en Meta (estado por plantilla).
       if (action === "admin-wa-templates") return res.json(await (await import("./waTemplates.js")).listPlatformTemplates());
+      // Costos de operar la app (fijos editables + crons + WhatsApp del mes) → Admin → Costos.
+      if (action === "admin-costs") return res.json(await (await import("./adminCosts.js")).costsReport());
     } else if (req.method === "POST") {
+      if (action === "admin-costs-save") return res.json(await (await import("./adminCosts.js")).saveCosts(admin, req.body || {}));
       if (action === "admin-set-plan") return await setPlan(admin, req, res);
       if (action === "admin-set-pricing") return await setPricing(admin, req, res);
       if (action === "admin-set-card-checkout") return await setCardCheckout(admin, req, res);

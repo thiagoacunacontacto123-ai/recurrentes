@@ -31,11 +31,15 @@ export const NAV = [
   { id:"suscripciones", label:"Suscripciones",      short:"Suscrip.", icon:ICON.suscripciones, alertKey:"suscripciones", section:"Ventas" },
   { id:"carritos",      label:"Carritos abandonados", short:"Carritos", icon:SECTION_ICONS.carritos, section:"Ventas" }, // checkouts sin pagar (antes, estado "Sin pagar" en Suscripciones)
   { id:"cobros",        label:"Cobros",             short:"Cobros",   icon:SECTION_ICONS.cobros, alertKey:"cobros", badge:"red", section:"Ventas" },
-  { id:"logistica",     label:"Logística",          short:"Logística", icon:SECTION_ICONS.cobros, section:"Ventas" }, // envíos que se ofrecen al suscribirse + qué hacer sin stock
   { id:"planes",        label:"Planes",             short:"Planes",   icon:SECTION_ICONS.planes, section:"Catálogo" },
   { id:"widget",        label:"Widget",             short:"Widget",   icon:SECTION_ICONS.widget, section:"Catálogo" },
   { id:"carrito",       label:"Carrito",            short:"Carrito",  icon:SECTION_ICONS.carritos, section:"Catálogo" }, // extras "Sumá a tu suscripción"
   { id:"checkout",      label:"Checkout",           short:"Checkout", icon:SECTION_ICONS.checkout, section:"Catálogo" }, // diseño del checkout + extras (antes en Configuración)
+  // Logística: entre el catálogo (qué vendo) y los clientes (a quién). Envíos y
+  // stock son dos decisiones distintas y se toman en momentos distintos, así que
+  // van separadas (28-sept-2026, Thiago).
+  { id:"envios",        label:"Envíos",             short:"Envíos",   icon:SECTION_ICONS.envios, section:"Logística" },
+  { id:"stock",         label:"Stock",              short:"Stock",    icon:SECTION_ICONS.stock, section:"Logística" },
   { id:"retencion",     label:"Retención",          short:"Retener",  icon:ICON.retencion, alertKey:"retencion", badge:"orange", section:"Clientes" },
   { id:"flujos",        label:"Flujos de email",    short:"Flujos",   icon:ICON.flujos, section:"Clientes" },
   { id:"whatsapp",      label:"Flujos de WhatsApp", short:"WhatsApp", icon:ICON.whatsapp, section:"Clientes" },
@@ -362,8 +366,12 @@ export function ManageStoreModal({T, store, totalStores, onClose, onSave, onDele
 // cajita "Terminá de configurar" abajo del nav (portada de los quehaceres de
 // vinculación de Growith). Se puede cerrar por tienda.
 export function Sidebar({T, nav=NAV, activeTab, onTab, user, merchant, workspace, onSwitchStore, onCreateStore, onManageStore, collapsed, setCollapsed, darkMode, setDarkMode, onLogout, alerts={}, pendientes=[], onVerPlan}) {
-  const items = nav.filter(it=>!it.adminOnly||merchant?.is_admin).map(it=>it.alertKey?{...it,count:alerts[it.alertKey]}:it);
+  // Admin NO va en el menú principal (28-sept-2026, Thiago: "me hace sentir un cliente"):
+  // vive abajo, junto a Configuración, como en Growith.
+  const items = nav.filter(it=>!it.adminOnly).map(it=>it.alertKey?{...it,count:alerts[it.alertKey]}:it);
   const configActive = activeTab==="configuracion";
+  const adminActive = activeTab==="admin";
+  const isAdmin = merchant?.is_admin === true;
   // Nombre y foto: lo que cargó en Cuenta (merchant.owner_name/owner_photo) manda sobre lo de Google.
   const ownerName = merchant?.owner_name || user?.displayName || user?.email?.split("@")[0] || "";
   const ownerPhoto = merchant?.owner_photo || user?.photoURL || null;
@@ -493,6 +501,12 @@ export function Sidebar({T, nav=NAV, activeTab, onTab, user, merchant, workspace
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
             {!collapsed&&<span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>Configuración</span>}
           </button>
+          {isAdmin && (
+            <button onClick={()=>onTab("admin")} title="Admin de Recurrentes" aria-label="Admin" aria-current={adminActive?"page":undefined}
+              style={{width:collapsed?undefined:32,height:32,flexShrink:0,background:adminActive?T.accentSolid+"20":"transparent",border:`1px solid ${adminActive?T.accentSolid+"55":T.border}`,borderRadius:DS.r.md,color:adminActive?T.accent:T.textMd,cursor:"pointer",padding:0,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:F}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={ICON.admin}/></svg>
+            </button>
+          )}
           <button onClick={()=>setDarkMode(!darkMode)} title={darkMode?"Modo claro":"Modo oscuro"} aria-label={darkMode?"Modo claro":"Modo oscuro"} style={{width:collapsed?undefined:32,height:32,flexShrink:0,background:"transparent",border:`1px solid ${T.border}`,borderRadius:DS.r.md,color:T.textMd,cursor:"pointer",padding:0,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:F}}>
             {darkMode
               ?<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>

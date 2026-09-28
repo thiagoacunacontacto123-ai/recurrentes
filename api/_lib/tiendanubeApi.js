@@ -378,6 +378,7 @@ export function tnWebhookTopic(payload, queryTopic) {
 
 async function handleWebhooks(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  try { (await import("./health.js")).touchWebhook("tiendanube"); } catch (_) {}
   let raw;
   try { raw = await readRaw(req); } catch (e) { return res.status(400).json({ error: e.message }); }
   // Si el runtime ya consumió el stream y dejó el JSON parseado, intentamos con él.

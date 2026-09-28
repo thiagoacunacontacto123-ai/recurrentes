@@ -33,6 +33,11 @@ export const EXPECTED_CRONS = {
   "run-flows": { every_min: 5, stale_after_min: 20 },
   "retry-fulfillment": { every_min: 30, stale_after_min: 90 },
   "reconcile-mp": { every_min: 60, stale_after_min: 150 },
+  // 28-sept-2026: los que faltaban en el tablero de estado (vercel.json).
+  "demo-reminders": { every_min: 10, stale_after_min: 40, soft: true },
+  "stock-watch": { every_min: 15, stale_after_min: 60, soft: true },
+  "sync-saas-tiers": { every_min: 1440, stale_after_min: 1560, soft: true },
+  "bill-wa-usage": { every_min: 1440, stale_after_min: 1560, soft: true },
 };
 
 // Resumen de la última conciliación con MP (system/reconcile_last, _lib/reconcile.js).
@@ -66,8 +71,13 @@ export const ENV_GROUPS = [
   { id: "mobbex", label: "Mobbex", required: false, vars: [], prefix: "MOBBEX_" },
   { id: "stripe", label: "Stripe", required: false, vars: [], prefix: "STRIPE_" },
   { id: "whop", label: "Whop", required: false, vars: [], prefix: "WHOP_" },
-  { id: "whatsapp", label: "WhatsApp", required: false, vars: [], prefix: "WHATSAPP_" },
+  { id: "whatsapp", label: "WhatsApp (número de Recurrentes)", required: false, vars: [], prefix: "WHATSAPP_" },
   { id: "admin", label: "Admin y alertas", required: false, vars: ["ADMIN_EMAILS", "ADMIN_EMAIL", "PLATFORM_ALERT_EMAIL"] },
+  // 28-sept-2026: lo que se sumó después y no se veía en el tablero.
+  { id: "stripe_saas", label: "Stripe del SaaS (cobro del plan)", required: false, vars: ["STRIPE_SAAS_SECRET_KEY", "STRIPE_SAAS_WEBHOOK_SECRET"] },
+  { id: "gcal", label: "Agenda de la demo (Google Calendar)", required: false, vars: ["GCAL_IMPERSONATE", "DEMO_HOURS"] },
+  { id: "meta_acq", label: "Meta Ads propio (pixel de Recurrentes)", required: false, vars: ["META_PIXEL_ID", "META_CAPI_TOKEN"] },
+  { id: "calendly", label: "Calendly (respaldo de la agenda)", required: false, vars: ["CALENDLY_TOKEN"] },
 ];
 
 const isSet = (name) => String(process.env[name] ?? "").trim() !== "";
@@ -131,6 +141,17 @@ export async function cronHeartbeat(action, summary = {}) {
   }
 }
 
+// Rastro de "último webhook recibido" por origen (mp · stripe_saas · whatsapp ·
+// tiendanube), en system/webhooks_last. Best-effort y sin await del lado del que llama:
+// nunca demora ni rompe el webhook. 28-sept-2026.
+const WEBHOOKS_DOC = ["system", "webhooks_last"];
+export function touchWebhook(name, extra = {}) {
+  try {
+    const at = new Date().toISOString();
+    db().collection(WEBHOOKS_DOC[0]).doc(WEBHOOKS_DOC[1]).set({ [name]: { last_at: at, ...extra } }, { merge: true }).catch(() => {});
+  } catch (_) {}
+}
+
 // ── Informe ─────────────────────────────────────────────────────────
 export async function buildHealth({ now = Date.now() } = {}) {
   const env = envReport();
@@ -138,7 +159,7 @@ export async function buildHealth({ now = Date.now() } = {}) {
 
   // Firestore: UNA lectura (el doc del heartbeat, que además usamos abajo).
   const firestore = { reachable: false, latency_ms: null };
-  let hb = {}, cronLast = null, reconcileLast = null;
+  let hb = {}, cronLast = null, reconcileLast = null, whLast = {};
   const t0 = Date.now();
   try {
     const [hbSnap, lastSnap, recSnap] = await Promise.all([
@@ -151,13 +172,17 @@ export async function buildHealth({ now = Date.now() } = {}) {
     hb = hbSnap.exists ? (hbSnap.data() || {}) : {};
     cronLast = lastSnap.exists ? (lastSnap.data() || null) : null;
     reconcileLast = recSnap?.exists ? (recSnap.data() || null) : null;
+    // Aparte y best-effort: si este doc no existe o falla, el resto del informe sigue.
+    try { const whSnap = await db().collection(WEBHOOKS_DOC[0]).doc(WEBHOOKS_DOC[1]).get(); whLast = whSnap?.exists ? (whSnap.data() || {}) : {}; } catch (_) { whLast = {}; }
   } catch (e) {
     firestore.error_code = /credenciales|FIREBASE_/i.test(e.message || "") ? "no_credentials"
       : String(e.code || "").replace(/[^A-Za-z0-9_]/g, "").slice(0, 40) || "error";
   }
 
   const crons = {};
-  const names = new Set([...Object.keys(EXPECTED_CRONS), ...Object.keys(hb).filter(k => hb[k] && typeof hb[k] === "object" && "last_run_at" in hb[k])]);
+  // Los "soft" entran a la lista recién cuando corrieron una vez; hasta entonces el tablero
+  // los muestra como "sin correr" (abajo, en checks) y no ensucian el ok general.
+  const names = new Set([...Object.keys(EXPECTED_CRONS).filter(k => !EXPECTED_CRONS[k].soft), ...Object.keys(hb).filter(k => hb[k] && typeof hb[k] === "object" && "last_run_at" in hb[k])]);
   for (const name of names) {
     const exp = EXPECTED_CRONS[name] || null;
     const h = hb[name] || {};
@@ -171,7 +196,9 @@ export async function buildHealth({ now = Date.now() } = {}) {
       last_run_ok: typeof h.ok === "boolean" ? h.ok : null,
       minutes_since_ok: since,
       expected_every_min: exp?.every_min ?? null,
-      stale: exp ? (since == null || since > exp.stale_after_min) : false,
+      // Los "soft" que todavía nunca corrieron no cuentan como atrasados (se ven como "sin correr").
+      stale: exp ? (since == null ? !exp.soft : since > exp.stale_after_min) : false,
+      soft: exp?.soft === true,
     };
   }
 
@@ -183,7 +210,7 @@ export async function buildHealth({ now = Date.now() } = {}) {
   if (!env.firebase.private_key_format_ok && env.firebase.vars.FIREBASE_PRIVATE_KEY) failedRequired.push("FIREBASE_PRIVATE_KEY no parece una clave privada");
   if (!base.canonical) failedRequired.push(`APP_BASE_URL no es exactamente ${CANONICAL_BASE_URL}`);
   if (!firestore.reachable) failedRequired.push("Firestore no responde");
-  for (const [name, c] of Object.entries(crons)) if (c.stale) warnings.push(`El cron ${name} no corrió bien hace ${c.minutes_since_ok == null ? "(nunca)" : c.minutes_since_ok + " min"}`);
+  for (const [name, c] of Object.entries(crons)) if (c.stale && !c.soft) warnings.push(`El cron ${name} no corrió bien hace ${c.minutes_since_ok == null ? "(nunca)" : c.minutes_since_ok + " min"}`);
   if (!env.email.configured) warnings.push("Resend/EMAIL_FROM sin configurar: no salen mails");
   if (!env.mercadopago.vars.MP_WEBHOOK_SIGNING_SECRET) warnings.push("MP_WEBHOOK_SIGNING_SECRET sin configurar: la firma de los webhooks de MP no se valida");
   if (!env.admin.vars.PLATFORM_ALERT_EMAIL) warnings.push("PLATFORM_ALERT_EMAIL sin configurar: las órdenes que no se crean solo se avisan al comerciante");
@@ -194,15 +221,52 @@ export async function buildHealth({ now = Date.now() } = {}) {
   if (process.env.FULFILL_RETRY_ENABLED !== "1") warnings.push("FULFILL_RETRY_ENABLED apagado: los cobros aprobados cuya orden falló se avisan pero NO se reintentan solos");
   if (!env.admin.vars.ADMIN_EMAILS) warnings.push("ADMIN_EMAILS vacío: este chequeo solo se puede abrir con CRON_SECRET");
 
+  // Webhooks: cuándo llegó el último de cada origen (system/webhooks_last, touchWebhook).
+  const WEBHOOK_LABEL = { mp: "Mercado Pago (cobros y suscripciones)", stripe_saas: "Stripe (pagos del plan)", whatsapp: "WhatsApp (respuestas BAJA/ALTA)", tiendanube: "Tiendanube" };
+  const webhooks = {};
+  for (const [id, label] of Object.entries(WEBHOOK_LABEL)) {
+    const w = whLast?.[id] || null;
+    webhooks[id] = { label, last_at: w?.last_at || null, minutes_since: minutesSince(w?.last_at, now), last_ok: typeof w?.ok === "boolean" ? w.ok : null };
+  }
+
+  // Lista plana de chequeos con estado, agrupada, para el tablero del Admin
+  // (28-sept-2026, Thiago: "cada panel, cada procesamiento, que esté el estado").
+  const reconcile = reconcileReport(reconcileLast, now);
+  const checks = [];
+  const add = (group, id, label, status, detail) => checks.push({ group, id, label, status, detail: detail || "" });
+  add("Base", "firestore", "Base de datos (Firestore)", firestore.reachable ? "ok" : "error", firestore.reachable ? `Respondió en ${firestore.latency_ms} ms` : "No responde");
+  add("Base", "app_base_url", "Dominio del sitio (APP_BASE_URL)", base.canonical ? "ok" : "error", base.canonical ? CANONICAL_BASE_URL : `Es ${base.value || "(vacío)"}, debería ser ${CANONICAL_BASE_URL}`);
+  add("Base", "production", "Entorno", process.env.VERCEL_ENV === "production" ? "ok" : "warn", process.env.VERCEL_ENV === "production" ? "Producción" : `Entorno ${process.env.VERCEL_ENV || "local"}`);
+  for (const [id, g] of Object.entries(env)) {
+    if (id === "flags") continue;
+    const missing = Object.entries(g.vars || {}).filter(([, v]) => !v).map(([k]) => k);
+    add("Integraciones y servicios", `env_${id}`, g.label, g.configured ? "ok" : g.required ? "error" : "off", g.configured ? "Configurado" : missing.length ? `Falta: ${missing.join(", ")}` : "Apagado");
+  }
+  for (const [name, c] of Object.entries(crons)) {
+    const cada = c.expected_every_min ? (c.expected_every_min >= 1440 ? "diario" : `cada ${c.expected_every_min} min`) : "sin intervalo fijo";
+    add("Procesos automáticos", `cron_${name}`, name, c.stale ? (c.soft ? "warn" : "error") : c.last_run_ok === false ? "warn" : (c.soft && c.minutes_since_ok == null) ? "off" : "ok",
+      `${cada} · ${c.minutes_since_ok == null ? "nunca corrió OK" : `último OK hace ${c.minutes_since_ok} min`}${c.last_run_ok === false ? " · la última corrida falló" : ""}`);
+  }
+  for (const [name, exp] of Object.entries(EXPECTED_CRONS)) if (exp.soft && !crons[name]) add("Procesos automáticos", `cron_${name}`, name, "off", `${exp.every_min >= 1440 ? "diario" : `cada ${exp.every_min} min`} · todavía no corrió desde que se mide`);
+  add("Procesos automáticos", "reconcile", "Conciliación con Mercado Pago", !reconcile ? "warn" : reconcile.errors ? "warn" : "ok",
+    reconcile ? `hace ${reconcile.minutes_since ?? "?"} min · ${reconcile.corrections} correcciones${reconcile.errors ? ` · ${reconcile.errors} con error` : ""}${reconcile.dry_run ? " · modo prueba" : ""}` : "todavía no corrió");
+  add("Procesos automáticos", "fulfill_retry", "Reintento automático de órdenes fallidas", process.env.FULFILL_RETRY_ENABLED === "1" ? "ok" : "warn", process.env.FULFILL_RETRY_ENABLED === "1" ? "Prendido" : "Apagado: los cobros sin orden se avisan pero no se reintentan solos");
+  for (const [id, w] of Object.entries(webhooks)) {
+    add("Webhooks (lo que nos llega)", `wh_${id}`, w.label, w.last_at ? (w.last_ok === false ? "warn" : "ok") : "off",
+      w.last_at ? `último hace ${w.minutes_since} min${w.last_ok === false ? " · falló" : ""}` : "sin registro desde que se mide");
+  }
+
   return {
-    ok: failedRequired.length === 0 && !Object.values(crons).some(c => c.stale),
+    ok: failedRequired.length === 0 && !Object.values(crons).some(c => c.stale && !c.soft),
     checked_at: new Date(now).toISOString(),
     summary: { required_failed: failedRequired, warnings },
     app_base_url: base,
     env,
     firestore,
     crons,
-    reconcile: reconcileReport(reconcileLast, now),
+    webhooks,
+    checks,
+    reconcile,
     fulfillment: { retry_enabled: process.env.FULFILL_RETRY_ENABLED === "1", platform_alerts: isSet("PLATFORM_ALERT_EMAIL") },
     runtime: { production: process.env.VERCEL_ENV === "production" },
   };

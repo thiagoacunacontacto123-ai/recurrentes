@@ -15,7 +15,7 @@ import { MONO, fmtARS, fmtAgo, fmtDateOnly, fmtDateTime, copyText } from "./_sha
 import { CHANNELS, PAYMENT_PROVIDERS, BUSINESS_TYPES } from "../../shared/platform/profile.js";
 import { pedidoDeAccesos, SHOPIFY_PERMISOS } from "../../shared/platform/setup.js";
 import { PRICING_TIERS, TIER_BY_ID } from "../../shared/platform/pricing.js";
-import AdminInstall from "./AdminInstall.jsx";
+import AdminOnboarding from "./AdminOnboarding.jsx";
 
 const F = "'Inter',system-ui,sans-serif";
 const fmtN = (n) => Math.round(Number(n) || 0).toLocaleString("es-AR");
@@ -93,8 +93,13 @@ export function AdminPage() {
   const [page, setPage] = useState(1);
   const [openId, setOpenId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [showMore, setShowMore] = useState(false);
   const tableRef = useRef(null);
+  // Pestañas (28-sept-2026, Thiago: "el tablero está todo muy suelto"). Se recuerda la última.
+  const [tab, setTabState] = useState(() => { try { return sessionStorage.getItem("rec_admin_tab") || "resumen"; } catch (_) { return "resumen"; } });
+  const setTab = (t) => { setTabState(t); try { sessionStorage.setItem("rec_admin_tab", t); } catch (_) {} };
+  const [marchaId, setMarchaId] = useState("");
+  const [leadsNuevos, setLeadsNuevos] = useState(0);
+  const goMarcha = (id) => { setMarchaId(id || ""); setTab("marcha"); };
 
   const loadOverview = useCallback(async (fresh) => {
     const d = await apiGet("stats", { action: "admin-overview", ...(fresh ? { fresh: "1" } : {}) });
@@ -120,7 +125,7 @@ export function AdminPage() {
     finally { setRefreshing(false); }
   }
   const reloadAll = useCallback(() => { loadOverview(false); loadList(); }, [loadOverview, loadList]);
-  const goFilter = (f) => { setFilter(f); setPage(1); try { tableRef.current?.scrollIntoView({ behavior:"smooth", block:"start" }); } catch (_) {} };
+  const goFilter = (f) => { setFilter(f); setPage(1); setTab("tiendas"); try { tableRef.current?.scrollIntoView({ behavior:"smooth", block:"start" }); } catch (_) {} };
 
   async function activate(r) {
     if (!await appConfirm(`¿Activar el plan ${r.tier_label} (US$ ${r.tier_usd}/mes) para ${r.name}? Hacelo cuando ya te pagó.`, { title:"Activar plan", okLabel:`Activar ${r.tier_label}` })) return;
@@ -166,12 +171,28 @@ export function AdminPage() {
     { key:"alta", label:"Alta", nowrap:true, hideMobile:true, render: r => <span title={r.created_at ? fmtDateTime(r.created_at) : ""} style={{ color:T.textMd, fontSize:DS.font.sm }}>{r.created_at ? fmtDateOnly(r.created_at) : "—"}</span> },
   ];
 
+  const nuevosLeads = leadsNuevos;
+  const TABS = [
+    { id:"resumen", label:"Resumen" },
+    { id:"registros", label:"Registros", count: nuevosLeads || undefined },
+    { id:"cobros", label:"Cobros" },
+    { id:"tiendas", label:"Tiendas" },
+    { id:"marcha", label:"Puesta en marcha" },
+    { id:"adquisicion", label:"Meta y Google Ads" },
+    { id:"estado", label:"Estado" },
+    { id:"costos", label:"Costos" },
+    { id:"whatsapp", label:"WhatsApp" },
+    { id:"metricas", label:"Métricas" },
+  ];
+
   return (
     <div style={{ fontFamily:F }}>
-      <PageHeader T={T} title="Admin de Recurrentes" subtitle="Todos los comercios: altas, planes, suscripciones y cobros. Solo lo ves vos."
+      <PageHeader T={T} title="Admin de Recurrentes" subtitle="Registros, cobros, tiendas y la puesta en marcha de cada cliente. Solo lo ves vos."
         right={<Btn T={T} variant="secondary" size="sm" onClick={refreshAll} disabled={refreshing}>{refreshing ? "Actualizando…" : "Actualizar números"}</Btn>}/>
 
-      <WaTemplatesCard T={T}/>
+      <div className="no-scrollbar" style={{ overflowX:"auto", marginBottom:16 }}>
+        <Segmented T={T} ariaLabel="Sección del Admin" value={tab} onChange={setTab} options={TABS}/>
+      </div>
 
       {ovErr && <Callout T={T} tone="danger" title="No pudimos cargar el resumen" style={{ marginBottom:14 }}>{ovErr}</Callout>}
       {ov?.stats_pending > 0 && (
@@ -180,6 +201,8 @@ export function AdminPage() {
         </Callout>
       )}
 
+      {tab === "resumen" && (
+        <>
       {/* Lo primero: cuántos comercios tengo y cuánto me pagan. Lo demás, abajo. */}
       <div style={kpiGrid}>
         <KpiCard T={T} hero loading={!ov} label="Comercios" value={fmtN(o.merchants?.accounts)} color={T.accentSolid}
@@ -190,7 +213,45 @@ export function AdminPage() {
           hint={needs.length ? "les toca un tramo pago y no lo activaste" : "nadie pendiente"} color={T.yellow} onClick={() => goFilter("activar")}/>
       </div>
 
-      <DemoLeadsPanel T={T} onOpen={setOpenId}/>
+
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))", gap:12, marginBottom:16 }}>
+            <Panel T={T} title="Hoy" sub="Lo que hay que atender">
+              <div style={{ padding:"0 16px 14px", display:"grid", gap:8 }}>
+                <ResumenRow T={T} label="Pedidos de demo sin atender" value={fmtN(nuevosLeads)} tone={nuevosLeads ? "yellow" : null} onClick={() => setTab("registros")}/>
+                <ResumenRow T={T} label="Planes por activar" value={fmtN(needs.length)} tone={needs.length ? "yellow" : null} onClick={() => setTab("cobros")}/>
+                <ResumenRow T={T} label="Cobros en 30 días" value={`${fmtN(o.charges_30d?.count)} · ${fmtARS(o.charges_30d?.amount)}`} onClick={() => setTab("cobros")}/>
+                <ResumenRow T={T} label="WhatsApp este mes (a cobrar)" value={fmtUsd2(o.whatsapp?.cost_usd)} onClick={() => setTab("whatsapp")}/>
+              </div>
+            </Panel>
+            <Panel T={T} title="Atajos">
+              <div style={{ padding:"0 16px 14px", display:"flex", gap:8, flexWrap:"wrap" }}>
+                <Btn T={T} variant="solid" size="sm" onClick={() => goMarcha("")}>Conectar una tienda</Btn>
+                <Btn T={T} variant="secondary" size="sm" onClick={() => setTab("registros")}>Ver registros</Btn>
+                <Btn T={T} variant="secondary" size="sm" onClick={() => goFilter("activar")}>Planes a activar</Btn>
+                <Btn T={T} variant="secondary" size="sm" onClick={() => setTab("estado")}>Estado del sistema</Btn>
+                <Btn T={T} variant="secondary" size="sm" onClick={() => setTab("costos")}>Costos</Btn>
+              </div>
+            </Panel>
+          </div>
+        </>
+      )}
+
+      {tab === "registros" && (
+        <>
+          <DemoLeadsPanel T={T} onOpen={setOpenId} onMarcha={goMarcha} onCount={setLeadsNuevos}/>
+          <RecentSignupsPanel T={T} onOpen={setOpenId} onMarcha={goMarcha}/>
+        </>
+      )}
+
+      {tab === "cobros" && (
+        <>
+      <div style={{ ...kpiGrid, marginBottom:16 }}>
+        <KpiCard T={T} loading={!ov} label="Cobros 30 días" value={fmtN(o.charges_30d?.count)} hint={`${fmtARS(o.charges_30d?.amount)} cobrados`} spark={o.charges_30d?.amounts} color={T.blue}/>
+        <KpiCard T={T} loading={!ov} label="Pagan Recurrentes" value={fmtN(o.saas?.paying)} hint={`${fmtUsd(o.saas?.usd_month)} por mes`} color={T.green} onClick={() => goFilter("pagan")}/>
+        <KpiCard T={T} loading={!ov} label="Beta" value={fmtN(o.saas?.beta)} hint="cuentas viejas, sin cargo" color={T.blue} onClick={() => goFilter("beta")}/>
+        <KpiCard T={T} loading={!ov} label="WhatsApp este mes" value={fmtUsd2(o.whatsapp?.cost_usd)} color={T.green}
+          hint={`${fmtN(o.whatsapp?.sent)} avisos en ${fmtN(o.whatsapp?.merchants)} comercio${o.whatsapp?.merchants === 1 ? "" : "s"} · a cobrar (Meta: ${fmtUsd2(o.whatsapp?.meta_cost_usd)})`}/>
+      </div>
 
       {needs.length > 0 && (
         <Panel T={T} title={`Para activar plan (${needs.length})`} sub={`Tienen más de ${FREE_SUBSCRIBERS} suscriptores activos y todavía no les activaste el plan que les toca. Escribiles y, cuando paguen, activalo acá.`} style={{ marginBottom:16 }}>
@@ -209,10 +270,16 @@ export function AdminPage() {
         </Panel>
       )}
 
-      {/* El manual de instalación y los snippets, con el id del comercio puesto:
-          así no hay que pedirlos ni buscarlos en un chat viejo. */}
-      <AdminInstall rows={list?.rows || []}/>
 
+          <CobrosTable T={T} columns={columns} onOpen={setOpenId}/>
+        </>
+      )}
+
+      {tab === "tiendas" && (
+        <>
+          <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:10 }}>
+            <Btn T={T} variant="solid" size="sm" onClick={() => goMarcha("")}>Conectar una tienda</Btn>
+          </div>
       <div ref={tableRef} style={{ scrollMarginTop:80 }}>
         <Panel T={T} flush title="Comercios"
           sub={list ? `${fmtN(list.total)} ${list.total === 1 ? "comercio" : "comercios"}${list.filter !== "todos" || qDeb ? " con este filtro" : ""}` : "Cargando…"}
@@ -244,21 +311,16 @@ export function AdminPage() {
         </Panel>
       </div>
 
-      {/* Métricas de operación, altas y distribuciones: útiles, pero no son lo que
-          se mira todos los días. Plegadas para que arriba quede solo lo que importa. */}
-      <div style={{ marginTop:16 }}>
-        <Btn T={T} variant="secondary" size="sm" onClick={() => setShowMore(v => !v)}>{showMore ? "Ocultar más métricas ▴" : "Más métricas: cobros, altas, canales, WhatsApp, salud ▾"}</Btn>
-      </div>
-      {showMore && (
-        <div style={{ marginTop:14 }}>
-      <div style={{ ...kpiGrid, marginBottom:16 }}>
-        <KpiCard T={T} loading={!ov} label="Cobros 30 días" value={fmtN(o.charges_30d?.count)} hint={`${fmtARS(o.charges_30d?.amount)} cobrados`} spark={o.charges_30d?.amounts} color={T.blue}/>
-        <KpiCard T={T} loading={!ov} label="Pagan Recurrentes" value={fmtN(o.saas?.paying)} hint={`${fmtUsd(o.saas?.usd_month)} por mes`} color={T.green} onClick={() => goFilter("pagan")}/>
-        <KpiCard T={T} loading={!ov} label="Beta" value={fmtN(o.saas?.beta)} hint="cuentas viejas, sin cargo" color={T.blue} onClick={() => goFilter("beta")}/>
-        <KpiCard T={T} loading={!ov} label="WhatsApp este mes" value={fmtUsd2(o.whatsapp?.cost_usd)} color={T.green}
-          hint={`${fmtN(o.whatsapp?.sent)} avisos en ${fmtN(o.whatsapp?.merchants)} comercio${o.whatsapp?.merchants === 1 ? "" : "s"} · a cobrar (Meta: ${fmtUsd2(o.whatsapp?.meta_cost_usd)})`}/>
-      </div>
 
+        </>
+      )}
+
+      {tab === "marcha" && <AdminOnboarding rows={list?.rows || []} initialId={marchaId} onOpenMerchant={setOpenId}/>}
+
+      {tab === "whatsapp" && <WaTemplatesCard T={T} defaultOpen/>}
+
+      {tab === "metricas" && (
+        <div>
       <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:8 }}>
         <Segmented T={T} ariaLabel="Período de altas" value={range} onChange={setRange} options={[{ id:30, label:"30 días" }, { id:90, label:"90 días" }]}/>
       </div>
@@ -279,15 +341,232 @@ export function AdminPage() {
         </Panel>
       </div>
 
-          <AcquisitionPanel T={T} acq={o.acquisition}/>
-          <HealthPanel T={T}/>
+
         </div>
       )}
+
+      {tab === "adquisicion" && <AcquisitionPanel T={T} acq={o.acquisition}/>}
+      {tab === "estado" && <EstadoPanel T={T}/>}
+      {tab === "costos" && <CostosPanel T={T}/>}
 
       {openId && <MerchantPanel id={openId} onClose={() => setOpenId(null)} onChanged={reloadAll}/>}
     </div>
   );
 }
+
+// Fila del panel "Hoy" del Resumen.
+function ResumenRow({ T, label, value, tone, onClick }) {
+  const c = tone === "yellow" ? T.yellow : T.text;
+  return (
+    <button type="button" onClick={onClick} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, width:"100%", textAlign:"left", background:T.bg, border:`1px solid ${T.borderL}`, borderRadius:10, padding:"10px 12px", cursor:"pointer", fontFamily:F }}>
+      <span style={{ fontSize:DS.font.sm, color:T.textMd }}>{label}</span>
+      <span style={{ fontSize:DS.font.base, fontWeight:800, color:c, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap" }}>{value}</span>
+    </button>
+  );
+}
+
+// Registros: las cuentas más nuevas, con qué les falta y el atajo a la puesta en marcha.
+function RecentSignupsPanel({ T, onOpen, onMarcha }) {
+  const [d, setD] = useState(null);
+  useEffect(() => { apiGet("stats", { action: "admin-merchants", sort: "recientes", page: 1, limit: 15 }).then(r => setD(r && !r.error ? r : { rows: [] })); }, []);
+  const rows = d?.rows || [];
+  return (
+    <Panel T={T} title="Cuentas nuevas" sub="Las últimas 15 cuentas creadas, con sus conexiones. Desde acá pasás a la puesta en marcha." style={{ marginBottom:16 }}>
+      <div style={{ padding:"0 16px 16px", display:"flex", flexDirection:"column", gap:8 }}>
+        {!d ? <Loading T={T}/> : rows.length === 0 ? <div style={{ fontSize:DS.font.sm, color:T.textSm }}>Todavía no hay cuentas.</div> : rows.map(r => (
+          <div key={r.id} style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap", padding:"9px 12px", background:T.bg, border:`1px solid ${T.borderL}`, borderRadius:10 }}>
+            <div style={{ flex:"1 1 220px", minWidth:0 }}>
+              <CellStack T={T} main={r.name} sub={`${r.owner_name || r.login_email || r.email || r.id} · alta ${ago(r.created_at)}`}/>
+            </div>
+            <ConnPills T={T} c={r.connections}/>
+            <WaLink T={T} url={r.whatsapp_url}/>
+            <Btn T={T} variant="secondary" size="sm" onClick={() => onOpen?.(r.id)}>Ficha</Btn>
+            <Btn T={T} variant="solid" size="sm" onClick={() => onMarcha?.(r.id)}>Puesta en marcha</Btn>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+// Cobros: los comercios ordenados por lo que le cobran a sus clientes (MRR).
+function CobrosTable({ T, columns, onOpen }) {
+  const [d, setD] = useState(null);
+  useEffect(() => { apiGet("stats", { action: "admin-merchants", sort: "mrr", page: 1, limit: 25 }).then(r => setD(r && !r.error ? r : { rows: [] })); }, []);
+  return (
+    <Panel T={T} flush title="Comercios por facturación" sub="Ordenados por MRR de sus suscripciones. Tocá una fila para abrir la ficha.">
+      <DSTable T={T} columns={columns} rows={d?.rows || []} rowKey={r => r.id} onRowClick={r => onOpen?.(r.id)} minWidth={1000}
+        emptyText={!d ? "Cargando…" : "Sin comercios."}
+        style={{ border:"none", borderTop:`1px solid ${T.border}`, borderRadius:0, boxShadow:"none" }}/>
+    </Panel>
+  );
+}
+
+// ─── Estado: cada proceso, servicio y webhook con su semáforo ─────────────────
+// Sale de GET /api/cron?action=health → `checks` (api/_lib/health.js). 28-sept-2026.
+const CHECK_TONE = { ok: ["green", "OK"], warn: ["yellow", "Atención"], error: ["red", "Falla"], off: ["textSm", "Apagado"] };
+function EstadoPanel({ T }) {
+  const [h, setH] = useState(null);
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const d = await apiGet("cron", { action: "health" });
+      if (!d || d.error) { setH(null); setErr(d?.error ? `No pudimos revisar el estado (${d.error}). ¿Tu mail está en ADMIN_EMAILS?` : "No pudimos revisar el estado."); }
+      else { setErr(""); setH(d); }
+    } catch (e) { setErr(e.message || "No pudimos revisar el estado."); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  const checks = h?.checks || [];
+  const n = { ok: 0, warn: 0, error: 0, off: 0 };
+  for (const c of checks) n[c.status] = (n[c.status] || 0) + 1;
+  const groups = [...new Set(checks.map(c => c.group))];
+  const tone = !h ? T.textSm : n.error ? T.red : n.warn ? T.yellow : T.green;
+  const status = !h ? (err ? "Sin datos" : "Revisando…") : n.error ? `${n.error} con falla` : n.warn ? `${n.warn} para mirar` : "Todo en orden";
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+      <Panel T={T} title="Estado del sistema" sub={h ? `Revisado ${fmtDateTime(h.checked_at)} · ${checks.length} chequeos` : "Variables, base de datos, procesos automáticos y webhooks"}
+        right={<div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <DSBadge T={T} color={tone}>{status}</DSBadge>
+          <Btn T={T} variant="secondary" size="sm" onClick={load} disabled={loading}>{loading ? "Revisando…" : "Revisar de nuevo"}</Btn>
+        </div>}>
+        <div style={{ padding:"0 16px 14px" }}>
+          {err && <div style={{ color:T.red, fontSize:DS.font.sm }}>{err}</div>}
+          {h && (
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))", gap:10 }}>
+              {[["ok","Andando",T.green],["warn","Para mirar",T.yellow],["error","Con falla",T.red],["off","Apagados",T.textSm]].map(([k,l,c]) => (
+                <div key={k} style={{ background:T.bg, border:`1px solid ${T.borderL}`, borderRadius:10, padding:"10px 12px" }}>
+                  <div style={{ fontSize:DS.font.xs, color:T.textSm, textTransform:"uppercase", letterSpacing:0.5, fontWeight:700 }}>{l}</div>
+                  <div style={{ fontSize:24, fontWeight:800, color:c, fontVariantNumeric:"tabular-nums" }}>{n[k] || 0}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Panel>
+      {groups.map(g => (
+        <Panel key={g} title={g} sub={`${checks.filter(c => c.group === g && c.status !== "ok").length || "ningún"} punto${checks.filter(c => c.group === g && c.status !== "ok").length === 1 ? "" : "s"} para mirar`}>
+          <div style={{ padding:"0 16px 14px", display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))", gap:8 }}>
+            {checks.filter(c => c.group === g).map(c => { const [col, lbl] = CHECK_TONE[c.status] || CHECK_TONE.off; return (
+              <div key={c.id} style={{ display:"flex", alignItems:"flex-start", gap:10, background:T.bg, border:`1px solid ${c.status === "error" ? T.red + "66" : c.status === "warn" ? T.yellow + "66" : T.borderL}`, borderRadius:10, padding:"9px 12px" }}>
+                <span style={{ width:9, height:9, borderRadius:99, marginTop:6, flexShrink:0, background:T[col] || T.textSm, boxShadow:`0 0 6px ${T[col] || T.textSm}` }}/>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", gap:8, alignItems:"baseline" }}>
+                    <span style={{ fontSize:DS.font.sm, fontWeight:700, color:T.text }}>{c.label}</span>
+                    <span style={{ fontSize:DS.font.xs, fontWeight:700, color:T[col] || T.textSm, flexShrink:0 }}>{lbl}</span>
+                  </div>
+                  {c.detail && <div style={{ fontSize:DS.font.xs, color:T.textSm, marginTop:2, lineHeight:1.4, wordBreak:"break-word" }}>{c.detail}</div>}
+                </div>
+              </div>
+            ); })}
+          </div>
+        </Panel>
+      ))}
+      {h && h.summary && (h.summary.required_failed.length > 0 || h.summary.warnings.length > 0) && (
+        <Panel T={T} title="Resumen en palabras">
+          <div style={{ padding:"0 16px 14px" }}>
+            {[...h.summary.required_failed.map(t => [T.red, "✕", t]), ...h.summary.warnings.map(t => [T.yellow, "!", t])].map(([c, i, t]) => (
+              <div key={t} style={{ display:"flex", gap:8, alignItems:"flex-start", fontSize:DS.font.sm, color:T.text, padding:"3px 0" }}>
+                <span style={{ color:c, fontWeight:800, width:14, textAlign:"center", flexShrink:0 }}>{i}</span><span>{t}</span>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
+    </div>
+  );
+}
+
+// ─── Costos de operar la app (api/_lib/adminCosts.js) ────────────────────────
+function CostosPanel({ T }) {
+  const [d, setD] = useState(null);
+  const [err, setErr] = useState("");
+  const [items, setItems] = useState([]);
+  const [plan, setPlan] = useState("pro");
+  const [busy, setBusy] = useState(false);
+  const iS = InputStyle(T);
+  const load = useCallback(async () => {
+    const r = await apiGet("stats", { action: "admin-costs" });
+    if (!r || r.error) { setErr(r?.error || "No pudimos cargar los costos."); return; }
+    setErr(""); setD(r); setItems(r.items || []); setPlan(r.vercel_plan || "pro");
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  const upd = (id, k, v) => setItems(list => list.map(i => i.id === id ? { ...i, [k]: v } : i));
+  const add = () => setItems(list => [...list, { id: "extra_" + Date.now().toString(36), label: "", usd_month: 0, note: "" }]);
+  const del = (id) => setItems(list => list.filter(i => i.id !== id));
+  async function save() {
+    setBusy(true);
+    const r = await apiPost("stats", { items: items.filter(i => !i.calculado), vercel_plan: plan }, { action: "admin-costs-save" });
+    setBusy(false);
+    if (!r || r.error) return toast(r?.error || "No se pudo guardar", "error");
+    toast("Costos guardados", "success"); load();
+  }
+  if (err) return <Callout T={T} tone="danger">{err}</Callout>;
+  if (!d) return <Loading T={T}/>;
+  const fixed = items.filter(i => !i.calculado).reduce((t, i) => t + (Number(i.usd_month) || 0), 0);
+  const total = fixed + (d.whatsapp?.meta_cost_usd || 0);
+  const th = { fontSize:DS.font.xs, color:T.textSm, textTransform:"uppercase", letterSpacing:0.5, fontWeight:700, textAlign:"left", padding:"6px 8px" };
+  const td = { padding:"6px 8px", verticalAlign:"top" };
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+      {d.warnings?.length > 0 && (
+        <Callout T={T} tone="warning" title="Avisos">
+          {d.warnings.map((w, i) => <div key={i} style={{ padding:"2px 0" }}>{w}</div>)}
+        </Callout>
+      )}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))", gap:12 }}>
+        <KpiCard T={T} hero label="Costo por mes" value={fmtUsd2(total)} hint={`${fmtUsd2(fixed)} fijos + ${fmtUsd2(d.whatsapp?.meta_cost_usd)} de WhatsApp este mes`} color={T.accentSolid}/>
+        <KpiCard T={T} label="Crons por mes" value={fmtN(d.crons?.runs_month)} hint={`${d.crons?.count} procesos · ${d.crons?.pct_of_included}% de lo incluido en Vercel ${plan === "hobby" ? "Hobby" : "Pro"}`} color={d.crons?.pct_of_included >= 80 ? T.yellow : T.blue}/>
+        <KpiCard T={T} label="WhatsApp (Meta)" value={fmtUsd2(d.whatsapp?.meta_cost_usd)} hint={`${fmtN(d.whatsapp?.sent)} mensajes en ${d.whatsapp?.month} · se les cobra ${fmtUsd2(d.whatsapp?.billed_usd)} a las tiendas`} color={T.green}/>
+      </div>
+      <Panel T={T} title="Costos fijos" sub="Editá los montos con lo que pagás de verdad; los marcados como estimados son un punto de partida."
+        right={<div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <select aria-label="Plan de Vercel" value={plan} onChange={e => setPlan(e.target.value)} style={{ ...iS, width:"auto", padding:"7px 10px", fontSize:12 }}>
+            <option value="pro">Vercel Pro</option><option value="hobby">Vercel Hobby</option>
+          </select>
+          <Btn T={T} variant="secondary" size="sm" onClick={add}>+ Agregar</Btn>
+          <Btn T={T} variant="solid" size="sm" onClick={save} disabled={busy}>{busy ? "Guardando…" : "Guardar"}</Btn>
+        </div>}>
+        <div style={{ padding:"0 8px 12px", overflowX:"auto" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", minWidth:640 }}>
+            <thead><tr><th style={th}>Concepto</th><th style={{ ...th, width:120 }}>USD / mes</th><th style={th}>Nota</th><th style={{ ...th, width:60 }}></th></tr></thead>
+            <tbody>
+              {items.map(i => (
+                <tr key={i.id} style={{ borderTop:`1px solid ${T.borderL}` }}>
+                  <td style={td}>{i.calculado ? <span style={{ fontSize:DS.font.sm, color:T.text, fontWeight:600 }}>{i.label}</span> : <input value={i.label} onChange={e => upd(i.id, "label", e.target.value)} style={{ ...iS, padding:"6px 8px", fontSize:12 }}/>}{i.estimado && <div style={{ fontSize:10, color:T.yellow, marginTop:2 }}>estimado</div>}</td>
+                  <td style={td}>{i.calculado ? <span style={{ fontSize:DS.font.sm, fontWeight:700, color:T.text }}>{fmtUsd2(i.usd_month)}</span> : <input type="number" min="0" step="0.01" value={i.usd_month} onChange={e => upd(i.id, "usd_month", e.target.value)} style={{ ...iS, padding:"6px 8px", fontSize:12 }}/>}</td>
+                  <td style={td}>{i.calculado ? <span style={{ fontSize:DS.font.xs, color:T.textSm }}>{i.note}</span> : <input value={i.note} onChange={e => upd(i.id, "note", e.target.value)} style={{ ...iS, padding:"6px 8px", fontSize:12 }}/>}</td>
+                  <td style={td}>{!i.calculado && !DEFAULT_COST_IDS.has(i.id) && <button type="button" onClick={() => del(i.id)} title="Sacar" style={{ background:"transparent", border:`1px solid ${T.border}`, borderRadius:6, color:T.textSm, cursor:"pointer", padding:"4px 8px", fontFamily:F }}>✕</button>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+      <Panel T={T} title="Procesos automáticos (crons de Vercel)" sub={`De vercel.json. Vercel ${plan === "hobby" ? "Hobby" : "Pro"} incluye ${fmtN(d.limits?.invocations_month)} invocaciones por mes y ${d.limits?.crons} crons.`}>
+        <div style={{ padding:"0 8px 12px", overflowX:"auto" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", minWidth:520 }}>
+            <thead><tr><th style={th}>Proceso</th><th style={th}>Horario</th><th style={{ ...th, textAlign:"right" }}>Por día</th><th style={{ ...th, textAlign:"right" }}>Por mes</th></tr></thead>
+            <tbody>
+              {(d.crons?.rows || []).map(r => (
+                <tr key={r.action} style={{ borderTop:`1px solid ${T.borderL}` }}>
+                  <td style={{ ...td, fontSize:DS.font.sm, fontWeight:600, color:T.text }}>{r.action}</td>
+                  <td style={{ ...td, fontFamily:MONO, fontSize:12, color:T.textMd }}>{r.schedule}</td>
+                  <td style={{ ...td, textAlign:"right", fontSize:DS.font.sm, fontVariantNumeric:"tabular-nums" }}>{fmtN(r.runs_day)}</td>
+                  <td style={{ ...td, textAlign:"right", fontSize:DS.font.sm, fontVariantNumeric:"tabular-nums" }}>{fmtN(r.runs_month)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{ fontSize:DS.font.xs, color:T.textSm, marginTop:8, lineHeight:1.5 }}>Además de los crons, cada visita al sitio, cada widget cargado y cada webhook es una invocación. No las medimos acá: el número exacto está en Vercel → Usage. El aviso salta cuando los crons solos pasan el 80% de lo incluido.</div>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+const DEFAULT_COST_IDS = new Set(["vercel", "firebase", "dominio", "workspace", "zadarma", "resend", "meta_wa"]);
 
 // Etiquetas de lo que responde el comerciante al registrarse.
 const LEAD_VOL = {
@@ -315,7 +594,7 @@ const DEMO_ESTADO = {
   perdido:       { label: "Perdido",       color: (T) => T.textSm },
 };
 
-function DemoLeadsPanel({ T, onOpen }) {
+function DemoLeadsPanel({ T, onOpen, onMarcha, onCount }) {
   const [d, setD] = useState(null);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState("");
@@ -366,6 +645,7 @@ function DemoLeadsPanel({ T, onOpen }) {
 
   const leads = d?.leads || [];
   const nuevos = leads.filter(l => l.estado === "nuevo").length;
+  useEffect(() => { onCount?.(nuevos); }, [nuevos, onCount]);
   if (err) return <Panel T={T} title="Pedidos de demo" style={{ marginBottom:16 }}><Callout T={T} tone="danger">{err}</Callout></Panel>;
 
   return (
@@ -400,7 +680,10 @@ function DemoLeadsPanel({ T, onOpen }) {
                         tabla de comercios, en el medio de la llamada. */}
                     {!l.merchant_id
                       ? <Btn T={T} variant="solid" size="sm" type="button" disabled={busy === l.id} onClick={() => crearCuenta(l)}>Crear cuenta</Btn>
-                      : <Btn T={T} variant="solid" size="sm" type="button" onClick={() => onOpen?.(l.merchant_id)}>Abrir su tienda</Btn>}
+                      : <>
+                          <Btn T={T} variant="secondary" size="sm" type="button" onClick={() => onOpen?.(l.merchant_id)}>Ficha</Btn>
+                          <Btn T={T} variant="solid" size="sm" type="button" onClick={() => onMarcha?.(l.merchant_id)}>Puesta en marcha</Btn>
+                        </>}
                     {/* Solo en los que todavía no son clientes: con la cuenta
                         creada, borrar el lead perdería de qué anuncio salió. */}
                     {!l.merchant_id && (
@@ -952,8 +1235,8 @@ export function AdminViewBanner({ T, merchant }) {
 // Lista el estado de cada plantilla (clientes, comercios, límite del plan, admin)
 // y las crea por API con un botón: nada de cargarlas a mano en WhatsApp Manager.
 const WA_STATUS = { APPROVED: ["Aprobada", "green"], PENDING: ["En revisión", "yellow"], REJECTED: ["Rechazada", "red"], MISSING: ["Falta crear", "textSm"], PAUSED: ["Pausada", "red"], DISABLED: ["Deshabilitada", "red"] };
-function WaTemplatesCard({ T }) {
-  const [open, setOpen] = useState(false);
+function WaTemplatesCard({ T, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen);
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);

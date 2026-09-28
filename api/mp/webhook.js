@@ -22,6 +22,7 @@ import {
   syncSubscriber, fulfillCharge, notifyActivation, notifyRenewal, applyPaymentFailed, repriceAfterFirstCharge,
 } from "../_lib/sync.js";
 import { notifyMerchantStatusChange } from "../_lib/merchantAlerts.js";
+import { touchWebhook } from "../_lib/health.js";
 
 // Vercel Pro: crear una orden puede llevar varias llamadas a Shopify + MP.
 export const config = { maxDuration: 60 };
@@ -103,6 +104,7 @@ export default async function handler(req, res) {
     hint: { mid: req.query.mid || null, sid: req.query.sid || null },
   }));
 
+  touchWebhook("mp", { type: String(type).slice(0, 40) });
   if (!verifyMpSignature(req, queryDataId || id)) {
     console.warn(`[mp-webhook] firma inválida (type=${type} id=${id})`);
     return res.status(401).json({ error: "invalid signature" });

@@ -87,7 +87,9 @@ export default async function handler(req, res) {
   // run-flows: misma frecuencia y una sola consulta, así no suma un cron nuevo.
   if (action === "demo-reminders") {
     const { enviarRecordatorios } = await import("./_lib/demoReminder.js");
-    return res.json(await enviarRecordatorios());
+    const r = await enviarRecordatorios();
+    await cronHeartbeat("demo-reminders", { ok: r?.ok !== false });
+    return res.json(r);
   }
   if (action === "retry-fulfillment") return fulfillmentCron(res);
   if (action === "reconcile-mp") return reconcileCron(res);
@@ -96,14 +98,43 @@ export default async function handler(req, res) {
     const { syncSaasTiers } = await import("./_lib/saasBilling.js");
     const { activeSubscribers } = await import("./merchant.js");
     const r = await syncSaasTiers({ countActive: activeSubscribers });
+    await cronHeartbeat("sync-saas-tiers", { ok: true });
     return res.json({ ok: true, ...r });
   }
   if (action === "bill-wa-usage") {
     // Diario: los meses cerrados de WhatsApp de cada tienda con plan pago → ítems en su próxima factura de Stripe.
     const { stripeRequest, saasStripeAvailable } = await import("./_lib/saasBilling.js");
-    if (!saasStripeAvailable()) return res.json({ ok: true, skipped: "no_stripe" });
+    if (!saasStripeAvailable()) { await cronHeartbeat("bill-wa-usage", { ok: true }); return res.json({ ok: true, skipped: "no_stripe" }); }
     const { billAllWaUsage } = await import("./_lib/waBilling.js");
-    return res.json({ ok: true, ...(await billAllWaUsage(stripeRequest)) });
+    const r = await billAllWaUsage(stripeRequest);
+    await cronHeartbeat("bill-wa-usage", { ok: true });
+    return res.json({ ok: true, ...r });
+  }
+  // ── Stock antes del cobro (28-sept-2026, Thiago) ──────────────────────────
+  // Solo mira los comercios que eligieron "pausar si no hay stock" en Ventas →
+  // Logística. El resto ni se lee: es el default y no tiene que costar nada.
+  if (action === "stock-watch") {
+    const { stockWatchForMerchant } = await import("./_lib/stock.js");
+    const { stockCheckNeeded } = await import("../shared/platform/logistics.js");
+    const col = db().collection("merchants");
+    const soloUna = String(req.query.merchant || "").trim();
+    const docs = soloUna
+      ? [await col.doc(soloUna).get()].filter(d => d.exists)
+      : (await col.where("stock_policy.on_missing", "==", "pause").get()).docs;
+    const out = { comercios: 0, revisadas: 0, pausadas: 0, reactivadas: 0 };
+    for (const d of docs) {
+      const m = d.data() || {};
+      if (m.archived_at || !stockCheckNeeded(m)) continue;
+      // Las que están por cobrarse y las que YA pausamos por stock (para
+      // devolverlas solas cuando el comercio repone).
+      const subsSnap = await d.ref.collection("subscribers")
+        .where("status", "in", ["active", "paused"]).limit(300).get();
+      const subs = subsSnap.docs.map(x => ({ id: x.id, ...x.data() }));
+      const r = await stockWatchForMerchant({ db, merchant: m, merchantId: d.id, subs });
+      out.comercios++;
+      out.revisadas += r.revisadas; out.pausadas += r.pausadas; out.reactivadas += r.reactivadas;
+    }
+    return res.json({ ok: true, ...out });
   }
   if (action === "import-shipping") {
     // Las tiendas que ya estaban conectadas antes del 21-sept traen sus envíos

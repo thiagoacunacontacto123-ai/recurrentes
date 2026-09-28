@@ -13,12 +13,13 @@ import { CopyRow } from "./ShopifyConnect.jsx";
 import { MONO } from "./_shared.jsx";
 import { INSTALL_STEPS, themeSnippet, pageCheckoutLiquid } from "../../shared/platform/storeCheckout.js";
 
-export default function AdminInstall({ rows = [] }) {
+export default function AdminInstall({ rows = [], initialId = "" }) {
   const T = useT();
   const iS = InputStyle(T);
   const [abierto, setAbierto] = useState(false);
   const [q, setQ] = useState("");
-  const [mid, setMid] = useState("");
+  const [mid, setMid] = useState(initialId || "");
+  React.useEffect(() => { if (initialId) setMid(initialId); }, [initialId]);
 
   // La lista que ya trajo el Admin: no hace falta pedir nada nuevo.
   const opciones = useMemo(() => {

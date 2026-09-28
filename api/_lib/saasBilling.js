@@ -184,6 +184,7 @@ export async function handleSaasWebhook(req, res) {
   try { raw = await readRawBody(req); } catch (e) { return res.status(400).json({ error: "body" }); }
   const sig = verifyStripeSignature(raw, req.headers["stripe-signature"], secret);
   if (!sig.ok) { console.warn("[saas-webhook] firma inválida:", sig.reason); return res.status(400).json({ error: "firma inválida" }); }
+  try { (await import("./health.js")).touchWebhook("stripe_saas"); } catch (_) {}
   let event; try { event = JSON.parse(raw.toString("utf8")); } catch (_) { return res.status(400).json({ error: "json" }); }
   const now = new Date().toISOString();
   const obj = event.data?.object || {};

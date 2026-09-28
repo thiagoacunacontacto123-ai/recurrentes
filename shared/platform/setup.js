@@ -140,6 +140,29 @@ export function buildSetup(m, { manual = [], ctx = {} } = {}) {
   };
 }
 
+// A dónde va el cliente en cada paso (link del panel). Se arma con la base del sitio.
+export const SETUP_STEP_LINK = {
+  contacto: "/#/config/cuenta",
+  tienda: "/#/config/integraciones",
+  permisos: "/#/config/integraciones",
+  mp: "/#/config/integraciones",
+  plan: "/#/dashboard/planes",
+  marca: "/#/config/marca",
+  meta: "/#/config/integraciones",
+};
+
+// El mensaje de UN paso, listo para pegar en WhatsApp (28-sept-2026, Thiago: "todos los
+// mensajes que tenga que mandar a un cliente para activar su tienda"): saludo, qué
+// necesito, el link exacto y el cierre. Sin `mensaje` (pasos nuestros) devuelve null.
+export function mensajePaso(step, { nombre = "", baseUrl = "https://www.recurrentesapp.com" } = {}) {
+  if (!step?.mensaje) return null;
+  const hola = nombre ? `Hola ${String(nombre).split(" ")[0]}! ` : "Hola! ";
+  const link = SETUP_STEP_LINK[step.id] ? `${String(baseUrl).replace(/\/$/, "")}${SETUP_STEP_LINK[step.id]}` : null;
+  return `${hola}Para seguir con la puesta en marcha necesito esto de tu lado:\n\n${step.mensaje}`
+    + (link ? `\n\nEntrás acá: ${link}` : "")
+    + `\n\nCualquier duda me escribís por acá. Con eso sigo yo.`;
+}
+
 // El mensaje para pedirle al cliente SOLO lo que falta. Se copia del panel y se
 // manda por WhatsApp: es la razón de ser de todo esto, no tener que acordarse
 // de qué accesos pedir en cada caso.
