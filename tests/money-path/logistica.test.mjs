@@ -41,15 +41,27 @@ const cobrar = (merchant) => fulfillCharge(merchant, SID, rawGet(`merchants/${MI
 }, "test");
 
 // ── 1. Lo de siempre ────────────────────────────────────────────────────────
-test("(e) con la configuración de siempre no se consulta el stock ni se pausa nada", async () => {
+test("(e) de fábrica NO se cobra lo que no se puede entregar", async () => {
+  // 28-sept-2026, Thiago: "la idea es nunca cobrar para no entregar". Sin tocar
+  // nada, una tienda sin stock deja de cobrar esa renovación.
   const merchant = luminaMerchant();
   seedDoc(`merchants/${MID}/subscribers/${SID}`, subConPlan());
-  W.shopify.stock[String(VARIANT_ID)] = 0;      // aunque no haya, no mira
+  W.shopify.stock[String(VARIANT_ID)] = 0;
   const out = await cobrar(merchant);
-  assert.ok(out.shopifyOrderId, "la orden se crea");
-  assert.equal(out.stock, undefined, "ni siquiera evalúa la política");
+  assert.ok(out.shopifyOrderId, "la orden de ESTE cobro igual se crea: la plata ya entró");
+  assert.equal(out.stock.paused, true, "y se pausa para que no salga la próxima");
+  assert.equal(rawGet(`merchants/${MID}/subscribers/${SID}`).status, "paused");
+});
+
+test("(e) el que prefiere cobrar igual lo elige y nada lo frena", async () => {
+  const merchant = luminaMerchant({ stock_policy: { on_missing: "charge" } });
+  seedDoc(`merchants/${MID}/subscribers/${SID}`, subConPlan());
+  W.shopify.stock[String(VARIANT_ID)] = 0;
+  const out = await cobrar(merchant);
+  assert.ok(out.shopifyOrderId);
+  assert.equal(out.stock, undefined, "ni consulta el inventario");
   assert.equal(rawGet(`merchants/${MID}/subscribers/${SID}`).status, "active");
-  assert.equal(W.mp.preapprovalUpdates.length, 0, "no toca Mercado Pago");
+  assert.equal(W.mp.preapprovalUpdates.length, 0);
 });
 
 test("(e) 'la suscripción no mira stock': tampoco consulta", () => {
@@ -144,10 +156,10 @@ test("(e) la lista de apagados se sanea (sin repetidos ni basura)", () => {
 
 // ── 4. Lo que se guarda ─────────────────────────────────────────────────────
 test("(e) la configuración de stock se sanea y el default no ocupa lugar", () => {
-  assert.deepEqual(sanitizeStockPolicy({ source: "store", on_missing: "charge" }), { stock_policy: null }, "igual al default = nada guardado");
-  assert.deepEqual(sanitizeStockPolicy({ on_missing: "pause" }), { stock_policy: { on_missing: "pause" } });
+  assert.deepEqual(sanitizeStockPolicy({ source: "store", on_missing: "pause" }), { stock_policy: null }, "igual al default = nada guardado");
+  assert.deepEqual(sanitizeStockPolicy({ on_missing: "charge" }), { stock_policy: { on_missing: "charge" } });
   assert.ok(sanitizeStockPolicy({ on_missing: "borrar_todo" }).error, "no se acepta cualquier cosa");
-  assert.deepEqual(resolveStockPolicy({}), { source: "store", on_missing: "charge" });
+  assert.deepEqual(resolveStockPolicy({}), { source: "store", on_missing: "pause" }, "de fábrica: no cobrar");
 });
 
 // ── 5. Antes del cobro ──────────────────────────────────────────────────────
@@ -207,12 +219,24 @@ test("(e) una pausa que puso el cliente NO se reactiva sola", async () => {
   assert.equal(rawGet(`merchants/${MID}/subscribers/${SID}`).status, "paused");
 });
 
-test("(e) con la configuración de siempre el vigilante no hace nada", async () => {
+test("(e) el vigilante también corre de fábrica: ese es el punto", async () => {
   const sub = { id: SID, ...subConPlan({ next_charge_at: "2026-09-17T14:00:00.000Z" }) };
   seedDoc(`merchants/${MID}/subscribers/${SID}`, sub);
   W.shopify.stock[String(VARIANT_ID)] = 0;
   const r = await vigilar(luminaMerchant(), [sub]);
-  assert.deepEqual(r, { revisadas: 0, pausadas: 0, reactivadas: 0 });
+  assert.deepEqual(r, { revisadas: 1, pausadas: 1, reactivadas: 0 });
+});
+
+test("(e) al pausar por stock sale el mail obligatorio que avisa que HOY no se cobró", async () => {
+  const sub = { id: SID, ...subConPlan({ next_charge_at: "2026-09-17T14:00:00.000Z" }) };
+  seedDoc(`merchants/${MID}/subscribers/${SID}`, sub);
+  W.shopify.stock[String(VARIANT_ID)] = 0;
+  await vigilar(luminaMerchant(), [sub]);
+  const mail = W.resend.toCustomer().at(-1);
+  assert.ok(mail, "el cliente tiene que enterarse: le corrimos la fecha de un cobro");
+  assert.match(mail.subject, /queda para más adelante/i);
+  assert.match(mail.html, /hoy no te cobramos/i);
+  assert.ok(!/action=unsub/.test(mail.html), "es transaccional: sin link de baja");
 });
 
 test("(e) las sucursales se agrupan por servicio: apagar una no puede depender del CP", () => {

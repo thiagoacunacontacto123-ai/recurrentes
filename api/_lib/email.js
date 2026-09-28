@@ -240,6 +240,31 @@ export async function emailSubscriptionCancelled({ to, customerName, productTitl
   return sendEmail({ from: snd.from, replyTo: snd.replyTo, to, subject: `Tu suscripción a ${prodTxt} fue cancelada`, html, tags: { type: "cancellation" } });
 }
 
+// Sin stock: la renovación de hoy NO se cobra (28-sept-2026, Thiago: "nunca
+// cobrar para no entregar"). Es obligatorio y transaccional: no lleva link de
+// baja, igual que el de pago rechazado — el cliente necesita enterarse.
+export async function emailOutOfStock({ to, customerName, productTitle, portalUrl, merchant, from, brand, accent, replyTo }) {
+  const snd = resolveSender({ merchant, from, brand, accent, replyTo });
+  const prodTxt = plain(productTitle) || "tu suscripción";
+  if (merchant?.auto_emails?.out_of_stock) {
+    return sendAutoEmailCustom("out_of_stock", { merchant, to, ctaUrl: portalUrl,
+      vars: { nombre: plain(customerName) || "", producto: prodTxt, marca: snd.brand } });
+  }
+  const html = baseTemplate({
+    brand: snd.brand, accent: snd.accent, support: snd.support,
+    title: "Tu renovación queda para más adelante",
+    body: `
+      <p>${greet(customerName)}</p>
+      <p>Nos quedamos sin stock de <strong>${escapeHtml(prodTxt)}</strong>, así que <strong>hoy no te cobramos</strong>: tu suscripción sigue activa y el próximo pago pasa para la próxima fecha.</p>
+      <p>No tenés que hacer nada. Apenas repongamos, sigue sola.</p>
+      <p>Perdón por la demora. Ante cualquier duda, escribinos.</p>
+    `,
+    ctaLabel: portalUrl ? "Ver mi suscripción" : "",
+    ctaUrl: portalUrl || "",
+  });
+  return sendEmail({ from: snd.from, replyTo: snd.replyTo, to, subject: `Tu renovación de ${prodTxt} queda para más adelante`, html, tags: { type: "out_of_stock" } });
+}
+
 // Carrito de suscripción abandonado — secuencia de 3 pasos:
 //   step 1 (15 min): recordatorio simple, sin cupón.
 //   step 2 (2 hs):  con cupón (ej. VUELVO5 5% OFF) — o sin cupón si no existe.

@@ -114,16 +114,35 @@ const HOURS = () => {
 };
 const PAUSA_STOCK = "sin_stock";
 
+// El aviso al cliente es OBLIGATORIO: se le está corriendo la fecha de un cobro
+// que esperaba. Sale el mail transaccional (editable en Flujos de email, no se
+// puede apagar), el WhatsApp si la tienda lo tiene prendido, y además se emite
+// el evento por si el comercio armó un flujo propio con más pasos.
+async function avisarSinStock(merchant, merchantId, subscriberId, sub, now, tag) {
+  try {
+    const { emailOutOfStock } = await import("./email.js");
+    const { portalUrlFor } = await import("./sync.js");
+    const portalUrl = portalUrlFor({ ...sub, id: subscriberId });
+    if (sub?.customer_email) {
+      await emailOutOfStock({
+        to: sub.customer_email, customerName: sub.customer_name,
+        productTitle: sub.plan_snapshot?.product_title, portalUrl, merchant,
+      });
+    }
+  } catch (e) { console.warn(`[${tag}] mail de sin stock:`, e.message); }
+  try {
+    const { emitFlowEvent } = await import("./flows.js");
+    await emitFlowEvent(merchantId, merchant, "out_of_stock", subscriberId, { ...sub, status: "paused" }, { key: now });
+  } catch (e) { console.warn(`[${tag}] aviso de sin stock:`, e.message); }
+}
+
 async function pausar(db, merchant, merchantId, subscriberId, sub, tag) {
   await mpUpdatePreapproval(merchant.mp_access_token, sub.mp_preapproval_id, { status: "paused" });
   const now = new Date().toISOString();
   await db().collection("merchants").doc(merchantId).collection("subscribers").doc(subscriberId).set({
     status: "paused", paused_reason: PAUSA_STOCK, paused_at: now, updated_at: now,
   }, { merge: true });
-  try {
-    const { emitFlowEvent } = await import("./flows.js");
-    await emitFlowEvent(merchantId, merchant, "out_of_stock", subscriberId, { ...sub, status: "paused" }, { key: now });
-  } catch (e) { console.warn(`[${tag}] aviso de sin stock:`, e.message); }
+  await avisarSinStock(merchant, merchantId, subscriberId, sub, now, tag);
   console.warn(`[${tag}] sin stock antes del cobro: ${subscriberId} pausada`);
 }
 

@@ -23,11 +23,14 @@ export const STOCK_SOURCES = [
 // `on_missing`: qué se hace cuando falta. En los dos casos la orden SE CREA:
 // el cobro ya se hizo y una orden que no existe es plata cobrada sin pedido.
 export const STOCK_ON_MISSING = [
-  { id: "charge", label: "Cobrar igual", desc: "La orden entra y te avisamos para que repongas. Es lo que pasa hoy." },
-  { id: "pause",  label: "No cobrar y pausar", desc: "Se saltea esa renovación y le avisamos al cliente. Vuelve sola cuando reponés." },
+  { id: "pause",  label: "No cobrar", desc: "Se saltea esa renovación, le avisamos al cliente y vuelve sola cuando reponés. Es lo que hacemos salvo que lo cambies." },
+  { id: "charge", label: "Cobrar igual", desc: "La orden entra aunque el stock quede en negativo y te avisamos para que repongas." },
 ];
 
-export const STOCK_POLICY_DEFAULT = { source: "store", on_missing: "charge" };
+// 28-sept-2026 (Thiago): "la idea es nunca cobrar para no entregar". El default
+// pasa a ser NO cobrar: si el producto no está, esa renovación se saltea y se
+// avisa. El que quiera cobrar igual y despachar en negativo lo elige.
+export const STOCK_POLICY_DEFAULT = { source: "store", on_missing: "pause" };
 
 const ids = (list) => new Set(list.map(o => o.id));
 
@@ -60,6 +63,12 @@ export function stockCheckNeeded(m) {
   const p = resolveStockPolicy(m);
   return p.source === "store" && p.on_missing === "pause";
 }
+
+// Cuántas horas antes de la renovación se mira el stock. No puede ser "10
+// minutos": Mercado Pago cobra en algún momento del día y si llegamos tarde, ya
+// cobró. Mirar temprano no cuesta nada porque si el comercio repone antes de la
+// fecha, la suscripción se reactiva sola en la siguiente pasada del cron.
+export const STOCK_WATCH_HOURS_DEFAULT = 12;
 
 // ── Envíos ──────────────────────────────────────────────────────────────────
 // Por defecto se ofrecen TODOS los métodos de la tienda, igual que antes de que

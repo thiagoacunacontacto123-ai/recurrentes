@@ -87,6 +87,17 @@ export const AUTO_EMAILS = [
     cta_label: "Ver detalle de mi suscripción",
   },
   {
+    // 28-sept-2026 (Thiago): obligatorio y sin nada que configurar — depende solo
+    // de que no haya stock. Lo importante es que el cliente entienda tres cosas:
+    // hoy no se le cobró, no perdió nada, y sigue solo.
+    id: "out_of_stock", icon: "📦", name: "Sin stock",
+    when: "Cuando llega la fecha de una renovación y el producto no tiene unidades.",
+    says: "Le avisa que HOY no se le cobra, que su próximo pago pasa para la próxima y que no tiene que hacer nada.",
+    subject: "Tu renovación de {{producto}} queda para más adelante",
+    body: "Hola {{nombre}},\n\nNos quedamos sin stock de {{producto}}, así que hoy no te cobramos: tu suscripción sigue activa y el próximo pago pasa para la próxima fecha.\n\nNo tenés que hacer nada. Apenas repongamos, sigue sola.\n\nPerdón por la demora. Ante cualquier duda escribinos.",
+    cta_label: "Ver mi suscripción",
+  },
+  {
     id: "cancellation", icon: "👋", name: "Suscripción cancelada",
     when: "Cuando se da de baja, la cancele el cliente desde su portal o vos desde el panel.",
     says: "Le confirma que no se le cobra más.",
@@ -104,7 +115,7 @@ export const AUTO_EMAIL_BY_ID = Object.fromEntries(AUTO_EMAILS.map(m => [m.id, m
 //
 // Viven en merchants/{mid}/flows/auto_<id> marcados con `system`, así no
 // aparecen sueltos en "Tus flujos": se editan desde el mismo mail automático.
-export const AUTO_EMAIL_TRIGGER = { activation: "activated", payment_failed: "payment_failed", cancellation: "cancelled" };
+export const AUTO_EMAIL_TRIGGER = { activation: "activated", payment_failed: "payment_failed", out_of_stock: "out_of_stock", cancellation: "cancelled" };
 export const autoFlowId = (id) => `auto_${id}`;
 export const autoFlowSystem = (id) => `auto:${id}`;
 
