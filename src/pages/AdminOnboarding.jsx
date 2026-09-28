@@ -12,13 +12,16 @@ import { Btn, DSBadge, Callout, Loading, InputStyle, CellStack, toast } from "..
 import { Panel } from "../ui/charts.jsx";
 import { copyText, fmtAgo } from "./_shared.jsx";
 import { pedidoDeAccesos, mensajePaso, SETUP_STEP_LINK } from "../../shared/platform/setup.js";
-import AdminInstall from "./AdminInstall.jsx";
+import { CopyRow } from "./ShopifyConnect.jsx";
+import { MONO } from "./_shared.jsx";
+import { themeSnippet, pageCheckoutLiquid } from "../../shared/platform/storeCheckout.js";
 
 const F = "'Inter',system-ui,sans-serif";
 const BASE = "https://www.recurrentesapp.com";
 const waTo = (url, text) => url ? `${url.split("?")[0]}?text=${encodeURIComponent(text)}` : null;
 
 export default function AdminOnboarding({ rows = [], initialId = "", onOpenMerchant }) {
+  const [verLiquid, setVerLiquid] = useState(false);
   const T = useT();
   const iS = InputStyle(T);
   const [q, setQ] = useState("");
@@ -126,6 +129,20 @@ export default function AdminOnboarding({ rows = [], initialId = "", onOpenMerch
                           </div>
                         )}
                         {st.hace && <div style={{ fontSize:DS.font.sm, color:T.textMd, lineHeight:1.5 }}><strong style={{ color:T.text }}>Vos:</strong> {st.hace}</div>}
+                        {/* Lo que hay que pegar, con el id de ESTE comercio: el snippet del tema y la
+                            plantilla del checkout en su dominio (shared/platform/storeCheckout.js). */}
+                        {st.id === "widget" && (
+                          <div style={{ display:"grid", gap:8 }}>
+                            <div style={label}>Snippet para el tema (layout/theme.liquid, arriba de &lt;/body&gt;)</div>
+                            <CopyRow T={T} text={themeSnippet(m.id)}/>
+                            <div style={label}>Checkout en su dominio (opcional): página /pages/checkout-suscripcion</div>
+                            <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                              <CopyRow T={T} text={pageCheckoutLiquid(m.id)} label="Copiar la plantilla"/>
+                              <Btn T={T} variant="secondary" size="sm" onClick={() => setVerLiquid(v => !v)}>{verLiquid ? "Ocultar plantilla" : "Ver plantilla"}</Btn>
+                            </div>
+                            {verLiquid && <pre style={{ fontFamily:MONO, fontSize:11, lineHeight:1.5, color:T.textMd, background:T.bg, border:`1px solid ${T.border}`, borderRadius:10, padding:12, overflow:"auto", maxHeight:320, margin:0 }}>{pageCheckoutLiquid(m.id)}</pre>}
+                          </div>
+                        )}
                         {!msg && st.pide && <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5 }}>{st.pide}</div>}
                       </div>
                     )}
@@ -138,7 +155,6 @@ export default function AdminOnboarding({ rows = [], initialId = "", onOpenMerch
         </Panel>
       )}
 
-      <AdminInstall rows={rows} initialId={mid}/>
     </div>
   );
 }
