@@ -108,7 +108,7 @@ export const DEMO_CONFIRMACIONES = [
     // Redactada como COMPROMISO en primera persona, no como dato ("pago USD
     // 100"): el que marca esto se está comprometiendo, y es lo único que
     // separa al que va a avanzar del que mira. 25-sept-2026, Thiago.
-    text: "Entiendo que integrar la opción de suscripción —y la página de suscripción, si la necesito— es un trabajo que lleva horas, y que puedo conseguir mucha ganancia sin depender de clientes nuevos. Por eso, si avanzo con Recurrentes, voy a realizar el pago único de USD 100 a 200 del costo de integración (según si es solo el widget o también la página de suscripción), recién con la integración terminada, al detalle de cómo la quiero, y funcionando.",
+    text: "Entiendo que integrar la opción de suscripción —y/o la página de suscripción, si la necesito— es un trabajo que lleva horas, y que puedo conseguir mucha ganancia sin depender de clientes nuevos. Por eso, si avanzo con Recurrentes, voy a realizar el pago único de USD 100 a 200 del costo de integración (según si es solo el widget o también la página de suscripción), recién con la integración terminada, al detalle de cómo la quiero, y funcionando.",
   },
 ];
 
