@@ -61,9 +61,9 @@ export const DEMO_CATALOGO = [
 
 // Qué quiere en su web (27-sept-2026): el widget en la ficha, una página aparte, o las dos.
 export const DEMO_MODALIDAD = [
-  { id: "widget",  label: "Widget en la ficha: compra única + suscripción" },
+  { id: "widget",  label: "Widget en la product page: compra única + suscripción" },
   { id: "pagina",  label: "Una página aparte de suscripción" },
-  { id: "ambos",   label: "Las dos: widget y página de suscripción" },
+  { id: "ambos",   label: "Las dos: widget en la product page y página de suscripción" },
   { id: "no_se",   label: "No lo tengo claro, lo vemos en la llamada" },
 ];
 

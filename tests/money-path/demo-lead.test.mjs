@@ -167,7 +167,7 @@ test("(r) el aviso por WhatsApp va con una respuesta por línea: cada una en su 
   const vars = demoLeadWaVars({ ...OK, whatsapp: "+5492664006599" });
   for (const v of Object.values(vars)) assert.ok(!/[\r\n\t]/.test(v), `sin saltos dentro de una variable: ${v}`);
   assert.equal(vars.r1, "Nicho: Cosmética y skincare");
-  assert.equal(vars.r6, "Modalidad: Las dos: widget y página de suscripción");
+  assert.equal(vars.r6, "Modalidad: Las dos: widget en la product page y página de suscripción");
   assert.match(vars.contacto, /\+5492664006599 · ana@glowderm\.test/);
   const t = WA_ADMIN_TEMPLATE_BY_EVENT.demo;
   assert.equal(t.name, "aviso_admin_demo");
