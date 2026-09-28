@@ -19,7 +19,7 @@ const DemoPage = React.lazy(() => import("./pages/Demo.jsx"));
 const TostadoStore = React.lazy(() => import("./pages/Tostado.jsx"));
 import { SITE_PAGES } from "./pages/SitePages.jsx";
 
-import { initPixel, pixelPageView } from "./lib/attribution.js";
+import { initPixel, initGoogleAds, pixelPageView } from "./lib/attribution.js";
 // Routing simple hash-based.
 // Rutas PÚBLICAS (ignoran si hay user logueado o no):
 //   #/portal?token=...           → Portal del cliente final
@@ -45,7 +45,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    initPixel(); // pixel de Meta de Recurrentes (solo con VITE_META_PIXEL_ID)
+    initPixel();     // pixel de Meta de Recurrentes (solo con VITE_META_PIXEL_ID)
+    initGoogleAds(); // etiqueta de Google Ads (solo con VITE_GADS_ID)
     const onHash = () => { setRoute(parseRoute()); pixelPageView(); };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);

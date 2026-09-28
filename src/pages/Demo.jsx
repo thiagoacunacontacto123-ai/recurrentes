@@ -15,7 +15,7 @@ import { InputStyle, BtnSolid, Spinner } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
 import { apiGet, apiPost } from "../lib/api.js";
 import { normalizeWhatsapp, EMAIL_RE } from "../../shared/platform/contact.js";
-import { readAttribution, pixelTrack } from "../lib/attribution.js";
+import { readAttribution, pixelTrack, gadsConversion, GADS_CONV_DEMO, GADS_CONV_BOOKED } from "../lib/attribution.js";
 import { AGENDA_URL, waLink, agendaUrl } from "../lib/contacto.js";
 import { DEMO_PREGUNTAS, DEMO_CONFIRMACIONES, sanitizeDemoLead } from "../../shared/platform/demoLead.js";
 import { groupSlotsByDay, DEMO_TZ } from "../../shared/platform/demoSlots.js";
@@ -92,6 +92,7 @@ function AgendaEmbed({ T, url, nombre, email, leadId, wa }) {
       avisado.current = true;
       setAgendado(true);
       pixelTrack("DemoAgendada", {}, leadId ? `acq_booked_${leadId}` : null);
+      gadsConversion(GADS_CONV_BOOKED, { transactionId: leadId ? `b_${leadId}` : null });
       // El URI del evento lo usa el servidor para sacar la hora de la llamada
       // de la API de Calendly y programar el recordatorio de 2 h antes.
       const eventUri = e.data?.payload?.event?.uri || null;
@@ -322,6 +323,10 @@ export default function DemoPage() {
       // El pixel del navegador con el MISMO nombre que manda el servidor: Meta
       // deduplica por event_id y el que tenga el navegador bloqueado igual cuenta.
       pixelTrack("RegistroCalificado", {}, id ? `acq_qualified_${id}` : null);
+      // Google Ads: es la conversión por la que puja la campaña. El valor es lo
+      // que cobramos por la puesta en marcha (INSTALL_USD), así "maximizar
+      // conversiones" y el CPA objetivo se miden contra plata de verdad.
+      gadsConversion(GADS_CONV_DEMO, { value: 100, currency: "USD", transactionId: id });
     }
     // Reserva directa en el calendario (sin Calendly): crea el evento con Meet e invita.
     if (slots.enabled && id) {
@@ -333,6 +338,7 @@ export default function DemoPage() {
         scrollToError(); return;
       }
       pixelTrack("DemoAgendada", {}, `acq_booked_${id}`);
+      gadsConversion(GADS_CONV_BOOKED, { transactionId: id ? `b_${id}` : null });
       setBooked({ meeting_at: b.meeting_at || start, meeting_url: b.meeting_url || null });
       setListo(true); window.scrollTo(0, 0); return;
     }

@@ -176,3 +176,42 @@ test("(r) el aviso por WhatsApp va con una respuesta por línea: cada una en su 
   assert.ok(lineas.includes("Nicho: Cosmética y skincare") && lineas.includes("Pedidos por día: Entre 5 y 15 por día"), "cada respuesta en su propia línea");
   assert.ok(body.indexOf("Contacto:") < body.indexOf("- - -"), "el contacto va separado, antes del punteado");
 });
+
+// ── Google Ads (28-sept-2026) ────────────────────────────────────────────────
+// La campaña de búsqueda manda el gclid en el link. Si no queda guardado en el
+// lead, no hay forma de saber qué palabra lo trajo ni de cargarle la conversión
+// a Google más adelante.
+test("(r) el lead de Google guarda el gclid y la campaña", async () => {
+  const res = await post({ ...OK, attribution: {
+    utm_source: "google", utm_medium: "cpc", utm_campaign: "busqueda-ar", utm_content: "shopify",
+    gclid: "Cj0KCQjw_gads_1", gbraid: "0AAAAA_gb", wbraid: "Cr4AAAA_wb",
+  } });
+  assert.equal(res.statusCode, 200);
+  const lead = rawGet(`demo_leads/${res.body.id}`);
+  assert.equal(lead.acquisition.gclid, "Cj0KCQjw_gads_1");
+  assert.equal(lead.acquisition.gbraid, "0AAAAA_gb", "iOS manda gbraid en vez de gclid");
+  assert.equal(lead.acquisition.wbraid, "Cr4AAAA_wb");
+  assert.equal(lead.acquisition.utm_source, "google");
+  assert.equal(lead.acquisition.utm_content, "shopify", "el grupo de anuncios, que es por lo que se corta la tabla del Admin");
+  assert.ok(!lead.acquisition.fbc, "sin fbclid no se inventa un fbc de Meta");
+});
+
+test("(r) la tabla del Admin corta por anuncio igual venga de donde venga", async () => {
+  // acquisitionSummary se escribió para Meta; con Google entrando por el mismo
+  // lugar tiene que seguir agrupando sin tocar nada.
+  const { acquisitionSummary } = await loadApi("api/_lib/acquisition.js");
+  const cuentas = [
+    { id: "a", created_at: "2026-09-27T10:00:00.000Z", acquisition: { utm_source: "google", utm_campaign: "busqueda-ar", utm_content: "shopify", qualified_at: "x", paid_at: "x" } },
+    { id: "b", created_at: "2026-09-27T11:00:00.000Z", acquisition: { utm_source: "google", utm_campaign: "busqueda-ar", utm_content: "shopify" } },
+    { id: "c", created_at: "2026-09-27T12:00:00.000Z", acquisition: { utm_source: "meta", utm_campaign: "video", utm_content: "RC-A1" } },
+  ];
+  const r = acquisitionSummary(cuentas, { a: 49 }, { days: null, nowMs: Date.parse("2026-09-28T00:00:00.000Z") });
+  assert.equal(r.totals.registered, 3);
+  const shopify = r.by_ad.find(x => x.ad === "shopify");
+  assert.equal(shopify.registered, 2);
+  assert.equal(shopify.paid, 1);
+  assert.equal(shopify.source, "google");
+  assert.equal(shopify.usd_month, 49);
+  const porOrigen = Object.fromEntries(r.by_source.map(x => [x.source, x.registered]));
+  assert.deepEqual(porOrigen, { google: 2, meta: 1 });
+});

@@ -6,7 +6,11 @@
 // con eso el backend reporta los 4 pasos a Meta por servidor y el Admin arma la tabla
 // "registros → conectaron → plan → pagan" por anuncio.
 const KEY = "rec_utm";
-const UTM = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "fbclid"];
+// gclid = click de Google Ads. gbraid/wbraid son los reemplazos que manda Google
+// cuando el navegador no deja cookies de terceros (iOS): sin ellos, la mitad de
+// los clicks de celular llegarían sin de dónde vinieron (28-sept-2026).
+const UTM = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "fbclid", "gclid", "gbraid", "wbraid"];
+const CLICK_IDS = ["fbclid", "gclid", "gbraid", "wbraid"];
 const cut = (s, n = 200) => String(s || "").slice(0, n);
 
 function cookie(name) {
@@ -30,7 +34,7 @@ export function captureAttribution() {
     let prev = null;
     try { prev = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (_) {}
     const hasUtm = Object.keys(found).length > 0;
-    if (prev && (prev.utm_source || prev.utm_campaign || prev.fbclid)) return; // ya hay un anuncio de origen
+    if (prev && (prev.utm_source || prev.utm_campaign || CLICK_IDS.some(k => prev[k]))) return; // ya hay un anuncio de origen
     if (!hasUtm && prev) return;                                                // ya hay un origen orgánico guardado
     const ref = cut(document.referrer || "");
     const ownRef = ref && ref.includes(window.location.host);
@@ -84,4 +88,45 @@ export function pixelPageView() {
 }
 export function pixelTrack(eventName, params = {}, eventId = null) {
   try { if (pixelReady && window.fbq) window.fbq("track", eventName, params, eventId ? { eventID: eventId } : undefined); } catch (_) {}
+}
+
+// ── Etiqueta de Google Ads (gtag.js) ──────────────────────────────────────
+// Se prende sola con VITE_GADS_ID, igual que el pixel de Meta: si la env no
+// está, no se baja ningún script y no se manda nada. Mismo criterio de consent
+// que el pixel (no hay banner nuevo).
+//
+// La conversión se manda con `transaction_id` = id del lead: si la persona
+// recarga o vuelve a mandar el formulario, Google la cuenta UNA vez.
+export const GADS_ID = String(import.meta.env?.VITE_GADS_ID || "").trim();
+export const GADS_CONV_DEMO = String(import.meta.env?.VITE_GADS_CONV_DEMO || "").trim();
+export const GADS_CONV_BOOKED = String(import.meta.env?.VITE_GADS_CONV_BOOKED || "").trim();
+let gadsReady = false;
+
+export function initGoogleAds() {
+  if (!GADS_ID || gadsReady || typeof window === "undefined") return;
+  gadsReady = true;
+  try {
+    window.dataLayer = window.dataLayer || [];
+    if (!window.gtag) window.gtag = function () { window.dataLayer.push(arguments); };
+    window.gtag("js", new Date());
+    // allow_enhanced_conversions queda apagado: no mandamos mail ni teléfono a
+    // Google. Si algún día se prende, hay que decirlo en la política.
+    window.gtag("config", GADS_ID);
+    const s = document.createElement("script");
+    s.async = true;
+    s.src = "https://www.googletagmanager.com/gtag/js?id=" + encodeURIComponent(GADS_ID);
+    document.head.appendChild(s);
+  } catch (_) {}
+}
+
+/** label = la etiqueta de la conversión (lo que va después de la barra en send_to). */
+export function gadsConversion(label, { value = null, currency = "USD", transactionId = null } = {}) {
+  try {
+    if (!gadsReady || !GADS_ID || !label || !window.gtag) return;
+    window.gtag("event", "conversion", {
+      send_to: GADS_ID + "/" + label,
+      ...(value == null ? {} : { value, currency }),
+      ...(transactionId ? { transaction_id: String(transactionId) } : {}),
+    });
+  } catch (_) {}
 }

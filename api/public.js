@@ -390,7 +390,10 @@ async function handleGrowith(action, req, res) {
 }
 
 // Mismas claves que guarda la landing para el resto del embudo (attribution.js).
-const DEMO_ATTR_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "fbclid", "fbp", "fbc", "landing", "referrer"];
+// gclid/gbraid/wbraid: el click de Google Ads (los dos últimos, cuando el
+// navegador no deja cookies de terceros). Sin esto el lead de Google queda sin
+// de dónde vino (28-sept-2026).
+const DEMO_ATTR_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "fbclid", "gclid", "gbraid", "wbraid", "fbp", "fbc", "landing", "referrer"];
 function sanitizeDemoAttribution(raw) {
   if (!raw || typeof raw !== "object") return null;
   const out = {};
