@@ -19,7 +19,7 @@ const { normalizeWhatsapp, EMAIL_RE } = await loadApi("shared/platform/contact.j
 
 const OK = {
   nombre: "Ana Díaz", marca: "Glow Derm", whatsapp: "2664 006599", email: "ana@glowderm.test",
-  pedidos: "5_15", objetivo: "recompra", recurrencia: "25_50",
+  nicho: "cosmetica", catalogo: "2_5", pedidos: "5_15", objetivo: "recompra", recurrencia: "25_50", modalidad: "ambos",
   confirma_llamada: true, confirma_pago: true,
 };
 const post = (body) => invoke(handler, { method: "POST", query: { action: "demo-lead" }, body });
@@ -41,7 +41,7 @@ test("(r) un pedido completo queda guardado y manda RegistroCalificado con el an
   assert.ok(/^dl_/.test(res.body.id), "devuelve el id del lead");
 
   const lead = rawGet(`demo_leads/${res.body.id}`);
-  assert.equal(lead.marca, "Glow Derm");
+  assert.equal(lead.marca, "Cosmética y skincare · Entre 2 y 5 productos", "la 'marca' ya no se pide: queda nicho · catálogo para el Admin");
   assert.equal(lead.whatsapp, "+5492664006599", "el WhatsApp se normaliza igual que en el registro");
   assert.equal(lead.pedidos, "5_15");
   assert.equal(lead.status, "nuevo");
@@ -76,7 +76,9 @@ test("(r) la misma validación corre en el navegador y en el servidor", () => {
   assert.match(sanitizeDemoLead({ ...OK, pedidos: "" }, args).error, /pedidos/i);
   assert.match(sanitizeDemoLead({ ...OK, recurrencia: "cualquiera" }, args).error, /clientes recurrentes/i);
   assert.match(sanitizeDemoLead({ ...OK, whatsapp: "123" }, args).error, /WhatsApp/);
-  assert.match(sanitizeDemoLead({ ...OK, marca: "" }, args).error, /marca/i);
+  assert.match(sanitizeDemoLead({ ...OK, nicho: "" }, args).error, /nicho/i);
+  assert.match(sanitizeDemoLead({ ...OK, modalidad: "" }, args).error, /modalidad/i);
+  assert.ok(sanitizeDemoLead({ ...OK, marca: "" }, args).value, "la marca ya no se pide");
   assert.equal(DEMO_CONFIRMACIONES.length, 2, "las dos casillas son el filtro entero");
 });
 
@@ -92,7 +94,7 @@ test("(r) el aviso repite cada pregunta con su respuesta, en una sola línea", (
   assert.match(r, /¿Qué querés lograr con las suscripciones\? Vender packs más grandes/);
   assert.match(r, /USD 100 de la integración\? SÍ/);
   // Entra en el tope de la variable de plantilla de Meta (1024) con lugar de sobra.
-  assert.ok(r.length < 400, `el resumen quedó largo: ${r.length}`);
+  assert.ok(r.length < 700, `el resumen quedó largo: ${r.length}`);
 });
 
 test("(r) si el aviso a Thiago falla, el lead NO se pierde", async () => {
@@ -157,4 +159,20 @@ test("(r) un lead_id inventado no crea nada", async () => {
   assert.equal((await booked({ lead_id: "../../merchants/lumina" })).statusCode, 400);
   assert.equal((await booked({})).statusCode, 400);
   assert.equal(meta.length, 0);
+});
+
+test("(r) el aviso por WhatsApp va con una respuesta por línea: cada una en su variable, los saltos en la plantilla", async () => {
+  const { demoLeadWaVars } = await loadApi("shared/platform/demoLead.js");
+  const { WA_ADMIN_TEMPLATE_BY_EVENT, renderTemplateBody } = await loadApi("shared/platform/whatsapp.js");
+  const vars = demoLeadWaVars({ ...OK, whatsapp: "+5492664006599" });
+  for (const v of Object.values(vars)) assert.ok(!/[\r\n\t]/.test(v), `sin saltos dentro de una variable: ${v}`);
+  assert.equal(vars.r1, "Nicho: Cosmética y skincare");
+  assert.equal(vars.r6, "Modalidad: Las dos: widget y página de suscripción");
+  assert.match(vars.contacto, /\+5492664006599 · ana@glowderm\.test/);
+  const t = WA_ADMIN_TEMPLATE_BY_EVENT.demo;
+  assert.equal(t.name, "aviso_admin_demo");
+  const body = renderTemplateBody(t.body, t.vars, { ...vars, link_panel: "https://www.recurrentesapp.com/#/dashboard/admin" });
+  const lineas = body.split("\n");
+  assert.ok(lineas.includes("Nicho: Cosmética y skincare") && lineas.includes("Pedidos por día: Entre 5 y 15 por día"), "cada respuesta en su propia línea");
+  assert.ok(body.indexOf("Contacto:") < body.indexOf("- - -"), "el contacto va separado, antes del punteado");
 });

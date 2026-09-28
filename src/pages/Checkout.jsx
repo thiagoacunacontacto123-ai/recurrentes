@@ -129,6 +129,10 @@ function CardBrands() {
   );
 }
 
+// El documento es un número y nada más: dejar escribir letras solo sirve para
+// que Mercado Pago rechace el pago después (27-sept-2026, Thiago).
+const soloDigitos = (v) => String(v || "").replace(/\D/g, "").slice(0, 11);
+
 export default function Checkout() {
   const p = qParams();
   const merchant = p.get("merchant") || "";
@@ -789,7 +793,7 @@ export default function Checkout() {
                     {chevron}
                   </div>
                   <Field label={`Número de ${docType}`} error={errs.taxid} onFix={fix("taxid")}>
-                    <input inputMode="numeric" autoComplete="off" placeholder=" " value={taxid} onChange={e => setTaxid(e.target.value)}/>
+                    <input inputMode="numeric" autoComplete="off" placeholder=" " value={taxid} onChange={e => setTaxid(soloDigitos(e.target.value))}/>
                   </Field>
                 </div>
                 <div className="rc-mpf-wrap">
@@ -970,7 +974,7 @@ export default function Checkout() {
               <Field label="Nombre y apellido" error={errs.name} onFix={fix("name")}><input autoComplete="name" placeholder=" " value={name} onChange={e => setName(e.target.value)}/></Field>
               <div className={useCard ? "" : "rc-2"}>
                 <Field label={requirePhone ? "Teléfono" : "Teléfono (opcional)"} error={errs.phone} onFix={fix("phone")}><input type="tel" autoComplete="tel" placeholder=" " value={phone} onChange={e => setPhone(e.target.value)}/></Field>
-                {!useCard ? <Field label={requireTaxId ? "DNI o CUIT" : "DNI o CUIT (opcional)"} error={errs.taxid} onFix={fix("taxid")}><input inputMode="numeric" placeholder=" " value={taxid} onChange={e => setTaxid(e.target.value)}/></Field> : null}
+                {!useCard ? <Field label={requireTaxId ? "DNI o CUIT" : "DNI o CUIT (opcional)"} error={errs.taxid} onFix={fix("taxid")}><input inputMode="numeric" placeholder=" " value={taxid} onChange={e => setTaxid(soloDigitos(e.target.value))}/></Field> : null}
               </div>
               {askAddress ? (<>
                 <Field label="Calle y número" error={errs.address1} onFix={fix("address1")}><input autoComplete="address-line1" placeholder=" " value={address1} onChange={e => setAddress1(e.target.value)}/></Field>

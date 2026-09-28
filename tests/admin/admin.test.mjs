@@ -270,7 +270,7 @@ put("merchants/old", { email: "old@x.com", created_at: ago(35), plan: "free" });
 // la elijamos nosotros es lo que hace que después se pueda saber quién tocó qué.
 {
   put("demo_leads/dl_1", {
-    id: "dl_1", nombre: "Ana Díaz", marca: "Glow Derm", whatsapp: "+5492664006599", email: "ana@glowderm.test",
+    id: "dl_1", nombre: "Ana Díaz", marca: "Glow Derm", whatsapp: "+5492664006599", email: "ana@glowderm.test", nicho: "cosmetica", catalogo: "2_5", modalidad: "ambos",
     pedidos: "5_15", recurrencia: "25_50", objetivo: "recompra", status: "nuevo",
     confirma_llamada: true, confirma_pago: true, created_at: ago(1),
     acquisition: { utm_source: "meta", utm_content: "VIDEO_1" },
@@ -279,7 +279,7 @@ put("merchants/old", { email: "old@x.com", created_at: ago(35), plan: "free" });
   let r = await call(stats, { query: { action: "admin-demo-leads" }, token: "t-admin" });
   const lead = r.body?.leads?.[0];
   ok(r.status === 200 && lead?.marca === "Glow Derm", "admin-demo-leads lista los pedidos", r.body);
-  ok(lead?.respuestas?.length === 3 && /pedidos vendés por día/.test(lead.respuestas[0].pregunta) && lead.respuestas[0].respuesta === "Entre 5 y 15 por día",
+  ok(lead?.respuestas?.length === 6 && /nicho/.test(lead.respuestas[0].pregunta) && lead.respuestas.some((x) => /pedidos vendés por día/.test(x.pregunta) && x.respuesta === "Entre 5 y 15 por día"),
     "cada respuesta viene con su pregunta", lead?.respuestas);
   ok(lead?.anuncio === "VIDEO_1", "y de qué anuncio vino");
 

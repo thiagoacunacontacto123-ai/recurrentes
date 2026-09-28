@@ -187,11 +187,15 @@ async function handleDemoLead(req, res) {
   // igual. Perder el aviso es malo; perder el lead es peor.
   try {
     const { notifyAdmin } = await import("./_lib/adminAlerts.js");
-    await notifyAdmin("signup", {
+    // Plantilla propia `aviso_admin_demo`: nombre, contacto y una respuesta por línea.
+    // Si Meta todavía no la aprobó, cae a la genérica con `detail` (todo en una línea).
+    const { demoLeadWaVars } = await import("../shared/platform/demoLead.js");
+    await notifyAdmin("demo", {
       merchantId: id,
-      store: `${lead.marca} — pidió demo`,
-      detail: `${resumenDemoLead(lead)}\nContacto: ${lead.nombre} · ${lead.whatsapp} · ${lead.email}`,
+      store: `${lead.nombre} · ${lead.marca}`,
+      detail: `${resumenDemoLead(lead)} · Contacto: ${lead.nombre} · ${lead.whatsapp} · ${lead.email}`,
       key: "first",
+      extra: demoLeadWaVars(lead),
     });
   } catch (e) { console.warn("[demo-lead] aviso:", e.message); }
 

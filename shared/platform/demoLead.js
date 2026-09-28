@@ -14,6 +14,58 @@
 //
 // Fuente ÚNICA: la usa src/pages/Demo.jsx para pintar y api/public.js para validar.
 
+// Nicho y tamaño del catálogo en vez del nombre de la marca (27-sept-2026, Thiago:
+// "para no ser tan invasivo"): la gente no quiere decir su marca antes de la llamada.
+// La lista es larga a propósito ("que no falte ninguno"); "Otro" al final.
+export const DEMO_NICHO = [
+  { id: "suplementos",   label: "Suplementos y vitaminas" },
+  { id: "cafe",          label: "Café" },
+  { id: "yerba_te",      label: "Yerba mate, té e infusiones" },
+  { id: "alimentos",     label: "Alimentos y snacks" },
+  { id: "bebidas",       label: "Bebidas (vinos, cervezas, jugos)" },
+  { id: "mascotas",      label: "Mascotas (alimento y accesorios)" },
+  { id: "cosmetica",     label: "Cosmética y skincare" },
+  { id: "cuidado_personal", label: "Cuidado personal e higiene" },
+  { id: "perfumeria",    label: "Perfumería" },
+  { id: "limpieza",      label: "Limpieza del hogar" },
+  { id: "bebes",         label: "Bebés y maternidad" },
+  { id: "salud",         label: "Salud y farmacia" },
+  { id: "fitness",       label: "Fitness y deportes" },
+  { id: "ropa",          label: "Indumentaria y calzado" },
+  { id: "lenceria",      label: "Lencería y ropa interior" },
+  { id: "accesorios",    label: "Accesorios y joyería" },
+  { id: "optica",        label: "Óptica y anteojos" },
+  { id: "hogar",         label: "Hogar y decoración" },
+  { id: "jardin",        label: "Jardín y plantas" },
+  { id: "libreria",      label: "Librería y papelería" },
+  { id: "libros",        label: "Libros y revistas" },
+  { id: "juguetes",      label: "Juguetes y juegos" },
+  { id: "tecnologia",    label: "Tecnología y electrónica" },
+  { id: "bienestar",     label: "Bienestar (velas, aromas, sahumerios)" },
+  { id: "sex_shop",      label: "Sex shop" },
+  { id: "arte",          label: "Arte, manualidades e insumos" },
+  { id: "automotor",     label: "Automotor y motos" },
+  { id: "dietetica",     label: "Dietética y productos naturales" },
+  { id: "flores",        label: "Flores y regalos" },
+  { id: "servicios",     label: "Servicios y membresías" },
+  { id: "otro",          label: "Otro" },
+];
+
+export const DEMO_CATALOGO = [
+  { id: "uni",    label: "Un solo producto" },
+  { id: "2_5",    label: "Entre 2 y 5 productos" },
+  { id: "5_15",   label: "Entre 5 y 15 productos" },
+  { id: "15_mas", label: "Más de 15 productos" },
+];
+
+// Qué quiere en su web (27-sept-2026): el widget en la ficha, una página aparte, o las dos.
+export const DEMO_MODALIDAD = [
+  { id: "widget",  label: "Widget en la ficha: compra única + suscripción" },
+  { id: "pagina",  label: "Una página aparte de suscripción" },
+  { id: "ambos",   label: "Las dos: widget y página de suscripción" },
+  { id: "no_se",   label: "No lo tengo claro, lo vemos en la llamada" },
+];
+
 // Cuánto vende hoy. En pedidos POR DÍA (Thiago): el que vende lo piensa así,
 // no en pedidos por mes.
 export const DEMO_PEDIDOS = [
@@ -66,9 +118,12 @@ export const DEMO_CONFIRMACIONES = [
 // pregunta con su respuesta"): si alguna vez se cambia una, cambia en los dos
 // lados a la vez y el aviso nunca miente sobre lo que se le preguntó.
 export const DEMO_PREGUNTAS = [
+  { id: "nicho",       label: "¿De qué nicho es tu marca?",                  options: DEMO_NICHO,       error: "Contanos de qué nicho es tu marca." },
+  { id: "catalogo",    label: "¿Cuántos productos tiene tu marca?",          options: DEMO_CATALOGO,    error: "Contanos cuántos productos tiene tu marca." },
   { id: "pedidos",     label: "¿Cuántos pedidos vendés por día?",            options: DEMO_PEDIDOS,     error: "Contanos cuántos pedidos vendés por día." },
   { id: "recurrencia", label: "¿Cuál es tu tasa de clientes recurrentes hoy?", options: DEMO_RECURRENCIA, error: "Contanos qué tasa de clientes recurrentes tenés hoy." },
   { id: "objetivo",    label: "¿Qué querés lograr con las suscripciones?",   options: DEMO_OBJETIVO,    error: "Contanos qué querés lograr con las suscripciones." },
+  { id: "modalidad",   label: "¿Qué modalidad de suscripción querés en tu web?", options: DEMO_MODALIDAD, error: "Contanos qué modalidad querés en tu web." },
 ];
 
 export const labelDe = (list, id) => list.find((o) => o.id === id)?.label || "";
@@ -82,8 +137,6 @@ export function sanitizeDemoLead(input, { emailRe, normalizeWhatsapp } = {}) {
   const b = input && typeof input === "object" ? input : {};
   const nombre = txt(b.nombre, 80);
   if (nombre.length < 2) return { error: "Ingresá tu nombre.", field: "nombre" };
-  const marca = txt(b.marca, 120);
-  if (marca.length < 2) return { error: "Ingresá el nombre de tu marca o el link de tu tienda.", field: "marca" };
   const whatsapp = normalizeWhatsapp ? normalizeWhatsapp(b.whatsapp) : txt(b.whatsapp, 25);
   if (!whatsapp) return { error: "Ingresá tu WhatsApp con código de área (ej: 11 2345 6789).", field: "whatsapp" };
   const email = txt(b.email, 160).toLowerCase();
@@ -101,6 +154,8 @@ export function sanitizeDemoLead(input, { emailRe, normalizeWhatsapp } = {}) {
     if (b[c.id] !== true) return { error: "Marcá esta casilla para reservar la llamada.", field: c.id };
   }
 
+  // `marca` ya no se pregunta: queda como etiqueta "nicho · catálogo" para el Admin y los avisos.
+  const marca = `${labelDe(DEMO_NICHO, respuestas.nicho)} · ${labelDe(DEMO_CATALOGO, respuestas.catalogo)}`;
   return {
     value: {
       nombre, marca, whatsapp, email,
@@ -117,6 +172,19 @@ export function sanitizeDemoLead(input, { emailRe, normalizeWhatsapp } = {}) {
 // una variable de plantilla y los aplasta a espacios (waParamText), así que un
 // "\n" acá no se vería como salto sino como un texto corrido sin separación.
 // Por eso el separador es " · " y la pregunta queda pegada a su respuesta.
+// Etiquetas cortas por pregunta para el aviso por WhatsApp, una por línea.
+export const DEMO_PREGUNTA_CORTA = { nicho: "Nicho", catalogo: "Productos", pedidos: "Pedidos por día", recurrencia: "Recompra hoy", objetivo: "Objetivo", modalidad: "Modalidad" };
+// Las variables de la plantilla `aviso_admin_demo` (shared/platform/whatsapp.js):
+// nombre · contacto · r1..r6 (una respuesta por variable, sin saltos de línea adentro).
+export function demoLeadWaVars(lead) {
+  const out = {
+    nombre: lead.nombre || "-",
+    contacto: `WhatsApp ${lead.whatsapp || "-"} · ${lead.email || "-"}`,
+  };
+  DEMO_PREGUNTAS.forEach((q, i) => { out[`r${i + 1}`] = `${DEMO_PREGUNTA_CORTA[q.id] || q.label}: ${labelDe(q.options, lead[q.id]) || "-"}`; });
+  return out;
+}
+
 export function resumenDemoLead(lead) {
   const partes = DEMO_PREGUNTAS.map((q) => `${q.label} ${labelDe(q.options, lead[q.id]) || "-"}`);
   partes.push("¿Acepta pagar los USD 100 de la integración? SÍ");

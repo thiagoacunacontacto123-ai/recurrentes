@@ -811,6 +811,26 @@ function renderCk() {
 document.querySelectorAll("#v-ck .f").forEach(f => f.addEventListener("input", () => { f.classList.remove("is-err"); f.querySelector(".fe")?.remove(); }));
 $("#ship").addEventListener("change", e => { const r = e.target.closest("input"); if (r) { S.ship = +r.dataset.i; renderCk(); } });
 $("#msBtn").addEventListener("click", () => { $("#msBody").hidden = !$("#msBody").hidden; });
+// Los campos de la tarjeta, prolijos: cada uno toma solo lo que corresponde. En
+// el checkout real esto lo hace Mercado Pago con sus campos seguros; acá, que es
+// una maqueta, lo hacemos a mano para que se vea igual (27-sept-2026, Thiago).
+(function () {
+  const num = (v, max) => v.replace(/\D/g, "").slice(0, max);
+  const mask = (sel, fn) => {
+    const e = $(sel); if (!e) return;
+    e.addEventListener("input", () => { const antes = e.value, ahora = fn(antes); if (ahora !== antes) { e.value = ahora; try { e.setSelectionRange(ahora.length, ahora.length); } catch (_) {} } });
+  };
+  mask("#ckDoc", v => num(v, 11));
+  mask("#ckCvv", v => num(v, 4));
+  mask("#ckCard", v => num(v, 16).replace(/(\d{4})(?=\d)/g, "$1 "));
+  mask("#ckHolder", v => v.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ .'-]/g, "").slice(0, 40));
+  mask("#ckExp", v => {
+    let d = num(v, 4);
+    if (d.length === 1 && +d > 1) d = "0" + d;                    // "5" → "05"
+    if (d.length >= 2 && (+d.slice(0, 2) < 1 || +d.slice(0, 2) > 12)) d = "12" + d.slice(2);
+    return d.length > 2 ? d.slice(0, 2) + "/" + d.slice(2) : d;   // MM/AA y nada más
+  });
+})();
 $("#payBtn").addEventListener("click", () => {
   // Error por campo (borde rojo + texto debajo) y deslizamiento al primero que falta, como
   // el checkout real de Recurrentes.

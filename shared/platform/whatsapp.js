@@ -399,6 +399,19 @@ export const WA_ADMIN_TEMPLATES = [
     vars: AV,
     samples: ["Tostado Café", "16 suscriptores activos sin plan pago", ADMIN_PANEL_URL],
   },
+  {
+    // Pedido de demo (27-sept-2026, Thiago: "todas las respuestas una por una, con un
+    // enter en el medio, y el contacto separado"). Meta no acepta saltos de línea DENTRO
+    // de una variable, así que cada respuesta va en su propia variable y los saltos
+    // están en el cuerpo de la plantilla. Hasta que Meta la apruebe, adminAlerts.js cae
+    // a la genérica (todo en una línea).
+    name: "aviso_admin_demo", event: "demo", category: "UTILITY", lang: "es_AR",
+    title: "Pedido de demo (aviso interno)",
+    body: "Recurrentes · pedido de demo de {{1}}.\n\nContacto: {{2}}\n\n- - - - - - - - - - - -\n{{3}}\n{{4}}\n{{5}}\n{{6}}\n{{7}}\n{{8}}\n- - - - - - - - - - - -\nAceptó pagar los USD 100 de la integración.\n\nAbrir el Admin: {{9}}\n\nAviso automático para el equipo de Recurrentes.",
+    footer: WA_ADMIN_FOOTER,
+    vars: { "1": "nombre", "2": "contacto", "3": "r1", "4": "r2", "5": "r3", "6": "r4", "7": "r5", "8": "r6", "9": "link_panel" },
+    samples: ["Ana Pérez", "WhatsApp +54 9 11 5555-0000 · ana@tiendasol.com", "Nicho: Cosmética y skincare", "Productos: Entre 2 y 5", "Pedidos por día: Entre 5 y 15", "Recompra hoy: Entre el 25% y el 50%", "Objetivo: Que mis clientes vuelvan a comprar solos", "Modalidad: Widget y página de suscripción", ADMIN_PANEL_URL],
+  },
 ];
 // "Al borde" usa la misma plantilla que "en gracia" (cambia el detalle).
 export const WA_ADMIN_TEMPLATE_BY_EVENT = Object.fromEntries(WA_ADMIN_TEMPLATES.map(t => [t.event, t]));

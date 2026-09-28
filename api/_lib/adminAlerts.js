@@ -18,7 +18,7 @@ import { adminEmails } from "./adminAuth.js";
 import { appBaseUrl } from "./config.js";
 import { platformWaConfig, sendTemplate, bodyComponents, recordPlatformError, scrub } from "./whatsapp.js";
 import { emailAdminAlert } from "./email.js";
-import { normalizePhoneAR, maskPhone, alertParams, renderMerchantAlert, WA_ADMIN_TEMPLATE, WA_ADMIN_TEMPLATE_BY_EVENT, WA_WELCOME_TEMPLATE, DASHBOARD_URL } from "../../shared/platform/whatsapp.js";
+import { normalizePhoneAR, maskPhone, alertParams, renderMerchantAlert, renderTemplateBody, WA_ADMIN_TEMPLATE, WA_ADMIN_TEMPLATE_BY_EVENT, WA_WELCOME_TEMPLATE, DASHBOARD_URL } from "../../shared/platform/whatsapp.js";
 import { templateParams } from "../../shared/platform/whatsapp.js";
 
 const nowIso = () => new Date().toISOString();
@@ -28,6 +28,7 @@ const emailReady = () => Boolean(String(process.env.RESEND_API_KEY || "").trim()
 // Qué dice cada evento en el mensaje (variable {{1}}).
 export const ADMIN_EVENT_LABEL = {
   signup: "Nuevo registro con WhatsApp",
+  demo: "Pidió una demo",
   plan_paid: "Pagó el plan",
   plan_cancelled: "Canceló el plan",
   plan_past_due: "Le rebotó el pago del plan",
@@ -57,7 +58,8 @@ export async function adminPhones() {
 }
 export const _resetAdminPhoneCache = () => { phoneCache = { at: 0, phones: null }; };
 
-export async function notifyAdmin(event, { merchantId, store, detail, key } = {}) {
+// `extra`: variables propias de la plantilla del evento (ej. demo: nombre, contacto, r1..r6).
+export async function notifyAdmin(event, { merchantId, store, detail, key, extra } = {}) {
   if (!ADMIN_EVENT_LABEL[event] || !merchantId) return null;
   const mails = adminEmails();
   const hasEnvPhone = !!String(process.env.ADMIN_WHATSAPP || "").trim();
@@ -80,6 +82,7 @@ export async function notifyAdmin(event, { merchantId, store, detail, key } = {}
       // acepta hasta 1024 por variable de plantilla.
       detalle: String(detail || "-").slice(0, 900),
       link_panel: `${appBaseUrl().replace(/\/$/, "")}/#/dashboard/admin`,
+      ...(extra && typeof extra === "object" ? extra : {}),
     };
     const out = { ok: false, whatsapp: [], email: null };
 
@@ -109,7 +112,9 @@ export async function notifyAdmin(event, { merchantId, store, detail, key } = {}
     const waOk = out.whatsapp.some(w => w.ok);
     // Mail: respaldo si el WhatsApp no salió (sin número, sin teléfono del admin, plantilla sin aprobar…).
     if (!waOk && emailReady() && mails.length) {
-      const r = await emailAdminAlert({ to: mails, event: values.evento, text: renderMerchantAlert("admin", values), storeName: values.tienda, panelUrl: values.link_panel });
+      const spec = WA_ADMIN_TEMPLATE_BY_EVENT[event] || null;
+      const text = spec ? renderTemplateBody(spec.body, spec.vars, values) : renderMerchantAlert("admin", values);
+      const r = await emailAdminAlert({ to: mails, event: values.evento, text, storeName: values.tienda, panelUrl: values.link_panel });
       out.email = r?.ok ? { ok: true, to: mails } : { ok: false, error: String(r?.error || "mail").slice(0, 200) };
     }
     out.ok = waOk || out.email?.ok === true;

@@ -211,7 +211,7 @@ function SlotPicker({ T, days, dia, setDia, start, setStart, style, label }) {
 export default function DemoPage() {
   const { T } = useTheme();
   const iS = InputStyle(T);
-  const [f, setF] = useState({ nombre: "", marca: "", whatsapp: "", email: "", pedidos: "", objetivo: "", recurrencia: "" });
+  const [f, setF] = useState({ nombre: "", whatsapp: "", email: "", nicho: "", catalogo: "", pedidos: "", recurrencia: "", objetivo: "", modalidad: "" });
   const [oks, setOks] = useState({});
   // Error por campo, como el checkout: { field, msg }. Sin cartel general: se pinta el campo
   // en rojo, el texto va debajo y la página desliza hasta ahí (Thiago, 27-sept-2026).
@@ -307,7 +307,7 @@ export default function DemoPage() {
     window.scrollTo(0, 0);
   }
 
-  const wa = waLink(`Hola! Soy ${f.nombre || ""} de ${f.marca || ""}. Acabo de pedir la demo de Recurrentes.`);
+  const wa = waLink(`Hola! Soy ${f.nombre || ""}. Acabo de pedir la demo de Recurrentes.`);
 
   return (
     <div ref={rootRef} className="rec-demo" style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: F }}>
@@ -396,11 +396,6 @@ export default function DemoPage() {
                   <label style={label}>Tu nombre</label>
                   <input style={iS} value={f.nombre} onChange={(e) => set("nombre", e.target.value)} placeholder="Nombre y apellido" autoComplete="name"/>
                   {errOf("nombre") && <div className="rc-fe" role="alert">{errOf("nombre")}</div>}
-                </div>
-<div className={"rc-f" + (errOf("marca") ? " is-err" : "")} style={campo} onInput={() => fix("marca")} onChange={() => fix("marca")}>
-                  <label style={label}>¿Cuál es tu marca?</label>
-                  <input style={iS} value={f.marca} onChange={(e) => set("marca", e.target.value)} placeholder="Nombre de la marca o link de tu tienda"/>
-                  {errOf("marca") && <div className="rc-fe" role="alert">{errOf("marca")}</div>}
                 </div>
 <div className={"rc-f" + (errOf("whatsapp") ? " is-err" : "")} style={campo} onInput={() => fix("whatsapp")} onChange={() => fix("whatsapp")}>
                   <label style={label}>WhatsApp</label>
