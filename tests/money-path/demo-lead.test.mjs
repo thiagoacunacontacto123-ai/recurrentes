@@ -92,7 +92,7 @@ test("(r) el aviso repite cada pregunta con su respuesta, en una sola línea", (
   assert.match(r, /¿Cuántos pedidos vendés por día\? Entre 5 y 15 por día/);
   assert.match(r, /¿Cuál es tu tasa de clientes recurrentes hoy\? Entre el 25% y el 50%/);
   assert.match(r, /¿Qué querés lograr con las suscripciones\? Vender packs más grandes/);
-  assert.match(r, /USD 100 de la integración\? SÍ/);
+  assert.match(r, /pago único de USD 100 a 200 de la integración\? SÍ/);
   // Entra en el tope de la variable de plantilla de Meta (1024) con lugar de sobra.
   assert.ok(r.length < 700, `el resumen quedó largo: ${r.length}`);
 });

@@ -102,14 +102,14 @@ export const DEMO_RECURRENCIA = [
 export const DEMO_CONFIRMACIONES = [
   {
     id: "confirma_llamada",
-    text: "Entiendo que el equipo de Recurrentes le da un trato 100% empático y personalizado a cada cliente, así que si reservo una llamada me voy a presentar.",
+    text: "Entiendo que el equipo de Recurrentes le da un trato 100% empático y personalizado a cada cliente, así que si reservo esta llamada me voy a unir.",
   },
   {
     id: "confirma_pago",
     // Redactada como COMPROMISO en primera persona, no como dato ("pago USD
     // 100"): el que marca esto se está comprometiendo, y es lo único que
     // separa al que va a avanzar del que mira. 25-sept-2026, Thiago.
-    text: "Entiendo que integrar la opción de suscripción —y la página de suscripción, si la necesito— es un trabajo que lleva horas, y que puedo conseguir mucha ganancia sin depender de clientes nuevos. Por eso, si avanzo con Recurrentes, voy a realizar el pago de USD 100 del costo de integración, una sola vez, recién con la integración terminada, al detalle de cómo la quiero, y funcionando.",
+    text: "Entiendo que integrar la opción de suscripción —y la página de suscripción, si la necesito— es un trabajo que lleva horas, y que puedo conseguir mucha ganancia sin depender de clientes nuevos. Por eso, si avanzo con Recurrentes, voy a realizar el pago único de USD 100 a 200 del costo de integración (según si es solo el widget o también la página de suscripción), recién con la integración terminada, al detalle de cómo la quiero, y funcionando.",
   },
 ];
 
@@ -187,6 +187,6 @@ export function demoLeadWaVars(lead) {
 
 export function resumenDemoLead(lead) {
   const partes = DEMO_PREGUNTAS.map((q) => `${q.label} ${labelDe(q.options, lead[q.id]) || "-"}`);
-  partes.push("¿Acepta pagar los USD 100 de la integración? SÍ");
+  partes.push("¿Acepta el pago único de USD 100 a 200 de la integración? SÍ");
   return partes.join(" · ");
 }

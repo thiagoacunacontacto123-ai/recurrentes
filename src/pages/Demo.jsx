@@ -208,9 +208,48 @@ function SlotPicker({ T, days, dia, setDia, start, setStart, style, label }) {
   );
 }
 
+// Prefijo del WhatsApp: Argentina y Uruguay (27-sept-2026, Thiago; el resto de la región
+// queda para cuando el producto hable su idioma). Desplegable chico dentro del campo.
+const PHONE_COUNTRIES = [
+  { id: "ar", flag: "🇦🇷", code: "54",  label: "Argentina", placeholder: "11 2345 6789" },
+  { id: "uy", flag: "🇺🇾", code: "598", label: "Uruguay",   placeholder: "99 123 456" },
+];
+function PhonePrefix({ T, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = React.useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
+  const cur = PHONE_COUNTRIES.find((c) => c.id === value) || PHONE_COUNTRIES[0];
+  return (
+    <div ref={ref} style={{ position: "relative", alignSelf: "stretch", display: "flex" }}>
+      <button type="button" aria-label={`País: ${cur.label}`} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((v) => !v)}
+        style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "0 10px 0 14px", border: "none", borderRight: `1px solid ${T.inputBorder}`, background: "transparent", color: T.text, fontFamily: "inherit", fontSize: 16, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap", lineHeight: 1 }}>
+        <span style={{ fontSize: 17, lineHeight: 1 }}>{cur.flag}</span>+{cur.code}
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ color: T.textMd, marginLeft: 2 }}><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      {open && (
+        <div role="listbox" style={{ position: "absolute", left: 0, top: "calc(100% + 6px)", zIndex: 20, minWidth: 190, background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: 6, boxShadow: "0 18px 40px -18px rgba(0,0,0,.6)", display: "grid", gap: 2 }}>
+          {PHONE_COUNTRIES.map((c) => (
+            <button key={c.id} type="button" role="option" aria-selected={c.id === cur.id} onClick={() => { onChange(c.id); setOpen(false); }}
+              style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, border: "none", background: c.id === cur.id ? T.accentSolid + "22" : "transparent", color: T.text, fontFamily: "inherit", fontSize: 14, fontWeight: c.id === cur.id ? 700 : 500, cursor: "pointer", textAlign: "left", width: "100%" }}>
+              <span style={{ fontSize: 18 }}>{c.flag}</span><span style={{ flex: 1 }}>{c.label}</span><span style={{ color: T.textMd }}>+{c.code}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DemoPage() {
   const { T } = useTheme();
   const iS = InputStyle(T);
+  const [pais, setPais] = useState("ar");
+  const paisCfg = PHONE_COUNTRIES.find((c) => c.id === pais) || PHONE_COUNTRIES[0];
   const [f, setF] = useState({ nombre: "", whatsapp: "", email: "", nicho: "", catalogo: "", pedidos: "", recurrencia: "", objetivo: "", modalidad: "" });
   const [oks, setOks] = useState({});
   // Error por campo, como el checkout: { field, msg }. Sin cartel general: se pinta el campo
@@ -263,7 +302,7 @@ export default function DemoPage() {
     setError("");
     // Se valida con la MISMA función que el backend: un solo lugar donde están
     // las reglas, y el visitante ve el error antes de mandar.
-    const { value, error: err, field } = sanitizeDemoLead({ ...f, ...oks, whatsapp: f.whatsapp.trim() ? "+54 " + f.whatsapp.trim() : "" }, { emailRe: EMAIL_RE, normalizeWhatsapp });
+    const { value, error: err, field } = sanitizeDemoLead({ ...f, ...oks, whatsapp: f.whatsapp.trim() ? `+${paisCfg.code} ${f.whatsapp.trim()}` : "" }, { emailRe: EMAIL_RE, normalizeWhatsapp });
     if (err) { setError(err, field); scrollToError(); return; }
     if (slots.enabled && !start) { setError("Elegí un día y un horario para la llamada.", "horario"); scrollToError(); return; }
     setLoading(true);
@@ -319,12 +358,13 @@ export default function DemoPage() {
           background-image:linear-gradient(${T.border} 1px,transparent 1px),linear-gradient(90deg,${T.border} 1px,transparent 1px);background-size:56px 56px;
           -webkit-mask-image:radial-gradient(ellipse 70% 60% at 30% 0%,#000 20%,transparent 100%);mask-image:radial-gradient(ellipse 70% 60% at 30% 0%,#000 20%,transparent 100%);opacity:.5;}
         .rec-demo-reviews{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;}
-        .rec-demo .rc-f.is-err input:not(.rec-demo-tel input),.rec-demo .rc-f.is-err select,.rec-demo .rc-f.is-err button[aria-haspopup],.rec-demo .rc-f.is-err .rec-demo-tel{border-color:#d92d20!important;box-shadow:0 0 0 1px #d92d20!important;}
+        .rec-demo .rc-f.is-err input:not(.rec-demo-tel input),.rec-demo .rc-f.is-err select,.rec-demo .rc-f.is-err button[aria-haspopup]:not(.rec-demo-tel button),.rec-demo .rc-f.is-err .rec-demo-tel{border-color:#d92d20!important;box-shadow:0 0 0 1px #d92d20!important;}
         .rec-demo-tel:focus-within{border-color:${T.accentSolid}!important;}
         .rec-demo .rc-f.is-err > label{color:#d92d20!important;}
         .rec-demo .rc-f.is-err .rec-demo-check{border-color:#d92d20!important;box-shadow:0 0 0 1px #d92d20;}
         /* iOS hace zoom al enfocar un campo con letra menor a 16px (mismo arreglo que el checkout). */
-        .rec-demo-form input,.rec-demo-form select,.rec-demo-form .rc-f button[aria-haspopup]{font-size:16px!important;padding-top:12px!important;padding-bottom:12px!important;border-radius:10px!important;}
+        .rec-demo-form input:not(.rec-demo-tel input),.rec-demo-form select,.rec-demo-form .rc-f button[aria-haspopup]:not(.rec-demo-tel button),.rec-demo-form .rec-demo-tel{font-size:16px!important;border-radius:10px!important;}
+        .rec-demo-form input:not(.rec-demo-tel input),.rec-demo-form select,.rec-demo-form .rc-f button[aria-haspopup]:not(.rec-demo-tel button){padding-top:12px!important;padding-bottom:12px!important;}
         .rec-demo button:focus-visible{outline:2px solid ${T.accentSolid};outline-offset:2px;}
         .rec-demo .rc-fe{color:#d92d20;font-size:13px;line-height:1.35;margin-top:6px;padding-left:2px;}
         .ls-card{background:${T.card};border:1px solid ${T.border};border-radius:20px;position:relative;overflow:hidden;}
@@ -402,12 +442,10 @@ export default function DemoPage() {
                   <label style={label}>WhatsApp</label>
                   {/* +54 fijo (27-sept-2026, Thiago): bandera y prefijo imborrables, el visitante
                       escribe solo su número. Si pega un número con +54 o 54 adelante, se lo sacamos. */}
-                  <div className="rec-demo-tel" style={{ ...iS, display: "flex", alignItems: "center", gap: 8, padding: 0, overflow: "hidden" }}>
-                    <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "0 12px 0 14px", height: "100%", borderRight: `1px solid ${T.inputBorder}`, background: T.surface, color: T.text, fontSize: 16, fontWeight: 600, whiteSpace: "nowrap", userSelect: "none", alignSelf: "stretch" }}>
-                      <span style={{ fontSize: 18, lineHeight: 1 }}>🇦🇷</span>+54
-                    </span>
-                    <input value={f.whatsapp} onChange={(e) => set("whatsapp", e.target.value.replace(/^\s*(\+?54\s*)/, "").replace(/[^\d\s-]/g, ""))} placeholder="11 2345 6789" inputMode="tel" autoComplete="tel-national" aria-label="WhatsApp sin el +54"
-                      style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", color: T.text, fontFamily: "inherit", padding: "12px 14px 12px 0" }}/>
+                  <div className="rec-demo-tel" style={{ ...iS, display: "flex", alignItems: "stretch", gap: 0, padding: 0, fontSize: 16, overflow: "visible" }}>
+                    <PhonePrefix T={T} value={pais} onChange={(v) => { setPais(v); fix("whatsapp"); }}/>
+                    <input value={f.whatsapp} onChange={(e) => set("whatsapp", e.target.value.replace(/^\s*(\+?(54|598)\s*)/, "").replace(/[^\d\s-]/g, ""))} placeholder={paisCfg.placeholder} inputMode="tel" autoComplete="tel-national" aria-label={`WhatsApp sin el +${paisCfg.code}`}
+                      style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", color: T.text, fontFamily: "inherit", fontSize: 16, padding: "12px 14px 12px 12px", lineHeight: 1.2 }}/>
                   </div>
                   {errOf("whatsapp") && <div className="rc-fe" role="alert">{errOf("whatsapp")}</div>}
                 </div>

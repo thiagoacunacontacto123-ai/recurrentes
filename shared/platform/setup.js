@@ -106,7 +106,7 @@ export const SETUP_STEPS = [
   },
   {
     id: "pago",
-    title: "Cobrada la instalación (USD 100)",
+    title: "Cobrada la instalación (pago único)",
     pide: "El pago, una vez que está todo terminado y funcionando.",
     hace: "Se tilda a mano cuando entró.",
     manual: true,

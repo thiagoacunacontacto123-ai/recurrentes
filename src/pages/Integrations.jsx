@@ -62,7 +62,7 @@ function btnStyles(T) {
 // Precio de la instalación: fuente única en shared/platform/pricing.js. Estaba
 // duplicado acá con el mismo valor; si cambia uno solo, la landing y el panel
 // dicen precios distintos. 25-sept-2026.
-export const INSTALL_USD_PUBLICO = INSTALL_USD;
+export const INSTALL_USD_PUBLICO = INSTALL_USD; // el sitio habla de "pago único de USD 100 a 200" (INSTALL_RANGE)
 
 /** A dónde manda el botón de "que me lo instalen": agenda si existe, si no WhatsApp. */
 function linkInstalacion(label) {

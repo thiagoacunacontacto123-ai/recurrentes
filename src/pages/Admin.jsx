@@ -813,7 +813,7 @@ function MerchantPanel({ id, onClose, onChanged }) {
                 {m.lead_instalacion && (
                   <Row T={T} k="Instalación">
                     {m.lead_instalacion === "asistida"
-                      ? <span style={{ color:T.green, fontWeight:700 }}>Quiere asistida · USD 100</span>
+                      ? <span style={{ color:T.green, fontWeight:700 }}>Quiere asistida · pago único</span>
                       : "La hace solo"}
                   </Row>
                 )}

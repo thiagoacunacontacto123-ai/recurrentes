@@ -15,7 +15,7 @@ import { BtnSolid } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
 import { buildBundleVM } from "../../shared/bundle/viewmodel.js";
 import { renderBundle } from "../../shared/bundle/templates.js";
-import { FREE_SUBSCRIBERS, INSTALL_USD, PRICING_TIERS } from "../../shared/platform/pricing.js";
+import { FREE_SUBSCRIBERS, INSTALL_RANGE, PRICING_TIERS } from "../../shared/platform/pricing.js";
 import { COMPARE_ROWS, COMPARE_COLS, COMPARE_SOURCES, CompareCell, CompareMark, RecLogoMini } from "./LandingSections.jsx";
 
 const F = "'Inter',system-ui,sans-serif";
@@ -885,9 +885,9 @@ export function PriceWeapon({ T, onDemo, hideHead = false }) {
         </div>
         <div className="lm-card" style={{ padding: 26, borderColor: T.accentSolid + "88", boxShadow: `0 24px 60px -30px ${T.accentSolid}88` }} data-reveal="swing">
           <div style={{ fontSize: 12, fontWeight: 800, color: T.accent, letterSpacing: .6, textTransform: "uppercase", marginBottom: 14 }}>Recurrentes</div>
-          <div style={{ fontFamily: FD, fontSize: 28, fontWeight: 800, letterSpacing: -0.8, color: T.text, lineHeight: 1.1 }}>USD {INSTALL_USD} una vez <span style={{ color: T.textSm }}>+</span> abono fijo</div>
+          <div style={{ fontFamily: FD, fontSize: 28, fontWeight: 800, letterSpacing: -0.8, color: T.text, lineHeight: 1.1 }}>Pago único <span style={{ color: T.textSm }}>+</span> abono fijo</div>
           <div style={{ marginTop: 14, display: "grid", gap: 8, fontSize: 14, color: T.textMd, lineHeight: 1.5 }}>
-            {[`Gratis hasta ${FREE_SUBSCRIBERS} suscriptores activos.`, "0% de comisión por venta. Siempre.", `La puesta en marcha se paga cuando ya está funcionando.`].map(t => <div key={t} style={{ display: "flex", gap: 8 }}><span style={{ color: T.accent, fontWeight: 800 }}>✓</span>{t}</div>)}
+            {[`Gratis hasta ${FREE_SUBSCRIBERS} suscriptores activos.`, "0% de comisión por venta. Siempre.", `La puesta en marcha (${INSTALL_RANGE}, según lo que haya que armar) se paga cuando ya está funcionando.`].map(t => <div key={t} style={{ display: "flex", gap: 8 }}><span style={{ color: T.accent, fontWeight: 800 }}>✓</span>{t}</div>)}
           </div>
         </div>
       </div>

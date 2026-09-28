@@ -27,6 +27,10 @@ export const FREE_SUBSCRIBERS = 10;
 // integración a mano, así que la venta pasa a ser demo + puesta en marcha.
 // En ningún lado puede volver a decir que la instalación es gratis.
 export const INSTALL_USD = 100;
+// Tope del rango (27-sept-2026, Thiago): con widget + página de suscripción la puesta en
+// marcha se cobra hasta 200. En el sitio se dice "pago único de USD 100 a 200".
+export const INSTALL_USD_MAX = 200;
+export const INSTALL_RANGE = `USD ${INSTALL_USD} a ${INSTALL_USD_MAX}`;
 
 // max null = sin techo. Los tramos son contiguos: min del siguiente = max + 1.
 // Los ids viejos (starter/growth/scale/pro/unlimited) se conservan para que
