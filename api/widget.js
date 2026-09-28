@@ -344,7 +344,7 @@ export default async function handler(req, res) {
   // tienda. Sin esto el comprador ve un hueco en blanco y parece que el botón
   // no hizo nada (27-sept-2026, Thiago).
   var cargando = document.createElement("div");
-  cargando.setAttribute("style", "min-height:620px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;font-family:'Inter',system-ui,sans-serif");
+  cargando.setAttribute("style", "position:absolute;inset:0;background:#fff;z-index:2;min-height:620px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;font-family:'Inter',system-ui,sans-serif");
   cargando.innerHTML = '<svg width="52" height="52" viewBox="0 0 32 32" style="display:block;animation:rc-go 1.1s linear infinite"><defs><linearGradient id="rcEmbG" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="${shade(checkoutColor, 35)}"/><stop offset="100%" stop-color="${shade(checkoutColor, -25)}"/></linearGradient></defs><circle cx="16" cy="16" r="16" fill="url(#rcEmbG)"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
     '<div style="font-size:13px;font-weight:600;color:#6b7280">Abriendo el checkout seguro…</div>' +
     '<style>@keyframes rc-go{to{transform:rotate(360deg)}}</style>';
@@ -353,11 +353,15 @@ export default async function handler(req, res) {
   f.src = BASE + "/#/checkout?" + q.toString();
   f.title = "Checkout";
   f.setAttribute("allow", "payment");
-  f.style.cssText = "width:100%;border:0;display:none;min-height:620px;background:#fff;";
+  // El iframe se pinta SIEMPRE y el cargando va encima: un iframe que nace con
+  // display:none y después se muestra puede quedar en blanco hasta que algo lo
+  // haga recalcular, y el comprador se come una página vacía.
+  f.style.cssText = "width:100%;border:0;display:block;min-height:620px;background:#fff;";
   f.scrolling = "no";
   host.innerHTML = "";
-  host.appendChild(cargando);
+  host.style.position = "relative";
   host.appendChild(f);
+  host.appendChild(cargando);
 
   // Se muestra cuando el checkout ya se pintó (nos manda su alto), no cuando
   // termina de bajar el HTML: si no, se ve un parpadeo en blanco en el medio.
@@ -365,7 +369,6 @@ export default async function handler(req, res) {
   function mostrar() {
     if (listo) return;
     listo = true;
-    f.style.display = "block";
     if (cargando.parentNode) cargando.parentNode.removeChild(cargando);
   }
   setTimeout(mostrar, 8000);   // red de seguridad: nunca dejarlo girando para siempre

@@ -104,7 +104,9 @@ test("mientras carga, el cargando es del color de la tienda", async () => {
   assert.match(js, /Abriendo el checkout seguro/);
   assert.match(js, /rc-go 1\.1s linear infinite/, "el logo gira, como en el resto");
   assert.ok(!/stop-color="#10b981"/.test(js), "no sale el verde nuestro: usa el de la tienda");
-  assert.match(js, /f\.style\.cssText = "width:100%;border:0;display:none/, "el iframe aparece recién cuando se pintó");
+  // El iframe se pinta siempre: uno que nace escondido puede quedar en blanco.
+  assert.match(js, /f\.style\.cssText = "width:100%;border:0;display:block/);
+  assert.match(js, /position:absolute;inset:0;background:#fff/, "el cargando va ENCIMA del iframe");
   assert.match(js, /setTimeout\(mostrar, 8000\)/, "y si el checkout nunca avisa, se muestra igual");
 });
 

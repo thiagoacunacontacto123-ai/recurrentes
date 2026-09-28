@@ -153,7 +153,7 @@ function Picker({ value, options, placeholder, onChange, style, T }) {
     <div ref={ref} style={{ position: "relative" }}>
       <button type="button" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((v) => !v)}
         style={{ ...style, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, cursor: "pointer", textAlign: "left",
-          color: cur ? T.text : T.textSm, borderColor: open ? T.accentSolid : undefined }}>
+          color: cur ? T.text : T.textSm, borderColor: open ? T.accentSolid : T.inputBorder }}>
         <span>{cur ? cur.label : placeholder}</span>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"
           style={{ flexShrink: 0, transform: open ? "rotate(180deg)" : "none", transition: "transform .15s", color: T.textMd }}><polyline points="6 9 12 15 18 9"/></svg>
