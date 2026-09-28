@@ -148,6 +148,16 @@ export default async function handler(req, res) {
   if (action === "demo-lead") return handleDemoLead(req, res);
   if (action === "demo-booked") return handleDemoBooked(req, res);
   if (action === "demo-slots") return handleDemoSlots(req, res);
+  // Login único desde la app de Shopify (#/entrar?m=&k=): { m, k } → token de Firebase (_lib/appLink.js).
+  if (action === "app-login") {
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+    const rl = await rateLimit(`applogin:${clientIp(req)}`, { limit: 30, windowSec: 3600 });
+    if (!rl.ok) return res.status(429).json({ error: "Demasiados intentos. Probá en un rato." });
+    const { appLoginToken } = await import("./_lib/appLink.js");
+    const r = await appLoginToken(req.body || {});
+    if (!r) return res.status(401).json({ error: "Este link de acceso no es válido o fue regenerado. Pedí uno nuevo desde Integraciones → Shopify." });
+    return res.status(200).json({ ok: true, token: r.token, merchant_id: r.merchant_id });
+  }
   // Vinculación con Growith (_lib/growith.js): canje del código, lectura de cobros, baja.
   if (action === "growith-link" || action === "growith-charges" || action === "growith-me" || action === "growith-unlink") return handleGrowith(action, req, res);
   if (action === "demo-book") return handleDemoBook(req, res);

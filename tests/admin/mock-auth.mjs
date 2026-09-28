@@ -16,6 +16,7 @@ export function getAuth() {
       __users.set(uid, u);
       return u;
     },
+    createCustomToken: async (uid, claims = {}) => `ct_${uid}_${Object.keys(claims).join(",")}`,
     generatePasswordResetLink: async (email, opts = {}) => `https://reset.test/?email=${encodeURIComponent(email)}&continue=${encodeURIComponent(opts.url || "")}`,
   };
 }

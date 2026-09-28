@@ -171,6 +171,18 @@ export default function AdminOnboarding({ rows = [], initialId = "", onOpenMerch
                         {st.hace && <div style={{ fontSize:DS.font.sm, color:T.textMd, lineHeight:1.5 }}><strong style={{ color:T.text }}>Vos:</strong> {st.hace}</div>}
                         {/* Lo que hay que pegar, con el id de ESTE comercio: el snippet del tema y la
                             plantilla del checkout en su dominio (shared/platform/storeCheckout.js). */}
+                        {st.id === "tienda" && (
+                          <div style={{ display:"flex", gap:8, flexWrap:"wrap", alignItems:"center" }}>
+                            <Btn T={T} variant="secondary" size="sm" disabled={busy === "applink"} onClick={async () => {
+                              setBusy("applink");
+                              const r = await apiPost("stats", { merchant_id: m.id }, { action: "admin-app-link" });
+                              setBusy("");
+                              if (!r || r.error) return toast(r?.error || "No se pudo generar", "error");
+                              copyText(r.url, "Link de la app copiado: va como App URL en su app de Shopify");
+                            }}>Copiar link de la app (App URL, login único)</Btn>
+                            <span style={{ fontSize:DS.font.xs, color:T.textSm }}>Se pega como App URL en su app privada de Shopify: desde su admin de Shopify entran ya logueados.</span>
+                          </div>
+                        )}
                         {st.id === "widget" && (
                           <div style={{ display:"grid", gap:8 }}>
                             <div style={label}>Snippet para el tema (layout/theme.liquid, arriba de &lt;/body&gt;)</div>

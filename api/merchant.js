@@ -117,6 +117,13 @@ export default async function handler(req, res) {
     // "Activar en mi tienda": link del producto a abrir + qué avisó el widget (_lib/widgetVerify.js).
     if (gAction === "widget-verify-url") return widgetVerifyUrlAction(merchantId, req, res);
     if (gAction === "widget-verify-status") return widgetVerifyStatusAction(merchantId, req, res);
+    // Link de acceso único (App URL de la app de Shopify): abre el panel ya logueado. Solo el dueño.
+    if (gAction === "app-link") {
+      if (ctx.role && ctx.role !== "owner") return res.status(403).json({ error: "Solo el dueño de la tienda ve el link de acceso." });
+      const { ensureAppLink } = await import("./_lib/appLink.js");
+      const r = await ensureAppLink(merchantId);
+      return r ? res.json({ ok: true, ...r }) : res.status(404).json({ error: "No existe" });
+    }
     // Vincular con Growith: código firmado de 10 min + URL a la que mandar al dueño (_lib/growith.js).
     if (gAction === "growith-code") {
       if (ctx.role && ctx.role !== "owner") return res.status(403).json({ error: "Solo el dueño de la tienda puede vincular Growith." });
@@ -362,6 +369,12 @@ export default async function handler(req, res) {
     if (action === "mp-oauth-start")       return mpOauthStart(ctx, req, res);
     if (action === "disconnect-mp")        return disconnect(merchantId, "mp", res);
     if (action === "disconnect-shopify")   return disconnect(merchantId, "shopify", res);
+    if (action === "app-link-reset") {
+      if (ctx.role && ctx.role !== "owner") return res.status(403).json({ error: "Solo el dueño de la tienda puede regenerar el link de acceso." });
+      const { ensureAppLink } = await import("./_lib/appLink.js");
+      const r = await ensureAppLink(merchantId, { reset: true });
+      return res.json({ ok: true, ...r });
+    }
     if (action === "growith-unlink") {
       if (ctx.role && ctx.role !== "owner") return res.status(403).json({ error: "Solo el dueño de la tienda puede desvincular Growith." });
       const { growithUnlink } = await import("./_lib/growith.js");

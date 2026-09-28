@@ -121,7 +121,7 @@ export function ShopifyConnectSteps({ T, origin, where = "modal" }) {
         <li>Entrá a <A T={T} href={SHOPIFY_DEV_DASHBOARD_URL}>dev.shopify.com/dashboard</A> → <B T={T}>Create app</B> → nombre <B T={T}>Recurrentes</B>.</li>
         <li>Entrá a la app → <B T={T}>Versiones → Crear versión</B>. Ahí adentro está todo lo de los pasos 3 y 4.
           <div style={{ marginTop:6, padding:"8px 10px", background:T.yellowBg || "rgba(245,158,11,0.10)", border:`1px solid ${(T.yellow || "#f59e0b")}55`, borderRadius:8, color:T.text }}>
-            ⚠️ Vas a ver <B T={T}>muchos más campos</B> (App URL con <Code T={T}>example.com</Code>, opciones de embed, webhooks, etc.). <B T={T}>Ignoralos todos y dejalos como están.</B> Solo se tocan dos cosas: <B T={T}>Alcances</B> y <B T={T}>URL de redireccionamiento</B>.
+            ⚠️ Vas a ver <B T={T}>muchos más campos</B> (opciones de embed, webhooks, etc.): <B T={T}>dejalos como están</B>. En <B T={T}>App URL</B> (donde dice <Code T={T}>example.com</Code>) pegá tu <B T={T}>link de acceso único</B> (Integraciones → Shopify → Ajustes, una vez conectada): así desde el admin de Shopify, Recurrentes se abre ya logueado. Aparte de eso se tocan dos cosas: <B T={T}>Alcances</B> y <B T={T}>URL de redireccionamiento</B>.
           </div>
         </li>
         <li>En <B T={T}>Alcances (scopes)</B> pegá TODOS estos de una (van separados por comas):

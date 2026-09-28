@@ -965,6 +965,15 @@ export async function adminHandler(req, res) {
       if (action === "admin-demo-lead-account") return await demoLeadAccount(admin, req, res);
       if (action === "admin-create-account") return await createAccount(admin, req, res);
       if (action === "admin-password-link") return await passwordLink(admin, req, res);
+      // Link de acceso único de una tienda (App URL de su app de Shopify). { merchant_id, reset }.
+      if (action === "admin-app-link") {
+        const t = await existingMerchant(req, res);
+        if (!t) return;
+        const { ensureAppLink } = await import("./appLink.js");
+        const r = await ensureAppLink(t.id, { reset: req.body?.reset === true });
+        await audit(admin, "app_link", t.id, { reset: req.body?.reset === true });
+        return res.json({ ok: true, ...r });
+      }
       if (action === "admin-demo-lead-status") return await demoLeadStatus(admin, req, res);
       if (action === "admin-demo-lead-delete") return await demoLeadDelete(admin, req, res);
       if (action === "admin-setup-step") return await setupStep(admin, req, res);

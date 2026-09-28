@@ -17,6 +17,7 @@ const SoportePage = React.lazy(() => import("./pages/Legal.jsx").then(m => ({ de
 const TransferAcceptPage = React.lazy(() => import("./pages/Transfer.jsx").then(m => ({ default: m.TransferAcceptPage })));
 const DemoPage = React.lazy(() => import("./pages/Demo.jsx"));
 const TostadoStore = React.lazy(() => import("./pages/Tostado.jsx"));
+const EntrarPage = React.lazy(() => import("./pages/Entrar.jsx"));
 import { SITE_PAGES } from "./pages/SitePages.jsx";
 
 import { initPixel, initGoogleAds, pixelPageView } from "./lib/attribution.js";
@@ -63,6 +64,8 @@ export default function App() {
   // Pedir demo: anda con o sin sesión (no crea cuenta, junta el lead y avisa).
   if (route === "demo") return L(<DemoPage/>);
   if (route === "tostado") return L(<TostadoStore/>);
+  // Login único desde la app de Shopify: canjea la clave del link y entra al panel.
+  if (route === "entrar") return L(<EntrarPage/>);
   // Páginas del sitio (#/precios, #/funciones…): públicas, también con sesión abierta.
   if (route === "site") return <PublicSite/>;
   // Aceptar una tienda transferida: anda con o sin sesión (maneja el login adentro).
@@ -91,6 +94,7 @@ function parseRoute() {
   if (path === "transferir") return "transferir";
   if (path === "demo") return "demo";
   if (path === "tostado") return "tostado";
+  if (path === "entrar") return "entrar";
   if (SITE_PAGES.has(path)) return "site";
   return "default";
 }

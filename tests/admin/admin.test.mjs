@@ -412,5 +412,25 @@ put("merchants/old", { email: "old@x.com", created_at: ago(35), plan: "free" });
   ok(r.status === 403, "un comercio no crea cuentas");
 }
 
+// ─── 12) Link de acceso único (App URL de Shopify) ────────────────────────────
+{
+  const publicApi = (await import(src("api/public.js"))).default;
+  let r = await call(stats, { method: "POST", query: { action: "admin-app-link" }, body: { merchant_id: "newbie" }, token: "t-admin" });
+  ok(r.status === 200 && /#\/entrar\?m=newbie&k=[a-f0-9]{48}$/.test(r.body?.url || ""), "el admin saca el link de la tienda", r.body);
+  const k = (r.body?.url || "").split("k=")[1];
+  let l = await call(publicApi, { method: "POST", query: { action: "app-login" }, body: { m: "newbie", k } });
+  ok(l.status === 200 && l.body?.token === "ct_newbie_rec_app_link" && l.body?.merchant_id === "newbie", "con la clave entra como el dueño", l.body);
+  l = await call(publicApi, { method: "POST", query: { action: "app-login" }, body: { m: "newbie", k: "f".repeat(48) } });
+  ok(l.status === 401, "con otra clave no entra");
+  r = await call(stats, { method: "POST", query: { action: "admin-app-link" }, body: { merchant_id: "newbie", reset: true }, token: "t-admin" });
+  const k2 = (r.body?.url || "").split("k=")[1];
+  ok(k2 && k2 !== k, "regenerar da otra clave");
+  l = await call(publicApi, { method: "POST", query: { action: "app-login" }, body: { m: "newbie", k } });
+  ok(l.status === 401, "la clave vieja deja de servir");
+  __tokens.set("t-newbie", { uid: "newbie", email: doc("merchants/newbie")?.email || "newbie@x.com", email_verified: true });
+  r = await call(merchantApi, { query: { action: "app-link" }, token: "t-newbie" });
+  ok(r.status === 200 && (r.body?.url || "").includes(k2), "el dueño ve el mismo link desde Integraciones", r.body);
+}
+
 console.log(fails ? `\n${fails} test(s) fallaron` : "\nTodo OK");
 process.exit(fails ? 1 : 0);

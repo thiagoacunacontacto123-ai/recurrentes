@@ -33,6 +33,38 @@ function parseShop(raw) {
   return { shop, ok, own: !ok && v.includes(".") && !v.endsWith(".myshopify.com"), completed: !v.includes(".") };
 }
 
+// ── Link de acceso único (App URL de la app de Shopify) ─────────────────────────
+// Se pega en la app privada de Shopify como "App URL": desde el admin de Shopify,
+// Recurrentes abre ya logueado. Quien tenga el link entra: regenerarlo anula el anterior.
+function AppLinkBox({ T, b }) {
+  const [d, setD] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const load = async () => { const r = await apiGet("merchant", { action: "app-link" }); if (r && !r.error) setD(r); };
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  async function reset() {
+    const ok = await appConfirm("El link anterior deja de servir: hay que volver a pegarlo en la app de Shopify.", { title:"¿Generar otro link?", okLabel:"Generar" });
+    if (!ok) return;
+    setBusy(true);
+    const r = await apiPatch("merchant", {}, { action: "app-link-reset" });
+    setBusy(false);
+    if (r?.error) toast("Error: " + r.error, "error"); else { setD(r); toast("Link nuevo generado", "success"); }
+  }
+  if (!d) return null;
+  return (
+    <div style={{ margin:"12px 0 14px", padding:"12px 14px", borderRadius:12, background:T.surface, border:`1px solid ${T.borderL}` }}>
+      <div style={{ fontSize:DS.font.md, fontWeight:700, color:T.text, marginBottom:4 }}>Tu link de acceso único</div>
+      <div style={{ fontSize:DS.font.sm, color:T.textMd, lineHeight:1.5, marginBottom:8 }}>
+        Pegalo como <S T={T}>App URL</S> en tu app de Shopify: desde el admin de Shopify, Recurrentes se abre ya logueado. Quien tenga este link entra a tu panel: no lo compartas.
+      </div>
+      <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+        <code style={{ fontFamily:MONO, fontSize:11.5, color:T.textMd, background:T.bg, border:`1px solid ${T.borderL}`, borderRadius:8, padding:"6px 8px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:420 }}>{d.url}</code>
+        <button type="button" style={b.ghost} onClick={() => { try { navigator.clipboard.writeText(d.url); toast("Link copiado", "success"); } catch (_) {} }}>Copiar</button>
+        <button type="button" style={b.ghost} disabled={busy} onClick={reset}>Generar otro</button>
+      </div>
+    </div>
+  );
+}
+
 // ── Piezas ─────────────────────────────────────────────────────────
 const Pill = ({ T, c, dot, caps, children }) => (
   <span style={{ display:"inline-flex", alignItems:"center", gap:5, fontSize: caps ? 9 : 10, fontWeight: caps ? 800 : 700, letterSpacing: caps ? 0.5 : 0, textTransform: caps ? "uppercase" : "none", color:c, background:c + (caps ? "22" : "14"), borderRadius:99, padding:"2px 8px", whiteSpace:"nowrap" }}>
@@ -645,6 +677,7 @@ export function IntegrationsTab({ merchant, onChange, embedded = false }) {
               <button type="button" style={b.ghost} onClick={openShopify}>Reconectar</button>
             </div>
             <ShopifyScopeNotice T={T} scope={m.shopify_scope} onReconnect={openShopify}/>
+            <AppLinkBox T={T} b={b}/>
             <div style={{ height:1, background:T.borderL, margin:"0 0 14px" }}/>
             <WidgetThemeCard merchant={m} onChange={onChange} bare/>
           </Row>
