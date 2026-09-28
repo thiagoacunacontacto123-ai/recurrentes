@@ -186,8 +186,13 @@ function Picker({ value, options, placeholder, onChange, style, T }) {
 // ocupado). Chips de días arriba, horarios del día elegido abajo; mismo estilo que el
 // resto del formulario. Vive fuera del componente para no perder estado en cada render.
 const fechaLargaAR = (iso) => {
-  try { return new Intl.DateTimeFormat("es-AR", { timeZone: DEMO_TZ, weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso)).replace(",", " a las"); }
-  catch (_) { return iso; }
+  // "miércoles 30 de septiembre a las 09:15" (la coma de Intl iba después del día de la semana).
+  try {
+    const d = new Date(iso);
+    const dia = new Intl.DateTimeFormat("es-AR", { timeZone: DEMO_TZ, weekday: "long", day: "numeric", month: "long" }).format(d).replace(",", "");
+    const hora = new Intl.DateTimeFormat("es-AR", { timeZone: DEMO_TZ, hour: "2-digit", minute: "2-digit", hour12: false }).format(d);
+    return `${dia} a las ${hora}`;
+  } catch (_) { return iso; }
 };
 function SlotPicker({ T, days, dia, setDia, start, setStart, style, label }) {
   const d = days.find((x) => x.date === dia) || days[0];
@@ -388,7 +393,7 @@ export default function DemoPage() {
               </div>
               <h1 style={{ fontSize: 30, fontWeight: 800, letterSpacing: "-0.03em", margin: "0 0 10px" }}>Listo, {f.nombre.split(" ")[0]}. Nos vemos.</h1>
               <p style={{ fontSize: 15, color: T.textMd, lineHeight: 1.6, margin: "0 0 8px" }}>
-                <strong style={{ color: T.text, textTransform: "capitalize" }}>{fechaLargaAR(booked.meeting_at)}</strong>, 15 minutos por Google Meet.
+                <strong style={{ color: T.text }}>{fechaLargaAR(booked.meeting_at).replace(/^./, (c) => c.toUpperCase())}</strong>, 15 minutos por Google Meet.
               </p>
               <p style={{ fontSize: 14, color: T.textMd, lineHeight: 1.6, margin: "0 0 22px" }}>
                 Te llega la invitación con el link a <strong style={{ color: T.text }}>{f.email}</strong>{f.whatsapp ? <> y un recordatorio 2 horas antes.</> : "."}
