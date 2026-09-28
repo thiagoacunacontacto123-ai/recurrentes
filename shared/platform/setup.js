@@ -72,7 +72,7 @@ export const SETUP_STEPS = [
     mensaje: (m) => {
       const p = plataformaDe(m);
       const cual = p === "shopify" ? ACCESO_SHOPIFY : p === "tiendanube" ? ACCESO_TIENDANUBE : `${ACCESO_SHOPIFY}\n\n${ACCESO_TIENDANUBE}`;
-      return `Acceso a tu tienda, para que la instalación la haga yo y no tengas que tocar nada:\n\n${cual}\n\nSolo uso ese acceso para instalar y ajustar el widget.`;
+      return `Acceso a tu tienda, para que la instalación la haga yo y no tengas que tocar nada:\n\n${cual}\n\nSolo uso ese acceso para dejar la suscripción instalada y ajustarla.`;
     },
     hace: "Con el acceso: conectar la tienda desde su cuenta (Shopify: crear la app en dev.shopify.com, pegar dominio + Client ID + Secret y correr el OAuth con TODOS los permisos; Tiendanube: instalar la app). Pegar el snippet en el tema.",
     done: (m) => tiene(m.shopify_token) || tiene(m.tiendanube_token),
