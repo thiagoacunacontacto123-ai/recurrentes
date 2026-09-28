@@ -745,6 +745,7 @@ async function demoLeadAccount(admin, req, res) {
     store_name: String(l.marca || "").slice(0, 60),
     // De dónde salió, para que el embudo del Admin no pierda el anuncio.
     demo_lead_id: id,
+    demo_plataforma: l.plataforma || null,   // para que el conector pida el acceso correcto (Shopify/Tiendanube)
     ...(l.acquisition ? { acquisition: l.acquisition } : {}),
     updated_at: at,
   }, { merge: true });

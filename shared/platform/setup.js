@@ -30,84 +30,112 @@ export function scopesFaltantes(m) {
   return SHOPIFY_REQUIRED_SCOPE_IDS.filter(id => !otorgados.includes(id));
 }
 
+// Qué plataforma tiene (para pedir el acceso correcto). Primero lo conectado; si no,
+// lo que dijo en el formulario de demo (demo_plataforma); si no, se piden las dos.
+const plataformaDe = (m) => m?.shopify_token || m?.shopify_shop ? "shopify"
+  : m?.tiendanube_token || m?.tn_store_id ? "tiendanube"
+  : (m?.channel === "shopify" || m?.channel === "tiendanube") ? m.channel
+  : (m?.demo_plataforma === "shopify" || m?.demo_plataforma === "tiendanube") ? m.demo_plataforma : null;
+
+const ACCESO_SHOPIFY = "En Shopify: Configuración → Usuarios y permisos → Agregar personal, con el mail soporte@recurrentesapp.com y estos permisos: Temas, Productos, Pedidos, Clientes, Aplicaciones y canales de venta, y Configuración. (Si preferís, pasame el dominio .myshopify.com y te mando una solicitud de colaborador para que solo la aceptes.)";
+const ACCESO_TIENDANUBE = "En Tiendanube: Configuración → Usuarios → Invitar usuario, con el mail soporte@recurrentesapp.com y acceso a Productos, Ventas, Diseño (para tocar el tema) y Aplicaciones.";
+
+// Desde el 28-sept-2026 la instalación la hace Thiago (se cobra, ver INSTALL_RANGE): el
+// cliente solo da accesos y datos. Por eso los `mensaje` piden accesos, no "conectá vos".
 export const SETUP_STEPS = [
   {
     id: "contacto",
     title: "Datos de contacto",
     pide: "Nombre, WhatsApp y email de quien maneja la tienda.",
-    mensaje: "Tu nombre, tu WhatsApp y el mail de contacto.",
+    mensaje: "Tu nombre, tu WhatsApp y el mail de contacto de la tienda (a ese mail van los avisos de cada cobro).",
     hace: "Quedan en la cuenta y son a dónde salen los avisos de cobro.",
     done: (m) => tiene(m.owner_whatsapp) && (tiene(m.contact_email) || tiene(m.email)),
   },
   {
+    id: "acceso",
+    title: "Contraseña de su cuenta de Recurrentes",
+    pide: "Que ponga su contraseña con el link que le llegó por mail (Crear cuenta desde el pedido de demo se lo manda). Con eso puede aprobar Mercado Pago con su usuario.",
+    mensaje: "Te llegó un mail de Recurrentes para poner tu contraseña (mirá spam si no lo ves). Ponela y avisame: con eso vas a poder aprobar la conexión de Mercado Pago con tu usuario. Si no llegó, decime y te lo reenvío.",
+    hace: "Si no le llegó, reenviar el link desde la ficha (Crear cuenta lo vuelve a mandar).",
+    // Opcional para el progreso: si conecta MP en la llamada con vos, no hace falta que entre solo.
+    manual: true, opcional: true,
+  },
+  {
     id: "tienda",
-    title: "Tienda conectada",
-    pide: "Que te sume como STAFF de su Shopify con permisos de Aplicaciones y Canales de venta, o que esté en la llamada para hacer el OAuth él mismo. En Tiendanube, que instale la app desde el link que le pasás.",
-    mensaje: "Acceso a tu tienda. En Shopify: sumame como usuario del staff con permiso de Aplicaciones y Canales de venta (Configuración → Usuarios), o quedate en la llamada y lo conectamos juntos en dos minutos. En Tiendanube: instalás la app desde el link que te paso y listo.",
-    hace: "Shopify: crea la app en dev.shopify.com, pega dominio + Client ID + Secret y corre el OAuth. Tiendanube: un clic.",
+    title: "Acceso a la tienda",
+    pide: (m) => {
+      const p = plataformaDe(m);
+      return p === "shopify" ? "Acceso de staff a su Shopify (Temas, Productos, Pedidos, Clientes, Apps y canales, Configuración) o el dominio .myshopify.com para mandarle la solicitud de colaborador."
+        : p === "tiendanube" ? "Que invite a soporte@recurrentesapp.com como usuario de su Tiendanube (Productos, Ventas, Diseño, Aplicaciones)."
+        : "Acceso a la tienda: staff en Shopify o usuario invitado en Tiendanube (según cuál tenga).";
+    },
+    mensaje: (m) => {
+      const p = plataformaDe(m);
+      const cual = p === "shopify" ? ACCESO_SHOPIFY : p === "tiendanube" ? ACCESO_TIENDANUBE : `${ACCESO_SHOPIFY}\n\n${ACCESO_TIENDANUBE}`;
+      return `Acceso a tu tienda, para que la instalación la haga yo y no tengas que tocar nada:\n\n${cual}\n\nSolo uso ese acceso para instalar y ajustar el widget.`;
+    },
+    hace: "Con el acceso: conectar la tienda desde su cuenta (Shopify: crear la app en dev.shopify.com, pegar dominio + Client ID + Secret y correr el OAuth con TODOS los permisos; Tiendanube: instalar la app). Pegar el snippet en el tema.",
     done: (m) => tiene(m.shopify_token) || tiene(m.tiendanube_token),
   },
   {
     id: "permisos",
-    title: "Permisos completos",
-    // La lista sale del mismo archivo que el OAuth: si mañana se agrega un scope,
-    // este texto lo dice solo.
-    pide: () => `Los permisos de la app: ${SHOPIFY_REQUIRED_SCOPE_IDS.join(", ")}. Los dos opcionales (read_discounts y write_discounts) solo si quiere traer sus cupones y dejar los regalos gratis.`,
-    mensaje: () => `Que la app quede con todos los permisos: ${SHOPIFY_REQUIRED_SCOPE_IDS.join(", ")}. Son los que necesita para leer tus productos, crear la orden de cada cobro y cotizar tus envíos. Si además querés traer tus cupones y dejar regalos gratis, sumá read_discounts y write_discounts.`,
+    title: "Permisos completos de la app",
+    pide: () => `Nada del cliente: los revisás vos. La app tiene que quedar con ${SHOPIFY_REQUIRED_SCOPE_IDS.join(", ")}; read_discounts y write_discounts solo si quiere traer sus cupones y dejar regalos gratis.`,
     hace: "Si falta alguno, Shopify responde 403 en la mitad de las cosas. Se arregla reconectando con la lista completa.",
     done: (m) => (tiene(m.shopify_token) || tiene(m.tiendanube_token)) && scopesFaltantes(m).length === 0,
   },
   {
     id: "mp",
     title: "Mercado Pago conectado",
-    pide: "Que entre a su cuenta de Mercado Pago y apruebe la conexión, o el Access Token de producción si prefiere pegarlo.",
-    mensaje: "Conectar tu Mercado Pago: entrás con tu cuenta y aprobás la conexión desde el panel. La plata de tus clientes cae siempre en tu cuenta, nunca pasa por la nuestra.",
-    hace: "Es la cuenta donde cae la plata de sus clientes. Nunca es la tuya.",
+    pide: "Que entre con su usuario de Recurrentes, toque Conectar con Mercado Pago y apruebe con la cuenta donde quiere cobrar. Es lo único que no podés hacer vos: MP le pide su clave.",
+    mensaje: "Conectar tu Mercado Pago (es lo único que tiene que hacerse con tu usuario, porque Mercado Pago te pide tu clave):\n1. Entrá al link de abajo con tu usuario de Recurrentes.\n2. En Mercado Pago tocá \"Conectar con Mercado Pago\".\n3. Iniciá sesión con la cuenta donde querés que caiga la plata y aprobá.\nSon 2 minutos. Si querés lo hacemos juntos por videollamada.",
+    hace: "Es la cuenta donde cae la plata de sus clientes. Nunca es la tuya. Si ya tiene otra tienda con MP conectado, se reusa desde Integraciones.",
     done: (m) => tiene(m.mp_access_token),
   },
   {
     id: "plan",
-    title: "Al menos un plan activo",
-    pide: "Qué producto vende por suscripción, cada cuánto y con qué descuento. Y los packs, si quiere x1 / x2 / x3.",
-    mensaje: "Decime qué producto querés vender por suscripción, cada cuánto le llega al cliente y qué descuento le das por suscribirse. Si querés packs (x1, x2, x3), también los precios de cada uno.",
-    hace: "Se crea en Planes, con los packs y los regalos.",
+    title: "Planes y packs armados",
+    pide: "Qué producto(s) van por suscripción, cada cuánto, con qué descuento, qué packs (x1 / x2 / x3) y si hay regalo en el primer envío. Logo y colores si no están en la tienda.",
+    mensaje: "Para armarte los planes decime:\n· qué producto(s) van por suscripción\n· cada cuánto le llega al cliente (cada 30 días, cada 15…)\n· qué descuento le das por suscribirse\n· si querés packs (x1, x2, x3) y a qué precio cada uno\n· si hay un regalo en el primer envío\nY, si no están en la tienda, tu logo y tus colores.",
+    hace: "Se crean en Planes, con los packs, regalos y el checkout con su marca.",
     done: (m, ctx) => (ctx?.planes_activos || 0) > 0,
   },
   {
     id: "widget",
     title: "Widget andando en la tienda",
     pide: "Nada: se hace con el acceso que ya te dio.",
-    hace: "Pegar el snippet en el tema y usar \"Activar en mi tienda\" hasta que el widget avise que se pintó.",
+    hace: "Pegar el snippet en el tema (y la página de checkout en su dominio si la contrató), y usar \"Activar en mi tienda\" hasta que el widget avise que se pintó.",
     done: (m) => tiene(m.widget_verified_at) || tiene(m.widget_last_seen_at),
   },
   {
     id: "marca",
     title: "Mails con su marca",
     pide: "A qué dirección quiere que le respondan sus clientes.",
-    mensaje: "A qué dirección de mail querés que te escriban tus clientes cuando respondan los avisos. Los mails salen con tu marca.",
+    mensaje: "¿A qué mail querés que te escriban tus clientes cuando respondan los avisos automáticos? Los mails salen con tu marca y ese es el de respuesta.",
     hace: "Configuración → Marca. Sin ese mail los flujos no se activan.",
     done: (m) => tiene(m.email_reply_to) || tiene(m.shop_email),
   },
   {
     id: "meta",
     title: "Pixel de Meta (opcional)",
-    pide: "Su Pixel ID y un token de la API de Conversiones, desde Business Manager → Orígenes de datos.",
-    mensaje: "Si hacés Meta Ads: tu Pixel ID y un token de la API de Conversiones (Business Manager → Orígenes de datos). Con eso las compras por suscripción se le atribuyen a tus campañas.",
-    hace: "Con eso las compras de la suscripción se le atribuyen a sus campañas.",
+    pide: "Pixel ID + token de la API de Conversiones, o que sume a soporte@recurrentesapp.com como socio con acceso al pixel en Business Manager.",
+    mensaje: "Si hacés Meta Ads, para que las suscripciones se atribuyan a tus campañas necesito:\n· el ID de tu pixel (Business Manager → Orígenes de datos → tu pixel)\n· un token de la API de Conversiones (en ese mismo pixel: Configuración → Generar token de acceso)\nO, si preferís, sumá a soporte@recurrentesapp.com como socio con acceso al pixel y lo saco yo.",
+    hace: "Se carga en Integraciones → Meta Ads. Con eso las compras de la suscripción se le atribuyen a sus campañas.",
     opcional: true,
     done: (m) => tiene(m.meta_pixel_id),
   },
   {
     id: "cobro",
     title: "Primer cobro real",
-    pide: "Nada. Es la prueba de que quedó andando.",
-    hace: "Verificar que el cobro creó la orden en la tienda.",
+    pide: "Nada. Es la prueba de que quedó andando: compra de prueba con vos en la llamada.",
+    hace: "Verificar que el cobro creó la orden en la tienda y que le llegó el mail de bienvenida.",
     done: (m, ctx) => (ctx?.subs || 0) > 0,
   },
   {
     id: "pago",
     title: "Cobrada la instalación (pago único)",
-    pide: "El pago, una vez que está todo terminado y funcionando.",
+    pide: "El pago único de la instalación (USD 100 a 200), con todo terminado y funcionando.",
+    mensaje: "Quedó todo andando: ya viste el cobro y el pedido en tu tienda. Te paso los datos para el pago único de la instalación que hablamos.",
     hace: "Se tilda a mano cuando entró.",
     manual: true,
   },
@@ -142,7 +170,7 @@ export function buildSetup(m, { manual = [], ctx = {} } = {}) {
 
 // A dónde va el cliente en cada paso (link del panel). Se arma con la base del sitio.
 export const SETUP_STEP_LINK = {
-  contacto: "/#/config/cuenta",
+  acceso: "/#/login",
   tienda: "/#/config/integraciones",
   permisos: "/#/config/integraciones",
   mp: "/#/config/integraciones",
@@ -158,7 +186,7 @@ export function mensajePaso(step, { nombre = "", baseUrl = "https://www.recurren
   if (!step?.mensaje) return null;
   const hola = nombre ? `Hola ${String(nombre).split(" ")[0]}! ` : "Hola! ";
   const link = SETUP_STEP_LINK[step.id] ? `${String(baseUrl).replace(/\/$/, "")}${SETUP_STEP_LINK[step.id]}` : null;
-  return `${hola}Para seguir con la puesta en marcha necesito esto de tu lado:\n\n${step.mensaje}`
+  return `${hola}Para seguir con la instalación necesito esto de tu lado:\n\n${step.mensaje}`
     + (link ? `\n\nEntrás acá: ${link}` : "")
     + `\n\nCualquier duda me escribís por acá. Con eso sigo yo.`;
 }
@@ -169,10 +197,10 @@ export function mensajePaso(step, { nombre = "", baseUrl = "https://www.recurren
 export function pedidoDeAccesos(setup, { nombre = "" } = {}) {
   // Solo los pasos que dependen del cliente: los que no tienen `mensaje` son
   // cosas nuestras (montar el widget, esperar el primer cobro) y no se piden.
-  const faltan = setup.steps.filter(s => !s.done && !s.opcional && !s.manual && s.mensaje);
+  const faltan = setup.steps.filter(s => !s.done && !s.opcional && s.mensaje && s.id !== "pago");
   const hola = nombre ? `Hola ${String(nombre).split(" ")[0]}! ` : "Hola! ";
   if (!faltan.length) return `${hola}Ya tengo todo lo que necesito de tu lado. Sigo yo y te aviso cuando esté andando.`;
-  return `${hola}Para dejar las suscripciones andando en tu tienda necesito esto de tu lado:\n\n`
+  return `${hola}La instalación la hago yo; de tu lado necesito solo esto:\n\n`
     + faltan.map((s, i) => `${i + 1}. ${s.mensaje}`).join("\n\n")
     + `\n\nCon eso sigo yo y te aviso apenas esté funcionando.`;
 }
