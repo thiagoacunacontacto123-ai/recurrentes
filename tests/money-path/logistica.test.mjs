@@ -15,7 +15,7 @@ import { seedDoc, rawGet } from "../helpers/fake-firestore.mjs";
 
 const { fulfillCharge } = await loadApi("api/_lib/sync.js");
 const { resolveCheckoutShippingRates } = await loadApi("api/widget.js");
-const { sanitizeStockPolicy, resolveStockPolicy, stockCheckNeeded, sanitizeShippingOff, offeredRates } = await loadApi("shared/platform/logistics.js");
+const { sanitizeStockPolicy, resolveStockPolicy, stockCheckNeeded, sanitizeShippingOff, offeredRates, rateKey, rateLabel } = await loadApi("shared/platform/logistics.js");
 
 let W;
 beforeEach(() => {
@@ -213,4 +213,21 @@ test("(e) con la configuración de siempre el vigilante no hace nada", async () 
   W.shopify.stock[String(VARIANT_ID)] = 0;
   const r = await vigilar(luminaMerchant(), [sub]);
   assert.deepEqual(r, { revisadas: 0, pausadas: 0, reactivadas: 0 });
+});
+
+test("(e) las sucursales se agrupan por servicio: apagar una no puede depender del CP", () => {
+  // Las apps de envío devuelven una fila por sucursal cercana al CP consultado
+  // (`…:andreani_pickup:ship:12218`). Guardar esa sucursal suelta no serviría:
+  // el que compra de otro barrio ve otras. 28-sept-2026, Thiago.
+  const live = [
+    { name: "Andreani Punto de Retiro — HOP PARAGUAY 4194", code: "envialo:andreani:andreani_pickup:ship:12218" },
+    { name: "Andreani Punto de Retiro — HOP URIARTE 1128", code: "envialo:andreani:andreani_pickup:ship:99" },
+    { name: 'Andreani Estándar "Envío a domicilio"', code: "envialo:andreani:andreani_home:ship:1" },
+  ];
+  assert.equal(rateKey(live[0]), rateKey(live[1]), "las dos sucursales son el mismo servicio");
+  assert.notEqual(rateKey(live[0]), rateKey(live[2]), "el domicilio es otro");
+  assert.equal(rateLabel(live[0]), "Andreani Punto de Retiro", "al comercio se le muestra el servicio, no la dirección");
+  // Apagando el servicio se van TODAS las sucursales, incluidas las de otro CP.
+  const m = luminaMerchant({ shipping_off: ["envialo:andreani:andreani_pickup:ship"] });
+  assert.deepEqual(offeredRates(live, m).map(r => r.name), ['Andreani Estándar "Envío a domicilio"']);
 });

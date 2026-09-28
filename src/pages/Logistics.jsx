@@ -16,7 +16,7 @@ import { Btn, Callout, DSBadge, InputStyle, PageHeader, Spinner, toast } from ".
 import { Panel } from "../ui/charts.jsx";
 import { apiGet, apiPatch } from "../lib/api.js";
 import { merchantProfile } from "../../shared/platform/profile.js";
-import { STOCK_SOURCES, STOCK_ON_MISSING, resolveStockPolicy, rateKey, rateOffered } from "../../shared/platform/logistics.js";
+import { STOCK_SOURCES, STOCK_ON_MISSING, resolveStockPolicy, rateKey, rateLabel, rateOffered } from "../../shared/platform/logistics.js";
 
 const fmtARS = (n) => "$" + Math.round(Number(n) || 0).toLocaleString("es-AR");
 
@@ -70,21 +70,25 @@ function ShippingCard({ T, m, isOwner, profile, onChange }) {
   }, [esShopify, isOwner]);
   useEffect(() => { traerLive(); }, [traerLive]);
 
-  // La lista que se muestra: lo guardado + lo que cotiza la tienda, sin repetir.
-  const vistos = new Set();
-  const lista = [];
+  // Lo guardado + lo que cotiza la tienda, agrupado por SERVICIO: las apps de
+  // envío devuelven una fila por sucursal cercana al CP que se consultó, y
+  // apagar una sucursal suelta no sirve (el que compra de otro barrio ve otras).
+  const porServicio = new Map();
   for (const r of [...guardadas, ...(live || [])]) {
     const k = rateKey(r);
-    if (!k || vistos.has(k)) continue;
-    vistos.add(k);
-    lista.push({ ...r, _guardada: guardadas.some(g => rateKey(g) === k) });
+    if (!k) continue;
+    const prev = porServicio.get(k);
+    if (prev) { prev._sucursales++; if (Number(r.price) > 0 && !Number(prev.price)) prev.price = r.price; continue; }
+    porServicio.set(k, { ...r, name: rateLabel(r), _sucursales: 1, _guardada: guardadas.some(g => rateKey(g) === k) });
   }
+  const lista = [...porServicio.values()];
 
   const apagado = (r) => !rateOffered(r, { shipping_off: off });
   const toggle = (r) => {
     const k = rateKey(r);
     setOff(prev => apagado(r) ? prev.filter(x => x !== k && x !== String(r.name || "").toLowerCase()) : [...prev, k]);
   };
+
   const setPrecio = (r, v) => setPrecios(ps => ps.map(p => rateKey(p) === rateKey(r) ? { ...p, price: v.replace(/\D/g, "") } : p));
 
   const sucio = JSON.stringify([...off].sort()) !== JSON.stringify([...(m.shipping_off || [])].sort())
@@ -143,6 +147,7 @@ function ShippingCard({ T, m, isOwner, profile, onChange }) {
                       {on && r.carrier_id && <DSBadge T={T} color={T.green} size="sm">etiqueta automática</DSBadge>}
                       {on && r.pickup && <DSBadge T={T} color={T.textSm} size="sm">retiro</DSBadge>}
                       {on && !r._guardada && <DSBadge T={T} color={T.textSm} size="sm">precio en vivo</DSBadge>}
+                      {on && r._sucursales > 1 && <DSBadge T={T} color={T.textSm} size="sm">{r._sucursales} sucursales</DSBadge>}
                     </span>
                   </span>
                   {r._guardada && isOwner ? (

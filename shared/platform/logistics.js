@@ -71,7 +71,31 @@ export function stockCheckNeeded(m) {
 // Se guarda por `code` cuando la tarifa tiene uno (es lo estable) y si no por
 // nombre en minúsculas. Sirve igual para las tarifas guardadas (Tiendanube) que
 // para las que Shopify cotiza en vivo, que no se guardan en ningún lado.
-export const rateKey = (r) => String(r?.code || "").trim() || String(r?.name || "").trim().toLowerCase();
+// Las tarifas de una app de envíos vienen por SUCURSAL: el mismo servicio
+// aparece una vez por cada punto de retiro cercano al CP que se consultó
+// (`envialo:andreani:andreani_pickup:ship:12218`, donde lo último es la
+// sucursal). Apagar "Andreani HOP Paraguay 4194" no serviría de nada: el que
+// compra desde otro barrio ve otras sucursales.
+//
+// Por eso se agrupa por SERVICIO: el code sin su último segmento, o el nombre
+// antes del guión largo. Apagás "Andreani Punto de Retiro" y se van todas.
+// 28-sept-2026 (Thiago: "que se agrupen").
+export function rateKey(r) {
+  const code = String(r?.code || "").trim();
+  if (code.includes(":")) {
+    const partes = code.split(":");
+    return partes.length > 2 ? partes.slice(0, -1).join(":") : code;
+  }
+  const name = String(r?.name || "").trim();
+  const corte = name.split(/\s+[—–-]\s+/)[0];
+  return (code || corte || name).toLowerCase();
+}
+
+/** Lo que se le muestra al comercio: el servicio, sin la sucursal. */
+export function rateLabel(r) {
+  const name = String(r?.name || "").trim();
+  return name.split(/\s+[—–-]\s+/)[0].trim() || name;
+}
 
 export function sanitizeShippingOff(raw) {
   if (raw == null) return { shipping_off: null };
@@ -92,7 +116,7 @@ export function rateOffered(rate, m) {
   const k = rateKey(rate);
   // Se compara por las dos claves: una tarifa puede llegar con code en un lado
   // y sin code en el otro (la misma "A sucursal" de Shopify en vivo y guardada).
-  const nombre = String(rate?.name || "").trim().toLowerCase();
+  const nombre = rateLabel(rate).toLowerCase();
   return !off.includes(k) && !(nombre && off.includes(nombre));
 }
 
