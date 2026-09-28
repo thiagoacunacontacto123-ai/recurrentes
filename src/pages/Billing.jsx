@@ -78,7 +78,11 @@ function useSaasStripe(reloadMerchant) {
 // Escalera de tramos (10 escalones → 2 filas de 5 en desktop, 2 columnas en
 // mobile). `current` resalta el tramo del comerciante.
 // La usan Configuración → Facturación y la landing.
-export function PricingTable({ T, current }) {
+// `factor`: precio de ESTA tienda (legacy_pricing / descuento de por vida que carga el Admin).
+// 1 = precio de lista. Con menos de 1 se muestra el precio real y el de lista tachado.
+export function PricingTable({ T, current, factor = 1 }) {
+  const pct = Math.round((1 - (Number(factor) || 1)) * 100);
+  const priceOf = (t) => Math.round(t.usd * (Number(factor) || 1));
   return (
     <div data-pricing-table="1" style={{ fontFamily: F }}>
       <style>{`
@@ -86,6 +90,11 @@ export function PricingTable({ T, current }) {
         @media(max-width:1000px){ .rec-pricing-grid{grid-template-columns:repeat(3,minmax(0,1fr));} }
         @media(max-width:700px){ .rec-pricing-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;} }
       `}</style>
+      {pct > 0 && (
+        <div style={{ marginBottom: 10, padding: "9px 12px", borderRadius: 10, background: T.accentSolid + "14", border: `1px solid ${T.accentSolid}55`, fontSize: 12.5, color: T.text }}>
+          <strong style={{ color: T.accent }}>Tenés {pct}% de descuento de por vida.</strong> Los precios de abajo ya lo incluyen; el de lista va tachado.
+        </div>
+      )}
       <div className="rec-pricing-grid">
         {PRICING_TIERS.map(t => {
           const on = current === t.id;
@@ -99,7 +108,8 @@ export function PricingTable({ T, current }) {
               <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginTop: 4 }}>
                 {free
                   ? <span style={{ fontSize: 26, fontWeight: 900, color: T.accent, letterSpacing: -0.8, lineHeight: 1.05 }}>Gratis</span>
-                  : <><span style={{ fontSize: 12, fontWeight: 700, color: T.textSm }}>USD</span><span style={{ fontSize: 26, fontWeight: 900, color: T.text, letterSpacing: -0.8, lineHeight: 1.05, fontVariantNumeric: "tabular-nums" }}>{t.usd}</span><span style={{ fontSize: 11, color: T.textSm }}>/mes</span></>}
+                  : <><span style={{ fontSize: 12, fontWeight: 700, color: T.textSm }}>USD</span><span style={{ fontSize: 26, fontWeight: 900, color: T.text, letterSpacing: -0.8, lineHeight: 1.05, fontVariantNumeric: "tabular-nums" }}>{priceOf(t)}</span><span style={{ fontSize: 11, color: T.textSm }}>/mes</span>
+                    {pct > 0 && <span style={{ fontSize: 11, color: T.textSm, textDecoration: "line-through", marginLeft: 4 }}>USD {t.usd}</span>}</>}
               </div>
               <div style={{ fontSize: 12, color: on ? T.accent : T.textMd, fontWeight: 600, lineHeight: 1.4 }}>{tierRangeLabel(t)}</div>
             </div>
@@ -128,6 +138,8 @@ function StatusCard({ T, billing, loadingId, onActivate, stripe }) {
   const edge = b.needs_activation ? T.yellow : T.accentSolid;
   const next = b.next_tier;
   const tier = TIER_BY_ID[b.tier] || TIER_BY_ID.free;
+  const factor = Number(b.price_factor) || 1;
+  const usdOf = (t) => Math.round((t?.usd || 0) * factor);
   return (
     <Card T={T} padding="lg" style={{ marginBottom: 16, borderLeft: `3px solid ${edge}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -151,12 +163,12 @@ function StatusCard({ T, billing, loadingId, onActivate, stripe }) {
         <div style={{ fontSize: 12, color: T.textSm, marginTop: 8, lineHeight: 1.5 }}>
           {beta
             ? "Tu cuenta es de la beta: no pagás mientras dure. Cuando termine te avisamos con tiempo."
-            : next ? `Hasta ${fmtN(max)} suscriptores seguís en ${tier.label}. Desde el ${fmtN(next.min)} pasás a ${next.label} (USD ${next.usd}/mes).` : "Estás en el último tramo: sin techo de suscriptores."}
+            : next ? `Hasta ${fmtN(max)} suscriptores seguís en ${tier.label}. Desde el ${fmtN(next.min)} pasás a ${next.label} (USD ${usdOf(next)}/mes).` : "Estás en el último tramo: sin techo de suscriptores."}
         </div>
       </div>
       {!beta && b.activated_plan && (
         <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 }}>
-          {[["Plan activo", `${planLabel(b.activated_plan)} · USD ${TIER_BY_ID[b.activated_plan]?.usd || 0}/mes`], ["Activado el", fmtDia(b.plan_activated_at)], ["Último pago", fmtDia(b.last_paid_at)], ["Próximo cobro", fmtDia(b.next_payment_at)]].map(([k, v]) => (
+          {[["Plan activo", `${planLabel(b.activated_plan)} · USD ${usdOf(TIER_BY_ID[b.activated_plan])}/mes`], ["Activado el", fmtDia(b.plan_activated_at)], ["Último pago", fmtDia(b.last_paid_at)], ["Próximo cobro", fmtDia(b.next_payment_at)]].map(([k, v]) => (
             <div key={k} style={{ background: T.surface, border: `1px solid ${T.borderL}`, borderRadius: 10, padding: "8px 12px" }}>
               <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", color: T.textSm }}>{k}</div>
               <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginTop: 2 }}>{v}</div>
@@ -179,7 +191,7 @@ function StatusCard({ T, billing, loadingId, onActivate, stripe }) {
       {b.needs_activation && (
         <Callout T={T} tone="warning" title={`Te corresponde el plan ${tier.label}`} style={{ marginTop: 14 }}
           right={b.stripe_available && stripe
-            ? <button onClick={() => stripe.pay(b.tier)} disabled={!!stripe.busy} style={{ ...BtnSolid(T), padding: "8px 14px", fontSize: 12.5, opacity: stripe.busy ? 0.6 : 1 }}>{stripe.busy === "pay" ? "Abriendo el pago…" : `Activar ${tier.label} · USD ${tier.usd}/mes`}</button>
+            ? <button onClick={() => stripe.pay(b.tier)} disabled={!!stripe.busy} style={{ ...BtnSolid(T), padding: "8px 14px", fontSize: 12.5, opacity: stripe.busy ? 0.6 : 1 }}>{stripe.busy === "pay" ? "Abriendo el pago…" : `Activar ${tier.label} · USD ${usdOf(tier)}/mes`}</button>
             : onActivate && <button onClick={() => onActivate(b.tier)} disabled={!!loadingId || b.plan_requested === b.tier} style={{ ...BtnSolid(T), padding: "8px 14px", fontSize: 12.5, opacity: loadingId || b.plan_requested === b.tier ? 0.6 : 1 }}>{loadingId ? "Enviando…" : b.plan_requested === b.tier ? "Pedido enviado ✓" : `Activar ${tier.label}`}</button>}>
           Tenés {fmtN(n)} suscriptores activos ({tierRangeLabel(tier).toLowerCase()}). Nada se corta.{" "}
           {b.stripe_available ? <>Pagás con tarjeta, en dólares, y desde ahí se cobra cada 30 días el tramo que te corresponda ese día.</> : "Activalo y te contactamos para coordinar el pago."}
@@ -217,7 +229,7 @@ export function PlanPage({ T, DS = DS_, merchant, reloadMerchant }) {
         <span style={{ fontSize: 15, fontWeight: 800, color: T.text, letterSpacing: -0.3 }}>Pagás según tus suscriptores activos</span>
         <span style={{ fontSize: 12, color: T.textSm }}>Los primeros {FREE_SUBSCRIBERS} son gratis · en dólares · sin contrato</span>
       </div>
-      <PricingTable T={T} current={billing.plan === "beta" ? null : billing.tier}/>
+      <PricingTable T={T} current={billing.plan === "beta" ? null : billing.tier} factor={billing.price_factor}/>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%, 250px),1fr))", gap: 12, marginTop: 24 }}>
         {FAQS.map(f => (
           <div key={f.q} style={{ background: T.surface, border: `1px solid ${T.borderL}`, borderRadius: DS.r.lg, padding: "12px 14px" }}>
@@ -236,11 +248,12 @@ export function BillingBanner({ T, billing, onGo }) {
   const b = billing || {};
   if (!b.needs_activation) return null;
   const tier = TIER_BY_ID[b.tier];
+  const usdTier = Math.round((tier?.usd || 0) * (Number(b.price_factor) || 1));
   if (!tier) return null;
   return (
     <div style={{ background: T.yellowBg, borderBottom: `1px solid ${T.yellow}44`, padding: "9px 24px", display: "flex", alignItems: "center", justifyContent: "center", gap: 10, flexWrap: "wrap", fontSize: 12.5, color: T.text, fontFamily: F }}>
       <span style={{ width: 7, height: 7, borderRadius: 99, background: T.yellow, flexShrink: 0 }}/>
-      <span><strong>{fmtN(b.active_subscribers)} suscriptores activos</strong> · te corresponde {tier.label} (USD {tier.usd}/mes)</span>
+      <span><strong>{fmtN(b.active_subscribers)} suscriptores activos</strong> · te corresponde {tier.label} (USD {usdTier}/mes)</span>
       <span style={{ color: T.textSm }}>·</span>
       <button onClick={onGo} style={{ background: "none", border: "none", color: T.yellow, fontWeight: 700, cursor: "pointer", fontFamily: F, fontSize: 12.5, padding: 0, textDecoration: "underline", textUnderlineOffset: 2 }}>"Activar plan"</button>
     </div>
