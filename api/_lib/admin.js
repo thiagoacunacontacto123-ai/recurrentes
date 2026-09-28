@@ -716,55 +716,94 @@ async function demoLeadStatus(admin, req, res) {
 // La contraseña no la elegimos nosotros: el usuario se crea sin ninguna y el
 // mail lleva un link de Firebase para que la ponga él. Si el mail no sale
 // igual respondemos ok con el link, para poder pasárselo en la llamada.
+// Crea (o reusa) la cuenta de un comercio SIN contraseña y devuelve el link para que la
+// ponga: ese link es el "registro" del cliente desde el 28-sept-2026 (Thiago: "ningún
+// cliente llega al login hasta que yo le mando a poner contraseña"). Lo usa el pedido
+// de demo y "Crear comercio nuevo" del conector.
+async function createAccountFor(admin, { nombre, email, whatsapp, marca, plataforma, leadId = null, acquisition = null } = {}) {
+  email = String(email || "").trim().toLowerCase();
+  if (!email || !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email)) return { error: "Falta un email válido.", status: 400 };
+  let user = null, yaExistia = false;
+  try { user = await getAuth().getUserByEmail(email); yaExistia = true; }
+  catch (_) { /* no existe: se crea abajo */ }
+  if (!user) {
+    // Sin password a propósito. emailVerified: true porque ya hablamos con la persona.
+    user = await getAuth().createUser({ email, emailVerified: true, displayName: String(nombre || "").slice(0, 60) || undefined });
+  }
+  const { getOrCreateMerchant } = await import("./firebase.js");
+  await getOrCreateMerchant(user.uid, email);
+  const at = new Date().toISOString();
+  await db().collection("merchants").doc(user.uid).set({
+    owner_name: String(nombre || "").slice(0, 80),
+    owner_whatsapp: String(whatsapp || "").slice(0, 20),
+    contact_email: email,
+    store_name: String(marca || "").slice(0, 60),
+    ...(leadId ? { demo_lead_id: leadId } : {}),
+    ...(plataforma ? { demo_plataforma: plataforma } : {}),   // para que el conector pida el acceso correcto
+    ...(acquisition ? { acquisition } : {}),
+    created_by_admin: !yaExistia ? (admin?.email || true) : undefined,
+    updated_at: at,
+  }, { merge: true });
+  const { link, mail } = await passwordLinkFor(email, { nombre, marca, send: true });
+  return { merchant_id: user.uid, reused: yaExistia, link, mail, email };
+}
+
+// Link de Firebase para poner/cambiar la contraseña (vuelve al login). `send` manda el
+// mail de invitación con ese link.
+async function passwordLinkFor(email, { nombre = "", marca = "", send = false } = {}) {
+  let link = null, mail = null;
+  try {
+    const { appBaseUrl } = await import("./config.js");
+    link = await getAuth().generatePasswordResetLink(email, { url: `${appBaseUrl().replace(/\/$/, "")}/#/login` });
+    if (send) {
+      const { emailAccountInvite } = await import("./email.js");
+      const r = await emailAccountInvite({ to: email, name: nombre, link, marca });
+      mail = r?.ok ? { ok: true } : { ok: false, error: String(r?.error || "no salió").slice(0, 200) };
+    }
+  } catch (e) {
+    mail = { ok: false, error: String(e?.message || e).slice(0, 200) };
+  }
+  return { link, mail };
+}
+
 async function demoLeadAccount(admin, req, res) {
   const t = await demoLead(req, res);
   if (!t) return;
   const { l, ref, id } = t;
   if (l.merchant_id) return res.status(409).json({ error: "Este lead ya tiene cuenta.", merchant_id: l.merchant_id });
-  const email = String(l.email || "").trim().toLowerCase();
-  if (!email) return res.status(400).json({ error: "El lead no tiene email." });
-
-  // Si ya existe una cuenta con ese mail (se registró solo antes de la llamada),
-  // se reusa: crear una segunda con el mismo mail es imposible y pisarla, peor.
-  let user = null, yaExistia = false;
-  try { user = await getAuth().getUserByEmail(email); yaExistia = true; }
-  catch (_) { /* no existe: se crea abajo */ }
-  if (!user) {
-    // Sin password a propósito. emailVerified: true porque ya hablamos con la
-    // persona (la verificación por mail se retiró el 19-sept).
-    user = await getAuth().createUser({ email, emailVerified: true, displayName: String(l.nombre || "").slice(0, 60) || undefined });
-  }
-
-  const { getOrCreateMerchant } = await import("./firebase.js");
-  await getOrCreateMerchant(user.uid, email);
+  const r = await createAccountFor(admin, { nombre: l.nombre, email: l.email, whatsapp: l.whatsapp, marca: l.marca, plataforma: l.plataforma || null, leadId: id, acquisition: l.acquisition || null });
+  if (r.error) return res.status(r.status || 400).json({ error: r.error });
   const at = new Date().toISOString();
-  await db().collection("merchants").doc(user.uid).set({
-    owner_name: String(l.nombre || "").slice(0, 80),
-    owner_whatsapp: String(l.whatsapp || "").slice(0, 20),
-    contact_email: email,
-    store_name: String(l.marca || "").slice(0, 60),
-    // De dónde salió, para que el embudo del Admin no pierda el anuncio.
-    demo_lead_id: id,
-    demo_plataforma: l.plataforma || null,   // para que el conector pida el acceso correcto (Shopify/Tiendanube)
-    ...(l.acquisition ? { acquisition: l.acquisition } : {}),
-    updated_at: at,
-  }, { merge: true });
+  await ref.set({ status: "cuenta_creada", merchant_id: r.merchant_id, account_created_at: at, updated_at: at }, { merge: true });
+  await audit(admin, "demo_lead_account", r.merchant_id, { lead_id: id, email: r.email, reused: r.reused, mail_ok: r.mail?.ok === true });
+  _cache = null;
+  return res.json({ ok: true, merchant_id: r.merchant_id, reused: r.reused, mail: r.mail, link: r.link });
+}
 
-  // El link es de Firebase (restablecer contraseña) y vuelve al login.
-  let link = null, mail = null;
-  try {
-    const { appBaseUrl } = await import("./config.js");
-    link = await getAuth().generatePasswordResetLink(email, { url: `${appBaseUrl().replace(/\/$/, "")}/#/login` });
-    const { emailAccountInvite } = await import("./email.js");
-    const r = await emailAccountInvite({ to: email, name: l.nombre, link, marca: l.marca });
-    mail = r?.ok ? { ok: true } : { ok: false, error: String(r?.error || "no salió").slice(0, 200) };
-  } catch (e) {
-    mail = { ok: false, error: String(e?.message || e).slice(0, 200) };
-  }
+// POST admin-create-account { nombre, email, whatsapp, store_name, plataforma } → comercio
+// nuevo desde el conector, sin pasar por el formulario de demo.
+async function createAccount(admin, req, res) {
+  const b = req.body || {};
+  const plataforma = ["shopify", "tiendanube", "vtex", "woocommerce", "prestashop", "propio", "otra"].includes(b.plataforma) ? b.plataforma : null;
+  const r = await createAccountFor(admin, { nombre: b.nombre, email: b.email, whatsapp: b.whatsapp, marca: b.store_name, plataforma });
+  if (r.error) return res.status(r.status || 400).json({ error: r.error });
+  await audit(admin, "create_account", r.merchant_id, { email: r.email, reused: r.reused, mail_ok: r.mail?.ok === true });
+  _cache = null;
+  return res.json({ ok: true, merchant_id: r.merchant_id, reused: r.reused, mail: r.mail, link: r.link });
+}
 
-  await ref.set({ status: "cuenta_creada", merchant_id: user.uid, account_created_at: at, updated_at: at }, { merge: true });
-  await audit(admin, "demo_lead_account", user.uid, { lead_id: id, email, reused: yaExistia, mail_ok: mail?.ok === true });
-  return res.json({ ok: true, merchant_id: user.uid, reused: yaExistia, mail, link });
+// POST admin-password-link { merchant_id, send } → link nuevo para poner la contraseña
+// (y el mail de invitación otra vez si send:true). Es el link que va en el paso "acceso".
+async function passwordLink(admin, req, res) {
+  const t = await existingMerchant(req, res);
+  if (!t) return;
+  const { id, m } = t;
+  const email = String(m.contact_email || m.email || "").trim().toLowerCase();
+  if (!email) return res.status(400).json({ error: "Ese comercio no tiene email." });
+  const r = await passwordLinkFor(email, { nombre: m.owner_name, marca: m.store_name, send: req.body?.send === true });
+  if (!r.link) return res.status(500).json({ error: r.mail?.error || "No se pudo generar el link." });
+  await audit(admin, "password_link", id, { sent: req.body?.send === true });
+  return res.json({ ok: true, link: r.link, mail: r.mail });
 }
 
 // Tilda o destilda un paso de la puesta en marcha. Solo los manuales necesitan
@@ -924,6 +963,8 @@ export async function adminHandler(req, res) {
         return res.json({ ok: r?.ok === true, result: r });
       }
       if (action === "admin-demo-lead-account") return await demoLeadAccount(admin, req, res);
+      if (action === "admin-create-account") return await createAccount(admin, req, res);
+      if (action === "admin-password-link") return await passwordLink(admin, req, res);
       if (action === "admin-demo-lead-status") return await demoLeadStatus(admin, req, res);
       if (action === "admin-demo-lead-delete") return await demoLeadDelete(admin, req, res);
       if (action === "admin-setup-step") return await setupStep(admin, req, res);

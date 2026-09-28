@@ -45,7 +45,7 @@ const PLAN_OPTIONS = [
   ["none", "Sin plan activado"],
   ...PRICING_TIERS.filter(t => t.usd > 0).map(t => [t.id, `${t.label} · US$ ${t.usd}/mes`]),
 ];
-const AUDIT_LABEL = { set_hidden_tabs:"Cambió las secciones ocultas", set_plan:"Cambió el plan", note:"Agregó una nota", view_as_start:"Entró a ver como", view_as_request:"Miró el panel como el comercio" };
+const AUDIT_LABEL = { create_account:"Creó la cuenta desde el conector", password_link:"Generó el link de contraseña", set_hidden_tabs:"Cambió las secciones ocultas", set_plan:"Cambió el plan", note:"Agregó una nota", view_as_start:"Entró a ver como", view_as_request:"Miró el panel como el comercio" };
 const WA_PATH = "M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z";
 const WA_GREEN = "#16a34a";
 
@@ -316,7 +316,7 @@ export function AdminPage() {
         </>
       )}
 
-      {tab === "marcha" && <AdminOnboarding rows={list?.rows || []} initialId={marchaId} onOpenMerchant={setOpenId}/>}
+      {tab === "marcha" && <AdminOnboarding rows={list?.rows || []} initialId={marchaId} onOpenMerchant={setOpenId} onRefresh={reloadAll}/>}
 
       {tab === "whatsapp" && <WaTemplatesCard T={T} defaultOpen/>}
 

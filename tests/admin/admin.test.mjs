@@ -397,5 +397,20 @@ put("merchants/old", { email: "old@x.com", created_at: ago(35), plan: "free" });
   ok(r.status === 200 && doc("merchants/newbie").admin_hidden_tabs.length === 0, "vaciar la lista las muestra todas otra vez", r);
 }
 
+// ─── 11) Comercio nuevo desde el conector + link de contraseña ───────────────
+{
+  let r = await call(stats, { method: "POST", query: { action: "admin-create-account" }, body: { nombre: "Rocío Vargas", email: "rocio@lusole.test", whatsapp: "+5491155550000", store_name: "Lusole", plataforma: "tiendanube" }, token: "t-admin" });
+  ok(r.status === 200 && r.body?.merchant_id && r.body?.link, "crea la cuenta y devuelve el link de contraseña", r.body);
+  const mid = r.body?.merchant_id;
+  const m = mid ? doc(`merchants/${mid}`) : null;
+  ok(m && m.owner_name === "Rocío Vargas" && m.store_name === "Lusole" && m.demo_plataforma === "tiendanube" && m.contact_email === "rocio@lusole.test", "el comercio queda con sus datos y su plataforma", m);
+  r = await call(stats, { method: "POST", query: { action: "admin-create-account" }, body: { nombre: "X", email: "no-es-mail" }, token: "t-admin" });
+  ok(r.status === 400, "sin email válido no crea nada");
+  r = await call(stats, { method: "POST", query: { action: "admin-password-link" }, body: { merchant_id: mid }, token: "t-admin" });
+  ok(r.status === 200 && typeof r.body?.link === "string" && r.body.link.length > 10, "el link de contraseña se vuelve a generar", r.body);
+  r = await call(stats, { method: "POST", query: { action: "admin-create-account" }, body: { nombre: "Y", email: "y@z.test" }, token: "t-lumina" });
+  ok(r.status === 403, "un comercio no crea cuentas");
+}
+
 console.log(fails ? `\n${fails} test(s) fallaron` : "\nTodo OK");
 process.exit(fails ? 1 : 0);

@@ -55,8 +55,8 @@ export const SETUP_STEPS = [
     id: "acceso",
     title: "Contraseña de su cuenta de Recurrentes",
     pide: "Que ponga su contraseña con el link que le llegó por mail (Crear cuenta desde el pedido de demo se lo manda). Con eso puede aprobar Mercado Pago con su usuario.",
-    mensaje: "Te llegó un mail de Recurrentes para poner tu contraseña (mirá spam si no lo ves). Ponela y avisame: con eso vas a poder aprobar la conexión de Mercado Pago con tu usuario. Si no llegó, decime y te lo reenvío.",
-    hace: "Si no le llegó, reenviar el link desde la ficha (Crear cuenta lo vuelve a mandar).",
+    mensaje: "Tu acceso a Recurrentes: entrá al link de abajo y poné tu contraseña (es tu registro; después entrás con tu mail y esa clave). Con eso vas a poder aprobar la conexión de Mercado Pago con tu usuario.",
+    hace: "El link de poner contraseña se genera en el conector (botón \"Generar link\") y va en el mensaje; también se le puede reenviar por mail.",
     // Opcional para el progreso: si conecta MP en la llamada con vos, no hace falta que entre solo.
     manual: true, opcional: true,
   },
@@ -182,10 +182,11 @@ export const SETUP_STEP_LINK = {
 // El mensaje de UN paso, listo para pegar en WhatsApp (28-sept-2026, Thiago: "todos los
 // mensajes que tenga que mandar a un cliente para activar su tienda"): saludo, qué
 // necesito, el link exacto y el cierre. Sin `mensaje` (pasos nuestros) devuelve null.
-export function mensajePaso(step, { nombre = "", baseUrl = "https://www.recurrentesapp.com" } = {}) {
+// `link` pisa el del paso (ej.: el link de poner contraseña, que se genera en el Admin).
+export function mensajePaso(step, { nombre = "", baseUrl = "https://www.recurrentesapp.com", link: linkOverride = null } = {}) {
   if (!step?.mensaje) return null;
   const hola = nombre ? `Hola ${String(nombre).split(" ")[0]}! ` : "Hola! ";
-  const link = SETUP_STEP_LINK[step.id] ? `${String(baseUrl).replace(/\/$/, "")}${SETUP_STEP_LINK[step.id]}` : null;
+  const link = linkOverride || (SETUP_STEP_LINK[step.id] ? `${String(baseUrl).replace(/\/$/, "")}${SETUP_STEP_LINK[step.id]}` : null);
   return `${hola}Para seguir con la instalación necesito esto de tu lado:\n\n${step.mensaje}`
     + (link ? `\n\nEntrás acá: ${link}` : "")
     + `\n\nCualquier duda me escribís por acá. Con eso sigo yo.`;
