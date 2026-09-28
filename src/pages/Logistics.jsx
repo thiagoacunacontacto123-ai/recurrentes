@@ -29,14 +29,14 @@ export default function LogisticsPage({ section = "envios", merchant, onMerchant
   if (section === "stock") {
     return (
       <>
-        <PageHeader T={T} title="Stock" subtitle="Qué mira la suscripción y qué hacer si un producto se queda sin unidades justo en la renovación."/>
+        <PageHeader T={T} title="Stock" subtitle="Qué pasa si un producto se queda sin unidades justo cuando toca la renovación."/>
         <StockCard T={T} m={m} isOwner={isOwner} onChange={onMerchantChange}/>
       </>
     );
   }
   return (
     <>
-      <PageHeader T={T} title="Envíos" subtitle="Los métodos que ve tu cliente al suscribirse. Vienen todos los de tu tienda; acá sacás los que no quieras para la suscripción."/>
+      <PageHeader T={T} title="Envíos" subtitle="Los que ve tu cliente al suscribirse. Vienen todos; acá sacás los que no quieras."/>
       {profile.caps.shipping
         ? <ShippingCard T={T} m={m} isOwner={isOwner} profile={profile} onChange={onMerchantChange}/>
         : <Callout T={T} tone="info">Lo que vendés no se envía, así que no hay métodos que configurar.</Callout>}
@@ -107,9 +107,7 @@ function ShippingCard({ T, m, isOwner, profile, onChange }) {
 
   return (
     <Panel T={T} title="Métodos de envío"
-      sub={esShopify
-        ? "Los cotiza tu tienda en el momento, con el precio real por código postal. Acá solo elegís cuáles se ofrecen en la suscripción."
-        : "Los traemos de tu tienda al conectarla. Elegís cuáles se ofrecen en la suscripción y a qué precio."}
+      sub={esShopify ? "Los cotiza tu tienda en el momento." : "Los traemos de tu tienda. El precio lo ponés vos."}
       right={<>
         {sucio && <DSBadge T={T} color={T.yellow} size="sm">Sin guardar</DSBadge>}
         {esShopify && isOwner && <Btn T={T} variant="secondary" size="sm" onClick={traerLive} disabled={cargando}>{cargando ? <><Spinner size={12} color={T.textMd}/> Leyendo…</> : "Actualizar lista"}</Btn>}
@@ -219,23 +217,27 @@ function StockCard({ T, m, isOwner, onChange }) {
   const rotulo = { fontSize:10, fontWeight:700, color:T.textSm, textTransform:"uppercase", letterSpacing:0.6, margin:"2px 0 9px" };
 
   return (
-    <Panel T={T} title="Qué hace la suscripción con el stock"
-      sub="Por defecto funciona como siempre: la orden se crea y listo. Cambialo solo si preferís no cobrarle a alguien algo que no le podés mandar."
+    <Panel T={T} title="Si no hay stock en la renovación"
+      sub="Hoy se cobra igual. Cambialo si preferís no cobrar algo que no podés mandar."
       right={sucio ? <DSBadge T={T} color={T.yellow} size="sm">Sin guardar</DSBadge> : null}>
-      <div style={rotulo}>De dónde se lee</div>
-      <Opciones list={STOCK_SOURCES} value={source} set={setSource} name="stock-source"/>
-
-      {source === "store" && (
+      {source === "store" ? (
         <>
-          <div style={{ ...rotulo, marginTop:20 }}>Cuando no hay stock</div>
           <Opciones list={STOCK_ON_MISSING} value={onMissing} set={setOnMissing} name="stock-missing"/>
           <div style={{ fontSize:DS.font.sm, color:T.textSm, marginTop:12, lineHeight:1.55 }}>
-            Miramos el stock <strong style={{ color:T.text }}>unas horas antes</strong> de cada renovación: si falta, esa
-            no se cobra. Y si el cobro ya salió, la orden se crea igual —la plata entró— y se pausa la siguiente.
-            Cuando reponés, la suscripción <strong style={{ color:T.text }}>vuelve sola</strong>.
+            Miramos el stock unas horas antes de cada renovación, así la que no se puede mandar no se cobra.
           </div>
         </>
+      ) : (
+        <div style={{ fontSize:DS.font.md, color:T.textMd, lineHeight:1.55 }}>
+          No miramos stock: todas las renovaciones se cobran y se despachan.
+        </div>
       )}
+
+      {/* De dónde se lee es una decisión de una sola vez: va abajo y chica. */}
+      <div style={{ marginTop:18, paddingTop:14, borderTop:`1px solid ${T.borderL}` }}>
+        <div style={rotulo}>De dónde sale el stock</div>
+        <Opciones list={STOCK_SOURCES} value={source} set={setSource} name="stock-source"/>
+      </div>
 
       {isOwner && (
         <div style={{ marginTop:16 }}>

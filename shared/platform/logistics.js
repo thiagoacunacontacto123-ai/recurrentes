@@ -16,23 +16,15 @@
 //   own   → la suscripción no mira stock: se despacha igual (para el que
 //           reserva aparte lo de sus suscriptores y no lo publica en la tienda).
 export const STOCK_SOURCES = [
-  { id: "store", label: "El inventario de mi tienda", desc: "Se mira el stock que tenés cargado en la tienda, como en cualquier venta." },
-  { id: "own",   label: "La suscripción no mira stock", desc: "Se despacha igual aunque la tienda esté en cero: lo usás si guardás aparte el stock de tus suscriptores." },
+  { id: "store", label: "Miramos el stock de tu tienda", desc: "Como en cualquier venta." },
+  { id: "own",   label: "No miramos stock", desc: "Se despacha siempre, aunque tu tienda esté en cero." },
 ];
 
 // `on_missing`: qué se hace cuando falta. En los dos casos la orden SE CREA:
 // el cobro ya se hizo y una orden que no existe es plata cobrada sin pedido.
 export const STOCK_ON_MISSING = [
-  {
-    id: "charge",
-    label: "Crear la orden igual y avisarme",
-    desc: "La orden entra como siempre (el stock puede quedar en negativo) y te avisamos para que repongas. Es lo que pasa hoy.",
-  },
-  {
-    id: "pause",
-    label: "Crear la orden y pausar la suscripción",
-    desc: "La orden de este cobro entra igual, pero la suscripción queda en pausa para que no se cobre la próxima. Si tenés prendido el flujo \"Suscripción pausada\", al cliente le llega el aviso. La reactivás cuando tengas stock.",
-  },
+  { id: "charge", label: "Cobrar igual", desc: "La orden entra y te avisamos para que repongas. Es lo que pasa hoy." },
+  { id: "pause",  label: "No cobrar y pausar", desc: "Se saltea esa renovación y le avisamos al cliente. Vuelve sola cuando reponés." },
 ];
 
 export const STOCK_POLICY_DEFAULT = { source: "store", on_missing: "charge" };

@@ -370,7 +370,7 @@ export async function shGetShippingRates(shop, token, { province = "", subtotal 
 // Argentina; si la tienda no tiene zona AR, todas las zonas. Dedup por nombre.
 // [] = la tienda usa tarifas dinámicas (carrier service) → cargar a mano.
 export const SHOPIFY_RATES_EMPTY_NOTE = "Tu tienda usa tarifas dinámicas (carrier). Cargalas a mano.";
-export async function shopifyRatesForPanel(merchant) {
+export async function shopifyRatesForPanel(merchant, { variantId = null } = {}) {
   if (!merchant?.shopify_token || !merchant?.shopify_shop) return { rates: [], error: "Conectá Shopify primero" };
   let raw = await shGetShippingRates(merchant.shopify_shop, merchant.shopify_token, {});
   if (!raw.length) raw = await shGetShippingRates(merchant.shopify_shop, merchant.shopify_token, { allZones: true });
@@ -383,7 +383,35 @@ export async function shopifyRatesForPanel(merchant) {
     seen.add(key);
     rates.push({ name, price: Math.max(0, Math.round(Number(r.price) || 0)), code: name.slice(0, 50), source: "shopify" });
   }
-  return rates.length ? { rates } : { rates: [], note: SHOPIFY_RATES_EMPTY_NOTE };
+  if (rates.length) return { rates };
+
+  // Sin zonas fijas = la tienda cotiza con una app de envíos (Wellfresh). Esos
+  // métodos no están guardados en ningún lado: aparecen recién cuando hay un
+  // destino. Para poder mostrárselos al comercio —y que pueda sacar los que no
+  // quiere en la suscripción— cotizamos con una dirección de muestra.
+  // El precio que sale es el de ESA dirección, no el de cada comprador: el panel
+  // lo marca como "precio en vivo" (28-sept-2026, Thiago).
+  if (variantId) {
+    try {
+      const live = await shQuoteShippingRates(merchant.shopify_shop, merchant.shopify_token, {
+        variantId, quantity: 1,
+        address: { zip: "1425", city: "Ciudad Autónoma de Buenos Aires", province: "Ciudad Autónoma de Buenos Aires", address1: "Av. Santa Fe 1000" },
+      });
+      const vistos = new Set();
+      const out = [];
+      for (const r of live) {
+        const name = String(r.name || "").trim().slice(0, 250);
+        const key = String(r.code || name).toLowerCase();
+        if (!name || vistos.has(key)) continue;
+        vistos.add(key);
+        out.push({ name, price: Math.max(0, Math.round(Number(r.price) || 0)), code: String(r.code || "").slice(0, 250), source: String(r.source || "shopify"), live: true });
+      }
+      if (out.length) return { rates: out, live: true };
+    } catch (e) {
+      console.warn("[shopify/ratesForPanel] cotización de muestra:", e.message);
+    }
+  }
+  return { rates: [], note: SHOPIFY_RATES_EMPTY_NOTE };
 }
 
 // Customer find-or-create — antes de crear la orden necesitamos un customer.

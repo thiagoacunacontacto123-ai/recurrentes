@@ -49,7 +49,14 @@ async function handleShippingRatesAdmin(req, res) {
     const snap = await db().collection("merchants").doc(ctx.merchantId).get();
     const m = snap.exists ? snap.data() : {};
     if (!m.shopify_token || !m.shopify_shop) return res.status(400).json({ error: "Conectá Shopify primero", rates: [] });
-    const out = await shopifyRatesForPanel(m);
+    // Una variante de un plan activo: sin eso no se puede cotizar y las tiendas
+    // con app de envíos (que no tienen zonas fijas) quedarían sin lista.
+    let variantId = null;
+    try {
+      const planes = await db().collection("merchants").doc(ctx.merchantId).collection("plans").where("active", "==", true).limit(5).get();
+      for (const d of planes.docs) { const v = d.data()?.shopify_variant_id; if (v) { variantId = v; break; } }
+    } catch (_) {}
+    const out = await shopifyRatesForPanel(m, { variantId });
     res.setHeader("Cache-Control", "no-store");
     return res.json(out);
   } catch (e) {
