@@ -160,7 +160,7 @@ function Picker({ value, options, placeholder, onChange, style, T }) {
       </button>
       {open && (
         <div role="listbox" style={{ position: "absolute", left: 0, right: 0, top: "calc(100% + 6px)", zIndex: 20, background: T.card, border: `1px solid ${T.border}`,
-          borderRadius: 12, padding: 6, boxShadow: "0 18px 40px -18px rgba(0,0,0,.6)", display: "grid", gap: 2 }}>
+          borderRadius: 12, padding: 6, boxShadow: "0 18px 40px -18px rgba(0,0,0,.6)", display: "grid", gap: 2, maxHeight: 280, overflowY: "auto" }}>
           {options.map((o) => {
             const sel = o.id === value;
             return (
@@ -189,27 +189,21 @@ const fechaLargaAR = (iso) => {
   try { return new Intl.DateTimeFormat("es-AR", { timeZone: DEMO_TZ, weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso)).replace(",", " a las"); }
   catch (_) { return iso; }
 };
-function SlotPicker({ T, days, dia, setDia, start, setStart }) {
+function SlotPicker({ T, days, dia, setDia, start, setStart, style, label }) {
   const d = days.find((x) => x.date === dia) || days[0];
-  const chip = (sel, extra = {}) => ({
-    border: `1.5px solid ${sel ? T.accentSolid : T.borderL}`, background: sel ? T.accentSolid + "22" : T.surface, color: sel ? T.text : T.textMd,
-    borderRadius: 10, padding: "9px 12px", fontSize: 13.5, fontWeight: sel ? 700 : 500, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap", transition: "border-color .15s, background .15s", ...extra,
-  });
+  const dayOpts = days.map((x) => ({ id: x.date, label: x.label.charAt(0).toUpperCase() + x.label.slice(1) }));
+  const hourOpts = (d ? d.slots : []).map((sl) => ({ id: sl.iso, label: sl.label }));
   return (
-    <div>
-      <div className="rec-demo-days" style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 6, marginBottom: 10, scrollbarWidth: "none" }}>
-        {days.map((x) => (
-          <button key={x.date} type="button" onClick={() => { setDia(x.date); setStart(""); }} style={chip(x.date === (d && d.date), { flexShrink: 0, textTransform: "capitalize" })}>{x.label}</button>
-        ))}
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.3fr) minmax(0,1fr)", gap: 10 }}>
+      <div>
+        <label style={label}>Día</label>
+        <Picker T={T} style={style} value={d ? d.date : ""} options={dayOpts} placeholder="Elegí el día" onChange={(v) => { setDia(v); setStart(""); }}/>
       </div>
-      {d && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))", gap: 8 }}>
-          {d.slots.map((sl) => (
-            <button key={sl.iso} type="button" onClick={() => setStart(sl.iso)} style={chip(sl.iso === start, { textAlign: "center", padding: "10px 6px" })}>{sl.label}</button>
-          ))}
-        </div>
-      )}
-      <div style={{ fontSize: 11.5, color: T.textSm, marginTop: 8 }}>Videollamada de 15 minutos · hora de Argentina</div>
+      <div>
+        <label style={label}>Horario</label>
+        <Picker T={T} style={style} value={start} options={hourOpts} placeholder="Elegí la hora" onChange={setStart}/>
+      </div>
+      <div style={{ gridColumn: "1 / -1", fontSize: 11.5, color: T.textSm, marginTop: -4 }}>Videollamada de 15 minutos · hora de Argentina</div>
     </div>
   );
 }
@@ -325,13 +319,11 @@ export default function DemoPage() {
           background-image:linear-gradient(${T.border} 1px,transparent 1px),linear-gradient(90deg,${T.border} 1px,transparent 1px);background-size:56px 56px;
           -webkit-mask-image:radial-gradient(ellipse 70% 60% at 30% 0%,#000 20%,transparent 100%);mask-image:radial-gradient(ellipse 70% 60% at 30% 0%,#000 20%,transparent 100%);opacity:.5;}
         .rec-demo-reviews{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;}
-        .rec-demo .rc-f.is-err input,.rec-demo .rc-f.is-err select,.rec-demo .rc-f.is-err > div > button{border-color:#d92d20!important;box-shadow:0 0 0 1px #d92d20!important;}
+        .rec-demo .rc-f.is-err input,.rec-demo .rc-f.is-err select,.rec-demo .rc-f.is-err button[aria-haspopup]{border-color:#d92d20!important;box-shadow:0 0 0 1px #d92d20!important;}
         .rec-demo .rc-f.is-err > label{color:#d92d20!important;}
         .rec-demo .rc-f.is-err .rec-demo-check{border-color:#d92d20!important;box-shadow:0 0 0 1px #d92d20;}
-        .rec-demo .rc-f.is-err .rec-demo-days button{border-color:#d92d20!important;}
-        .rec-demo-days::-webkit-scrollbar{display:none;}
         /* iOS hace zoom al enfocar un campo con letra menor a 16px (mismo arreglo que el checkout). */
-        .rec-demo-form input,.rec-demo-form select,.rec-demo-form .rc-f > div > button[aria-haspopup]{font-size:16px!important;padding-top:12px!important;padding-bottom:12px!important;border-radius:10px!important;}
+        .rec-demo-form input,.rec-demo-form select,.rec-demo-form .rc-f button[aria-haspopup]{font-size:16px!important;padding-top:12px!important;padding-bottom:12px!important;border-radius:10px!important;}
         .rec-demo button:focus-visible{outline:2px solid ${T.accentSolid};outline-offset:2px;}
         .rec-demo .rc-fe{color:#d92d20;font-size:13px;line-height:1.35;margin-top:6px;padding-left:2px;}
         .ls-card{background:${T.card};border:1px solid ${T.border};border-radius:20px;position:relative;overflow:hidden;}
@@ -436,7 +428,7 @@ export default function DemoPage() {
                 {slots.enabled && (
                   <div className={"rc-f" + (errOf("horario") ? " is-err" : "")} style={campo} onClick={() => fix("horario")}>
                     <label style={label}>¿Cuándo te viene bien la llamada?</label>
-                    <SlotPicker T={T} days={slots.days} dia={dia} setDia={setDia} start={start} setStart={setStart}/>
+                    <SlotPicker T={T} days={slots.days} dia={dia} setDia={setDia} start={start} setStart={setStart} style={iS} label={{ ...label, fontSize: 11.5, color: T.textSm }}/>
                     {errOf("horario") && <div className="rc-fe" role="alert">{errOf("horario")}</div>}
                   </div>
                 )}
