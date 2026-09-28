@@ -256,7 +256,7 @@ export default function DemoPage() {
   const iS = InputStyle(T);
   const [pais, setPais] = useState("ar");
   const paisCfg = PHONE_COUNTRIES.find((c) => c.id === pais) || PHONE_COUNTRIES[0];
-  const [f, setF] = useState({ nombre: "", whatsapp: "", email: "", nicho: "", catalogo: "", pedidos: "", recurrencia: "", objetivo: "", modalidad: "" });
+  const [f, setF] = useState({ nombre: "", whatsapp: "", email: "", plataforma: "", nicho: "", catalogo: "", pedidos: "", recurrencia: "", objetivo: "", modalidad: "" });
   const [oks, setOks] = useState({});
   // Error por campo, como el checkout: { field, msg }. Sin cartel general: se pinta el campo
   // en rojo, el texto va debajo y la página desliza hasta ahí (Thiago, 27-sept-2026).

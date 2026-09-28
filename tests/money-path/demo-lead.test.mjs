@@ -19,7 +19,7 @@ const { normalizeWhatsapp, EMAIL_RE } = await loadApi("shared/platform/contact.j
 
 const OK = {
   nombre: "Ana Díaz", marca: "Glow Derm", whatsapp: "2664 006599", email: "ana@glowderm.test",
-  nicho: "cosmetica", catalogo: "2_5", pedidos: "5_15", objetivo: "recompra", recurrencia: "25_50", modalidad: "ambos",
+  plataforma: "shopify", nicho: "cosmetica", catalogo: "2_5", pedidos: "5_15", objetivo: "recompra", recurrencia: "25_50", modalidad: "ambos",
   confirma_llamada: true, confirma_pago: true,
 };
 const post = (body) => invoke(handler, { method: "POST", query: { action: "demo-lead" }, body });
@@ -166,8 +166,9 @@ test("(r) el aviso por WhatsApp va con una respuesta por línea: cada una en su 
   const { WA_ADMIN_TEMPLATE_BY_EVENT, renderTemplateBody } = await loadApi("shared/platform/whatsapp.js");
   const vars = demoLeadWaVars({ ...OK, whatsapp: "+5492664006599" });
   for (const v of Object.values(vars)) assert.ok(!/[\r\n\t]/.test(v), `sin saltos dentro de una variable: ${v}`);
-  assert.equal(vars.r1, "Nicho: Cosmética y skincare");
-  assert.equal(vars.r6, "Modalidad: Las dos: widget en la product page y página de suscripción");
+  assert.equal(vars.r1, "Tienda: Shopify");
+  assert.equal(vars.r2, "Nicho: Cosmética y skincare");
+  assert.equal(vars.r7, "Modalidad: Las dos: widget en la product page y página de suscripción");
   assert.match(vars.contacto, /\+5492664006599 · ana@glowderm\.test/);
   const t = WA_ADMIN_TEMPLATE_BY_EVENT.demo;
   assert.equal(t.name, "aviso_admin_demo");

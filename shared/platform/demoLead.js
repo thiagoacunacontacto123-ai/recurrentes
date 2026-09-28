@@ -52,6 +52,17 @@ export const DEMO_NICHO = [
   { id: "otro",          label: "Otro" },
 ];
 
+// Dónde está la tienda (28-sept-2026): define si la instalamos hoy (Shopify, Tiendanube) o a mano.
+export const DEMO_PLATAFORMA = [
+  { id: "shopify",     label: "Shopify" },
+  { id: "tiendanube",  label: "Tiendanube" },
+  { id: "vtex",        label: "VTEX" },
+  { id: "woocommerce", label: "WooCommerce" },
+  { id: "prestashop",  label: "PrestaShop" },
+  { id: "propio",      label: "Desarrollo propio" },
+  { id: "otra",        label: "Otra" },
+];
+
 export const DEMO_CATALOGO = [
   { id: "uni",    label: "Un solo producto" },
   { id: "2_5",    label: "Entre 2 y 5 productos" },
@@ -117,6 +128,7 @@ export const DEMO_CONFIRMACIONES = [
 // pregunta con su respuesta"): si alguna vez se cambia una, cambia en los dos
 // lados a la vez y el aviso nunca miente sobre lo que se le preguntó.
 export const DEMO_PREGUNTAS = [
+  { id: "plataforma",  label: "¿Dónde está alojada tu tienda?",              options: DEMO_PLATAFORMA,  error: "Contanos dónde está alojada tu tienda." },
   { id: "nicho",       label: "¿De qué nicho es tu marca?",                  options: DEMO_NICHO,       error: "Contanos de qué nicho es tu marca." },
   { id: "catalogo",    label: "¿Cuántos productos tiene tu marca?",          options: DEMO_CATALOGO,    error: "Contanos cuántos productos tiene tu marca." },
   { id: "pedidos",     label: "¿Cuántos pedidos vendés por día?",            options: DEMO_PEDIDOS,     error: "Contanos cuántos pedidos vendés por día." },
@@ -172,7 +184,7 @@ export function sanitizeDemoLead(input, { emailRe, normalizeWhatsapp } = {}) {
 // "\n" acá no se vería como salto sino como un texto corrido sin separación.
 // Por eso el separador es " · " y la pregunta queda pegada a su respuesta.
 // Etiquetas cortas por pregunta para el aviso por WhatsApp, una por línea.
-export const DEMO_PREGUNTA_CORTA = { nicho: "Nicho", catalogo: "Productos", pedidos: "Pedidos por día", recurrencia: "Recompra hoy", objetivo: "Objetivo", modalidad: "Modalidad" };
+export const DEMO_PREGUNTA_CORTA = { plataforma: "Tienda", nicho: "Nicho", catalogo: "Productos", pedidos: "Pedidos por día", recurrencia: "Recompra hoy", objetivo: "Objetivo", modalidad: "Modalidad" };
 // Las variables de la plantilla `aviso_admin_demo` (shared/platform/whatsapp.js):
 // nombre · contacto · r1..r6 (una respuesta por variable, sin saltos de línea adentro).
 export function demoLeadWaVars(lead) {
