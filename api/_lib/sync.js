@@ -46,9 +46,22 @@ import { notifyMerchantWhatsApp, notifyMerchantStatusChange } from "./merchantAl
  */
 export async function fulfillCharge(merchant, subscriberId, sub, params, tag = "sync") {
   const { channel, channelInfo } = merchantProfile(merchant);
-  if (channel === "shopify") return createShopifyOrderForSub(merchant, subscriberId, sub, params, tag);
-  // Tiendanube: orden PAGA en la tienda (api/_lib/tiendanube.js), mismo contrato e idempotencia.
-  if (channel === "tiendanube") return createTiendanubeOrderForSub(merchant, subscriberId, sub, params, tag);
+  if (channel === "shopify" || channel === "tiendanube") {
+    const out = channel === "shopify"
+      ? await createShopifyOrderForSub(merchant, subscriberId, sub, params, tag)
+      // Tiendanube: orden PAGA en la tienda (api/_lib/tiendanube.js), mismo contrato e idempotencia.
+      : await createTiendanubeOrderForSub(merchant, subscriberId, sub, params, tag);
+    // Política de stock (Ventas → Logística). Va DESPUÉS de crear la orden: el
+    // cobro ya se hizo y no se toca. Solo consulta la tienda si el comercio
+    // eligió "pausar cuando falta"; con el default no hace nada ni cuesta una
+    // llamada. Nunca lanza.
+    if (out.shopifyOrderId && params?.merchantId) {
+      const { applyStockPolicy } = await import("./stock.js");
+      const r = await applyStockPolicy({ db, merchant, merchantId: params.merchantId, subscriberId, sub, tag });
+      if (r) out.stock = r;
+    }
+    return out;
+  }
   if (channel === "none") {
     if (params?.requireAddress && !(sub.shipping_address?.address1 && sub.shipping_address?.city)) {
       return { shopifyOrderId: null, orderStatusUrl: null, shopifyError: "Faltan datos: shipping_address.address1/city" };
@@ -628,6 +641,7 @@ export async function syncSubscriber(merchantId, subscriberId) {
       total_price: payment.transaction_amount,
       charge_number: chargeNumber,
       mp_fee_real: mpFeeReal(payment),
+      merchantId,
     }, "sync");
     if (shopifyError) shopifyErrors.push(shopifyError);
 
@@ -843,6 +857,7 @@ export async function linkPaymentToSubscriber(merchantId, subscriberId, paymentI
   const { shopifyOrderId, orderStatusUrl, shopifyError } = await fulfillCharge(merchant, subscriberId, sub, {
     payment_id: payment.id,
     total_price: payment.transaction_amount,
+    merchantId: merchantRef.id,
     charge_number: (sub.shopify_orders || []).length + 1,
     mp_fee_real: mpFeeReal(payment),
   }, "link");

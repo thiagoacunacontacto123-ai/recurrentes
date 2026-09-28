@@ -60,6 +60,7 @@ import { emailSubscriptionActivated, emailTeamInvite, emailPlanRequest, effectiv
 import { shGetShopInfo, buildShopInfoPatch, shopifyRatesForPanel } from "./_lib/shopify.js";
 import { importDiscountsAction, cleanDiscountCodes } from "./_lib/discountImport.js";
 import { normalizeRate } from "./_lib/shippingImport.js";
+import { sanitizeStockPolicy } from "../shared/platform/logistics.js";
 import { giftFreeAction } from "./_lib/giftDiscount.js";
 import { sanitizeCartSettings } from "../shared/bundle/cart.js";
 import { widgetVerifyUrlAction, widgetVerifyStatusAction } from "./_lib/widgetVerify.js";
@@ -275,6 +276,7 @@ export default async function handler(req, res) {
         email_from_effective: effectiveFrom(merchant),
         store_domain_effective: effectiveStoreDomain(merchant),
         checkout_shipping_rates: Array.isArray(merchant.checkout_shipping_rates) ? merchant.checkout_shipping_rates : [],
+        stock_policy: merchant.stock_policy || null,
         store_domain: merchant.store_domain || "",
         store_domain_source: merchant.store_domain_source === "manual" || merchant.store_domain_source === "shopify" ? merchant.store_domain_source : (merchant.store_domain ? "manual" : null),
         // Retención al cancelar (portal): motivos + oferta de pausa. Defaults si no configuró.
@@ -926,6 +928,12 @@ async function saveSettings(merchantId, req, res) {
       rates.push(normalizeRate(r, price));
     }
     out.checkout_shipping_rates = rates;
+  }
+  // Logística → Stock: de dónde se mira y qué hacer cuando falta.
+  if ("stock_policy" in b) {
+    const r = sanitizeStockPolicy(b.stock_policy);
+    if (r.error) return bad(r.error);
+    out.stock_policy = r.stock_policy;
   }
   if ("store_domain" in b) {
     const v = normHost(b.store_domain);

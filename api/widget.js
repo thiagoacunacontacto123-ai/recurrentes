@@ -59,7 +59,9 @@ export function isLegacyMerchant(m) {
 export function resolveCheckoutShippingRates(m) {
   const raw = Array.isArray(m?.checkout_shipping_rates) ? m.checkout_shipping_rates : [];
   const list = raw
-    .filter(r => r && typeof r.name === "string" && r.name.trim())
+    // Apagada en Logística = no se le ofrece al que se suscribe (la tienda
+    // puede seguir mostrándola en su checkout normal).
+    .filter(r => r && typeof r.name === "string" && r.name.trim() && r.off !== true)
     .map(r => ({
       name: r.name.trim().slice(0, 250),
       price: Math.max(0, Math.round(Number(r.price) || 0)),

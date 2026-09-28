@@ -20,6 +20,7 @@ import { PlansTab, WidgetTab } from "./Plans.jsx";
 import CheckoutDesigner from "./CheckoutDesigner.jsx";
 import { SubscriptionsPage } from "./Subscriptions.jsx";
 import { ChargesPage } from "./Charges.jsx";
+import LogisticsPage from "./Logistics.jsx";
 import { AnalyticsPage } from "./Analytics.jsx";
 import { RetentionPage } from "./Retention.jsx";
 import { CustomerPortalPage } from "./CustomerPortal.jsx";
@@ -348,7 +349,7 @@ export default function Dashboard({ user, onLogout }) {
     const secs = merchant?.role === "member" && merchant?.member_secciones && Object.keys(merchant.member_secciones).length ? merchant.member_secciones : null;
     // Widget acompaña al permiso de Planes (los permisos guardados antes no lo conocen).
     // Flujos de WhatsApp acompaña al permiso de Flujos (los permisos guardados antes no lo conocen).
-    const base = secs ? NAV.filter(n => n.id === "analiticas" || secs[n.id] === true || ((n.id === "widget" || n.id === "carrito" || n.id === "checkout") && secs.planes === true) || (n.id === "carritos" && secs.suscripciones === true) || (n.id === "whatsapp" && secs.flujos === true) || n.adminOnly) : NAV;
+    const base = secs ? NAV.filter(n => n.id === "analiticas" || secs[n.id] === true || ((n.id === "widget" || n.id === "carrito" || n.id === "checkout") && secs.planes === true) || (n.id === "carritos" && secs.suscripciones === true) || (n.id === "logistica" && secs.planes === true) || (n.id === "whatsapp" && secs.flujos === true) || n.adminOnly) : NAV;
     // Afiliados es de la CUENTA: solo el dueño del login.
     return base.filter(n => (!n.adminOnly || isAdmin) && (n.id !== "afiliados" || merchant?.role !== "member"));
   }, [merchant?.role, merchant?.member_secciones, isAdmin]);
@@ -380,6 +381,8 @@ export default function Dashboard({ user, onLogout }) {
                 integrationsReady ? <SubscriptionsPage devMode={devMode} shop={shop}/> : needs("Suscripciones")
               ) : t === "carritos" ? (
                 integrationsReady ? <SubscriptionsPage devMode={devMode} shop={shop} carts/> : needs("Carritos abandonados")
+              ) : t === "logistica" ? (
+                integrationsReady ? <LogisticsPage merchant={merchant} onMerchantChange={reloadMerchant}/> : needs("Logística")
               ) : t === "cobros" ? (
                 integrationsReady ? <ChargesPage shop={shop} merchant={merchant}/> : needs("Cobros")
               ) : t === "planes" ? (

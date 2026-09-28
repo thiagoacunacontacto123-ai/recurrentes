@@ -30,13 +30,8 @@ export default function CheckoutSettings({ merchant, onChange }) {
   const profile = merchantProfile(m);
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:DS.sp.lg }}>
-      {/* Shopify cotiza en vivo contra la tienda en cada compra, así que no hay
-          nada que configurar. Tiendanube NO expone la cotización por código
-          postal: los métodos se traen solos al conectar, pero el precio de cada
-          uno lo tiene que poner el comercio (28-sept-2026, Thiago). */}
-      {profile.channel === "tiendanube" && profile.caps.shipping && (
-        <ShippingRatesCard T={T} m={m} isOwner={isOwner} onChange={onChange} profile={profile}/>
-      )}
+      {/* Los envíos se manejan en Ventas → Logística (28-sept-2026): ahí se
+          elige cuáles se ofrecen al suscribirse y a qué precio. Acá, descuentos. */}
       <DiscountCodesCard merchant={m} onChange={onChange}/>
     </div>
   );

@@ -38,6 +38,9 @@ export function normalizeRate(r, price) {
     ...(carrierCode ? { carrier_code: carrierCode } : {}),
     ...(reference ? { reference } : {}),
     ...(r?.pickup === true ? { pickup: true } : {}),
+    // Apagada por el comercio en Logística: se guarda, no se descarta, así
+    // vuelve a aparecer si la prende de nuevo.
+    ...(r?.off === true ? { off: true } : {}),
   };
 }
 

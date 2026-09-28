@@ -137,6 +137,7 @@ export function createFakeShopify(router, { shop, token, variants = {}, name = "
     orders: [],            // órdenes "existentes" en la tienda
     orderPosts: [],        // body de cada POST /orders.json (lo que mandó Recurrentes)
     variants: { ...variants },
+    stock: {},                      // variantId → unidades (solo si el test lo carga)
     searchSeesCreated: false, // si true, GET /orders.json devuelve las órdenes creadas (dedup de shopify.js)
     nextOrderId: 5550100,
     nextCustomerId: 8880100,
@@ -183,7 +184,13 @@ export function createFakeShopify(router, { shop, token, variants = {}, name = "
   router.on("GET", shop, P("/variants/(\\d+)\\.json"), (call, m) => {
     if (!authed(call)) return unauth;
     if (!(m[1] in s.variants)) return { status: 404, json: { errors: "Not Found" } };
-    return { json: { variant: { id: Number(m[1]), price: Number(s.variants[m[1]]).toFixed(2) } } };
+    // Inventario: solo si el test lo cargó (`shopify.stock[variantId] = n`).
+    // Sin eso la variante va sin `inventory_management`, que en Shopify quiere
+    // decir "no se sigue el stock" — el comportamiento de siempre.
+    const inv = s.stock && m[1] in s.stock
+      ? { inventory_management: "shopify", inventory_quantity: Number(s.stock[m[1]]) }
+      : {};
+    return { json: { variant: { id: Number(m[1]), price: Number(s.variants[m[1]]).toFixed(2), ...inv } } };
   });
   router.on("GET", shop, P("/shop\\.json"), (call) => {
     if (!authed(call)) return unauth;

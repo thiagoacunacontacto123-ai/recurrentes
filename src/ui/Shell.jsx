@@ -31,6 +31,7 @@ export const NAV = [
   { id:"suscripciones", label:"Suscripciones",      short:"Suscrip.", icon:ICON.suscripciones, alertKey:"suscripciones", section:"Ventas" },
   { id:"carritos",      label:"Carritos abandonados", short:"Carritos", icon:SECTION_ICONS.carritos, section:"Ventas" }, // checkouts sin pagar (antes, estado "Sin pagar" en Suscripciones)
   { id:"cobros",        label:"Cobros",             short:"Cobros",   icon:SECTION_ICONS.cobros, alertKey:"cobros", badge:"red", section:"Ventas" },
+  { id:"logistica",     label:"Logística",          short:"Logística", icon:SECTION_ICONS.cobros, section:"Ventas" }, // envíos que se ofrecen al suscribirse + qué hacer sin stock
   { id:"planes",        label:"Planes",             short:"Planes",   icon:SECTION_ICONS.planes, section:"Catálogo" },
   { id:"widget",        label:"Widget",             short:"Widget",   icon:SECTION_ICONS.widget, section:"Catálogo" },
   { id:"carrito",       label:"Carrito",            short:"Carrito",  icon:SECTION_ICONS.carritos, section:"Catálogo" }, // extras "Sumá a tu suscripción"
