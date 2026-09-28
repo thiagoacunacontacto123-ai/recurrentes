@@ -385,5 +385,17 @@ put("merchants/old", { email: "old@x.com", created_at: ago(35), plan: "free" });
   ok(r.status === 200 && doc("merchants/conpk").mp_checkout_api === false, "apagar siempre se puede", r);
 }
 
+// ─── 10) Secciones ocultas al comercio (instalación a medida) ────────────────
+{
+  let r = await call(stats, { method: "POST", query: { action: "admin-set-hidden-tabs" }, body: { merchant_id: "newbie", tabs: ["planes", "widget", "inventado", "cobros"] }, token: "t-admin" });
+  ok(r.status === 200 && JSON.stringify(doc("merchants/newbie").admin_hidden_tabs) === JSON.stringify(["planes", "widget"]), "solo se ocultan secciones ocultables; Cobros y lo inventado no", r);
+  r = await call(stats, { query: { action: "admin-merchant", id: "newbie" }, token: "t-admin" });
+  ok(r.status === 200 && JSON.stringify(r.body?.merchant?.hidden_tabs) === JSON.stringify(["planes", "widget"]), "la ficha las muestra", r);
+  r = await call(stats, { method: "POST", query: { action: "admin-set-hidden-tabs" }, body: { merchant_id: "newbie", tabs: [] }, token: "t-lumina" });
+  ok(r.status === 403, "un comercio no se oculta secciones a sí mismo ni a otros");
+  r = await call(stats, { method: "POST", query: { action: "admin-set-hidden-tabs" }, body: { merchant_id: "newbie", tabs: [] }, token: "t-admin" });
+  ok(r.status === 200 && doc("merchants/newbie").admin_hidden_tabs.length === 0, "vaciar la lista las muestra todas otra vez", r);
+}
+
 console.log(fails ? `\n${fails} test(s) fallaron` : "\nTodo OK");
 process.exit(fails ? 1 : 0);

@@ -15,7 +15,7 @@ import { seedDoc, rawGet } from "../helpers/fake-firestore.mjs";
 
 const { fulfillCharge } = await loadApi("api/_lib/sync.js");
 const { resolveCheckoutShippingRates } = await loadApi("api/widget.js");
-const { sanitizeStockPolicy, resolveStockPolicy, stockCheckNeeded } = await loadApi("shared/platform/logistics.js");
+const { sanitizeStockPolicy, resolveStockPolicy, stockCheckNeeded, sanitizeShippingOff, offeredRates } = await loadApi("shared/platform/logistics.js");
 
 let W;
 beforeEach(() => {
@@ -112,19 +112,34 @@ test("(e) si no podemos pausar en Mercado Pago, la suscripción NO queda mintien
 });
 
 // ── 3. Envíos que se ofrecen ────────────────────────────────────────────────
-test("(e) un envío apagado no se le ofrece al que se suscribe", () => {
-  const m = luminaMerchant({ checkout_shipping_rates: [
-    { name: "A domicilio", price: 4500, code: "dom" },
-    { name: "A sucursal", price: 2800, code: "suc", off: true },
-  ] });
-  const rates = resolveCheckoutShippingRates(m);
-  assert.deepEqual(rates.map(r => r.name), ["A domicilio"], "la sucursal queda solo para la compra única de la tienda");
+test("(e) por defecto se ofrecen TODOS: nadie se queda sin envíos por esto", () => {
+  // Lo que pidió Thiago: que de fábrica quede como estaba antes de que esto
+  // existiera. La lista de apagados vacía = todo igual.
+  const rates = [{ name: "A domicilio", price: 4500, code: "dom" }, { name: "A sucursal", price: 2800, code: "suc" }];
+  assert.deepEqual(offeredRates(rates, luminaMerchant()).map(r => r.name), ["A domicilio", "A sucursal"]);
+  assert.deepEqual(resolveCheckoutShippingRates(luminaMerchant({ checkout_shipping_rates: rates })).map(r => r.name), ["A domicilio", "A sucursal"]);
 });
 
-test("(e) apagar todos no rompe: el checkout cae al envío del plan", () => {
-  const m = luminaMerchant({ checkout_shipping_rates: [{ name: "A domicilio", price: 4500, off: true }] });
-  // Lumina es legacy: sin tarifas propias vuelven las de siempre, no un vacío raro.
-  assert.ok(Array.isArray(resolveCheckoutShippingRates(m)));
+test("(e) el que apaga las sucursales deja de ofrecerlas en la suscripción", () => {
+  const m = luminaMerchant({
+    checkout_shipping_rates: [{ name: "A domicilio", price: 4500, code: "dom" }, { name: "A sucursal", price: 2800, code: "suc" }],
+    shipping_off: ["suc"],
+  });
+  assert.deepEqual(resolveCheckoutShippingRates(m).map(r => r.name), ["A domicilio"], "la sucursal queda solo para la compra única de la tienda");
+});
+
+test("(e) el mismo apagado sirve para lo que Shopify cotiza en vivo", () => {
+  // Las tarifas en vivo no se guardan en ningún lado: se filtran por el mismo
+  // code (o por el nombre, si la tarifa no trae code).
+  const m = luminaMerchant({ shipping_off: ["a sucursal"] });
+  const live = [{ name: "A domicilio", price: 5200 }, { name: "A sucursal", price: 3100 }];
+  assert.deepEqual(offeredRates(live, m).map(r => r.name), ["A domicilio"]);
+});
+
+test("(e) la lista de apagados se sanea (sin repetidos ni basura)", () => {
+  assert.deepEqual(sanitizeShippingOff(["suc", "suc", "  ", "dom"]), { shipping_off: ["suc", "dom"] });
+  assert.deepEqual(sanitizeShippingOff([]), { shipping_off: null }, "vacía = todo como siempre");
+  assert.ok(sanitizeShippingOff("suc").error, "tiene que ser una lista");
 });
 
 // ── 4. Lo que se guarda ─────────────────────────────────────────────────────
@@ -133,4 +148,69 @@ test("(e) la configuración de stock se sanea y el default no ocupa lugar", () =
   assert.deepEqual(sanitizeStockPolicy({ on_missing: "pause" }), { stock_policy: { on_missing: "pause" } });
   assert.ok(sanitizeStockPolicy({ on_missing: "borrar_todo" }).error, "no se acepta cualquier cosa");
   assert.deepEqual(resolveStockPolicy({}), { source: "store", on_missing: "charge" });
+});
+
+// ── 5. Antes del cobro ──────────────────────────────────────────────────────
+// Lo que pidió Thiago: el 15 se queda sin stock, el 17 toca la renovación → esa
+// renovación NO sale. A MP no se le puede decir "esta vez no": hay que dejar el
+// preapproval pausado ANTES de la fecha.
+const { stockWatchForMerchant } = await loadApi("api/_lib/stock.js");
+const { db } = await loadApi("api/_lib/firebase.js");
+
+const AHORA = Date.parse("2026-09-17T10:00:00.000Z");
+const vigilar = (merchant, subs) => stockWatchForMerchant({ db, merchant, merchantId: MID, subs, nowMs: AHORA, tag: "test" });
+
+test("(e) sin stock y con el cobro cerca: se pausa ANTES, así ese cobro no sale", async () => {
+  const merchant = luminaMerchant(PAUSAR);
+  const sub = { id: SID, ...subConPlan({ next_charge_at: "2026-09-17T14:00:00.000Z" }) };
+  seedDoc(`merchants/${MID}/subscribers/${SID}`, sub);
+  W.shopify.stock[String(VARIANT_ID)] = 0;
+  const r = await vigilar(merchant, [sub]);
+  assert.deepEqual(r, { revisadas: 1, pausadas: 1, reactivadas: 0 });
+  assert.equal(W.mp.preapprovalUpdates.at(-1).body.status, "paused", "en MP: es lo único que frena el cobro");
+  const guardada = rawGet(`merchants/${MID}/subscribers/${SID}`);
+  assert.equal(guardada.status, "paused");
+  assert.equal(guardada.paused_reason, "sin_stock");
+});
+
+test("(e) el cobro todavía lejos: no se toca (el comercio tiene tiempo de reponer)", async () => {
+  const merchant = luminaMerchant(PAUSAR);
+  const sub = { id: SID, ...subConPlan({ next_charge_at: "2026-09-25T14:00:00.000Z" }) };
+  seedDoc(`merchants/${MID}/subscribers/${SID}`, sub);
+  W.shopify.stock[String(VARIANT_ID)] = 0;
+  const r = await vigilar(merchant, [sub]);
+  assert.deepEqual(r, { revisadas: 0, pausadas: 0, reactivadas: 0 });
+  assert.equal(W.mp.preapprovalUpdates.length, 0);
+});
+
+test("(e) cuando vuelve el stock, la suscripción se reactiva sola", async () => {
+  // Si no volviera sola, "pausar por stock" sería una baja disfrazada.
+  const merchant = luminaMerchant(PAUSAR);
+  const sub = { id: SID, ...subConPlan({ status: "paused", paused_reason: "sin_stock" }) };
+  seedDoc(`merchants/${MID}/subscribers/${SID}`, sub);
+  W.shopify.stock[String(VARIANT_ID)] = 20;
+  const r = await vigilar(merchant, [sub]);
+  assert.deepEqual(r, { revisadas: 1, pausadas: 0, reactivadas: 1 });
+  assert.equal(W.mp.preapprovalUpdates.at(-1).body.status, "authorized");
+  const guardada = rawGet(`merchants/${MID}/subscribers/${SID}`);
+  assert.equal(guardada.status, "active");
+  assert.equal(guardada.paused_reason, null);
+});
+
+test("(e) una pausa que puso el cliente NO se reactiva sola", async () => {
+  const merchant = luminaMerchant(PAUSAR);
+  const sub = { id: SID, ...subConPlan({ status: "paused" }) };   // sin paused_reason
+  seedDoc(`merchants/${MID}/subscribers/${SID}`, sub);
+  W.shopify.stock[String(VARIANT_ID)] = 20;
+  const r = await vigilar(merchant, [sub]);
+  assert.deepEqual(r, { revisadas: 0, pausadas: 0, reactivadas: 0 });
+  assert.equal(rawGet(`merchants/${MID}/subscribers/${SID}`).status, "paused");
+});
+
+test("(e) con la configuración de siempre el vigilante no hace nada", async () => {
+  const sub = { id: SID, ...subConPlan({ next_charge_at: "2026-09-17T14:00:00.000Z" }) };
+  seedDoc(`merchants/${MID}/subscribers/${SID}`, sub);
+  W.shopify.stock[String(VARIANT_ID)] = 0;
+  const r = await vigilar(luminaMerchant(), [sub]);
+  assert.deepEqual(r, { revisadas: 0, pausadas: 0, reactivadas: 0 });
 });

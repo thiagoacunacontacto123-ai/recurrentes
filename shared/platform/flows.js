@@ -29,6 +29,12 @@ export const FLOW_TRIGGERS = [
     exit:"Sale cuando el pago se recupera, o si cancela.", keep:["payment_failed"], goal:"recovered", cta:"portal" },
   { id:"paused", label:"Suscripción pausada", icon:"⏸", desc:"Pausó desde el portal o la pausaste vos desde el panel.",
     exit:"Sale cuando la reactiva.", keep:["paused"], cta:"portal" },
+  // 28-sept-2026 (Thiago, G4U): la renovación no salió porque el producto se
+  // quedó sin stock. Es el único caso donde el cliente NO tiene la culpa ni
+  // puede hacer nada: el mensaje tiene que pedir disculpas y decir cuándo
+  // vuelve, no mandarlo al portal a arreglar algo.
+  { id:"out_of_stock", label:"Sin stock", icon:"📦", desc:"La renovación se salteó porque el producto se quedó sin unidades.",
+    exit:"Sale cuando la suscripción vuelve a estar activa.", keep:["paused"], cta:"portal" },
   { id:"resumed", label:"Suscripción reactivada", icon:"▶", desc:"Volvió a activar una suscripción pausada.",
     exit:"Sale si vuelve a pausar o cancela.", keep:["active"], cta:"portal" },
   { id:"cancelled", label:"Suscripción cancelada", icon:"👋", desc:"Para intentar recuperarlo más adelante (win-back).",
@@ -211,6 +217,9 @@ export function defaultFlow(triggerId) {
       E("Seguimos sin poder cobrar tu {{producto}}", "Hola {{nombre}}, Mercado Pago todavía no pudo cobrar tu suscripción. Actualizá tu tarjeta en 1 minuto para no perderla.", "Actualizar mi tarjeta", "portal"),
       W(3, "days"),
       E("Último aviso sobre tu suscripción", "Si no actualizás el medio de pago, tu suscripción a {{producto}} se va a cancelar.", "Actualizar mi tarjeta", "portal"),
+    ],
+    out_of_stock: [
+      E("Nos quedamos sin stock de {{producto}}", "Hola {{nombre}}, te escribimos antes de cobrarte: se nos terminó el stock de {{producto}} y no queremos cobrarte algo que hoy no te podemos mandar.\n\nNo te cobramos esta vez. Apenas repongamos, tu suscripción sigue sola, sin que tengas que hacer nada.\n\nPerdón por la demora.", "Ver mi suscripción", "portal"),
     ],
     paused: [
       E("Tu suscripción quedó en pausa", "Hola {{nombre}}, pausamos tu suscripción a {{producto}}. Cuando quieras retomarla, entrá a tu portal.", "Ir a mi portal", "portal"),

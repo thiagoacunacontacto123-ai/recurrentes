@@ -173,6 +173,17 @@ export const WA_TEMPLATES = [
     samples: ["Ana", "Tostado Café", "15 de octubre", "Café de especialidad 250 g", "$9.480", "https://www.recurrentesapp.com/#/portal"],
   },
   {
+    // Sin stock (28-sept-2026, G4U): el cliente no hizo nada mal y no tiene nada
+    // que arreglar. Se le avisa ANTES de cobrarle, se le dice que no se le cobró
+    // y que vuelve solo. Utilidad, no marketing: es el estado de su cuenta.
+    name: "sin_stock", category: "UTILITY", lang: "es_AR", trigger: "out_of_stock",
+    title: "Sin stock",
+    body: "Hola {{1}}, te escribimos de parte de {{2}}: nos quedamos sin stock de {{3}} y no te cobramos la renovación de este mes.\n\nApenas repongamos sigue sola, sin que hagas nada. Podés ver tu suscripción acá: {{4}}\n\nPerdón por la demora.",
+    footer: WA_FOOTER,
+    vars: { "1": "nombre", "2": "marca", "3": "producto", "4": "link_portal" },
+    samples: ["Ana", "Tostado Café", "Café de especialidad 250 g", "https://www.recurrentesapp.com/#/portal"],
+  },
+  {
     name: "pago_rechazado", category: "UTILITY", lang: "es_AR", trigger: "payment_failed",
     title: "Pago rechazado",
     body: "Hola {{1}}, no pudimos cobrar la renovación de tu suscripción a {{2}} de {{3}}.\n\nPara no perderla, actualizá tu tarjeta desde tu portal: {{4}}\n\nSi ya lo resolviste, ignorá este mensaje.",

@@ -522,6 +522,7 @@ async function merchantDetail(req, res) {
       stores: Array.isArray(m.stores) ? m.stores.map(s => ({ id: s.id, name: s.name || "" })) : [],
       requires_email_verification: m.requires_email_verification === true,
       deleted: m.deleted === true,
+      hidden_tabs: Array.isArray(m.admin_hidden_tabs) ? m.admin_hidden_tabs : [],
     },
     stats,
     auth,
@@ -563,6 +564,23 @@ async function setCardCheckout(admin, req, res) {
   await audit(admin, "set_card_checkout", id, { to: quiere });
   _cache = null;
   return res.json({ ok: true, card_checkout: quiere });
+}
+
+// Secciones del panel ocultas para el comercio (28-sept-2026, Thiago: "si el proceso es
+// personalizado, ocultarles las partes que yo quiera"). Se guarda en el merchant como
+// `admin_hidden_tabs`; GET /api/merchant lo devuelve como `hidden_tabs` y el Dashboard
+// las saca del menú, salvo que el que entra sea el admin con "Ver como". Solo el menú:
+// los datos siguen ahí y el camino del cobro no cambia.
+export const HIDEABLE_TABS = ["planes", "widget", "carrito", "checkout", "envios", "stock", "retencion", "flujos", "whatsapp", "portal", "carritos"];
+async function setHiddenTabs(admin, req, res) {
+  const t = await existingMerchant(req, res);
+  if (!t) return;
+  const { id, ref } = t;
+  const tabs = [...new Set((Array.isArray(req.body?.tabs) ? req.body.tabs : []).map(String).filter(x => HIDEABLE_TABS.includes(x)))];
+  await ref.set({ admin_hidden_tabs: tabs }, { merge: true });
+  await audit(admin, "set_hidden_tabs", id, { tabs });
+  _cache = null;
+  return res.json({ ok: true, hidden_tabs: tabs });
 }
 
 // Descuento de POR VIDA sobre el precio de lista de cualquier tramo. Thiago se
@@ -808,6 +826,8 @@ export async function adminHandler(req, res) {
       if (action === "admin-set-plan") return await setPlan(admin, req, res);
       if (action === "admin-set-pricing") return await setPricing(admin, req, res);
       if (action === "admin-set-card-checkout") return await setCardCheckout(admin, req, res);
+      // Secciones que el comercio NO ve (instalaciones a medida): solo las ve Thiago con "Ver como".
+      if (action === "admin-set-hidden-tabs") return await setHiddenTabs(admin, req, res);
       // Crea en Meta las plantillas que faltan (quedan en revisión).
       if (action === "admin-wa-templates-sync") return res.json(await (await import("./waTemplates.js")).syncPlatformTemplates());
       // Registra el número de Recurrentes en la Cloud API (paso que WhatsApp Manager no hace:

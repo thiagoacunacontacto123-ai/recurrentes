@@ -16,6 +16,7 @@ import { CHANNELS, PAYMENT_PROVIDERS, BUSINESS_TYPES } from "../../shared/platfo
 import { pedidoDeAccesos, SHOPIFY_PERMISOS } from "../../shared/platform/setup.js";
 import { PRICING_TIERS, TIER_BY_ID } from "../../shared/platform/pricing.js";
 import AdminOnboarding from "./AdminOnboarding.jsx";
+import { NAV } from "../ui/Shell.jsx";
 
 const F = "'Inter',system-ui,sans-serif";
 const fmtN = (n) => Math.round(Number(n) || 0).toLocaleString("es-AR");
@@ -44,7 +45,7 @@ const PLAN_OPTIONS = [
   ["none", "Sin plan activado"],
   ...PRICING_TIERS.filter(t => t.usd > 0).map(t => [t.id, `${t.label} · US$ ${t.usd}/mes`]),
 ];
-const AUDIT_LABEL = { set_plan:"Cambió el plan", note:"Agregó una nota", view_as_start:"Entró a ver como", view_as_request:"Miró el panel como el comercio" };
+const AUDIT_LABEL = { set_hidden_tabs:"Cambió las secciones ocultas", set_plan:"Cambió el plan", note:"Agregó una nota", view_as_start:"Entró a ver como", view_as_request:"Miró el panel como el comercio" };
 const WA_PATH = "M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z";
 const WA_GREEN = "#16a34a";
 
@@ -1005,6 +1006,18 @@ function MerchantPanel({ id, onClose, onChanged }) {
     } catch (e) { toast(e.message, "error", 7000); }
     finally { setBusy(""); }
   }
+  // Secciones ocultas al comercio (instalación a medida). Solo el menú; con "Ver como" las ves igual.
+  const HIDEABLE = ["planes", "widget", "carrito", "checkout", "envios", "stock", "retencion", "flujos", "whatsapp", "portal", "carritos"];
+  async function toggleHidden(tabId, hide) {
+    const cur = new Set(Array.isArray(m?.hidden_tabs) ? m.hidden_tabs : []);
+    if (hide) cur.add(tabId); else cur.delete(tabId);
+    setBusy("hidden");
+    const r = await apiPost("stats", { merchant_id: id, tabs: [...cur] }, { action: "admin-set-hidden-tabs" });
+    setBusy("");
+    if (!r || r.error) return toast(r?.error || "No se pudo guardar", "error");
+    toast(hide ? "Sección oculta para el comercio" : "Sección visible otra vez", hide ? "warning" : "success");
+    await load(); onChanged?.();
+  }
   async function toggleCardCheckout(on) {
     setBusy("card");
     const r = await apiPost("stats", { merchant_id: id, on }, { action: "admin-set-card-checkout" });
@@ -1149,6 +1162,23 @@ function MerchantPanel({ id, onClose, onChanged }) {
                     {PLAN_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                   </select>
                   <Btn T={T} variant="primary" size="sm" disabled={busy === "plan"} onClick={savePlan}>{busy === "plan" ? "Guardando…" : "Guardar plan"}</Btn>
+                </div>
+              </Section>
+
+              <Section T={T} title="Secciones ocultas al comercio">
+                <div style={{ fontSize:11.5, color:T.textSm, lineHeight:1.5, marginBottom:8 }}>
+                  Para instalaciones a medida: lo que tildás desaparece del menú del comercio (los datos siguen ahí). Vos las ves igual entrando con "Ver como".
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))", gap:6 }}>
+                  {NAV.filter(n => HIDEABLE.includes(n.id)).map(n => {
+                    const hidden = Array.isArray(m.hidden_tabs) && m.hidden_tabs.includes(n.id);
+                    return (
+                      <label key={n.id} style={{ display:"flex", alignItems:"center", gap:8, padding:"7px 9px", borderRadius:8, border:`1px solid ${hidden ? T.yellow + "66" : T.borderL}`, background:T.bg, cursor:"pointer", fontSize:12, color: hidden ? T.text : T.textMd }}>
+                        <input type="checkbox" checked={hidden} disabled={busy === "hidden"} onChange={e => toggleHidden(n.id, e.target.checked)} style={{ accentColor:T.yellow }}/>
+                        <span style={{ textDecoration: hidden ? "line-through" : "none" }}>{n.label}</span>
+                      </label>
+                    );
+                  })}
                 </div>
               </Section>
 

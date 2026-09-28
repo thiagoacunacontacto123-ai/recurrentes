@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { apiGet, apiPost, setActiveMerchantId } from "../lib/api.js";
+import { apiGet, apiPost, setActiveMerchantId, getAdminAs } from "../lib/api.js";
 import { StoreTransferredScreen } from "./Transfer.jsx";
 import { auth } from "../lib/firebase.js";
 import { sendEmailVerification } from "firebase/auth";
@@ -349,10 +349,13 @@ export default function Dashboard({ user, onLogout }) {
     const secs = merchant?.role === "member" && merchant?.member_secciones && Object.keys(merchant.member_secciones).length ? merchant.member_secciones : null;
     // Widget acompaña al permiso de Planes (los permisos guardados antes no lo conocen).
     // Flujos de WhatsApp acompaña al permiso de Flujos (los permisos guardados antes no lo conocen).
-    const base = secs ? NAV.filter(n => n.id === "analiticas" || secs[n.id] === true || ((n.id === "widget" || n.id === "carrito" || n.id === "checkout") && secs.planes === true) || (n.id === "carritos" && secs.suscripciones === true) || (n.id === "logistica" && secs.planes === true) || (n.id === "whatsapp" && secs.flujos === true) || n.adminOnly) : NAV;
+    const base = secs ? NAV.filter(n => n.id === "analiticas" || secs[n.id] === true || ((n.id === "widget" || n.id === "carrito" || n.id === "checkout") && secs.planes === true) || (n.id === "carritos" && secs.suscripciones === true) || ((n.id === "envios" || n.id === "stock") && secs.planes === true) || (n.id === "whatsapp" && secs.flujos === true) || n.adminOnly) : NAV;
+    // Secciones ocultas por el Admin (instalación a medida): el comercio no las ve; el admin
+    // que entra con "Ver como" sí (28-sept-2026, Thiago).
+    const hidden = new Set(Array.isArray(merchant?.hidden_tabs) && !getAdminAs() ? merchant.hidden_tabs : []);
     // Afiliados es de la CUENTA: solo el dueño del login.
-    return base.filter(n => (!n.adminOnly || isAdmin) && (n.id !== "afiliados" || merchant?.role !== "member"));
-  }, [merchant?.role, merchant?.member_secciones, isAdmin]);
+    return base.filter(n => (!n.adminOnly || isAdmin) && (n.id !== "afiliados" || merchant?.role !== "member") && !hidden.has(n.id));
+  }, [merchant?.role, merchant?.member_secciones, merchant?.hidden_tabs, isAdmin]);
   useEffect(() => { if (loading) return; if (!navList.some(n => n.id === tab)) goTab("analiticas"); }, [navList, tab, goTab, loading]);
 
   // Precarga escalonada (todas las tiendas): apenas hay pantalla, montamos ocultas las 3 pestañas más usadas.
@@ -381,8 +384,10 @@ export default function Dashboard({ user, onLogout }) {
                 integrationsReady ? <SubscriptionsPage devMode={devMode} shop={shop}/> : needs("Suscripciones")
               ) : t === "carritos" ? (
                 integrationsReady ? <SubscriptionsPage devMode={devMode} shop={shop} carts/> : needs("Carritos abandonados")
-              ) : t === "logistica" ? (
-                integrationsReady ? <LogisticsPage merchant={merchant} onMerchantChange={reloadMerchant}/> : needs("Logística")
+              ) : t === "envios" ? (
+                integrationsReady ? <LogisticsPage section="envios" merchant={merchant} onMerchantChange={reloadMerchant}/> : needs("Envíos")
+              ) : t === "stock" ? (
+                integrationsReady ? <LogisticsPage section="stock" merchant={merchant} onMerchantChange={reloadMerchant}/> : needs("Stock")
               ) : t === "cobros" ? (
                 integrationsReady ? <ChargesPage shop={shop} merchant={merchant}/> : needs("Cobros")
               ) : t === "planes" ? (

@@ -95,3 +95,83 @@ export async function applyStockPolicy({ db, merchant, merchantId, subscriberId,
 }
 
 export { resolveStockPolicy, stockCheckNeeded };
+
+// ─── Antes del cobro ────────────────────────────────────────────────────────
+// 28-sept-2026 (Thiago): "el 15 me quedé sin stock; el 17 toca la renovación de
+// esa señora — que no se procese y se le avise".
+//
+// A Mercado Pago no se le puede decir "esta vez no cobres": la única palanca es
+// dejar el preapproval en `paused` ANTES de la fecha. Por eso esto no puede
+// correr 10 minutos antes: MP cobra en algún momento del día y si llegamos
+// tarde, cobró. Miramos con varias horas de anticipación (`STOCK_WATCH_HOURS`)
+// y, por las dudas, `applyStockPolicy` sigue como red después del cobro.
+//
+// Y al revés: cuando el comercio repone, la suscripción vuelve sola. Si no,
+// "se pausa por stock" sería una cancelación disfrazada.
+const HOURS = () => {
+  const n = Number(process.env.STOCK_WATCH_HOURS);
+  return Number.isFinite(n) && n > 0 && n <= 72 ? n : 12;
+};
+const PAUSA_STOCK = "sin_stock";
+
+async function pausar(db, merchant, merchantId, subscriberId, sub, tag) {
+  await mpUpdatePreapproval(merchant.mp_access_token, sub.mp_preapproval_id, { status: "paused" });
+  const now = new Date().toISOString();
+  await db().collection("merchants").doc(merchantId).collection("subscribers").doc(subscriberId).set({
+    status: "paused", paused_reason: PAUSA_STOCK, paused_at: now, updated_at: now,
+  }, { merge: true });
+  try {
+    const { emitFlowEvent } = await import("./flows.js");
+    await emitFlowEvent(merchantId, merchant, "out_of_stock", subscriberId, { ...sub, status: "paused" }, { key: now });
+  } catch (e) { console.warn(`[${tag}] aviso de sin stock:`, e.message); }
+  console.warn(`[${tag}] sin stock antes del cobro: ${subscriberId} pausada`);
+}
+
+async function reactivar(db, merchant, merchantId, subscriberId, sub, tag) {
+  await mpUpdatePreapproval(merchant.mp_access_token, sub.mp_preapproval_id, { status: "authorized" });
+  const now = new Date().toISOString();
+  await db().collection("merchants").doc(merchantId).collection("subscribers").doc(subscriberId).set({
+    status: "active", paused_reason: null, resumed_at: now, updated_at: now,
+  }, { merge: true });
+  try {
+    const { emitFlowEvent } = await import("./flows.js");
+    await emitFlowEvent(merchantId, merchant, "resumed", subscriberId, { ...sub, status: "active" }, { key: now });
+  } catch (e) { console.warn(`[${tag}] aviso de reactivación:`, e.message); }
+  console.warn(`[${tag}] volvió el stock: ${subscriberId} reactivada`);
+}
+
+/**
+ * Revisa las suscripciones de UN comercio: pausa las que están por cobrarse sin
+ * stock y reactiva las que se pausaron por eso y ya tienen. Nunca lanza.
+ * `subs` = [{ id, ...datos }] ya leídas por quien llama.
+ */
+export async function stockWatchForMerchant({ db, merchant, merchantId, subs, nowMs = Date.now(), tag = "stock-watch" }) {
+  const out = { revisadas: 0, pausadas: 0, reactivadas: 0 };
+  if (!stockCheckNeeded(merchant) || !merchant?.mp_access_token) return out;
+  const limite = nowMs + HOURS() * 3600e3;
+  for (const sub of subs || []) {
+    if (!sub?.mp_preapproval_id) continue;
+    const pedidas = Number(sub.quantity || sub.plan_snapshot?.units_per_shipment || 1) || 1;
+    try {
+      if (sub.status === "paused" && sub.paused_reason === PAUSA_STOCK) {
+        out.revisadas++;
+        const hay = await disponible(merchant, sub);
+        if (hay !== null && hay < pedidas) continue;      // sigue sin stock
+        await reactivar(db, merchant, merchantId, sub.id, sub, tag);
+        out.reactivadas++;
+        continue;
+      }
+      if (sub.status !== "active") continue;
+      const t = Date.parse(sub.next_charge_at || "");
+      if (!Number.isFinite(t) || t > limite) continue;    // todavía falta
+      out.revisadas++;
+      const hay = await disponible(merchant, sub);
+      if (hay === null || hay >= pedidas) continue;
+      await pausar(db, merchant, merchantId, sub.id, sub, tag);
+      out.pausadas++;
+    } catch (e) {
+      console.warn(`[${tag}] sub ${sub.id}:`, e.message);
+    }
+  }
+  return out;
+}

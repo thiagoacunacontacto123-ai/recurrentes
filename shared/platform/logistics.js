@@ -70,5 +70,39 @@ export function stockCheckNeeded(m) {
 }
 
 // ── Envíos ──────────────────────────────────────────────────────────────────
-/** Una tarifa apagada no se le ofrece al que se suscribe. */
-export const rateOff = (r) => r?.off === true;
+// Por defecto se ofrecen TODOS los métodos de la tienda, igual que antes de que
+// esto existiera (Thiago, 28-sept: "que de default esté como está ahora"). Lo
+// único que se guarda es la lista de los que el comercio NO quiere en la
+// suscripción — por ejemplo las sucursales, que para un envío recurrente son un
+// dolor de cabeza. Vacía = todo como siempre.
+//
+// Se guarda por `code` cuando la tarifa tiene uno (es lo estable) y si no por
+// nombre en minúsculas. Sirve igual para las tarifas guardadas (Tiendanube) que
+// para las que Shopify cotiza en vivo, que no se guardan en ningún lado.
+export const rateKey = (r) => String(r?.code || "").trim() || String(r?.name || "").trim().toLowerCase();
+
+export function sanitizeShippingOff(raw) {
+  if (raw == null) return { shipping_off: null };
+  if (!Array.isArray(raw)) return { error: "shipping_off debe ser una lista" };
+  const out = [];
+  for (const v of raw) {
+    const k = String(v || "").trim().slice(0, 250);
+    if (k && !out.includes(k)) out.push(k);
+    if (out.length >= 30) break;
+  }
+  return { shipping_off: out.length ? out : null };
+}
+
+/** ¿Este envío se le ofrece al que se suscribe? */
+export function rateOffered(rate, m) {
+  const off = Array.isArray(m?.shipping_off) ? m.shipping_off : [];
+  if (!off.length) return true;
+  const k = rateKey(rate);
+  // Se compara por las dos claves: una tarifa puede llegar con code en un lado
+  // y sin code en el otro (la misma "A sucursal" de Shopify en vivo y guardada).
+  const nombre = String(rate?.name || "").trim().toLowerCase();
+  return !off.includes(k) && !(nombre && off.includes(nombre));
+}
+
+/** Filtra una lista de tarifas dejando solo las que el comercio ofrece. */
+export const offeredRates = (rates, m) => (Array.isArray(rates) ? rates.filter(r => rateOffered(r, m)) : []);

@@ -21,6 +21,7 @@
 import { buildBundleVM, planHasPacks, resolvePack, freqLabel, fmtARS } from "../shared/bundle/viewmodel.js";
 import { createHash } from "node:crypto";
 import { resolveCheckoutTheme } from "../shared/platform/checkoutTheme.js";
+import { rateOffered } from "../shared/platform/logistics.js";
 import { resolveCartSettings, cartCss, cartShellHtml, cartBodyHtml, cartCtaText } from "../shared/bundle/cart.js";
 // Funciones compartidas que viajan al navegador dentro del template literal. Lo que se
 // interpola con ${} entra TAL CUAL (el template solo procesa escapes del texto literal),
@@ -59,9 +60,9 @@ export function isLegacyMerchant(m) {
 export function resolveCheckoutShippingRates(m) {
   const raw = Array.isArray(m?.checkout_shipping_rates) ? m.checkout_shipping_rates : [];
   const list = raw
-    // Apagada en Logística = no se le ofrece al que se suscribe (la tienda
-    // puede seguir mostrándola en su checkout normal).
-    .filter(r => r && typeof r.name === "string" && r.name.trim() && r.off !== true)
+    // Apagado en Envíos = no se le ofrece al que se suscribe (la tienda puede
+    // seguir mostrándolo en su checkout normal).
+    .filter(r => r && typeof r.name === "string" && r.name.trim() && rateOffered(r, m))
     .map(r => ({
       name: r.name.trim().slice(0, 250),
       price: Math.max(0, Math.round(Number(r.price) || 0)),
