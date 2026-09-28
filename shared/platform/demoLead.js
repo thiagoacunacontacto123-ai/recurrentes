@@ -70,7 +70,6 @@ export const DEMO_MODALIDAD = [
 // Cuánto vende hoy. En pedidos POR DÍA (Thiago): el que vende lo piensa así,
 // no en pedidos por mes.
 export const DEMO_PEDIDOS = [
-  { id: "menos_1", label: "Menos de 1 por día" },
   { id: "1_5",     label: "Entre 1 y 5 por día" },
   { id: "5_15",    label: "Entre 5 y 15 por día" },
   { id: "15_50",   label: "Entre 15 y 50 por día" },
