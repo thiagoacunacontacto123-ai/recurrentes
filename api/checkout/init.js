@@ -601,6 +601,9 @@ export default async function handler(req, res) {
   // el MISMO nombre que muestra el embed (plan.shipping_method_name || "Envío a domicilio").
   const freeShippingFrom = parseFloat(plan.free_shipping_from_ars) || 0;
   let shippingCost, shippingName, shippingCode = "", shippingSource = "";
+  // Transportista de la tarifa elegida (Tiendanube): viaja hasta la orden para
+  // que la app de envíos del comerciante la despache como una venta común.
+  let shippingCarrierId = "", shippingCarrierCode = "", shippingReference = "", shippingPickup = false;
   let matchedRate = null;
   if (caps.shipping && shipping_method && typeof shipping_method === "object" && (shipping_method.name || shipping_method.code)) {
     const wantName = String(shipping_method.name || "").trim().toLowerCase();
@@ -673,6 +676,10 @@ export default async function handler(req, res) {
     shippingName = String(matchedRate.name).slice(0, 250);
     shippingCode = String(matchedRate.code || "").slice(0, 250);
     shippingSource = String(matchedRate.source || shippingSource || "").slice(0, 100);
+    shippingCarrierId = String(matchedRate.carrier_id || "").slice(0, 64);
+    shippingCarrierCode = String(matchedRate.carrier_code || "").slice(0, 20);
+    shippingReference = String(matchedRate.reference || "").slice(0, 100);
+    shippingPickup = matchedRate.pickup === true;
   } else if (merchant.shopify_shop || merchant.tiendanube_store_id) {
     // Tienda conectada: el envío SIEMPRE sale de la tienda (21-sept, Thiago).
     // Si llegamos acá es que no pudimos matchear ninguna tarifa real (el
@@ -805,6 +812,10 @@ export default async function handler(req, res) {
       shipping_method_name: shippingName,
       shipping_method_code: shippingCode,
       shipping_method_source: shippingSource,
+      ...(shippingCarrierId ? { shipping_carrier_id: shippingCarrierId } : {}),
+      ...(shippingCarrierCode ? { shipping_carrier_code: shippingCarrierCode } : {}),
+      ...(shippingReference ? { shipping_method_reference: shippingReference } : {}),
+      ...(shippingPickup ? { shipping_pickup_type: "pickup" } : {}),
       qty_discount_pct: qtyDiscountPct,
       discount_code: discountCodeApplied,
       discount_code_pct: discountCodePct,

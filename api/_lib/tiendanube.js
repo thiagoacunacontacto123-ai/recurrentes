@@ -501,11 +501,22 @@ export async function tnShippingRates(storeId, token) {
       // 22-sept-2026, Thiago.
       const crudo = o?.price ?? o?.cost;
       const tienePrecio = crudo !== undefined && crudo !== null && crudo !== "" && Number.isFinite(Number(crudo));
+      // El carrier es lo que mira la app de envíos del comerciante (Southpost,
+      // Envíopack, Zippin…) para imprimir la etiqueta. Sin esto la orden le
+      // llega con un transportista inventado por nosotros y la tiene que
+      // despachar a mano (28-sept-2026, caso Vidativa).
+      const pickup = String(o?.type || c?.types || "").toLowerCase() === "pickup";
       out.push({
         name,
         price: tienePrecio ? Math.max(0, Math.round(Number(crudo))) : 0,
         code: String(o?.code || c?.code || "").trim().slice(0, 50),
         source: "tiendanube",
+        ...(c?.id ? { carrier_id: String(c.id).slice(0, 64) } : {}),
+        // "any" es el único valor del enum que acepta un carrier_id cualquiera
+        // sin validarlo contra los instalados. Ver el contrato del PATCH abajo.
+        carrier_code: "any",
+        ...(o?.reference ? { reference: String(o.reference).slice(0, 100) } : {}),
+        ...(pickup ? { pickup: true } : {}),
         ...(tienePrecio ? {} : { unpriced: true }),
       });
     }

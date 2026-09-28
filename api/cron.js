@@ -114,9 +114,14 @@ export default async function handler(req, res) {
     const force = req.query.force === "1";
     const soloUna = String(req.query.merchant || "").trim();
     const col = db().collection("merchants");
+    // Las dos plataformas: una tienda de Tiendanube conectada antes de hoy
+    // tiene el token pero ninguna tarifa importada.
     const docs = soloUna
       ? [await col.doc(soloUna).get()].filter(d => d.exists)
-      : (await col.where("shopify_token", "!=", null).get()).docs;
+      : [
+          ...(await col.where("shopify_token", "!=", null).get()).docs,
+          ...(await col.where("tiendanube_token", "!=", null).get()).docs,
+        ];
     const out = { revisadas: 0, importadas: 0, detalle: [] };
     for (const d of docs) {
       const m = d.data() || {};

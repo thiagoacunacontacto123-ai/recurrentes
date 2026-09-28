@@ -59,6 +59,7 @@ import { mpMe } from "./_lib/mp.js";
 import { emailSubscriptionActivated, emailTeamInvite, emailPlanRequest, effectiveBrand, effectiveFrom } from "./_lib/email.js";
 import { shGetShopInfo, buildShopInfoPatch, shopifyRatesForPanel } from "./_lib/shopify.js";
 import { importDiscountsAction, cleanDiscountCodes } from "./_lib/discountImport.js";
+import { normalizeRate } from "./_lib/shippingImport.js";
 import { giftFreeAction } from "./_lib/giftDiscount.js";
 import { sanitizeCartSettings } from "../shared/bundle/cart.js";
 import { widgetVerifyUrlAction, widgetVerifyStatusAction } from "./_lib/widgetVerify.js";
@@ -922,8 +923,7 @@ async function saveSettings(merchantId, req, res) {
       const price = parseInt(r?.price, 10);
       if (!name) return bad("Cada tarifa necesita nombre");
       if (!Number.isInteger(price) || price < 0) return bad(`Precio inválido en "${name}" (entero ≥ 0)`);
-      const code = String(r?.code || "").trim().slice(0, 50);
-      rates.push({ name, price, ...(code ? { code } : {}) });
+      rates.push(normalizeRate(r, price));
     }
     out.checkout_shipping_rates = rates;
   }
@@ -1071,8 +1071,7 @@ async function importShippingRates(merchantId, req, res) {
       const key = name.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
-      const code = String(r?.code || "").trim().slice(0, 50);
-      rates.push({ name, price, ...(code ? { code } : {}) });
+      rates.push(normalizeRate(r, price));
       if (rates.length >= 6) break;
     }
     if (!rates.length) return res.json({ ok: true, rates: [], note: source.note || "Tu tienda usa tarifas dinámicas (carrier). Cargalas a mano.", imported: 0 });

@@ -18,6 +18,29 @@ import { db } from "./firebase.js";
 
 const MAX_RATES = 6;
 
+/**
+ * Los campos que viajan con una tarifa. Además del nombre y el precio van los
+ * datos del transportista: los necesita la orden de Tiendanube para que la app
+ * de envíos del comerciante la reconozca y le imprima la etiqueta. Si se
+ * pierden en el camino, el pedido le llega sin transportista y lo tiene que
+ * despachar a mano (28-sept-2026).
+ */
+export function normalizeRate(r, price) {
+  const name = String(r?.name || "").trim().slice(0, 250);
+  const code = String(r?.code || "").trim().slice(0, 50);
+  const carrierId = String(r?.carrier_id || "").trim().slice(0, 64);
+  const carrierCode = String(r?.carrier_code || "").trim().slice(0, 20);
+  const reference = String(r?.reference || "").trim().slice(0, 100);
+  return {
+    name, price,
+    ...(code ? { code } : {}),
+    ...(carrierId ? { carrier_id: carrierId } : {}),
+    ...(carrierCode ? { carrier_code: carrierCode } : {}),
+    ...(reference ? { reference } : {}),
+    ...(r?.pickup === true ? { pickup: true } : {}),
+  };
+}
+
 // Normaliza y deduplica lo que devuelva cada plataforma.
 function limpiar(lista) {
   const seen = new Set();
@@ -29,8 +52,7 @@ function limpiar(lista) {
     const key = name.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    const code = String(r?.code || "").trim().slice(0, 50);
-    out.push({ name, price, ...(code ? { code } : {}) });
+    out.push(normalizeRate(r, price));
     if (out.length >= MAX_RATES) break;
   }
   return out;

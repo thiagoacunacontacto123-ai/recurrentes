@@ -362,5 +362,50 @@ section("envío en el fulfillment order");
   ok(patch?.body?.shipping?.option?.code === "andreani_home", "el PATCH manda el envío dentro de `shipping`");
 }
 
+// ─── Al vincular la tienda se traen sus envíos ──────────────────────────────
+// 28-sept-2026 (Thiago, caso Vidativa): "en Shopify cada cliente se lee todos
+// sus métodos de envío solo; que en Tiendanube pase lo mismo". Antes el
+// importador corría solo al conectar Shopify: una tienda de Tiendanube quedaba
+// sin tarifas y el pedido salía sin transportista.
+section("al conectar se importan los envíos");
+{
+  await M("m_ship").set({ email: "d@x.com" });
+  routes = [
+    route("GET", /\/9100\/shipping_carriers$/, { body: [{
+      id: 4321, name: "Southpost", code: "southpost", active: true,
+      options: [{ name: "Envío a domicilio", code: "southpost_home", price: 4500 }],
+    }] }),
+    route("GET", /\/9100\/store$/, { body: { name: "Vidativa", url: "https://vidativa.ar", country: "AR", currency: "ARS" } }),
+    // El resto del alta (webhooks, script del widget) no es lo que se prueba acá.
+    route("GET", /api\.tiendanube\.com/, { body: [] }),
+    route("POST", /api\.tiendanube\.com/, { body: { id: 1 } }),
+    route("PUT", /api\.tiendanube\.com/, { body: { id: 1 } }),
+    route("DELETE", /api\.tiendanube\.com/, { body: {} }),
+  ];
+  const conn = await connectStore("m_ship", { store_id: "9100", access_token: "tn_tok", scope: "read_products,read_shipping" });
+  ok(conn.ok === true, "la tienda queda conectada");
+  ok(callsTo("GET", /shipping_carriers/).length >= 1, "pide los medios de envío de la tienda");
+  const rates = (await data(M("m_ship"))).checkout_shipping_rates || [];
+  ok(rates.length === 1 && rates[0].name === "Envío a domicilio", "quedan guardados con su nombre");
+  ok(rates[0].carrier_id === "4321" && rates[0].carrier_code === "any", "y con el transportista, que es lo que despacha la app del comercio");
+}
+
+{
+  // Si la tienda no da el permiso de envíos, la conexión NO se cae: el comercio
+  // entra igual y carga las tarifas a mano.
+  await M("m_ship2").set({ email: "d@x.com" });
+  routes = [
+    route("GET", /\/9100\/shipping_carriers$/, { status: 403, body: { description: "sin scope" } }),
+    route("GET", /\/9100\/store$/, { body: { name: "Sin permiso" } }),
+    route("GET", /api\.tiendanube\.com/, { body: [] }),
+    route("POST", /api\.tiendanube\.com/, { body: { id: 1 } }),
+    route("PUT", /api\.tiendanube\.com/, { body: { id: 1 } }),
+    route("DELETE", /api\.tiendanube\.com/, { body: {} }),
+  ];
+  const conn = await connectStore("m_ship2", { store_id: "9100", access_token: "tn_tok2" });
+  ok(conn.ok === true, "sin el permiso de envíos la tienda se conecta igual");
+  ok(!((await data(M("m_ship2"))).checkout_shipping_rates || []).length, "y queda sin tarifas, no con basura");
+}
+
 console.log(fails ? `\n${fails} FALLARON` : "\nTodo OK");
 process.exit(fails ? 1 : 0);

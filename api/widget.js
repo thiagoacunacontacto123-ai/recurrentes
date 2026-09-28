@@ -60,7 +60,19 @@ export function resolveCheckoutShippingRates(m) {
   const raw = Array.isArray(m?.checkout_shipping_rates) ? m.checkout_shipping_rates : [];
   const list = raw
     .filter(r => r && typeof r.name === "string" && r.name.trim())
-    .map(r => ({ name: r.name.trim().slice(0, 250), price: Math.max(0, Math.round(Number(r.price) || 0)), eta: String(r.eta || "").slice(0, 80), code: String(r.code || "").slice(0, 250) }));
+    .map(r => ({
+      name: r.name.trim().slice(0, 250),
+      price: Math.max(0, Math.round(Number(r.price) || 0)),
+      eta: String(r.eta || "").slice(0, 80),
+      code: String(r.code || "").slice(0, 250),
+      // El transportista viaja con la tarifa hasta la orden: es lo que mira la
+      // app de envíos del comercio para despachar (28-sept-2026). Si se cae acá,
+      // el pedido de Tiendanube sale sin carrier.
+      ...(r.carrier_id ? { carrier_id: String(r.carrier_id).slice(0, 64) } : {}),
+      ...(r.carrier_code ? { carrier_code: String(r.carrier_code).slice(0, 20) } : {}),
+      ...(r.reference ? { reference: String(r.reference).slice(0, 100) } : {}),
+      ...(r.pickup === true ? { pickup: true } : {}),
+    }));
   if (list.length) return list;
   return isLegacyMerchant(m) ? DEFAULT_CHECKOUT_SHIPPING_RATES : [];
 }

@@ -108,6 +108,13 @@ export async function connectStore(merchantId, { store_id, access_token, scope }
   }
   await ref.set(patch, { merge: true });
   try { const { trackAcquisition } = await import("./acquisition.js"); await trackAcquisition(merchantId, "store_connected"); } catch (_) {}
+  // Los envíos de la tienda, solos, igual que al conectar Shopify: el comercio
+  // ve sus propios métodos desde el día 1 y la orden sale con el transportista
+  // que ya usa (28-sept-2026). Best-effort: no puede romper la conexión.
+  try {
+    const { autoImportShippingRates } = await import("./shippingImport.js");
+    await autoImportShippingRates(merchantId, { ...m, ...patch });
+  } catch (e) { console.warn("[tiendanube] importar envíos:", e.message); }
   const setup = await setupStore(merchantId, storeId, access_token);
   return { ok: true, store: info, channel: patch.channel || prof.channel, ...setup };
 }
