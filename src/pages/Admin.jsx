@@ -15,6 +15,7 @@ import { MONO, fmtARS, fmtAgo, fmtDateOnly, fmtDateTime, copyText } from "./_sha
 import { CHANNELS, PAYMENT_PROVIDERS, BUSINESS_TYPES } from "../../shared/platform/profile.js";
 import { pedidoDeAccesos, SHOPIFY_PERMISOS } from "../../shared/platform/setup.js";
 import { PRICING_TIERS, TIER_BY_ID } from "../../shared/platform/pricing.js";
+import AdminInstall from "./AdminInstall.jsx";
 
 const F = "'Inter',system-ui,sans-serif";
 const fmtN = (n) => Math.round(Number(n) || 0).toLocaleString("es-AR");
@@ -207,6 +208,10 @@ export function AdminPage() {
           </div>
         </Panel>
       )}
+
+      {/* El manual de instalación y los snippets, con el id del comercio puesto:
+          así no hay que pedirlos ni buscarlos en un chat viejo. */}
+      <AdminInstall rows={list?.rows || []}/>
 
       <div ref={tableRef} style={{ scrollMarginTop:80 }}>
         <Panel T={T} flush title="Comercios"
