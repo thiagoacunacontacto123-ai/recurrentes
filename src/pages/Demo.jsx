@@ -263,7 +263,7 @@ export default function DemoPage() {
     setError("");
     // Se valida con la MISMA función que el backend: un solo lugar donde están
     // las reglas, y el visitante ve el error antes de mandar.
-    const { value, error: err, field } = sanitizeDemoLead({ ...f, ...oks }, { emailRe: EMAIL_RE, normalizeWhatsapp });
+    const { value, error: err, field } = sanitizeDemoLead({ ...f, ...oks, whatsapp: f.whatsapp.trim() ? "+54 " + f.whatsapp.trim() : "" }, { emailRe: EMAIL_RE, normalizeWhatsapp });
     if (err) { setError(err, field); scrollToError(); return; }
     if (slots.enabled && !start) { setError("Elegí un día y un horario para la llamada.", "horario"); scrollToError(); return; }
     setLoading(true);
@@ -319,7 +319,8 @@ export default function DemoPage() {
           background-image:linear-gradient(${T.border} 1px,transparent 1px),linear-gradient(90deg,${T.border} 1px,transparent 1px);background-size:56px 56px;
           -webkit-mask-image:radial-gradient(ellipse 70% 60% at 30% 0%,#000 20%,transparent 100%);mask-image:radial-gradient(ellipse 70% 60% at 30% 0%,#000 20%,transparent 100%);opacity:.5;}
         .rec-demo-reviews{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;}
-        .rec-demo .rc-f.is-err input,.rec-demo .rc-f.is-err select,.rec-demo .rc-f.is-err button[aria-haspopup]{border-color:#d92d20!important;box-shadow:0 0 0 1px #d92d20!important;}
+        .rec-demo .rc-f.is-err input:not(.rec-demo-tel input),.rec-demo .rc-f.is-err select,.rec-demo .rc-f.is-err button[aria-haspopup],.rec-demo .rc-f.is-err .rec-demo-tel{border-color:#d92d20!important;box-shadow:0 0 0 1px #d92d20!important;}
+        .rec-demo-tel:focus-within{border-color:${T.accentSolid}!important;}
         .rec-demo .rc-f.is-err > label{color:#d92d20!important;}
         .rec-demo .rc-f.is-err .rec-demo-check{border-color:#d92d20!important;box-shadow:0 0 0 1px #d92d20;}
         /* iOS hace zoom al enfocar un campo con letra menor a 16px (mismo arreglo que el checkout). */
@@ -399,7 +400,15 @@ export default function DemoPage() {
                 </div>
 <div className={"rc-f" + (errOf("whatsapp") ? " is-err" : "")} style={campo} onInput={() => fix("whatsapp")} onChange={() => fix("whatsapp")}>
                   <label style={label}>WhatsApp</label>
-                  <input style={iS} value={f.whatsapp} onChange={(e) => set("whatsapp", e.target.value)} placeholder="11 2345 6789" inputMode="tel" autoComplete="tel"/>
+                  {/* +54 fijo (27-sept-2026, Thiago): bandera y prefijo imborrables, el visitante
+                      escribe solo su número. Si pega un número con +54 o 54 adelante, se lo sacamos. */}
+                  <div className="rec-demo-tel" style={{ ...iS, display: "flex", alignItems: "center", gap: 8, padding: 0, overflow: "hidden" }}>
+                    <span aria-hidden="true" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "0 12px 0 14px", height: "100%", borderRight: `1px solid ${T.inputBorder}`, background: T.surface, color: T.text, fontSize: 16, fontWeight: 600, whiteSpace: "nowrap", userSelect: "none", alignSelf: "stretch" }}>
+                      <span style={{ fontSize: 18, lineHeight: 1 }}>🇦🇷</span>+54
+                    </span>
+                    <input value={f.whatsapp} onChange={(e) => set("whatsapp", e.target.value.replace(/^\s*(\+?54\s*)/, "").replace(/[^\d\s-]/g, ""))} placeholder="11 2345 6789" inputMode="tel" autoComplete="tel-national" aria-label="WhatsApp sin el +54"
+                      style={{ flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", color: T.text, fontFamily: "inherit", padding: "12px 14px 12px 0" }}/>
+                  </div>
                   {errOf("whatsapp") && <div className="rc-fe" role="alert">{errOf("whatsapp")}</div>}
                 </div>
 <div className={"rc-f" + (errOf("email") ? " is-err" : "")} style={campo} onInput={() => fix("email")} onChange={() => fix("email")}>
