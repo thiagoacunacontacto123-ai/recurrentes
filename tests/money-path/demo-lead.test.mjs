@@ -86,12 +86,12 @@ test("(r) el aviso repite cada pregunta con su respuesta, en una sola línea", (
   // Thiago las lee por WhatsApp, y Meta APLASTA los saltos de línea dentro de
   // una variable de plantilla: si el resumen los usara como separador, le
   // llegaría todo pegado y sin poder distinguir qué contestó a qué.
-  const r = resumenDemoLead({ ...OK, objetivo: "ticket" });
+  const r = resumenDemoLead({ ...OK, objetivo: "ingreso_fijo" });
   assert.ok(!/[\r\n\t]/.test(r), "sin saltos de línea: no sobreviven a la plantilla");
   for (const q of DEMO_PREGUNTAS) assert.ok(r.includes(q.label), `falta la pregunta: ${q.label}`);
   assert.match(r, /¿Cuántos pedidos vendés por día\? Entre 5 y 15 por día/);
   assert.match(r, /¿Cuál es tu tasa de clientes recurrentes hoy\? Entre el 25% y el 50%/);
-  assert.match(r, /¿Qué querés lograr con las suscripciones\? Vender packs más grandes/);
+  assert.match(r, /¿Qué querés lograr con las suscripciones\? Tener un ingreso fijo/);
   assert.match(r, /pago único de USD 100 a 200 de la integración\? SÍ/);
   // Entra en el tope de la variable de plantilla de Meta (1024) con lugar de sobra.
   assert.ok(r.length < 700, `el resumen quedó largo: ${r.length}`);

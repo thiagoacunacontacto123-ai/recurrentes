@@ -79,7 +79,6 @@ export const DEMO_PEDIDOS = [
 export const DEMO_OBJETIVO = [
   { id: "recompra",     label: "Que mis clientes vuelvan a comprar solos" },
   { id: "ingreso_fijo", label: "Tener un ingreso fijo todos los meses" },
-  { id: "ticket",       label: "Vender packs más grandes (más plata por venta)" },
   { id: "dejar_manual", label: "Dejar de perseguir la recompra a mano" },
   // La de siempre (25-sept-2026, Thiago): el que quiere las cuatro no tiene que
   // elegir una y dejar afuera el resto.
