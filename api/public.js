@@ -192,8 +192,10 @@ async function handleDemoLead(req, res) {
     const { demoLeadWaVars } = await import("../shared/platform/demoLead.js");
     await notifyAdmin("demo", {
       merchantId: id,
-      store: `${lead.nombre} · ${lead.marca}`,
-      detail: `${resumenDemoLead(lead)} · Contacto: ${lead.nombre} · ${lead.whatsapp} · ${lead.email}`,
+      // Genérica (mientras Meta no aprueba aviso_admin_demo): "Tienda" = quién y cómo contactarlo;
+      // "Detalle" = las respuestas cortas.
+      store: `${lead.nombre} · ${lead.whatsapp} · ${lead.email}`,
+      detail: resumenDemoLead(lead),
       key: "first",
       extra: demoLeadWaVars(lead),
     });

@@ -19,7 +19,7 @@ import { readAttribution, pixelTrack } from "../lib/attribution.js";
 import { AGENDA_URL, waLink, agendaUrl } from "../lib/contacto.js";
 import { DEMO_PREGUNTAS, DEMO_CONFIRMACIONES, sanitizeDemoLead } from "../../shared/platform/demoLead.js";
 import { groupSlotsByDay, DEMO_TZ } from "../../shared/platform/demoSlots.js";
-import { REVIEWS, ReviewCard, Stars, BigFooter, SectionsStyle } from "./LandingSections.jsx";
+import { REVIEWS, ReviewCard, Stars } from "./LandingSections.jsx";
 import { MotionStyle, useReveal, PartnerBadges } from "./LandingMotion.jsx";
 
 const F = "'Inter',system-ui,sans-serif";
@@ -520,8 +520,7 @@ export default function DemoPage() {
       </div>
 
       {/* El mismo pie que la home (Thiago, 27-sept): links a las secciones, Inicio, redes. */}
-      <SectionsStyle T={T}/>
-      <BigFooter T={T} onRegister={() => { try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch (_) {} }}/>
+      {/* Sin pie en todo el proceso de la demo (Thiago, 27-sept): que nada distraiga del formulario. */}
     </div>
   );
 }

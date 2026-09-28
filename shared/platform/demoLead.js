@@ -185,7 +185,9 @@ export function demoLeadWaVars(lead) {
 }
 
 export function resumenDemoLead(lead) {
-  const partes = DEMO_PREGUNTAS.map((q) => `${q.label} ${labelDe(q.options, lead[q.id]) || "-"}`);
-  partes.push("¿Acepta el pago único de USD 100 a 200 de la integración? SÍ");
+  // Etiqueta corta + respuesta (27-sept-2026, Thiago: con la pregunta entera "ni un mono
+  // entiende este choclo"). La pregunta completa queda en el Admin.
+  const partes = DEMO_PREGUNTAS.map((q) => `${DEMO_PREGUNTA_CORTA[q.id] || q.label}: ${labelDe(q.options, lead[q.id]) || "-"}`);
+  partes.push("Acepta el pago único (USD 100 a 200): SÍ");
   return partes.join(" · ");
 }

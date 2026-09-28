@@ -88,11 +88,11 @@ test("(r) el aviso repite cada pregunta con su respuesta, en una sola línea", (
   // llegaría todo pegado y sin poder distinguir qué contestó a qué.
   const r = resumenDemoLead({ ...OK, objetivo: "ingreso_fijo" });
   assert.ok(!/[\r\n\t]/.test(r), "sin saltos de línea: no sobreviven a la plantilla");
-  for (const q of DEMO_PREGUNTAS) assert.ok(r.includes(q.label), `falta la pregunta: ${q.label}`);
-  assert.match(r, /¿Cuántos pedidos vendés por día\? Entre 5 y 15 por día/);
-  assert.match(r, /¿Cuál es tu tasa de clientes recurrentes hoy\? Entre el 25% y el 50%/);
-  assert.match(r, /¿Qué querés lograr con las suscripciones\? Tener un ingreso fijo/);
-  assert.match(r, /pago único de USD 100 a 200 de la integración\? SÍ/);
+  assert.equal((r.match(/ · /g) || []).length, DEMO_PREGUNTAS.length, "una parte por pregunta más la del pago");
+  assert.match(r, /Pedidos por día: Entre 5 y 15 por día/);
+  assert.match(r, /Recompra hoy: Entre el 25% y el 50%/);
+  assert.match(r, /Objetivo: Tener un ingreso fijo/);
+  assert.match(r, /Acepta el pago único \(USD 100 a 200\): SÍ/);
   // Entra en el tope de la variable de plantilla de Meta (1024) con lugar de sobra.
   assert.ok(r.length < 700, `el resumen quedó largo: ${r.length}`);
 });
