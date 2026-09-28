@@ -1090,8 +1090,18 @@ async function importShippingRates(merchantId, req, res) {
     if (Array.isArray(req.body?.rates)) {
       source = { rates: req.body.rates.map(r => ({ name: r?.name, price: r?.price, code: r?.code })) };
     } else {
-      if (!merchant.shopify_token || !merchant.shopify_shop) return res.status(400).json({ error: "Conectá Shopify primero", rates: [] });
-      source = await shopifyRatesForPanel(merchant);
+      // Tiendanube: sus medios de envío salen de /shipping_carriers (28-sept-2026).
+      // Antes este endpoint era solo de Shopify y una tienda de Tiendanube no
+      // tenía forma de volver a leerlos desde el panel.
+      if (merchant.tiendanube_store_id && merchant.tiendanube_token) {
+        const { tnShippingRates } = await import("./_lib/tiendanube.js");
+        const rates = await tnShippingRates(merchant.tiendanube_store_id, merchant.tiendanube_token);
+        source = rates.length ? { rates } : { rates: [], note: "Tu tienda todavía no tiene medios de envío configurados en Tiendanube. Cargalos ahí y volvé a actualizar, o agregalos acá a mano." };
+      } else if (merchant.shopify_token && merchant.shopify_shop) {
+        source = await shopifyRatesForPanel(merchant);
+      } else {
+        return res.status(400).json({ error: "Conectá tu tienda primero", rates: [] });
+      }
     }
     const seen = new Set();
     const rates = [];

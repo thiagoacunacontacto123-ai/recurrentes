@@ -14,7 +14,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { DS, useT } from "../ui/theme.js";
 import { Btn, Callout, DSBadge, InputStyle, PageHeader, Spinner, toast } from "../ui/components.jsx";
 import { Panel } from "../ui/charts.jsx";
-import { apiGet, apiPatch } from "../lib/api.js";
+import { apiGet, apiPatch, apiPost } from "../lib/api.js";
 import { merchantProfile } from "../../shared/platform/profile.js";
 import { STOCK_SOURCES, STOCK_ON_MISSING, resolveStockPolicy, rateKey, rateLabel, rateOffered } from "../../shared/platform/logistics.js";
 
@@ -60,14 +60,21 @@ function ShippingCard({ T, m, isOwner, profile, onChange }) {
 
   // Shopify cotiza en vivo y no guarda nada: para poder apagar un método hay
   // que mostrárselos, así que se los pedimos a la tienda al abrir la pantalla.
+  const [nota, setNota] = useState("");
   const traerLive = useCallback(async () => {
-    if (!esShopify || !isOwner) return;
+    if (!isOwner) return;
     setCargando(true);
-    const d = await apiGet("shopify", { action: "shipping-rates-admin" });
+    // Shopify cotiza en vivo (no guarda nada), Tiendanube devuelve sus medios:
+    // en los dos casos hay que ir a preguntarle a la tienda.
+    const d = esShopify
+      ? await apiGet("shopify", { action: "shipping-rates-admin" })
+      : await apiPost("merchant", {}, { action: "import-shipping-rates" });
     setCargando(false);
-    if (d?.error) return;
+    if (d?.error) { setNota(d.error); return; }
+    setNota(d?.note || "");
     setLive(Array.isArray(d?.rates) ? d.rates : []);
-  }, [esShopify, isOwner]);
+    if (!esShopify && Array.isArray(d?.rates) && d.rates.length) onChange?.();
+  }, [esShopify, isOwner, onChange]);
   useEffect(() => { traerLive(); }, [traerLive]);
 
   // Lo guardado + lo que cotiza la tienda, agrupado por SERVICIO: las apps de
@@ -114,7 +121,7 @@ function ShippingCard({ T, m, isOwner, profile, onChange }) {
       sub={esShopify ? "Los cotiza tu tienda en el momento." : "Los traemos de tu tienda. El precio lo ponés vos."}
       right={<>
         {sucio && <DSBadge T={T} color={T.yellow} size="sm">Sin guardar</DSBadge>}
-        {esShopify && isOwner && <Btn T={T} variant="secondary" size="sm" onClick={traerLive} disabled={cargando}>{cargando ? <><Spinner size={12} color={T.textMd}/> Leyendo…</> : "Actualizar lista"}</Btn>}
+        {isOwner && <Btn T={T} variant="secondary" size="sm" onClick={traerLive} disabled={cargando}>{cargando ? <><Spinner size={12} color={T.textMd}/> Leyendo…</> : "Actualizar lista"}</Btn>}
       </>}>
 
       {cargando && !lista.length ? (
@@ -123,8 +130,8 @@ function ShippingCard({ T, m, isOwner, profile, onChange }) {
         </div>
       ) : !lista.length ? (
         <Callout T={T} tone="info">
-          Todavía no vemos métodos de envío de tu tienda. No pasa nada: la suscripción usa el envío que tenga cargado
-          cada plan. Si acabás de conectar la tienda, probá con <strong style={{ color:T.text }}>Actualizar lista</strong>.
+          {nota || "Tu tienda no tiene métodos de envío configurados. Cargalos en tu tienda y tocá Actualizar lista, o agregá uno acá a mano."}
+          {" "}Mientras tanto la suscripción usa el envío que tenga cargado cada plan.
         </Callout>
       ) : (
         <>
