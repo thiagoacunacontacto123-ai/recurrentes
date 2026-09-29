@@ -604,6 +604,11 @@ async function handlePlan(req, res) {
         // sirven: el selector ya viene renderizado en ?view=bundle. Sacarlas baja la
         // respuesta de ~300 KB a ~5 KB (25-sept-2026, Wellfresh tardaba 4 s en pintar).
         packs: checkout ? planPacks(data) : stripPackImages(planPacks(data)),
+        // Regalos del plan (modo clásico, 29-sept-2026): el checkout los lista como
+        // "Gratis" igual que los de un pack. En packs los regalos van adentro de cada pack.
+        gifts: Array.isArray(data.gifts)
+          ? data.gifts.map(g => ({ ...g, image: isDataImg(g?.image) ? null : (g?.image ?? null) }))
+          : [],
         frequency_scales_with_qty: data.frequency_scales_with_qty !== false,
         // El checkout sólo respeta una frecuencia custom de la URL si el plan lo permite.
         allow_custom_frequency: data.allow_custom_frequency === true,

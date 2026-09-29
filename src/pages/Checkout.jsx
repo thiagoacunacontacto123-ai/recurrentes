@@ -694,7 +694,7 @@ export default function Checkout() {
       </div>
       {/* Regalos del pack (25-sept-2026, Wellfresh): se ven en el resumen como "Gratis". Los
           vinculados a un producto van a la orden a $0 ("solo en tu primer envío" si aplica). */}
-      {(pack?.gifts || []).filter(g => g && g.title).map((g, i) => (
+      {((pack ? pack.gifts : plan?.gifts) || []).filter(g => g && g.title).map((g, i) => (
         <div key={i} style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 10, padding: "8px 10px", borderRadius: R + 2, background: theme.color_tint }}>
           {g.image ? <img src={g.image} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover", background: "#fff", flexShrink: 0 }}/> : <div style={{ width: 36, height: 36, borderRadius: 8, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>🎁</div>}
           <div style={{ flex: 1, minWidth: 0, fontSize: 13, lineHeight: 1.3 }}>
