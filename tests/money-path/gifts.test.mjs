@@ -4,7 +4,7 @@
 import "../helpers/register.mjs";
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { createWorld, loadApi, subscriber, snapshot, mpPayment, mpWebhookReq, MID, MP_TOKEN, VARIANT_ID, capsulasPlan } from "../helpers/world.mjs";
+import { createWorld, loadApi, subscriber, snapshot, mpPayment, mpWebhookReq, MID, PLAN_ID, MP_TOKEN, VARIANT_ID, capsulasPlan, ADDRESS } from "../helpers/world.mjs";
 import { invoke } from "../helpers/http.mjs";
 import { normalizePacks } from "../../api/_lib/packs.js";
 import { buildBundlePayload } from "../../api/widget.js";
@@ -58,4 +58,23 @@ test("normalizePacks guarda la variante del regalo (no si es virtual); el widget
   ]);
   // Lo que usa el carrito propio de la suscripción.
   assert.equal(payload.packs[1].price_sub, 180); assert.equal(payload.packs[1].label, "3 unidades"); assert.ok(payload.packs[1].freq_label);
+});
+
+// 29-sept-2026 (Lumina): el regalo también viaja en el modo CLÁSICO (sin packs).
+// Ahí vive en `plan.gifts` y checkout/init lo copia al suscriptor igual que en packs.
+test("modo clásico: el regalo del plan queda en gift_items del suscriptor (el virtual no)", async () => {
+  const { default: init } = await loadApi("api/checkout/init.js");
+  W = createWorld({ plan: capsulasPlan({ gifts: [
+    { shopify_variant_id: "46639706079430", shopify_product_id: "8993345372358", title: "Ebook de recetas + masajes", every: "always" },
+    { title: "Sorteo", virtual: true },
+  ] }) });
+  const res = await invoke(init, { method: "POST", query: {}, body: {
+    merchant_id: MID, plan_id: PLAN_ID, quantity: 1, frequency_days: 30, base_price: 12000, sub_discount: 30,
+    customer: { email: "dani@cliente.test", name: "Dani Gómez", phone: "1144440000", tax_id: "20-30123456-7" },
+    shipping_address: { ...ADDRESS },
+  }, headers: { "x-forwarded-for": "190.1.2.3" } });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.deepEqual(W.sub(res.body.subscriber_id).gift_items, [
+    { shopify_variant_id: "46639706079430", shopify_product_id: "8993345372358", title: "Ebook de recetas + masajes", every: "always" },
+  ]);
 });

@@ -725,8 +725,11 @@ export default async function handler(req, res) {
     }
   }
   const extrasTotal = extraItems.reduce((a, x) => a + x.price_ars * x.qty, 0);
-  const giftItems = pack && Array.isArray(pack.gifts)
-    ? pack.gifts.filter(g => g && !g.virtual && g.shopify_variant_id).map(g => ({ shopify_variant_id: String(g.shopify_variant_id), shopify_product_id: g.shopify_product_id || null, title: String(g.title || "Regalo").slice(0, 80), every: g.every === "once" ? "once" : "always" }))
+  // Regalos que VIAJAN a la orden ($0). En modo packs cada pack tiene los suyos;
+  // en el modo clásico (Lumina) salen del plan (`plan.gifts`), misma forma.
+  const giftSrc = pack ? pack.gifts : plan.gifts;
+  const giftItems = Array.isArray(giftSrc)
+    ? giftSrc.filter(g => g && !g.virtual && g.shopify_variant_id).map(g => ({ shopify_variant_id: String(g.shopify_variant_id), shopify_product_id: g.shopify_product_id || null, title: String(g.title || "Regalo").slice(0, 80), every: g.every === "once" ? "once" : "always" })).slice(0, 3)
     : [];
 
   const totalPerCharge = subtotal + shippingCost + extrasTotal;

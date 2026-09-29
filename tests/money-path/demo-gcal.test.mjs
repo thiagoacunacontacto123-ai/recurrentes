@@ -21,10 +21,14 @@ const TEST_KEY = "-----BEGIN RSA PRIVATE KEY-----\nMIIEpgIBAAKCAQEA0/F2z5yzabnUJ
 // Lunes 28-sept-2026 10:00 AR (13:00Z).
 const AHORA = Date.parse("2026-09-28T13:00:00.000Z");
 const enMin = (m) => new Date(AHORA + m * 60000).toISOString();
+// El reloj queda clavado en AHORA: los horarios de este archivo son fijos y sin
+// esto la suite empezaba a fallar sola al día siguiente (las 2 h de anticipación).
+const RELOJ_REAL = Date.now;
 
 let W, gcal;
 beforeEach(() => {
   W = createWorld();
+  Date.now = () => AHORA;
   G._resetGcalCache();
   process.env.GCAL_IMPERSONATE = "thiago@recurrentesapp.com";
   process.env.GCAL_CLIENT_EMAIL = "sa@test.iam.gserviceaccount.com";
@@ -49,6 +53,7 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
+  Date.now = RELOJ_REAL;
   W.router.assertClean();
   for (const k of ["GCAL_IMPERSONATE", "GCAL_CLIENT_EMAIL", "GCAL_PRIVATE_KEY", "DEMO_HOURS"]) delete process.env[k];
 });
