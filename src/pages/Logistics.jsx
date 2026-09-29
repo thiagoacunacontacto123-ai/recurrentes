@@ -16,7 +16,7 @@ import { Btn, Callout, DSBadge, InputStyle, PageHeader, Spinner, toast } from ".
 import { Panel } from "../ui/charts.jsx";
 import { apiGet, apiPatch, apiPost } from "../lib/api.js";
 import { merchantProfile } from "../../shared/platform/profile.js";
-import { STOCK_SOURCES, STOCK_ON_MISSING, resolveStockPolicy, rateKey, rateLabel, rateOffered } from "../../shared/platform/logistics.js";
+import { STOCK_SOURCES, STOCK_ON_MISSING, resolveStockPolicy, rateKey, rateLabel, rateOffered, rateOverride, subRatePrice } from "../../shared/platform/logistics.js";
 
 const fmtARS = (n) => "$" + Math.round(Number(n) || 0).toLocaleString("es-AR");
 
@@ -36,7 +36,7 @@ export default function LogisticsPage({ section = "envios", merchant, onMerchant
   }
   return (
     <>
-      <PageHeader T={T} title="Envíos" subtitle="Los que ve tu cliente al suscribirse. Vienen todos; acá sacás los que no quieras."/>
+      <PageHeader T={T} title="Envíos" subtitle="Los que ve tu cliente al suscribirse, y lo que le cobrás por cada uno. Vienen igual que en tu tienda."/>
       {profile.caps.shipping
         ? <ShippingCard T={T} m={m} isOwner={isOwner} profile={profile} onChange={onMerchantChange}/>
         : <Callout T={T} tone="info">Lo que vendés no se envía, así que no hay métodos que configurar.</Callout>}
@@ -53,10 +53,13 @@ function ShippingCard({ T, m, isOwner, profile, onChange }) {
   const [cargando, setCargando] = useState(false);
   const [off, setOff] = useState(Array.isArray(m.shipping_off) ? m.shipping_off : []);
   const [precios, setPrecios] = useState(guardadas);
+  // Lo que paga el SUSCRIPTOR por cada método. Vacío = lo que cobra la tienda.
+  const [subs, setSubs] = useState(m.shipping_prices && typeof m.shipping_prices === "object" ? m.shipping_prices : {});
   const [busy, setBusy] = useState("");
 
   useEffect(() => { setOff(Array.isArray(m.shipping_off) ? m.shipping_off : []); }, [m.shipping_off]);
   useEffect(() => { setPrecios(Array.isArray(m.checkout_shipping_rates) ? m.checkout_shipping_rates : []); }, [m.checkout_shipping_rates]);
+  useEffect(() => { setSubs(m.shipping_prices && typeof m.shipping_prices === "object" ? m.shipping_prices : {}); }, [m.shipping_prices]);
 
   // Shopify cotiza en vivo y no guarda nada: para poder apagar un método hay
   // que mostrárselos, así que se los pedimos a la tienda al abrir la pantalla.
@@ -98,12 +101,31 @@ function ShippingCard({ T, m, isOwner, profile, onChange }) {
 
   const setPrecio = (r, v) => setPrecios(ps => ps.map(p => rateKey(p) === rateKey(r) ? { ...p, price: v.replace(/\D/g, "") } : p));
 
+  // ── Lo que paga el suscriptor por cada método ──────────────────────────────
+  // Tres opciones y nada más: lo mismo que tu tienda (default), gratis, u otro
+  // precio. "Gratis desde" queda como extra para el que cobra hasta cierto monto.
+  const ov = (r) => rateOverride(r, { shipping_prices: subs });
+  const modoDe = (r) => { const o = ov(r); if (!o) return "tienda"; if (o.price === 0 && !o.free_from) return "gratis"; return "otro"; };
+  const setOv = (r, patch) => setSubs(prev => {
+    const k = rateKey(r), next = { ...prev };
+    if (patch == null) delete next[k]; else next[k] = { ...(next[k] || {}), ...patch };
+    return next;
+  });
+  const setModo = (r, modo) => {
+    if (modo === "tienda") return setOv(r, null);
+    if (modo === "gratis") return setOv(r, { price: 0, free_from: 0 });
+    setOv(r, { price: ov(r)?.price ?? Math.round(Number(r.price) || 0) });
+  };
+  const todosGratis = () => setSubs(Object.fromEntries(lista.map(r => [rateKey(r), { price: 0, free_from: 0 }])));
+
+  const limpio = (o) => JSON.stringify(Object.keys(o || {}).sort().map(k => [k, o[k]?.price ?? null, o[k]?.free_from ?? 0]));
   const sucio = JSON.stringify([...off].sort()) !== JSON.stringify([...(m.shipping_off || [])].sort())
-    || JSON.stringify(precios.map(p => [p.name, String(p.price)])) !== JSON.stringify(guardadas.map(p => [p.name, String(p.price)]));
+    || JSON.stringify(precios.map(p => [p.name, String(p.price)])) !== JSON.stringify(guardadas.map(p => [p.name, String(p.price)]))
+    || limpio(subs) !== limpio(m.shipping_prices);
 
   async function guardar() {
     setBusy("save");
-    const body = { shipping_off: off };
+    const body = { shipping_off: off, shipping_prices: Object.keys(subs).length ? subs : null };
     // La tarifa entera: adentro viaja el transportista que necesita la app de
     // envíos del comercio. Armar un objeto nuevo acá se lo borra.
     if (precios.length) body.checkout_shipping_rates = precios.map(p => ({ ...p, price: parseInt(p.price, 10) || 0 }));
@@ -118,9 +140,10 @@ function ShippingCard({ T, m, isOwner, profile, onChange }) {
 
   return (
     <Panel T={T} title="Métodos de envío"
-      sub={esShopify ? "Los cotiza tu tienda en el momento." : "Los traemos de tu tienda. El precio lo ponés vos."}
+      sub="Lo que ves es lo que paga el que se suscribe. Sin tocar nada, cobra lo mismo que tu tienda."
       right={<>
         {sucio && <DSBadge T={T} color={T.yellow} size="sm">Sin guardar</DSBadge>}
+        {isOwner && !!lista.length && <Btn T={T} variant="secondary" size="sm" onClick={todosGratis}>Poner todos gratis</Btn>}
         {isOwner && <Btn T={T} variant="secondary" size="sm" onClick={traerLive} disabled={cargando}>{cargando ? <><Spinner size={12} color={T.textMd}/> Leyendo…</> : "Actualizar lista"}</Btn>}
       </>}>
 
@@ -138,35 +161,74 @@ function ShippingCard({ T, m, isOwner, profile, onChange }) {
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
             {lista.map((r, i) => {
               const on = !apagado(r);
+              const modo = modoDe(r);
+              const tienda = Math.round(Number(r.price) || 0);
+              const paga = subRatePrice(r, { shipping_prices: subs });
+              const desde = ov(r)?.free_from || 0;
               return (
-                <label key={rateKey(r) + i} style={{
-                  display:"grid", gridTemplateColumns:"22px minmax(0,1fr) auto", gap:12, alignItems:"center",
-                  padding:"12px 14px", borderRadius:DS.r.lg, cursor: isOwner ? "pointer" : "default",
+                <div key={rateKey(r) + i} style={{
+                  padding:"12px 14px", borderRadius:DS.r.lg,
                   border:`1px solid ${on ? T.border : T.borderL}`, background: on ? T.surface : "transparent",
                   transition:"background .15s, border-color .15s",
                 }}>
-                  <input type="checkbox" checked={on} disabled={!isOwner} onChange={() => toggle(r)}
-                    aria-label={`Ofrecer ${r.name} en la suscripción`} style={{ accentColor:T.accentSolid, width:17, height:17 }}/>
-                  <span style={{ minWidth:0 }}>
-                    <span style={{ display:"block", fontSize:DS.font.base, fontWeight:DS.w.bold, color: on ? T.text : T.textSm, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.name}</span>
-                    <span style={{ display:"flex", gap:6, alignItems:"center", marginTop:3, flexWrap:"wrap" }}>
-                      {!on && <span style={{ fontSize:DS.font.sm, color:T.textSm }}>No se ofrece en la suscripción</span>}
-                      {on && r.carrier_id && <DSBadge T={T} color={T.green} size="sm">etiqueta automática</DSBadge>}
-                      {on && r.pickup && <DSBadge T={T} color={T.textSm} size="sm">retiro</DSBadge>}
-                      {on && !r._guardada && <DSBadge T={T} color={T.textSm} size="sm">precio en vivo</DSBadge>}
-                      {on && r._sucursales > 1 && <DSBadge T={T} color={T.textSm} size="sm">{r._sucursales} sucursales</DSBadge>}
+                  <div style={{ display:"grid", gridTemplateColumns:"22px minmax(0,1fr) auto", gap:12, alignItems:"center" }}>
+                    <input type="checkbox" checked={on} disabled={!isOwner} onChange={() => toggle(r)}
+                      aria-label={`Ofrecer ${r.name} en la suscripción`} style={{ accentColor:T.accentSolid, width:17, height:17, cursor: isOwner ? "pointer" : "default" }}/>
+                    <span style={{ minWidth:0 }}>
+                      <span style={{ display:"block", fontSize:DS.font.base, fontWeight:DS.w.bold, color: on ? T.text : T.textSm, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.name}</span>
+                      <span style={{ display:"flex", gap:6, alignItems:"center", marginTop:3, flexWrap:"wrap" }}>
+                        {!on && <span style={{ fontSize:DS.font.sm, color:T.textSm }}>No se ofrece en la suscripción</span>}
+                        {on && r.carrier_id && <DSBadge T={T} color={T.green} size="sm">etiqueta automática</DSBadge>}
+                        {on && r.pickup && <DSBadge T={T} color={T.textSm} size="sm">retiro</DSBadge>}
+                        {on && r._sucursales > 1 && <DSBadge T={T} color={T.textSm} size="sm">{r._sucursales} sucursales</DSBadge>}
+                      </span>
                     </span>
-                  </span>
-                  {r._guardada && isOwner ? (
-                    <input value={r.price ?? 0} onChange={e => setPrecio(r, e.target.value)} inputMode="numeric" aria-label={`Precio de ${r.name}`}
-                      onClick={e => e.preventDefault()}
-                      style={{ ...iS, marginBottom:0, width:110, padding:"7px 10px", textAlign:"right", fontSize:DS.font.md }}/>
-                  ) : (
-                    <span style={{ fontSize:DS.font.md, fontWeight:DS.w.bold, color:T.textMd, fontVariantNumeric:"tabular-nums", whiteSpace:"nowrap" }}>
-                      {r.price ? fmtARS(r.price) : "según CP"}
+                    {/* Lo que paga el que se suscribe. El de la tienda va tachado al lado. */}
+                    <span style={{ textAlign:"right", whiteSpace:"nowrap" }}>
+                      <span style={{ display:"block", fontSize:DS.font.md, fontWeight:DS.w.bold, color: paga ? T.text : T.green, fontVariantNumeric:"tabular-nums" }}>
+                        {r._guardada || tienda || modo !== "tienda" ? (paga ? fmtARS(paga) : "Gratis") : "según CP"}
+                      </span>
+                      {modo !== "tienda" && tienda > 0 && paga !== tienda && (
+                        <span style={{ display:"block", fontSize:DS.font.sm, color:T.textSm, textDecoration:"line-through" }}>{fmtARS(tienda)} en tu tienda</span>
+                      )}
+                      {modo === "tienda" && (r._guardada || tienda > 0) && (
+                        <span style={{ display:"block", fontSize:DS.font.sm, color:T.textSm }}>igual que tu tienda</span>
+                      )}
                     </span>
+                  </div>
+
+                  {on && isOwner && (
+                    <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", marginTop:10, paddingLeft:34 }}>
+                      {[["tienda","Lo de tu tienda"],["gratis","Gratis"],["otro","Otro precio"]].map(([id, label]) => (
+                        <button key={id} type="button" onClick={() => setModo(r, id)} style={{
+                          border:`1px solid ${modo === id ? T.accentSolid : T.borderL}`, background: modo === id ? T.greenBg : "transparent",
+                          color: modo === id ? T.accent : T.textMd, borderRadius:999, padding:"5px 12px",
+                          fontSize:DS.font.sm, fontWeight:DS.w.bold, cursor:"pointer",
+                        }}>{label}</button>
+                      ))}
+                      {modo === "otro" && (
+                        <input value={ov(r)?.price ?? ""} onChange={e => setOv(r, { price: parseInt(e.target.value.replace(/\D/g, ""), 10) || 0 })}
+                          inputMode="numeric" aria-label={`Lo que cobrás por ${r.name} en la suscripción`} placeholder="0"
+                          style={{ ...iS, marginBottom:0, width:100, padding:"6px 10px", textAlign:"right", fontSize:DS.font.sm }}/>
+                      )}
+                      {modo === "otro" && (
+                        <span style={{ display:"flex", alignItems:"center", gap:6, fontSize:DS.font.sm, color:T.textSm }}>
+                          gratis desde
+                          <input value={desde || ""} onChange={e => setOv(r, { free_from: parseInt(e.target.value.replace(/\D/g, ""), 10) || 0 })}
+                            inputMode="numeric" aria-label={`Envío gratis de ${r.name} desde`} placeholder="sin corte"
+                            style={{ ...iS, marginBottom:0, width:110, padding:"6px 10px", textAlign:"right", fontSize:DS.font.sm }}/>
+                        </span>
+                      )}
+                      {r._guardada && (
+                        <span style={{ display:"flex", alignItems:"center", gap:6, fontSize:DS.font.sm, color:T.textSm, marginLeft:"auto" }}>
+                          en tu tienda
+                          <input value={r.price ?? 0} onChange={e => setPrecio(r, e.target.value)} inputMode="numeric" aria-label={`Precio de ${r.name} en tu tienda`}
+                            style={{ ...iS, marginBottom:0, width:100, padding:"6px 10px", textAlign:"right", fontSize:DS.font.sm }}/>
+                        </span>
+                      )}
+                    </div>
                   )}
-                </label>
+                </div>
               );
             })}
           </div>
@@ -180,7 +242,7 @@ function ShippingCard({ T, m, isOwner, profile, onChange }) {
           <div style={{ display:"flex", alignItems:"center", gap:12, marginTop:14, flexWrap:"wrap" }}>
             {isOwner && <Btn T={T} variant="primary" onClick={guardar} disabled={!!busy || !sucio}>{busy ? <><Spinner size={12} color={T.accent}/> Guardando…</> : "Guardar"}</Btn>}
             <span style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5 }}>
-              Esto cambia solo la <strong style={{ color:T.text }}>suscripción</strong>. Tu checkout normal sigue mostrando todo.
+              Esto cambia solo la <strong style={{ color:T.text }}>suscripción</strong>. Tu checkout normal sigue cobrando lo de siempre.
             </span>
           </div>
         </>

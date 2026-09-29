@@ -131,3 +131,64 @@ export function rateOffered(rate, m) {
 
 /** Filtra una lista de tarifas dejando solo las que el comercio ofrece. */
 export const offeredRates = (rates, m) => (Array.isArray(rates) ? rates.filter(r => rateOffered(r, m)) : []);
+
+// ── Precio del envío EN LA SUSCRIPCIÓN (29-sept-2026, Thiago) ───────────────
+// Apagar métodos no alcanzaba: lo que más se pide es "en mi tienda el envío se
+// cobra, pero al que se suscribe se lo regalo". Antes eso obligaba a tocar los
+// precios de la tienda, que es justo lo que no se quiere.
+//
+// `merchants.shipping_prices` = { "<clave del servicio>": { price, free_from } }
+//   · price     → lo que paga el suscriptor por ese método (0 = gratis).
+//   · free_from → gratis a partir de ese subtotal (0 / ausente = sin corte).
+// Sin entrada para un método, se cobra lo que cobra la tienda: el default es
+// "todo igual que siempre". La clave es la misma de `shipping_off` (el SERVICIO,
+// no la sucursal), así una app de envíos con 20 puntos de retiro se toca una vez.
+const num = (v) => { const n = Math.round(Number(v)); return Number.isFinite(n) && n >= 0 ? n : null; };
+
+export function sanitizeShippingPrices(raw) {
+  if (raw == null) return { shipping_prices: null };
+  if (typeof raw !== "object" || Array.isArray(raw)) return { error: "shipping_prices debe ser un objeto" };
+  const out = {};
+  for (const [k, v] of Object.entries(raw)) {
+    const key = String(k || "").trim().slice(0, 250);
+    if (!key || !v || typeof v !== "object") continue;
+    const price = num(v.price), freeFrom = num(v.free_from);
+    // Sin ninguno de los dos no hay nada que pisar: se cae al precio de la tienda.
+    if (price == null && !freeFrom) continue;
+    out[key] = { ...(price == null ? {} : { price }), ...(freeFrom ? { free_from: freeFrom } : {}) };
+    if (Object.keys(out).length >= 40) break;
+  }
+  return { shipping_prices: Object.keys(out).length ? out : null };
+}
+
+/** Lo que el comercio decidió para ESTE método, o null si no tocó nada. */
+export function rateOverride(rate, m) {
+  const map = m && typeof m.shipping_prices === "object" && m.shipping_prices ? m.shipping_prices : null;
+  if (!map) return null;
+  // Igual que rateOffered: por clave del servicio o por nombre, porque la misma
+  // tarifa llega con code de un lado y sin code del otro.
+  return map[rateKey(rate)] || map[rateLabel(rate).toLowerCase()] || null;
+}
+
+/** Lo que paga el suscriptor por este envío. Sin override = lo de la tienda. */
+export function subRatePrice(rate, m, subtotal = 0) {
+  const tienda = Math.max(0, Math.round(Number(rate?.price) || 0));
+  const ov = rateOverride(rate, m);
+  if (!ov) return tienda;
+  if (ov.free_from > 0 && Number(subtotal) >= ov.free_from) return 0;
+  return ov.price == null ? tienda : Math.max(0, Math.round(ov.price));
+}
+
+/** La lista tal como la tiene que ver y pagar el que se suscribe. */
+export function pricedRates(rates, m, subtotal = 0) {
+  return (Array.isArray(rates) ? rates : []).map(r => {
+    const price = subRatePrice(r, m, subtotal);
+    // `price_store` viaja para poder mostrar el tachado ("$5.900 → Gratis").
+    return price === Math.max(0, Math.round(Number(r?.price) || 0))
+      ? { ...r, price }
+      : { ...r, price, price_store: Math.max(0, Math.round(Number(r?.price) || 0)) };
+  });
+}
+
+/** Lo que se ofrece Y con el precio de la suscripción. Es lo que usa el checkout. */
+export const subscriptionRates = (rates, m, subtotal = 0) => pricedRates(offeredRates(rates, m), m, subtotal);

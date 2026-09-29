@@ -49,6 +49,7 @@ import { metaFunnel } from "../_lib/meta.js";
 import { computeRecoverUrl } from "../_lib/abandoned.js";
 import { merchantProfile, hostedCheckoutUrl } from "../../shared/platform/profile.js";
 import { clampDiscountPct, discountAmountFor } from "../../shared/platform/discounts.js";
+import { subRatePrice } from "../../shared/platform/logistics.js";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 // Subs que ya son cliente: su perfil en Klaviyo no se degrada a "checkout_started".
@@ -670,7 +671,10 @@ export default async function handler(req, res) {
     shippingCost = 0;
     shippingName = "";
   } else if (matchedRate) {
-    shippingCost = Math.max(0, Math.round(Number(matchedRate.price) || 0));
+    // El precio que paga el suscriptor: el de la tienda salvo que el comercio lo
+    // haya cambiado en Envíos (gratis / otro monto / gratis desde X). Server-side,
+    // nunca el del navegador. 29-sept-2026.
+    shippingCost = subRatePrice(matchedRate, merchant, subtotal);
     // Nombre EXACTO de la tarifa (hasta 250 = límite de Shopify). Las apps de
     // envío como Envialo matchean el método por nombre + code exacto.
     shippingName = String(matchedRate.name).slice(0, 250);

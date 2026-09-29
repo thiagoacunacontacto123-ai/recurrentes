@@ -12,10 +12,11 @@ import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { createWorld, loadApi, luminaMerchant, MID, PLAN_ID, VARIANT_ID, ADDRESS, MP_TOKEN } from "../helpers/world.mjs";
 import { seedDoc, rawGet } from "../helpers/fake-firestore.mjs";
+import { invoke } from "../helpers/http.mjs";
 
 const { fulfillCharge } = await loadApi("api/_lib/sync.js");
 const { resolveCheckoutShippingRates } = await loadApi("api/widget.js");
-const { sanitizeStockPolicy, resolveStockPolicy, stockCheckNeeded, sanitizeShippingOff, offeredRates, rateKey, rateLabel } = await loadApi("shared/platform/logistics.js");
+const { sanitizeStockPolicy, resolveStockPolicy, stockCheckNeeded, sanitizeShippingOff, offeredRates, rateKey, rateLabel, sanitizeShippingPrices, subRatePrice, subscriptionRates } = await loadApi("shared/platform/logistics.js");
 
 let W;
 beforeEach(() => {
@@ -146,6 +147,62 @@ test("(e) el mismo apagado sirve para lo que Shopify cotiza en vivo", () => {
   const m = luminaMerchant({ shipping_off: ["a sucursal"] });
   const live = [{ name: "A domicilio", price: 5200 }, { name: "A sucursal", price: 3100 }];
   assert.deepEqual(offeredRates(live, m).map(r => r.name), ["A domicilio"]);
+});
+
+// ── Precio del envío en la suscripción (29-sept-2026, Thiago) ──────────────
+const CON_ENVIOS = { checkout_shipping_rates: [{ name: "A domicilio", price: 4500, code: "dom" }, { name: "A sucursal", price: 2800, code: "suc" }] };
+
+test("(e) sin tocar nada, el que se suscribe paga lo mismo que en la tienda", () => {
+  const r = resolveCheckoutShippingRates(luminaMerchant(CON_ENVIOS), 99999);
+  assert.deepEqual(r.map(x => [x.name, x.price]), [["A domicilio", 4500], ["A sucursal", 2800]]);
+  assert.ok(!r.some(x => "price_store" in x), "sin cambios no hay nada que tachar");
+});
+
+test("(e) 'todos gratis en la suscripción': el checkout cobra 0 y la tienda sigue cobrando lo suyo", () => {
+  const m = luminaMerchant({ ...CON_ENVIOS, shipping_prices: { dom: { price: 0 }, suc: { price: 0 } } });
+  const r = resolveCheckoutShippingRates(m, 0);
+  assert.deepEqual(r.map(x => [x.name, x.price, x.price_store]), [["A domicilio", 0, 4500], ["A sucursal", 0, 2800]]);
+  // La lista de la tienda no se toca: el precio del comercio sigue intacto.
+  assert.equal(m.checkout_shipping_rates[0].price, 4500);
+});
+
+test("(e) otro precio y 'gratis desde': se cobra según el subtotal de ese cobro", () => {
+  const m = luminaMerchant({ ...CON_ENVIOS, shipping_prices: { dom: { price: 1500, free_from: 40000 } } });
+  assert.equal(subRatePrice(m.checkout_shipping_rates[0], m, 39999), 1500);
+  assert.equal(subRatePrice(m.checkout_shipping_rates[0], m, 40000), 0, "llegó al corte");
+  assert.equal(subRatePrice(m.checkout_shipping_rates[1], m, 0), 2800, "el que no tocó sigue igual");
+});
+
+test("(e) el precio propio también pisa lo que Shopify cotiza en vivo, y apagado + precio conviven", () => {
+  const m = luminaMerchant({ shipping_off: ["a sucursal"], shipping_prices: { "a domicilio": { price: 0 } } });
+  const live = [{ name: "A domicilio", price: 5200 }, { name: "A sucursal", price: 3100 }];
+  assert.deepEqual(subscriptionRates(live, m, 0).map(x => [x.name, x.price]), [["A domicilio", 0]]);
+});
+
+test("(e) los precios de la suscripción se sanean y lo vacío no ocupa lugar", () => {
+  assert.deepEqual(sanitizeShippingPrices({ dom: { price: "0" }, suc: { price: -5 }, x: {}, y: null }),
+    { shipping_prices: { dom: { price: 0 } } }, "precio inválido o vacío = se cae al de la tienda");
+  assert.deepEqual(sanitizeShippingPrices({ dom: { free_from: 30000 } }), { shipping_prices: { dom: { free_from: 30000 } } });
+  assert.deepEqual(sanitizeShippingPrices({}), { shipping_prices: null });
+  assert.ok(sanitizeShippingPrices([]).error, "tiene que ser un objeto");
+});
+
+test("(e) el cobro sale con el envío de la suscripción, no con el de la tienda", async () => {
+  // Lo que se cobra lo decide el SERVIDOR: aunque el navegador mande otra cosa,
+  // el precio sale de lo que el comercio puso en Envíos.
+  const { default: init } = await loadApi("api/checkout/init.js");
+  const { DEFAULT_CHECKOUT_SHIPPING_RATES } = await loadApi("api/widget.js");
+  const prioritario = DEFAULT_CHECKOUT_SHIPPING_RATES[1];   // $5.900 en la tienda
+  W = createWorld({ merchant: luminaMerchant({ shipping_prices: { [prioritario.name.toLowerCase()]: { price: 0 } } }) });
+  const res = await invoke(init, { method: "POST", query: {}, body: {
+    merchant_id: MID, plan_id: PLAN_ID, quantity: 1, frequency_days: 30, base_price: 12000, sub_discount: 10,
+    customer: { email: "dani@cliente.test", name: "Dani Gómez", phone: "1144440000", tax_id: "20-30123456-7" },
+    shipping_address: { ...ADDRESS },
+    shipping_method: { name: prioritario.name, code: "", price: 5900 },
+  }, headers: { "x-forwarded-for": "190.1.2.3" } });
+  assert.equal(res.statusCode, 200, JSON.stringify(res.body));
+  assert.equal(W.mp.plansCreated[0].body.auto_recurring.transaction_amount, 10800, "10.800 del producto + 0 de envío");
+  assert.equal(W.sub(res.body.subscriber_id).plan_snapshot.shipping_price_ars, 0);
 });
 
 test("(e) la lista de apagados se sanea (sin repetidos ni basura)", () => {

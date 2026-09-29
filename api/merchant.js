@@ -60,7 +60,7 @@ import { emailSubscriptionActivated, emailTeamInvite, emailPlanRequest, effectiv
 import { shGetShopInfo, buildShopInfoPatch, shopifyRatesForPanel } from "./_lib/shopify.js";
 import { importDiscountsAction, cleanDiscountCodes } from "./_lib/discountImport.js";
 import { normalizeRate } from "./_lib/shippingImport.js";
-import { sanitizeStockPolicy, sanitizeShippingOff } from "../shared/platform/logistics.js";
+import { sanitizeStockPolicy, sanitizeShippingOff, sanitizeShippingPrices } from "../shared/platform/logistics.js";
 import { giftFreeAction } from "./_lib/giftDiscount.js";
 import { sanitizeCartSettings } from "../shared/bundle/cart.js";
 import { widgetVerifyUrlAction, widgetVerifyStatusAction } from "./_lib/widgetVerify.js";
@@ -287,6 +287,7 @@ export default async function handler(req, res) {
         checkout_shipping_rates: Array.isArray(merchant.checkout_shipping_rates) ? merchant.checkout_shipping_rates : [],
         stock_policy: merchant.stock_policy || null,
         shipping_off: Array.isArray(merchant.shipping_off) ? merchant.shipping_off : [],
+        shipping_prices: merchant.shipping_prices && typeof merchant.shipping_prices === "object" ? merchant.shipping_prices : null,
         store_domain: merchant.store_domain || "",
         store_domain_source: merchant.store_domain_source === "manual" || merchant.store_domain_source === "shopify" ? merchant.store_domain_source : (merchant.store_domain ? "manual" : null),
         // Retención al cancelar (portal): motivos + oferta de pausa. Defaults si no configuró.
@@ -951,6 +952,13 @@ async function saveSettings(merchantId, req, res) {
     const r = sanitizeShippingOff(b.shipping_off);
     if (r.error) return bad(r.error);
     out.shipping_off = r.shipping_off;
+  }
+  // Envíos: lo que paga el suscriptor por cada método (gratis / otro precio /
+  // gratis desde X). Sin entrada = lo que cobra la tienda. 29-sept-2026.
+  if ("shipping_prices" in b) {
+    const r = sanitizeShippingPrices(b.shipping_prices);
+    if (r.error) return bad(r.error);
+    out.shipping_prices = r.shipping_prices;
   }
   // Logística → Stock: de dónde se mira y qué hacer cuando falta.
   if ("stock_policy" in b) {

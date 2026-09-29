@@ -20,7 +20,7 @@ import { signToken } from "./_lib/token.js";
 import { appBaseUrl } from "./_lib/config.js";
 import { rateLimit, clientIp } from "./_lib/ratelimit.js";
 import { oauthScopes } from "../shared/platform/shopify.js";
-import { offeredRates } from "../shared/platform/logistics.js";
+import { offeredRates, subscriptionRates } from "../shared/platform/logistics.js";
 import { tiendanubeApi, tnActionFromPath } from "./_lib/tiendanubeApi.js";
 
 const productsCache = new Map();
@@ -132,7 +132,7 @@ async function handleShippingRates(req, res) {
       res.setHeader("Cache-Control", "no-store");
       // Los que el comercio sacó de la suscripción en Envíos (ej. sucursales).
       // Vacío = todos, como siempre.
-      return res.json({ rates: offeredRates(carrier, m) });
+      return res.json({ rates: subscriptionRates(carrier, m, Number(req.query.subtotal || 0)) });
     }
 
     // 3) Sin cotización (sin CP todavía, app caída, permiso faltante): las
@@ -142,7 +142,7 @@ async function handleShippingRates(req, res) {
       subtotal: Number(req.query.subtotal || 0),
     });
     res.setHeader("Cache-Control", "no-store");
-    return res.json({ rates: offeredRates(manuales, m) });
+    return res.json({ rates: subscriptionRates(manuales, m, Number(req.query.subtotal || 0)) });
   } catch (e) {
     // Endpoint público: el detalle (URL de la tienda, respuesta de Shopify) va al log, no al comprador.
     console.warn(`[shopify/shipping-rates] ${merchantId}:`, e.message);

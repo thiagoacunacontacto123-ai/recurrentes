@@ -21,7 +21,7 @@
 import { buildBundleVM, planHasPacks, resolvePack, freqLabel, fmtARS } from "../shared/bundle/viewmodel.js";
 import { createHash } from "node:crypto";
 import { resolveCheckoutTheme } from "../shared/platform/checkoutTheme.js";
-import { rateOffered } from "../shared/platform/logistics.js";
+import { rateOffered, pricedRates } from "../shared/platform/logistics.js";
 import { resolveCartSettings, cartCss, cartShellHtml, cartBodyHtml, cartCtaText } from "../shared/bundle/cart.js";
 // Funciones compartidas que viajan al navegador dentro del template literal. Lo que se
 // interpola con ${} entra TAL CUAL (el template solo procesa escapes del texto literal),
@@ -57,7 +57,7 @@ export function isLegacyMerchant(m) {
 //   1) checkout_shipping_rates configuradas (saneadas) si hay alguna;
 //   2) legacy sin tarifas → DEFAULT_CHECKOUT_SHIPPING_RATES (Lumina);
 //   3) merchant nuevo sin tarifas → [] (el checkout usa el envío del plan, code PLAN).
-export function resolveCheckoutShippingRates(m) {
+export function resolveCheckoutShippingRates(m, subtotal = 0) {
   const raw = Array.isArray(m?.checkout_shipping_rates) ? m.checkout_shipping_rates : [];
   const list = raw
     // Apagado en Envíos = no se le ofrece al que se suscribe (la tienda puede
@@ -76,8 +76,10 @@ export function resolveCheckoutShippingRates(m) {
       ...(r.reference ? { reference: String(r.reference).slice(0, 100) } : {}),
       ...(r.pickup === true ? { pickup: true } : {}),
     }));
-  if (list.length) return list;
-  return isLegacyMerchant(m) ? DEFAULT_CHECKOUT_SHIPPING_RATES : [];
+  // Precio de la SUSCRIPCIÓN: lo que el comercio puso en Envíos (gratis, otro
+  // monto, gratis desde X). Sin nada puesto queda el de la tienda. 29-sept-2026.
+  if (list.length) return pricedRates(list, m, subtotal);
+  return isLegacyMerchant(m) ? pricedRates(DEFAULT_CHECKOUT_SHIPPING_RATES, m, subtotal) : [];
 }
 
 // Precalcula el selector de packs para TODOS los estados (modo × pack, máx 2×6).
