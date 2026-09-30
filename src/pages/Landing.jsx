@@ -401,8 +401,8 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
           {[
             // 30-sept-2026 (Thiago): acá van BENEFICIOS, no el precio. El precio
             // tiene su sección más abajo; en el hero lo que convence es qué gana.
-            ["1 llamada", "y queda integrado", "La integración la hacemos nosotros con vos, guiada paso a paso: tienda, Mercado Pago, planes y widget. No tenés que tocar código."],
-            ["Todo junto", "y automático", "Tu tienda, tu pasarela, los envíos, los mails y el WhatsApp, conectados entre sí. El cobro entra, la orden se crea y al cliente le avisan: sin que muevas un dedo."],
+            ["1 llamada", "y queda integrado", "La integración la hacemos nosotros con vos, guiada paso a paso: tienda, Mercado Pago, Meta Ads, mails, WhatsApp y widget. Vos no tocás nada de código."],
+            ["Todo junto", "y automático", "Tu tienda crea una orden automáticamente por cada cobro. A vos te llega como una venta de toda la vida: la ves en el panel, la despachás y listo."],
             ["Ventas", "que vuelven solas", "Facturación que se repite todos los meses sin pagar pauta de nuevo ni subir contenido nuevo. El cliente que ya te compró te sigue comprando."],
           ].map(([v,l,d], i)=>(
             <div key={l} className="rec-stat" data-reveal={["flip","pop","spin"][i]}>
