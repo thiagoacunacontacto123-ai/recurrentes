@@ -134,13 +134,17 @@ function StatusCard({ T, billing, loadingId, onActivate, stripe }) {
   const b = billing || {};
   const beta = b.plan === "beta";
   const n = b.active_subscribers || 0;
-  const max = b.tier_max;
-  const pct = max ? Math.min(100, Math.round((n / max) * 100)) : 100;
   const edge = b.needs_activation ? T.yellow : T.accentSolid;
-  const next = b.next_tier;
-  const tier = TIER_BY_ID[b.tier] || TIER_BY_ID.free;
-  const factor = Number(b.price_factor) || 1;
-  const usdOf = (t) => Math.round((t?.usd || 0) * factor);
+  // Modelo del 30-sept-2026: el plan sale del % que le toca, no de un tramo con
+  // techo. `plan_label` y `base_usd` ya vienen resueltos con su descuento.
+  const plan = (b.plans || COMMISSION_TIERS).find(t => t.id === b.plan) || COMMISSION_TIERS[0];
+  const abono = b.base_usd ?? SAAS_BASE_USD;
+  const pctCom = b.commission_pct ?? plan.pct;
+  const sig = (b.plans || COMMISSION_TIERS)[(b.plans || COMMISSION_TIERS).findIndex(t => t.id === plan.id) + 1] || null;
+  // Solo las tiendas que venían del modelo viejo tienen suscriptores gratis.
+  const libres = b.free_subscribers || 0;
+  const tope = b.grace_limit || 0;
+  const pct = libres ? Math.min(100, Math.round((n / libres) * 100)) : 0;
   return (
     <Card T={T} padding="lg" style={{ marginBottom: 16, borderLeft: `3px solid ${edge}` }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -154,9 +158,9 @@ function StatusCard({ T, billing, loadingId, onActivate, stripe }) {
       <div style={{ marginTop: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12, color: T.textMd, marginBottom: 6 }}>
           <span>Suscriptores activos</span>
-          <strong style={{ color: T.text, fontVariantNumeric: "tabular-nums" }}>{fmtN(n)}{max && !beta ? ` / ${fmtN(max)}` : ""}</strong>
+          <strong style={{ color: T.text, fontVariantNumeric: "tabular-nums" }}>{fmtN(n)}{libres && !beta ? ` / ${fmtN(libres)} sin cargo` : ""}</strong>
         </div>
-        {!beta && max ? (
+        {!beta && libres ? (
           <div style={{ height: 8, borderRadius: 99, background: T.borderL, overflow: "hidden" }}>
             <div style={{ width: pct + "%", height: "100%", background: pct >= 100 ? T.yellow : T.accentSolid, borderRadius: 99, transition: "width .3s" }}/>
           </div>
@@ -164,12 +168,16 @@ function StatusCard({ T, billing, loadingId, onActivate, stripe }) {
         <div style={{ fontSize: 12, color: T.textSm, marginTop: 8, lineHeight: 1.5 }}>
           {beta
             ? "Tu cuenta es de la beta: no pagás mientras dure. Cuando termine te avisamos con tiempo."
-            : next ? `Hasta ${fmtN(max)} suscriptores seguís en ${tier.label}. Desde el ${fmtN(next.min)} pasás a ${next.label} (USD ${usdOf(next)}/mes).` : "Estás en el último tramo: sin techo de suscriptores."}
+            : libres
+              ? `Tu cuenta viene del modelo anterior: seguís sin pagar hasta ${fmtN(libres)} suscriptores. Al llegar a ${fmtN(libres + 1)} empezás con el sistema nuevo (USD ${abono} por mes + ${String(pctCom).replace(".", ",")}% de lo que cobrás), con ${fmtN(tope - libres)} de margen para no parar de vender.`
+              : sig
+                ? `Estás en ${plan.label}: ${String(pctCom).replace(".", ",")}% de lo que cobrás. Al pasar los ${fmtN(plan.max)} suscriptores el porcentaje baja solo a ${String(sig.pct).replace(".", ",")}%.`
+                : `Estás en ${plan.label}, el porcentaje más bajo: ${String(pctCom).replace(".", ",")}% de lo que cobrás.`}
         </div>
       </div>
       {!beta && b.activated_plan && (
         <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10 }}>
-          {[["Plan activo", `${planLabel(b.activated_plan)} · USD ${usdOf(TIER_BY_ID[b.activated_plan])}/mes`], ["Activado el", fmtDia(b.plan_activated_at)], ["Último pago", fmtDia(b.last_paid_at)], ["Próximo cobro", fmtDia(b.next_payment_at)]].map(([k, v]) => (
+          {[["Plan activo", `${plan.label} · USD ${abono}/mes + ${String(pctCom).replace(".", ",")}%`], ["Activado el", fmtDia(b.plan_activated_at)], ["Último pago", fmtDia(b.last_paid_at)], ["Próximo cobro", fmtDia(b.next_payment_at)]].map(([k, v]) => (
             <div key={k} style={{ background: T.surface, border: `1px solid ${T.borderL}`, borderRadius: 10, padding: "8px 12px" }}>
               <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", color: T.textSm }}>{k}</div>
               <div style={{ fontSize: 13, fontWeight: 700, color: T.text, marginTop: 2 }}>{v}</div>
@@ -179,7 +187,7 @@ function StatusCard({ T, billing, loadingId, onActivate, stripe }) {
       )}
       {!beta && b.activated_plan && (
         <div style={{ fontSize: 12, color: T.textSm, marginTop: 10, lineHeight: 1.55, display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <span>Se cobra cada {b.cycle_days || 30} días desde tu primer pago. Ese día pagás el tramo que corresponda a tus suscriptores activos en ese momento: si creciste, el tramo nuevo entra en ese cobro, sin cargos a mitad de mes.</span>
+          <span>Se cobra cada {b.cycle_days || 30} días desde tu primer pago: el abono del mes que empieza más la comisión del mes que terminó. La comisión sale de lo que de verdad se cobró —lo rechazado y lo devuelto no cuenta— así que nunca pagás por plata que no entró.</span>
           {b.billing_method === "stripe" && stripe && <button onClick={stripe.portal} disabled={!!stripe.busy} style={{ ...BtnSolid(T), padding: "7px 12px", fontSize: 12, opacity: stripe.busy ? 0.6 : 1 }}>{stripe.busy === "portal" ? "Abriendo…" : "Tarjeta y facturas"}</button>}
         </div>
       )}
@@ -190,12 +198,12 @@ function StatusCard({ T, billing, loadingId, onActivate, stripe }) {
         </Callout>
       )}
       {b.needs_activation && (
-        <Callout T={T} tone="warning" title={`Te corresponde el plan ${tier.label}`} style={{ marginTop: 14 }}
+        <Callout T={T} tone="warning" title={libres ? `Cuando llegues a ${fmtN(libres + 1)} suscriptores empezás con el plan` : "Activá tu plan"} style={{ marginTop: 14 }}
           right={b.stripe_available && stripe
-            ? <button onClick={() => stripe.pay(b.tier)} disabled={!!stripe.busy} style={{ ...BtnSolid(T), padding: "8px 14px", fontSize: 12.5, opacity: stripe.busy ? 0.6 : 1 }}>{stripe.busy === "pay" ? "Abriendo el pago…" : `Activar ${tier.label} · USD ${usdOf(tier)}/mes`}</button>
-            : onActivate && <button onClick={() => onActivate(b.tier)} disabled={!!loadingId || b.plan_requested === b.tier} style={{ ...BtnSolid(T), padding: "8px 14px", fontSize: 12.5, opacity: loadingId || b.plan_requested === b.tier ? 0.6 : 1 }}>{loadingId ? "Enviando…" : b.plan_requested === b.tier ? "Pedido enviado ✓" : `Activar ${tier.label}`}</button>}>
-          Tenés {fmtN(n)} suscriptores activos ({tierRangeLabel(tier).toLowerCase()}). Nada se corta.{" "}
-          {b.stripe_available ? <>Pagás con tarjeta, en dólares, y desde ahí se cobra cada 30 días el tramo que te corresponda ese día.</> : "Activalo y te contactamos para coordinar el pago."}
+            ? <button onClick={() => stripe.pay(plan.id)} disabled={!!stripe.busy} style={{ ...BtnSolid(T), padding: "8px 14px", fontSize: 12.5, opacity: stripe.busy ? 0.6 : 1 }}>{stripe.busy === "pay" ? "Abriendo el pago…" : `Activar · USD ${abono}/mes`}</button>
+            : onActivate && <button onClick={() => onActivate(plan.id)} disabled={!!loadingId || b.plan_requested === plan.id} style={{ ...BtnSolid(T), padding: "8px 14px", fontSize: 12.5, opacity: loadingId || b.plan_requested === plan.id ? 0.6 : 1 }}>{loadingId ? "Enviando…" : b.plan_requested === plan.id ? "Pedido enviado ✓" : "Activar plan"}</button>}>
+          Tenés {fmtN(n)} suscriptores activos. Son USD {abono} por mes más {String(pctCom).replace(".", ",")}% de lo que cobrás, y el porcentaje baja cuando crecés.{" "}
+          {b.stripe_available ? <>Pagás con tarjeta, en dólares, y la comisión del mes se suma a la factura siguiente.</> : "Activalo y te contactamos para coordinar el pago."}
         </Callout>
       )}
       {!b.stripe_available && b.plan_requested && (
