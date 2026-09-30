@@ -85,18 +85,18 @@ export function enforcementOf(m = {}, activeSubscribers = 0) {
     activeSubscribers, paid: saasPaid(m), legacyFree: hasLegacyFreeTier(m),
     // Rebote de tarjeta: sigue vendiendo unos días mientras Stripe reintenta.
     pastDueSince: String(m.saas_status || "") === "past_due" ? (m.saas_payment_failed_at || null) : null,
+    // Corte a mano desde el Admin (30-sept-2026): no hay límite automático.
+    salesPaused: m.sales_paused === true,
   });
 }
 
 // Qué aviso de WhatsApp corresponde para un estado del límite del plan (o null).
 // "Te queda 1" merece el aviso fuerte: es el último antes de apagarle la venta.
+// 30-sept-2026: sin límite automático no hay nada que avisar por cantidad. Queda
+// solo el aviso de que le cortamos la venta a mano, que sí es una novedad para él.
 export function planAlertEventFor(enf) {
   if (!enf) return null;
-  if (enf.state === "blocked") return "plan_blocked";
-  if (enf.state === "grace") return enf.grace_left <= 1 ? "plan_last_call" : "plan_grace";
-  // Justo en el tope del plan gratis (10) y sin plan pago: aviso previo (Thiago, 18-sept).
-  if (enf.state === "ok" && enf.tier_usd === 0 && enf.subs === enf.free && !enf.paid) return "plan_at_limit";
-  return null;
+  return enf.state === "blocked" && enf.paused_by_admin ? "plan_blocked" : null;
 }
 
 // Invalida el contador cacheado de suscriptores activos (`billing_cache`) del
@@ -165,7 +165,8 @@ export function buildBilling(m = {}, activeSubscribers = 0, { stripeAvailable = 
     active_subscribers: n,
     free_subscribers: hasLegacyFreeTier(m) ? FREE_SUBSCRIBERS : 0,
     activated_plan: activated,
-    needs_activation: !beta && !activated,
+    needs_activation: !beta && !activated && !(hasLegacyFreeTier(m) && n <= FREE_SUBSCRIBERS),
+    sales_paused: m.sales_paused === true,
     must_pay: enf.state === ENF_GRACE || enf.state === ENF_BLOCKED,
     locked: enf.state === ENF_BLOCKED,
     panel_mode: enf.panel,          // full | readonly

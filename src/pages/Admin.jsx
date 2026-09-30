@@ -1018,6 +1018,17 @@ function MerchantPanel({ id, onClose, onChanged }) {
     toast(hide ? "Sección oculta para el comercio" : "Sección visible otra vez", hide ? "warning" : "success");
     await load(); onChanged?.();
   }
+  // Cortar / reabrir la entrada de suscriptores nuevos (30-sept-2026): reemplaza
+  // al límite automático por cantidad. Lo que ya está cobrando no se toca.
+  async function toggleSalesPaused(on) {
+    if (on && !window.confirm("¿Pausar el ingreso de suscriptores NUEVOS de esta tienda?\n\nSu widget deja de mostrarse y el checkout no acepta suscripciones nuevas. Los suscriptores que ya tiene se siguen cobrando igual.")) return;
+    setBusy("paused");
+    const r = await apiPost("stats", { merchant_id: id, on }, { action: "admin-set-sales-paused" });
+    setBusy("");
+    if (!r || r.error) return toast(r?.error || "No se pudo guardar", "error", 7000);
+    toast(on ? "Pausada: no entran suscriptores nuevos" : "Reabierta: vuelve a vender", on ? "warning" : "success");
+    await load(); onChanged?.();
+  }
   async function toggleCardCheckout(on) {
     setBusy("card");
     const r = await apiPost("stats", { merchant_id: id, on }, { action: "admin-set-card-checkout" });
@@ -1195,6 +1206,22 @@ function MerchantPanel({ id, onClose, onChanged }) {
                 </div>
                 <div style={{ fontSize:11.5, color:T.textSm, marginTop:6, lineHeight:1.5 }}>
                   Vale para cualquier tramo, ahora y cuando crezca. 0 vuelve a precio de lista. Si ya está pagando, Stripe le baja el precio dentro de las 24 h.
+                </div>
+
+                <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:14, paddingTop:12, borderTop:`1px solid ${T.borderL}`, flexWrap:"wrap" }}>
+                  <div style={{ flex:"1 1 220px", minWidth:0 }}>
+                    <div style={{ fontSize:12.5, fontWeight:700, color: m.sales_paused ? T.red : T.text }}>
+                      {m.sales_paused ? "Venta pausada por vos" : "Cortar la entrada de suscriptores"}
+                    </div>
+                    <div style={{ fontSize:11.5, color:T.textSm, marginTop:2, lineHeight:1.5 }}>
+                      {m.sales_paused
+                        ? "Su widget no se muestra y el checkout rechaza suscripciones nuevas. Los que ya tiene se siguen cobrando igual."
+                        : "No hay límite automático: esto es lo único que le corta la venta. Usalo si se atrasa con el plan."}
+                    </div>
+                  </div>
+                  {busy === "paused"
+                    ? <Spinner size={14} color={T.textMd}/>
+                    : <DSToggle T={T} active={!!m.sales_paused} onToggle={() => toggleSalesPaused(!m.sales_paused)}/>}
                 </div>
 
                 <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:14, paddingTop:12, borderTop:`1px solid ${T.borderL}`, flexWrap:"wrap" }}>

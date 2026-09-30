@@ -260,6 +260,7 @@ function rowOf(m, s, ownerEmails = {}) {
     // Tarjeta adentro del checkout (Checkout API de MP). `puede` = tiene la
     // public key, que solo deja el OAuth de Mercado Pago.
     card_checkout: m.mp_checkout_api === true,
+    sales_paused: m.sales_paused === true,
     card_checkout_ready: typeof m.mp_public_key === "string" && m.mp_public_key.length > 10,
     tier_usd: billing.base_usd,
     tier_label: billing.plan_label,
@@ -571,6 +572,22 @@ async function setCardCheckout(admin, req, res) {
   return res.json({ ok: true, card_checkout: quiere });
 }
 
+// Cortar la venta de una tienda a mano (30-sept-2026, Thiago). Reemplaza al
+// límite automático por cantidad de suscriptores: ahora las cuentas las crea él,
+// así que no hace falta un portero —y el cartel automático aparecía siempre—.
+// Con `sales_paused` el widget no se pinta y el checkout no acepta suscripciones
+// nuevas. Lo que ya está cobrando NO se toca: eso no se corta nunca.
+async function setSalesPaused(admin, req, res) {
+  const pausar = req.body?.on === true;
+  const t = await existingMerchant(req, res);
+  if (!t) return;
+  const { id, ref } = t;
+  await ref.set({ sales_paused: pausar, sales_paused_at: pausar ? new Date().toISOString() : null }, { merge: true });
+  await audit(admin, "set_sales_paused", id, { to: pausar });
+  _cache = null;
+  return res.json({ ok: true, sales_paused: pausar });
+}
+
 // Secciones del panel ocultas para el comercio (28-sept-2026, Thiago: "si el proceso es
 // personalizado, ocultarles las partes que yo quiera"). Se guarda en el merchant como
 // `admin_hidden_tabs`; GET /api/merchant lo devuelve como `hidden_tabs` y el Dashboard
@@ -871,6 +888,8 @@ export async function adminHandler(req, res) {
       if (action === "admin-set-plan") return await setPlan(admin, req, res);
       if (action === "admin-set-pricing") return await setPricing(admin, req, res);
       if (action === "admin-set-card-checkout") return await setCardCheckout(admin, req, res);
+      // Cortar / reabrir la entrada de suscriptores nuevos de una tienda, a mano.
+      if (action === "admin-set-sales-paused") return await setSalesPaused(admin, req, res);
       // Secciones que el comercio NO ve (instalaciones a medida): solo las ve Thiago con "Ver como".
       if (action === "admin-set-hidden-tabs") return await setHiddenTabs(admin, req, res);
       // Crea en Meta las plantillas que faltan (quedan en revisión).

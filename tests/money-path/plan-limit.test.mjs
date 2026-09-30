@@ -27,25 +27,33 @@ const conSubs = (n, o = {}) => {
 let W;
 beforeEach(() => { W = createWorld({ merchant: tiendaNueva() }); });
 
-test("(o) modelo nuevo: sin plan no se vende, con plan se vende siempre", () => {
-  // 30-sept-2026: se fue el plan gratis. Es US$ 99 + comisión desde el primero.
-  assert.equal(enforcementFor({ activeSubscribers: 0 }).state, "blocked");
-  assert.equal(enforcementFor({ activeSubscribers: 3 }).sell, false);
-  assert.equal(enforcementFor({ activeSubscribers: 5000, paid: true }).state, "ok");
-  assert.equal(enforcementFor({ activeSubscribers: 5000, paid: true }).sell, true);
+test("(o) NO hay límite automático: se vende con o sin plan, con los suscriptores que sea", () => {
+  // 30-sept-2026 (Thiago): las cuentas las crea él, así que no hace falta un
+  // portero. El que no activó el plan ve un recordatorio, no un bloqueo.
+  for (const n of [0, 3, 16, 900, 5000]) {
+    assert.equal(enforcementFor({ activeSubscribers: n }).sell, true, `${n} suscriptores siguen vendiendo`);
+  }
+  assert.equal(enforcementFor({ activeSubscribers: 900 }).state, "grace", "sin plan: aviso");
+  assert.equal(enforcementFor({ activeSubscribers: 900, paid: true }).state, "ok", "pagando: nada");
+  assert.match(enforcementCopy(enforcementFor({ activeSubscribers: 3 })).title, /plan mensual/i);
 });
 
-test("(o) las tiendas del modelo viejo conservan sus 10 gratis y al llegar a 11 entran al nuevo", () => {
-  // Wellfresh: se le respeta el trato que tenía (Thiago, 30-sept).
+test("(o) lo único que corta la venta es el botón del Admin", () => {
+  const cortada = enforcementFor({ activeSubscribers: 50, salesPaused: true });
+  assert.equal(cortada.state, "blocked");
+  assert.equal(cortada.sell, false);
+  assert.equal(cortada.paused_by_admin, true);
+  // Y aun cortada, el copy aclara que lo que ya cobra no se toca.
+  assert.match(enforcementCopy(cortada).keeps, /siguen cobr/i);
+  // Pausar gana incluso sobre el plan pago: es una decisión a mano.
+  assert.equal(enforcementFor({ activeSubscribers: 50, paid: true, salesPaused: true }).sell, false);
+});
+
+test("(o) a la tienda del modelo viejo no se le pide plan hasta pasar sus 10", () => {
   const vieja = (n) => enforcementFor({ activeSubscribers: n, legacyFree: true });
-  assert.equal(vieja(10).state, "ok");
-  assert.equal(vieja(11).state, "grace");
-  assert.equal(vieja(15).state, "grace");
-  assert.equal(vieja(15).sell, true, "en gracia todavía vende");
-  assert.equal(vieja(16).state, "blocked");
-  assert.equal(GRACE_LIMIT, 15);
-  // El cartel le avisa que lo que viene es el sistema nuevo, no un corte.
-  assert.match(enforcementCopy(vieja(11)).body, /sistema nuevo|US\$ 99/);
+  assert.equal(vieja(10).state, "ok", "hasta 10 ni se entera");
+  assert.equal(vieja(11).state, "grace", "desde 11 se le recuerda el plan");
+  assert.equal(vieja(11).sell, true, "pero sigue vendiendo igual");
 });
 
 test("(o) el que paga no ve nada, aunque tenga 500 suscriptores", () => {
@@ -55,15 +63,15 @@ test("(o) el que paga no ve nada, aunque tenga 500 suscriptores", () => {
   assert.equal(enforcementCopy(e), null, "sin plan pago no hay cartel");
 });
 
-test("(o) tarjeta rebotada: sigue vendiendo una semana y recién ahí se corta", () => {
-  // Un rechazo del banco no puede dejar a nadie sin vender de un día para el otro:
-  // Stripe reintenta durante esos días y el comercio alcanza a cambiar la tarjeta.
+test("(o) tarjeta rebotada: se le avisa, nunca se le corta la venta", () => {
+  // Un rechazo del banco no puede dejar a nadie sin vender. Se le insiste con el
+  // cartel; si hay que cortar, lo hace Thiago a mano desde el Admin.
   const hace = (d) => new Date(Date.now() - d * 86400000).toISOString();
   const rebote = (d) => buildBilling(nueva({ plan_activated: "starter", saas_status: "past_due", saas_payment_failed_at: hace(d) }), 12, {});
   assert.equal(rebote(2).enforcement, "grace");
   assert.equal(rebote(2).can_sell, true, "sigue vendiendo mientras arregla la tarjeta");
-  assert.match(rebote(2).enforcement_copy.title, /tarjeta/i);
-  assert.equal(rebote(9).can_sell, false, "pasada la semana sí se corta");
+  assert.match(rebote(2).enforcement_copy.cta, /tarjeta/i);
+  assert.equal(rebote(9).can_sell, true, "ni así se le corta la venta: solo se le insiste");
 });
 
 test("(o) contrato para el panel: locked, can_sell y el copy del cartel", () => {
@@ -74,29 +82,26 @@ test("(o) contrato para el panel: locked, can_sell y el copy del cartel", () => 
   assert.equal(pagando.base_usd, 99);
   assert.equal(pagando.commission_pct, 1.8);
 
-  const gracia = buildBilling(nueva({ legacy_free_tier: true }), 12, {});
-  assert.equal(gracia.can_sell, true);
-  assert.equal(gracia.locked, false);
-  assert.equal(gracia.must_pay, true);
-  assert.equal(gracia.grace_left, 3);
-  assert.match(gracia.enforcement_copy.title, /3 suscriptores/);
-  // El copy SIEMPRE aclara que lo que ya cobra sigue cobrando.
-  assert.match(gracia.enforcement_copy.keeps, /se siguen cobrando/i);
+  const sinPlan = buildBilling(nueva(), 12, {});
+  assert.equal(sinPlan.can_sell, true, "sin plan igual vende");
+  assert.equal(sinPlan.locked, false);
+  assert.equal(sinPlan.must_pay, true, "pero se le pide activar");
+  assert.equal(sinPlan.panel_mode, "full", "el panel nunca queda en solo lectura por esto");
+  assert.match(sinPlan.enforcement_copy.title, /plan mensual/i);
 
-  const bloq = buildBilling(nueva(), 3, {});
-  assert.equal(bloq.can_sell, false);
-  assert.equal(bloq.locked, true);
-  assert.equal(bloq.panel_mode, "readonly");
-  assert.match(bloq.enforcement_copy.keeps, /siguen cobr/i);
+  const cortada = buildBilling(nueva({ sales_paused: true }), 3, {});
+  assert.equal(cortada.can_sell, false);
+  assert.equal(cortada.locked, true);
+  assert.match(cortada.enforcement_copy.keeps, /siguen cobr|se pierde/i);
 });
 
 test("(o) internal:false explícito gana sobre el mail admin: la tienda de prueba se comporta como cliente", async () => {
   const { isInternal } = await loadApi("api/_lib/plans_saas.js");
   assert.equal(isInternal({ email: "admin@x.test" }, ["admin@x.test"]), true);
   assert.equal(isInternal({ email: "admin@x.test", internal: false }, ["admin@x.test"]), false);
-  const b = buildBilling({ created_at: "2026-09-20T00:00:00Z", email: "admin@x.test", internal: false, legacy_free_tier: true }, 14, {});
-  assert.equal(b.enforcement, "grace");
-  assert.equal(b.grace_left, 1);
+  const b = buildBilling({ created_at: "2026-09-20T00:00:00Z", email: "admin@x.test", internal: false }, 14, {});
+  assert.equal(b.enforcement, "grace", "se comporta como cliente: se le pide el plan");
+  assert.equal(b.can_sell, true);
 });
 
 test("(o) las tiendas internas y beta nunca se bloquean", () => {
@@ -107,21 +112,21 @@ test("(o) las tiendas internas y beta nunca se bloquean", () => {
 
 test("(o) el widget no se sirve cuando está bloqueado, y sí cuando está en gracia", async () => {
   // Bloqueado: la página de producto queda como estaba antes de instalarnos.
-  conSubs(16, { legacy_free_tier: true });
+  conSubs(16, { sales_paused: true });
   const bloq = await invoke(widget, { method: "GET", query: { merchant: MID } });
   assert.equal(bloq.statusCode, 200);
   assert.match(bloq.body, /Suscripciones en pausa/, "avisa por consola y no pinta nada");
   assert.ok(!/rec-widget|Suscribirme/.test(bloq.body), "no manda el widget");
 
-  // En gracia el widget se sirve completo: no le cortamos la venta.
-  conSubs(15, { legacy_free_tier: true });
+  // Sin plan (pero sin corte) el widget se sirve completo.
+  conSubs(15);
   const gracia = await invoke(widget, { method: "GET", query: { merchant: MID } });
   assert.ok(gracia.body.length > 5000, "con 15 el widget sale completo");
   assert.ok(!/Suscripciones en pausa/.test(gracia.body));
 });
 
 test("(o) sin contador cacheado el widget NO bloquea (nunca cortamos por una duda nuestra)", async () => {
-  seedDoc(`merchants/${MID}`, tiendaNueva({ legacy_free_tier: true }));   // sin billing_cache
+  seedDoc(`merchants/${MID}`, tiendaNueva());   // sin billing_cache
   const res = await invoke(widget, { method: "GET", query: { merchant: MID } });
   assert.ok(!/Suscripciones en pausa/.test(res.body), "sin dato, se sirve igual");
   assert.ok(res.body.length > 5000);
@@ -129,7 +134,7 @@ test("(o) sin contador cacheado el widget NO bloquea (nunca cortamos por una dud
 
 test("(o) el checkout rechaza suscripciones nuevas con 402 cuando está bloqueado", async () => {
   const { default: init } = await loadApi("api/checkout/init.js");
-  conSubs(16, { legacy_free_tier: true });
+  conSubs(16, { sales_paused: true });
   const res = await invoke(init, {
     method: "POST",
     query: {},
@@ -142,7 +147,7 @@ test("(o) el checkout rechaza suscripciones nuevas con 402 cuando está bloquead
 
 test("(o) el checkout acepta normalmente en gracia", async () => {
   const { default: init } = await loadApi("api/checkout/init.js");
-  conSubs(15, { legacy_free_tier: true });
+  conSubs(15);
   const res = await invoke(init, {
     method: "POST", query: {},
     body: { merchant_id: MID, plan_id: PLAN_ID, customer: { email: "ana@cliente.test", name: "Ana Pérez" }, capture: true },
@@ -157,21 +162,17 @@ test("(o) canceló pero el período pagado sigue: mantiene el plan hasta que ven
   const pasado = new Date(Date.now() - 86400000).toISOString();
   assert.equal(saasPaid(nueva({ plan_activated: "starter", saas_status: "cancelled", saas_paid_until: futuro })), true, "pagó el 1, canceló el 20: plan hasta el 30");
   assert.equal(saasPaid(nueva({ plan_activated: "starter", saas_status: "cancelled", saas_paid_until: pasado })), false, "venció: vuelve a la regla por cantidad");
-  assert.equal(buildBilling(nueva({ plan_activated: "starter", saas_status: "cancelled", saas_paid_until: futuro }), 16, {}).can_sell, true);
-  assert.equal(buildBilling(nueva({ plan_activated: "starter", saas_status: "cancelled", saas_paid_until: pasado }), 16, {}).can_sell, false);
+  assert.equal(buildBilling(nueva({ plan_activated: "starter", saas_status: "cancelled", saas_paid_until: futuro }), 16, {}).must_pay, false, "mientras el período corre, sin aviso");
+  assert.equal(buildBilling(nueva({ plan_activated: "starter", saas_status: "cancelled", saas_paid_until: pasado }), 16, {}).must_pay, true, "vencido: se le vuelve a pedir el plan");
 });
 
-test("(o) escalada del aviso por WhatsApp: tope (10) → gracia → último aviso → bloqueado", () => {
-  const ev = (n) => planAlertEventFor(enforcementOf(nueva({ legacy_free_tier: true }), n));
-  assert.equal(ev(9), null, "por debajo del tope no molestamos");
-  assert.equal(ev(10), "plan_at_limit", "justo en 10: aviso previo");
-  assert.equal(planAlertEventFor(enforcementOf(nueva({ legacy_free_tier: true, plan_activated: "starter", saas_status: "active" }), 10)), null, "con plan pago, nada");
-  assert.equal(ev(11), "plan_grace");
-  assert.equal(ev(13), "plan_grace");
-  assert.equal(ev(14), "plan_last_call", "queda 1: el aviso fuerte");
-  assert.equal(ev(15), "plan_last_call");
-  assert.equal(ev(16), "plan_blocked");
-  assert.equal(planAlertEventFor(enforcementOf(nueva({ plan_activated: "starter", saas_status: "active" }), 500)), null, "al que paga no le avisamos nada");
+test("(o) el único aviso por WhatsApp que queda es el corte a mano", () => {
+  // Sin límite por cantidad no hay nada que avisar: el comercio crece tranquilo.
+  const ev = (m, n) => planAlertEventFor(enforcementOf(nueva(m), n));
+  assert.equal(ev({}, 9), null);
+  assert.equal(ev({}, 500), null, "500 suscriptores sin plan: molestar por WhatsApp no corresponde");
+  assert.equal(ev({ plan_activated: "starter", saas_status: "active" }, 500), null);
+  assert.equal(ev({ sales_paused: true }, 50), "plan_blocked", "si le cortamos la venta, sí se le avisa");
 });
 
 // ─── Lo que NUNCA se corta ───────────────────────────────────────────────────
@@ -182,9 +183,9 @@ test("(o) BLOQUEADA: el cobro de una suscripción que ya existe sigue creando su
   const { default: webhook } = await loadApi("api/mp/webhook.js");
   const { subscriber, snapshot, mpPayment, mpWebhookReq, MP_TOKEN, VARIANT_ID } = await import("../helpers/world.mjs");
 
-  // Tienda pasada del límite y sin pagar: el widget está apagado.
-  conSubs(40);
-  assert.equal(enforcementOf(tiendaNueva(), 40).sell, false, "confirmado: no vende nuevas");
+  // Tienda a la que le cortamos la venta a mano: el widget está apagado.
+  conSubs(40, { sales_paused: true });
+  assert.equal(enforcementOf(tiendaNueva({ sales_paused: true }), 40).sell, false, "confirmado: no vende nuevas");
 
   W.seedSub("sub_ana", subscriber({ quantity: 2, plan_snapshot: snapshot({ qty: 2 }) }));
   const pay = W.mp.addPayment(mpPayment({ id: 1310009001, amount: 23100, preapprovalId: "pre_ana" }), MP_TOKEN);

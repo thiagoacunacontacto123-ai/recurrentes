@@ -42,37 +42,36 @@ export const ENF_BLOCKED = "blocked";
 // Un plan que quedó en past_due (le rebotó la tarjeta) NO bloquea solo: vuelve
 // a la regla por cantidad, así el que tiene 12 suscriptores y le falló el cobro
 // cae en gracia y no se queda sin venta de un día para el otro.
-export function enforcementFor({ activeSubscribers = 0, paid = false, legacyFree = false, pastDueSince = null, nowMs = Date.now() } = {}) {
+// 30-sept-2026 (Thiago): **se van los límites automáticos por cantidad**. Las
+// cuentas las crea él, así que no hace falta un portero: una tienda puede tener
+// mil suscriptores sin que nada se corte solo. Si alguna se atrasa con el plan,
+// él le corta la entrada a mano desde el Admin (`sales_paused`), que es lo único
+// que ahora deja a `sell` en false. El resto es un aviso, no un bloqueo.
+//
+// Por qué: el cartel automático aparecía SIEMPRE —él le pasa el link, la tienda
+// crece y a los pocos días le saltaba el aviso— y terminaba siendo ruido que
+// tapaba el panel de alguien que ya estaba pagando o por pagar.
+export function enforcementFor({ activeSubscribers = 0, paid = false, legacyFree = false, pastDueSince = null, salesPaused = false, nowMs = Date.now() } = {}) {
   const n = Math.max(0, Math.floor(Number(activeSubscribers) || 0));
-  const tier = tierFor(n);
-  const base = { subs: n, tier: tier.id, tier_usd: tier.usd, free: legacyFree ? FREE_SUBSCRIBERS : 0, grace_limit: legacyFree ? GRACE_LIMIT : 0, legacy_free: !!legacyFree };
+  const base = { subs: n, tier: null, tier_usd: 0, over: 0, grace_left: 0, grace_limit: 0, free: legacyFree ? FREE_SUBSCRIBERS : 0, legacy_free: !!legacyFree };
+
+  // Corte a mano desde el Admin: lo único que apaga la venta.
+  if (salesPaused) return { ...base, state: ENF_BLOCKED, sell: false, panel: "full", paused_by_admin: true };
 
   // Paga (o es beta / interna): nada que avisar.
-  if (paid) return { ...base, state: ENF_OK, over: 0, grace_left: legacyFree ? GRACE_SUBSCRIBERS : 0, sell: true, panel: "full", paid: true };
+  if (paid) return { ...base, state: ENF_OK, sell: true, panel: "full", paid: true };
 
-  // Le rebotó la tarjeta hace poco: sigue vendiendo mientras Stripe reintenta.
+  // Le rebotó la tarjeta: se le avisa, pero sigue vendiendo.
   const fallo = Date.parse(pastDueSince || "");
   if (Number.isFinite(fallo)) {
     const diasRestantes = Math.max(0, Math.ceil((fallo + PAST_DUE_GRACE_DAYS * 86400000 - nowMs) / 86400000));
-    if (diasRestantes > 0) {
-      return { ...base, state: ENF_GRACE, over: 0, grace_left: 0, days_left: diasRestantes, past_due: true, sell: true, panel: "full" };
-    }
+    return { ...base, state: ENF_GRACE, days_left: diasRestantes, past_due: true, sell: true, panel: "full" };
   }
 
-  // ── Tiendas del modelo viejo (`legacy_free_tier`) ─────────────────────────
-  // Wellfresh y las que venían con el plan gratis: se les respeta hasta 10 y al
-  // llegar a 11 entran al modelo nuevo (30-sept-2026, Thiago).
-  if (legacyFree) {
-    const over = Math.max(0, n - FREE_SUBSCRIBERS);
-    if (n <= FREE_SUBSCRIBERS) return { ...base, state: ENF_OK, over: 0, grace_left: GRACE_SUBSCRIBERS, sell: true, panel: "full" };
-    if (n > GRACE_LIMIT) return { ...base, state: ENF_BLOCKED, over, grace_left: 0, sell: false, panel: "readonly" };
-    return { ...base, state: ENF_GRACE, over, grace_left: Math.max(0, GRACE_LIMIT - n), sell: true, panel: "full" };
-  }
-
-  // ── Modelo nuevo: no hay plan gratis ──────────────────────────────────────
-  // Sin plan activo no entran suscripciones nuevas. Las que ya están se siguen
-  // cobrando igual: bloquear es "no entran ventas", nunca "dejamos de cobrar".
-  return { ...base, state: ENF_BLOCKED, over: n, grace_left: 0, sell: false, panel: "readonly" };
+  // Sin plan todavía. Las tiendas del modelo viejo (Wellfresh) ni se enteran
+  // hasta pasar sus 10; al resto se le pide activar, pero sin cortarle nada.
+  if (legacyFree && n <= FREE_SUBSCRIBERS) return { ...base, state: ENF_OK, sell: true, panel: "full" };
+  return { ...base, state: ENF_GRACE, sell: true, panel: "full" };
 }
 
 // ¿Puede entrar una suscripción NUEVA? (widget visible + checkout acepta)
@@ -84,41 +83,33 @@ export function enforcementCopy(enf) {
   if (!enf || enf.state === ENF_OK) return null;
   const s = (n) => Number(n).toLocaleString("es-AR");
 
-  // Modelo nuevo (sin plan gratis): el widget se enciende cuando activa el plan.
-  if (enf.state === ENF_BLOCKED && !enf.legacy_free) {
-    return {
-      title: "Activá tu plan para empezar a vender",
-      body: `El plan son US$ ${SAAS_BASE_USD} por mes más una comisión de lo que cobrás, y se activa al instante. Hasta que lo actives, el widget no se muestra en tu tienda y tu página de producto queda como estaba.`,
-      keeps: enf.subs > 0
-        ? `Tus ${s(enf.subs)} suscriptores siguen cobrándose normal y cada cobro sigue generando su orden. No perdiste ninguno.`
-        : "Nada de lo que ya configuraste se pierde: planes, widget y flujos quedan como los dejaste.",
-      cta: "Activar plan",
-    };
-  }
+  // Corte a mano: es el único caso en que de verdad no entran ventas nuevas.
   if (enf.state === ENF_BLOCKED) {
     return {
-      title: "Tu widget está apagado",
-      body: `Llegaste a ${s(enf.subs)} suscriptores activos y tu plan cubre hasta ${s(enf.free)}. Ya no entran suscripciones nuevas: el widget no se muestra en tu tienda y tu página de producto quedó como estaba antes. Activá el plan y vuelve a funcionar al instante.`,
-      keeps: `Tus ${s(enf.subs)} suscriptores siguen cobrándose normal y cada cobro sigue generando su orden. No perdiste ninguno.`,
-      cta: "Activar plan",
+      title: "Pausamos el ingreso de suscriptores nuevos",
+      body: "Tu widget no se está mostrando en la tienda y el checkout no acepta suscripciones nuevas. Escribinos y lo destrabamos en el momento.",
+      keeps: enf.subs > 0
+        ? `Tus ${s(enf.subs)} suscriptores siguen cobrándose normal y cada cobro sigue generando su orden. No perdiste ninguno.`
+        : "Nada de lo que configuraste se pierde: planes, widget y flujos quedan como los dejaste.",
+      cta: "Escribinos",
     };
   }
   if (enf.past_due) {
     const d = enf.days_left;
     return {
-      title: d === 1 ? "Te queda 1 día para actualizar tu tarjeta" : `Te quedan ${s(d)} días para actualizar tu tarjeta`,
-      body: "No pudimos cobrar tu plan. Lo reintentamos solo estos días; si no entra, el widget deja de mostrarse en tu tienda y no entran suscripciones nuevas.",
+      title: "No pudimos cobrar tu plan",
+      body: d > 0
+        ? `Lo reintentamos solo estos ${s(d)} día${d === 1 ? "" : "s"}. Nada se corta mientras tanto, pero conviene actualizar la tarjeta para no quedarte sin el soporte y los avisos.`
+        : "Lo reintentamos varias veces y no entró. Nada se corta, pero escribinos para arreglarlo.",
       keeps: "Los suscriptores que ya tenés se siguen cobrando igual, pase lo que pase.",
       cta: "Actualizar tarjeta",
     };
   }
-  const q = enf.grace_left;
+  // Todavía no activó el plan: es un recordatorio, no un bloqueo.
   return {
-    title: q === 0
-      ? "Con un suscriptor más se apaga tu widget"
-      : `Te ${q === 1 ? "queda" : "quedan"} ${s(q)} ${q === 1 ? "suscriptor" : "suscriptores"} antes de que se apague tu widget`,
-    body: `Tenés ${s(enf.subs)} suscriptores activos y tu plan cubre hasta ${s(enf.free)}. Al llegar a ${s(enf.free + 1)} empezás con el sistema nuevo: US$ ${SAAS_BASE_USD} por mes más una comisión de lo que cobrás. Te damos ${s(GRACE_SUBSCRIBERS)} de margen, hasta ${s(enf.grace_limit)}, para que no pares de vender.`,
-    keeps: "Los suscriptores que ya tenés se siguen cobrando igual, pase lo que pase.",
+    title: "Empezá tu plan mensual",
+    body: `Ya está todo instalado y funcionando. El plan son US$ ${SAAS_BASE_USD} por mes más una comisión de lo que cobrás, y se activa con tarjeta en un minuto.`,
+    keeps: "Mientras tanto no se corta nada: seguís vendiendo y cobrando normal.",
     cta: "Activar plan",
   };
 }
