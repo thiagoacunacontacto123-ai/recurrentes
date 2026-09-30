@@ -3,9 +3,7 @@
 // (Billing.jsx, Landing.jsx).
 //
 // El precio sale de la cantidad de SUSCRIPTORES ACTIVOS de la tienda (no se
-// elige): los primeros 10 son gratis y después sube por tramos. La instalación
-// NO es gratis (ver INSTALL_USD abajo). Todo lo demás está incluido en todos
-// los planes.
+// elige). La puesta en marcha está incluida: no se cobra aparte.
 //
 // Suscriptor activo = sub con status "active" o "payment_failed" (MP sigue
 // reintentando el cobro). Pausados, cancelados y los que nunca pagaron no cuentan.
@@ -20,17 +18,14 @@
 
 export const BILLABLE_STATUSES = ["active", "payment_failed"];
 export const FREE_SUBSCRIBERS = 10;
-// La instalación (dejar el widget andando en la tienda) se cobra aparte desde el
-// 22-sept-2026: lleva trabajo real y no se promete más como gratis. Desde el
-// 25-sept-2026 es OBLIGATORIA y con precio a la vista (Thiago: "son 100 dólares,
-// sí o sí"): las dos tiendas que funcionan salieron las dos con él haciendo la
-// integración a mano, así que la venta pasa a ser demo + puesta en marcha.
-// En ningún lado puede volver a decir que la instalación es gratis.
-export const INSTALL_USD = 100;
-// Tope del rango (27-sept-2026, Thiago): con widget + página de suscripción la puesta en
-// marcha se cobra hasta 200. En el sitio se dice "pago único de USD 100 a 200".
-export const INSTALL_USD_MAX = 200;
-export const INSTALL_RANGE = `USD ${INSTALL_USD} a ${INSTALL_USD_MAX}`;
+// La puesta en marcha NO se cobra más (30-sept-2026, Thiago): "ya cobro un fijo
+// de 99 por mes; si están 5 meses son 500 dólares, la instalación ya está paga".
+// Para usar la app hay que activar el plan igual, así que cobrarla aparte era
+// un peaje de entrada que solo frenaba la venta. Las constantes quedan en 0
+// para no romper lo que todavía las importe.
+export const INSTALL_USD = 0;
+export const INSTALL_USD_MAX = 0;
+export const INSTALL_RANGE = "sin costo";
 
 // max null = sin techo. Los tramos son contiguos: min del siguiente = max + 1.
 // Los ids viejos (starter/growth/scale/pro/unlimited) se conservan para que

@@ -255,12 +255,12 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
         <select style={iS} value={instala} onChange={e=>setInstala(e.target.value)}>
           <option value="">Elegí una opción</option>
           <option value="solo">No, lo hago yo con los tutoriales</option>
-          <option value="asistida">Sí, quiero instalación con widget a medida y llamada (pago único de USD 100 a 200, se paga una vez esté integrado y funcional)</option>
+          <option value="asistida">Sí, quiero instalación con widget a medida y llamada (incluida en el plan)</option>
         </select>
         {instala === "asistida" && (
           <div style={{fontSize:12,color:T.textSm,marginTop:6,lineHeight:1.45}}>
             Widget 100% personalizado para tu tienda, llamada explicativa y los cambios que necesites.
-            El <strong style={{color:T.textMd}}>pago único (USD 100 a 200) se hace una vez esté integrado y funcional</strong>.
+            La instalación <strong style={{color:T.textMd}}>va incluida</strong>: el plan arranca cuando ya está funcionando.
           </div>
         )}
       </div>

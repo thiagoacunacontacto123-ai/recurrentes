@@ -8,8 +8,8 @@
 // camino principal de la landing; el registro sigue existiendo (lo necesita la
 // instalación desde la app store de Tiendanube) pero queda en segundo plano.
 //
-// Las dos casillas NO son letra chica: son el filtro. El que no acepta pagar los
-// USD 100 no manda el formulario, y por eso cada envío ya es un lead calificado
+// Las dos casillas NO son letra chica: son el filtro. El que no acepta pagar el
+// plan no manda el formulario, y por eso cada envío ya es un lead calificado
 // (de ahí que el evento RegistroCalificado salga de acá, sin mirar el volumen).
 //
 // Fuente ÚNICA: la usa src/pages/Demo.jsx para pintar y api/public.js para validar.
@@ -119,7 +119,9 @@ export const DEMO_CONFIRMACIONES = [
     // Redactada como COMPROMISO en primera persona, no como dato ("pago USD
     // 100"): el que marca esto se está comprometiendo, y es lo único que
     // separa al que va a avanzar del que mira. 25-sept-2026, Thiago.
-    text: "Entiendo que integrar la opción de suscripción —y/o la página apartada de suscripción, si la necesito— es un trabajo que lleva horas, y que puedo conseguir mucha ganancia sin depender de clientes nuevos. Por eso, si avanzo con Recurrentes, voy a realizar el pago único de 100 a 200 USD del costo de integración (según si es solo el widget o también la página de suscripción), recién con la integración terminada, al detalle de cómo la quiero, y funcionando.",
+    // 30-sept-2026 (Thiago): se fue el pago de instalación —el abono ya lo cubre—
+    // así que la casilla dice lo único que hay que aceptar: el precio del plan.
+    text: "Entiendo que dejar la suscripción andando en mi tienda es un trabajo que lleva horas, y que lo hacen ellos sin cobrarme la instalación. Por eso, si avanzo con Recurrentes, el plan es de USD 99 por mes más 1,8% de lo que cobre, y empieza cuando ya está funcionando.",
   },
 ];
 
@@ -200,6 +202,6 @@ export function resumenDemoLead(lead) {
   // Etiqueta corta + respuesta (27-sept-2026, Thiago: con la pregunta entera "ni un mono
   // entiende este choclo"). La pregunta completa queda en el Admin.
   const partes = DEMO_PREGUNTAS.map((q) => `${DEMO_PREGUNTA_CORTA[q.id] || q.label}: ${labelDe(q.options, lead[q.id]) || "-"}`);
-  partes.push("Acepta el pago único (USD 100 a 200): SÍ");
+  partes.push("Acepta el plan (USD 99/mes + 1,8%): SÍ");
   return partes.join(" · ");
 }

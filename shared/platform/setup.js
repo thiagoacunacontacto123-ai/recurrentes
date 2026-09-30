@@ -134,7 +134,7 @@ export const SETUP_STEPS = [
   {
     id: "pago",
     title: "Cobrada la instalación (pago único)",
-    pide: "El pago único de la instalación (USD 100 a 200), con todo terminado y funcionando.",
+    pide: "Que active el plan (USD 99/mes + comisión), con todo terminado y funcionando.",
     mensaje: "Quedó todo andando: ya viste el cobro y el pedido en tu tienda. Te paso los datos para el pago único de la instalación que hablamos.",
     hace: "Se tilda a mano cuando entró.",
     manual: true,

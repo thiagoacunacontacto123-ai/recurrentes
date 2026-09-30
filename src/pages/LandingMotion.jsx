@@ -15,7 +15,7 @@ import { BtnSolid } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
 import { buildBundleVM } from "../../shared/bundle/viewmodel.js";
 import { renderBundle } from "../../shared/bundle/templates.js";
-import { INSTALL_RANGE, PRICING_TIERS, COMMISSION_TIERS, SAAS_BASE_USD } from "../../shared/platform/pricing.js";
+import { PRICING_TIERS, COMMISSION_TIERS, SAAS_BASE_USD } from "../../shared/platform/pricing.js";
 import { COMPARE_ROWS, COMPARE_COLS, COMPARE_SOURCES, CompareCell, CompareMark, RecLogoMini } from "./LandingSections.jsx";
 
 const F = "'Inter',system-ui,sans-serif";
@@ -887,7 +887,7 @@ export function PriceWeapon({ T, onDemo, hideHead = false }) {
         ))}
       </div>
       <div style={{ fontSize: 12.5, color: T.textSm, textAlign: "center", marginTop: 14, maxWidth: 760, marginLeft: "auto", marginRight: "auto", lineHeight: 1.55 }}>
-        El abono es el mismo en los tres: lo único que cambia es el porcentaje, y baja solo cuando llegás al tramo. La comisión se calcula sobre <b style={{ color: T.text }}>lo que realmente se cobró</b> en los últimos 30 días —lo que se rechaza o se devuelve no cuenta— y se suma a la factura del mes siguiente. La puesta en marcha ({INSTALL_RANGE}, según lo que haya que armar) se paga una sola vez, cuando ya está funcionando. Precios en dólares, sin contrato.
+        El abono es el mismo en los tres: lo único que cambia es el porcentaje, y baja solo cuando llegás al tramo. La comisión se calcula sobre <b style={{ color: T.text }}>lo que realmente se cobró</b> en los últimos 30 días —lo que se rechaza o se devuelve no cuenta— y se suma a la factura del mes siguiente. La puesta en marcha va incluida: la dejamos funcionando nosotros y no se cobra aparte. Precios en dólares, sin contrato.
       </div>
 
       {/* Calculadora */}
@@ -909,11 +909,6 @@ export function PriceWeapon({ T, onDemo, hideHead = false }) {
               <div style={{ fontSize: 12, fontWeight: 800, color: T.accent, letterSpacing: .5, textTransform: "uppercase" }}>Tu mes con Recurrentes</div>
               <div style={{ fontFamily: FD, fontSize: 34, fontWeight: 800, letterSpacing: -1.2, color: T.text, lineHeight: 1.1, marginTop: 4, fontVariantNumeric: "tabular-nums" }}>USD {Math.round(total)}<span style={{ fontSize: 14, fontWeight: 600, color: T.textSm, letterSpacing: 0 }}> /mes</span></div>
               <div style={{ fontSize: 13, color: T.textMd, marginTop: 4 }}>US$ {SAAS_BASE_USD} de abono + US$ {Math.round(comision)} de comisión ({String(pct).replace(".", ",")}% de {fmtARS(rev)}).</div>
-            </div>
-            <div style={{ padding: "18px 20px", borderRadius: 16, background: T.surface, border: `1px solid ${T.border}` }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: T.textSm, letterSpacing: .5, textTransform: "uppercase" }}>Sobre tu facturación</div>
-              <div style={{ fontFamily: FD, fontSize: 34, fontWeight: 800, letterSpacing: -1.2, color: T.text, lineHeight: 1.1, marginTop: 4 }}>{rev > 0 ? ((total * rate / rev) * 100).toFixed(1).replace(".", ",") : "0"}%</div>
-              <div style={{ fontSize: 13, color: T.textMd, marginTop: 4 }}>Es lo que representa todo junto, abono incluido. Cuanto más vendés, menos pesa.</div>
             </div>
             {onDemo && <button onClick={onDemo} style={{ ...BtnSolid(T), padding: "14px 20px", fontSize: 15, borderRadius: 14 }}>Pedir demo</button>}
           </div>

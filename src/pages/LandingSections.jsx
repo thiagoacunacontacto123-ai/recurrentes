@@ -2,7 +2,7 @@ import React, { useState, useMemo } from "react";
 import { DS } from "../ui/theme.js";
 import { BtnSolid } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
-import { tierFor, PRICING_TIERS, INSTALL_RANGE, SAAS_BASE_USD } from "../../shared/platform/pricing.js";
+import { tierFor, PRICING_TIERS, SAAS_BASE_USD } from "../../shared/platform/pricing.js";
 import { PartnerBadges } from "./LandingMotion.jsx";
 // El precio más barato, sacado de la escala real: la landing no lo repite a mano.
 export const PRECIO_DESDE = PRICING_TIERS.find(t => t.usd > 0)?.usd ?? 0;
@@ -670,7 +670,7 @@ const FAQS = [
   ["¿Funciona con Tiendanube?", "Sí, ya funciona: instalás la app desde Tiendanube en un clic y el widget de suscripción aparece solo en tus productos con plan. Con Shopify es una línea en el tema."],
   ["¿Y con WooCommerce, Empretienda o VTEX?", "Sí. Esas no tienen la app hecha de antemano: la conexión la armamos nosotros para tu tienda en la puesta en marcha, sin costo extra. Y desde el primer día podés vender con el link de suscripción, que funciona con cualquier tienda."],
   ["¿Puedo vender sin tienda online?", "Sí. Cada plan tiene su link: lo compartís por Instagram, WhatsApp o tu web, y el cliente se suscribe desde ahí."],
-  ["¿Cuánto cuesta Recurrentes?", `US$ ${SAAS_BASE_USD} por mes, el mismo abono para todos, más una comisión de lo que cobrás: 1,8% hasta 300 suscriptores activos, 1,5% de 301 a 1.000 y 1,3% arriba de eso. La comisión sale de lo que de verdad entró: lo que se rechaza o se devuelve no cuenta. Aparte, la puesta en marcha (dejarte la suscripción integrada y funcionando en tu tienda) es un pago único de ${INSTALL_RANGE}, según si es solo el widget o también la página de suscripción, y se paga recién cuando está terminada.`],
+  ["¿Cuánto cuesta Recurrentes?", `US$ ${SAAS_BASE_USD} por mes, el mismo abono para todos, más una comisión de lo que cobrás: 1,8% hasta 300 suscriptores activos, 1,5% de 301 a 1.000 y 1,3% arriba de eso. La comisión sale de lo que de verdad entró: lo que se rechaza o se devuelve no cuenta. La puesta en marcha (dejarte la suscripción integrada y funcionando en tu tienda) va incluida: la hacemos nosotros y no se cobra aparte.`],
   ["¿Qué cuenta como suscriptor activo?", "Un cliente con su suscripción cobrando, o con un pago que Mercado Pago está reintentando. Los pausados y cancelados no cuentan."],
   ["¿Puedo dar descuentos?", "Sí: descuento por suscribirse, packs con mejor precio y cupones que valen para toda la suscripción."],
   ["¿Mercado Pago me cobra comisión?", "Sí, la comisión habitual de Mercado Pago por cada cobro, como en cualquier venta. Recurrentes no suma comisión por cobro: pagás un plan según tus suscriptores."],
