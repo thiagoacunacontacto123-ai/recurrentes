@@ -120,8 +120,11 @@ export const DEMO_CONFIRMACIONES = [
     // 100"): el que marca esto se está comprometiendo, y es lo único que
     // separa al que va a avanzar del que mira. 25-sept-2026, Thiago.
     // 30-sept-2026 (Thiago): se fue el pago de instalación —el abono ya lo cubre—
-    // así que la casilla dice lo único que hay que aceptar: el precio del plan.
-    text: "Entiendo que dejar la suscripción andando en mi tienda es un trabajo que lleva horas, y que lo hacen ellos sin cobrarme la instalación. Por eso, si avanzo con Recurrentes, el plan es de USD 99 por mes más 1,8% de lo que cobre, y empieza cuando ya está funcionando.",
+    // así que la casilla compromete a lo único concreto que pasa al cerrar: el
+    // primer mes de US$ 99, con la integración ya terminada. La comisión NO se
+    // nombra acá a propósito: recién se paga cuando hay ventas, y meterla en la
+    // casilla confunde el compromiso.
+    text: "Entiendo que dejar la suscripción andando en mi tienda es un trabajo que lleva horas, y que lo hacen ellos sin cobrarme la instalación. Por eso, si avanzo con Recurrentes, voy a pagar el primer mes de USD 99 una vez que la integración esté terminada y funcionando.",
   },
 ];
 
@@ -202,6 +205,6 @@ export function resumenDemoLead(lead) {
   // Etiqueta corta + respuesta (27-sept-2026, Thiago: con la pregunta entera "ni un mono
   // entiende este choclo"). La pregunta completa queda en el Admin.
   const partes = DEMO_PREGUNTAS.map((q) => `${DEMO_PREGUNTA_CORTA[q.id] || q.label}: ${labelDe(q.options, lead[q.id]) || "-"}`);
-  partes.push("Acepta el plan (USD 99/mes + 1,8%): SÍ");
+  partes.push("Acepta pagar el primer mes (USD 99) al terminar: SÍ");
   return partes.join(" · ");
 }

@@ -418,7 +418,7 @@ export const WA_ADMIN_TEMPLATES = [
     // a la genérica (todo en una línea).
     name: "aviso_admin_demo", event: "demo", category: "UTILITY", lang: "es_AR",
     title: "Pedido de demo (aviso interno)",
-    body: "Recurrentes · pedido de demo de {{1}}.\n\nContacto: {{2}}\n\n- - - - - - - - - - - -\n{{3}}\n{{4}}\n{{5}}\n{{6}}\n{{7}}\n{{8}}\n{{9}}\n- - - - - - - - - - - -\nAceptó el plan (USD 99/mes + 1,8%).\n\nAbrir el Admin: {{10}}\n\nAviso automático para el equipo de Recurrentes.",
+    body: "Recurrentes · pedido de demo de {{1}}.\n\nContacto: {{2}}\n\n- - - - - - - - - - - -\n{{3}}\n{{4}}\n{{5}}\n{{6}}\n{{7}}\n{{8}}\n{{9}}\n- - - - - - - - - - - -\nAceptó pagar el primer mes (USD 99) al terminar la integración.\n\nAbrir el Admin: {{10}}\n\nAviso automático para el equipo de Recurrentes.",
     footer: WA_ADMIN_FOOTER,
     vars: { "1": "nombre", "2": "contacto", "3": "r1", "4": "r2", "5": "r3", "6": "r4", "7": "r5", "8": "r6", "9": "r7", "10": "link_panel" },
     samples: ["Ana Pérez", "WhatsApp +54 9 11 5555-0000 · ana@tiendasol.com", "Tienda: Shopify", "Nicho: Cosmética y skincare", "Productos: Entre 2 y 5", "Pedidos por día: Entre 5 y 15", "Recompra hoy: Entre el 25% y el 50%", "Objetivo: Que mis clientes vuelvan a comprar solos", "Modalidad: Widget y página de suscripción", ADMIN_PANEL_URL],
