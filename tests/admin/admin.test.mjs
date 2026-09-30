@@ -19,7 +19,7 @@ const src = (p) => new URL(`../../${p}`, import.meta.url).href;
 const { __store, __reads } = await import("./mock-firestore.mjs");
 const { __tokens, __users } = await import("./mock-auth.mjs");
 // Precios reales del tramo: si cambian (22-sept-2026 se duplicaron) el test sigue valiendo.
-const { TIER_BY_ID } = await import("../../shared/platform/pricing.js");
+const { TIER_BY_ID, SAAS_BASE_USD } = await import("../../shared/platform/pricing.js");
 const P_START = TIER_BY_ID.starter.usd, P_GROWTH = TIER_BY_ID.growth.usd;
 
 const fb = await import(src("api/_lib/firebase.js"));
@@ -138,9 +138,12 @@ put("merchants/old", { email: "old@x.com", created_at: ago(35), plan: "free" });
   ok(byId(o.by_provider).mercadopago === 5, "reparto por pasarela");
   ok(byId(o.by_business_type).physical === 4 && byId(o.by_business_type).service === 1, "reparto por tipo de negocio");
   const tier = Object.fromEntries(o.by_tier.map(x => [x.id, x]));
-  ok(tier.beta?.count === 1 && tier.free?.count === 2 && tier.starter?.count === 1 && tier.growth?.count === 1 && tier.growth?.activated === 1, "reparto por plan del SaaS (beta 1 · free 2 · starter 1 · growth 1 pagando)", o.by_tier);
-  ok(o.saas.paying === 1 && o.saas.usd_month === P_GROWTH && o.saas.beta === 1, `pagan 1 (US$ ${P_GROWTH}/mes), beta 1`, o.saas);
-  ok(o.needs_activation.length === 1 && o.needs_activation[0].id === "newbie" && o.needs_activation[0].tier === "starter" && o.needs_activation[0].plan_requested === "starter", "para activar: Gym Norte → Starter (lo pidió)", o.needs_activation);
+  // 30-sept-2026: un solo abono y tres planes que solo cambian el %. Con pocos
+  // suscriptores les toca Starter a todas menos a la beta.
+  ok(tier.beta?.count === 1 && tier.starter?.count === 4 && tier.starter?.activated === 1, "reparto por plan: beta 1 · starter 4 (1 pagando)", o.by_tier);
+  ok(o.saas.paying === 1 && o.saas.usd_month === SAAS_BASE_USD && o.saas.beta === 1, `pagan 1 (US$ ${SAAS_BASE_USD}/mes de abono), beta 1`, o.saas);
+  // Sin plan gratis, "para activar" son todas las que todavía no pagan.
+  ok(o.needs_activation.length === 3 && o.needs_activation[0].id === "newbie" && o.needs_activation[0].plan_requested === "starter", "para activar: 3, Gym Norte primero (lo pidió)", o.needs_activation.map(r => r.id));
   ok(o.stats_pending === 0, "todos los números calculados");
   const cache = doc("admin_cache/merchant_stats");
   ok(cache?.stats?.lumina?.mrr === 24000 && cache.stats.lumina.subs === 4 && cache.stats.lumina.active === 3 && !cache.stats.gone, "cache de números por comercio (sin el eliminado)", cache?.stats?.lumina);
@@ -155,7 +158,7 @@ put("merchants/old", { email: "old@x.com", created_at: ago(35), plan: "free" });
 {
   const list = (query) => call(stats, { query: { action: "admin-merchants", ...query }, token: "t-admin" }).then(r => r.body);
   let l = await list({});
-  ok(JSON.stringify(l.counts) === JSON.stringify({ todos: 5, pagan: 1, free: 3, beta: 1, activar: 1, sin_conectar: 2 }), "contadores de filtros", l.counts);
+  ok(JSON.stringify(l.counts) === JSON.stringify({ todos: 5, pagan: 1, free: 3, beta: 1, activar: 3, sin_conectar: 2 }), "contadores de filtros", l.counts);
   ok(l.total === 5 && l.rows[0].id === "newbie", "orden por defecto: más nuevos primero", l.rows.map(r => r.id));
   const lum = l.rows.find(r => r.id === "lumina");
   ok(lum.whatsapp_url === "https://wa.me/5491155554444" && lum.contact_email === "hola@lumina.com" && lum.owner_name === "Lucía", "WhatsApp como link wa.me + contacto", lum);
@@ -199,7 +202,7 @@ put("merchants/old", { email: "old@x.com", created_at: ago(35), plan: "free" });
   ok(r.body.ok && nb.plan_activated === "starter" && nb.plan_activated_at && !("plan_requested" in nb) && !("plan_requested_at" in nb), "activar Starter: plan_activated + borra el pedido", nb);
   ok(r.body.billing.needs_activation === false && r.body.plan_activated === "starter", "después de activar ya no pide activación", r.body.billing);
   const o = (await call(stats, { query: { action: "admin-overview" }, token: "t-admin" })).body;
-  ok(o.needs_activation.length === 0 && o.saas.paying === 2 && o.saas.usd_month === P_GROWTH + P_START, "el resumen se actualiza al toque (cache invalidado)", o.saas);
+  ok(o.needs_activation.length === 2 && o.saas.paying === 2 && o.saas.usd_month === SAAS_BASE_USD * 2, "el resumen se actualiza al toque (cache invalidado)", o.saas);
   r = await post("admin-set-plan", { merchant_id: "old", plan: "beta" });
   ok(doc("merchants/old").plan === "beta" && r.body.beta === true, "marcar beta → plan: \"beta\"");
   r = await post("admin-set-plan", { merchant_id: "old", plan: "none" });

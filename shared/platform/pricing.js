@@ -48,6 +48,80 @@ export const PRICING_TIERS = [
   { id: "ultra",      label: "Ultra",      usd: 5999, min: 20001, max: null },
 ];
 
+// ═══════════════════════════════════════════════════════════════════════════
+// MODELO VIGENTE desde el 30-sept-2026 (Thiago): ABONO + COMISIÓN.
+//
+// Los tramos de acá arriba tenían un escalón brutal: pasar de 50 a 51
+// suscriptores duplicaba el costo por suscriptor (el número 51 costaba US$ 100
+// al mes). Una prospecta lo marcó y los números le daban la razón, así que el
+// precio pasa a ser:
+//
+//   US$ 99 por mes  +  un % de TODO lo cobrado en esos 30 días
+//
+// El % baja con la cantidad de suscriptores activos:
+//   hasta 300 → 1,8 %   ·   301 a 1000 → 1,5 %   ·   más de 1000 → 1,3 %
+//
+// Ciclo: el comercio paga los primeros US$ 99 cuando le dejamos el widget
+// andando. A los 30 días paga los US$ 99 del mes que empieza MÁS el % de lo que
+// se cobró en el mes que terminó (por eso la comisión siempre va vencida).
+//
+// El descuento de por vida (`legacy_pricing`) se aplica SOLO al abono, nunca al
+// %: a Wellfresh se le prometió la mitad, o sea US$ 49,50 + 1,8 %.
+//
+// Ya no hay plan gratis. La única excepción son las tiendas que venían con el
+// modelo viejo (`legacy_free_tier`): siguen sin pagar hasta 10 suscriptores y
+// al llegar a 11 entran al modelo nuevo.
+export const SAAS_BASE_USD = 99;
+
+// max null = sin techo. Contiguos: el siguiente empieza en max + 1.
+// Los tres planes se llaman distinto pero cuestan lo mismo: cambia solo el %.
+// El comercio no elige: le toca el que corresponde a sus suscriptores activos.
+export const COMMISSION_TIERS = [
+  { id: "starter",  label: "Starter",      pct: 1.8, min: 0,    max: 300,  range: "Hasta 300 suscriptores" },
+  { id: "estandar", label: "Estándar",     pct: 1.5, min: 301,  max: 1000, range: "301 a 1.000 suscriptores" },
+  { id: "pro",      label: "Profesional",  pct: 1.3, min: 1001, max: null, range: "Más de 1.000 suscriptores" },
+];
+
+/** % de comisión que le toca a una tienda por su cantidad de suscriptores activos. */
+/** El plan que le toca a una tienda por su cantidad de suscriptores activos. */
+export function planFor(activeSubscribers) {
+  const n = Math.max(0, Math.floor(Number(activeSubscribers) || 0));
+  return COMMISSION_TIERS.find(x => x.max == null || n <= x.max) || COMMISSION_TIERS[COMMISSION_TIERS.length - 1];
+}
+export const commissionPct = (activeSubscribers) => planFor(activeSubscribers).pct;
+
+/** "1,8 % de lo que cobrás" — para el panel y la landing. */
+export const commissionLabel = (pct) => String(pct).replace(".", ",") + " %";
+
+/** ¿Esta tienda conserva el plan gratis del modelo viejo? */
+export const hasLegacyFreeTier = (merchant) => merchant?.legacy_free_tier === true;
+
+/**
+ * La factura de un ciclo. `gmv_ars` = todo lo cobrado (aprobado) en esos 30 días;
+ * `usd_rate` = el blue venta del día del cierre. El abono lleva el descuento de
+ * por vida de la tienda; la comisión NO.
+ */
+export function billFor({ merchant, subs, gmvArs = 0, usdRate = 0 } = {}) {
+  const plan = planFor(subs);
+  const pct = plan.pct;
+  const baseUsd = Math.round(SAAS_BASE_USD * priceFactor(merchant) * 100) / 100;
+  const ars = Math.max(0, Math.round(Number(gmvArs) || 0));
+  const rate = Number(usdRate) > 0 ? Number(usdRate) : 0;
+  const gmvUsd = rate ? Math.round((ars / rate) * 100) / 100 : 0;
+  const commissionUsd = Math.round(gmvUsd * pct) / 100;
+  return {
+    plan: plan.id,
+    plan_label: plan.label,
+    base_usd: baseUsd,
+    pct,
+    gmv_ars: ars,
+    usd_rate: rate,
+    gmv_usd: gmvUsd,
+    commission_usd: commissionUsd,
+    total_usd: Math.round((baseUsd + commissionUsd) * 100) / 100,
+  };
+}
+
 // ── Precio de por vida de una tienda (22-sept-2026 / 27-sept-2026, Thiago) ──
 // `legacy_pricing` es el FACTOR que paga esa tienda sobre el precio de lista:
 // 1 = lista, 0.5 = mitad. Nació cuando se duplicaron los precios (las tiendas

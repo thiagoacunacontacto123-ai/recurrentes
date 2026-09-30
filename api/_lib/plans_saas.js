@@ -5,7 +5,8 @@
 // Sin cobro automático todavía: el merchant "activa" el plan que le corresponde
 // (POST merchant?action=plan-request) y lo confirmamos a mano seteando
 // `plan_activated: "<tier>"` en merchants/{mid}. Nada se corta si no lo activa.
-import { PRICING_TIERS, TIER_BY_ID, FREE_SUBSCRIBERS, tierFor, nextTier, tierRank, tierPriceFor, priceFactor } from "../../shared/platform/pricing.js";
+import { PRICING_TIERS, TIER_BY_ID, FREE_SUBSCRIBERS, tierFor, nextTier, tierRank, tierPriceFor, priceFactor,
+         SAAS_BASE_USD, COMMISSION_TIERS, planFor, commissionPct, billFor, hasLegacyFreeTier } from "../../shared/platform/pricing.js";
 import { enforcementFor, enforcementCopy, ENF_BLOCKED, ENF_GRACE } from "../../shared/platform/enforcement.js";
 
 // Merchants creados antes de esta fecha (o sin created_at) sin plan pago
@@ -80,7 +81,11 @@ export function saasPaid(m = {}) {
 // WIDGET y el CHECKOUT para dejar entrar (o no) suscripciones nuevas, y el panel
 // para el cartel. Fuente única: shared/platform/enforcement.js.
 export function enforcementOf(m = {}, activeSubscribers = 0) {
-  return enforcementFor({ activeSubscribers, paid: saasPaid(m) });
+  return enforcementFor({
+    activeSubscribers, paid: saasPaid(m), legacyFree: hasLegacyFreeTier(m),
+    // Rebote de tarjeta: sigue vendiendo unos días mientras Stripe reintenta.
+    pastDueSince: String(m.saas_status || "") === "past_due" ? (m.saas_payment_failed_at || null) : null,
+  });
 }
 
 // Qué aviso de WhatsApp corresponde para un estado del límite del plan (o null).
@@ -126,17 +131,18 @@ export function nextSaasPaymentAt(m = {}, now = Date.now()) {
 export function buildBilling(m = {}, activeSubscribers = 0, { stripeAvailable = false } = {}) {
   const n = Math.max(0, Math.floor(Number(activeSubscribers) || 0));
   const beta = isBeta(m);
-  const tier = tierFor(n);
-  const next = nextTier(tier.id);
   const activated = activatedTierId(m);
   const enf = enforcementOf(m, n);
   const copy = enforcementCopy(enf);
+  // Modelo del 30-sept-2026: un solo abono (US$ 99, con el descuento de por vida
+  // si la tienda lo tiene) + una comisión de lo cobrado, cuyo % baja por tramo.
+  const f = billFor({ merchant: m, subs: n });
   return {
-    // Límite del plan gratis: el panel pinta la barra/pantalla con esto.
     enforcement: enf.state,          // ok | grace | blocked
     can_sell: enf.sell,              // false = widget apagado y checkout cerrado
     grace_left: enf.grace_left,
     grace_limit: enf.grace_limit,
+    legacy_free_tier: hasLegacyFreeTier(m),
     enforcement_copy: copy,
     // Fechas del ciclo (solo informativo para el panel).
     plan_activated_at: m.plan_activated_at || null,
@@ -146,23 +152,20 @@ export function buildBilling(m = {}, activeSubscribers = 0, { stripeAvailable = 
     billing_method: m.saas_stripe_subscription_id ? "stripe" : (activated ? "manual" : null),
     saas_status: m.saas_status || (activated ? "active" : null),   // active | past_due | cancelled
     stripe_available: !!stripeAvailable,
-    plan: beta ? "beta" : tier.id,
-    plan_label: beta ? "Beta" : tier.label,
-    // Precio de ESTA tienda: con `legacy_pricing` paga menos (los que entraron
-    // antes del aumento del 22-sept mantienen su precio).
-    plan_usd: beta ? 0 : tierPriceFor(tier, m),
-    plan_usd_lista: beta ? 0 : tier.usd,
+    // ── Precio ──────────────────────────────────────────────────────────────
+    plan: beta ? "beta" : f.plan,
+    plan_label: beta ? "Beta" : f.plan_label,
+    base_usd: beta ? 0 : f.base_usd,           // el abono de ESTA tienda
+    base_usd_lista: SAAS_BASE_USD,
+    commission_pct: beta ? 0 : f.pct,
     price_factor: priceFactor(m),
-    tier: tier.id,
-    tier_min: tier.min,
-    tier_max: tier.max,
-    next_tier: next ? { id: next.id, label: next.label, usd: tierPriceFor(next, m), min: next.min } : null,
+    plans: COMMISSION_TIERS,                   // los tres, para la tabla del panel
+    // Comisión acumulada del ciclo en curso (la llena la API cuando la calcula).
+    commission_carry_usd: Number(m.commission_carry_usd) || 0,
     active_subscribers: n,
-    free_subscribers: FREE_SUBSCRIBERS,
+    free_subscribers: hasLegacyFreeTier(m) ? FREE_SUBSCRIBERS : 0,
     activated_plan: activated,
-    // Le corresponde un tramo pago más alto que el que tiene activado → mostrar aviso.
-    needs_activation: !beta && tier.usd > 0 && tierRank(activated || "free") < tierRank(tier.id),
-    // Está en gracia o bloqueado: hay que pagar ya, no es un "te conviene subir".
+    needs_activation: !beta && !activated,
     must_pay: enf.state === ENF_GRACE || enf.state === ENF_BLOCKED,
     locked: enf.state === ENF_BLOCKED,
     panel_mode: enf.panel,          // full | readonly

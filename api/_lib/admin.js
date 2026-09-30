@@ -48,7 +48,8 @@ import { db, requireAdmin } from "./firebase.js";
 import { acquisitionSummary, ownPixel } from "./acquisition.js";
 import { merchantProfile, CHANNELS, PAYMENT_PROVIDERS, BUSINESS_TYPES } from "../../shared/platform/profile.js";
 import { buildSetup, SETUP_STEP_IDS } from "../../shared/platform/setup.js";
-import { PRICING_TIERS, TIER_BY_ID, BILLABLE_STATUSES, tierRank, discountPct, factorFromPct, MAX_DISCOUNT_PCT } from "../../shared/platform/pricing.js";
+import { PRICING_TIERS, TIER_BY_ID, BILLABLE_STATUSES, tierRank, discountPct, factorFromPct, MAX_DISCOUNT_PCT,
+         COMMISSION_TIERS, SAAS_BASE_USD } from "../../shared/platform/pricing.js";
 import { buildBilling, activatedTierId, isBeta, isInternal, PLAN_BY_ID } from "./plans_saas.js";
 import { adminEmails } from "./adminAuth.js";
 import { klaviyoEnabled } from "./klaviyo.js";
@@ -249,7 +250,7 @@ function rowOf(m, s, ownerEmails = {}) {
     stats_at: s?.at || null,
     plan: billing.plan,
     plan_label: billing.plan_label,
-    tier: billing.tier,
+    tier: billing.plan,
     beta: billing.plan === "beta",
     plan_activated: activatedTierId(m),
     plan_activated_at: m.plan_activated_at || null,
@@ -260,8 +261,9 @@ function rowOf(m, s, ownerEmails = {}) {
     // public key, que solo deja el OAuth de Mercado Pago.
     card_checkout: m.mp_checkout_api === true,
     card_checkout_ready: typeof m.mp_public_key === "string" && m.mp_public_key.length > 10,
-    tier_usd: billing.plan_usd,
+    tier_usd: billing.base_usd,
     tier_label: billing.plan_label,
+    commission_pct: billing.commission_pct,
     // Próximo pago a Recurrentes: cada 30 días desde el PRIMER pago (la activación
     // del plan), no desde el alta gratis. Null si nunca activó (free/beta o pendiente).
     next_saas_payment_at: nextSaasPaymentAt(m.plan_activated_at),
@@ -388,12 +390,14 @@ async function overview(query) {
     for (const r of rows) acc[r[key]] = (acc[r[key]] || 0) + 1;
     return Object.entries(acc).map(([id, count]) => ({ id, label: catalog[id]?.label || id, count })).sort((a, b) => b.count - a.count);
   };
+  // Reparto por plan del modelo nuevo (30-sept-2026): los tres cuestan lo mismo,
+  // cambia el % de comisión. `count` = a cuántas les toca; `activated` = cuántas pagan.
   const byTier = [
     { id: "beta", label: "Beta (sin cargo)", usd: 0, count: rows.filter(r => r.beta).length, activated: 0 },
-    ...PRICING_TIERS.map(t => ({
-      id: t.id, label: t.usd ? `${t.label} · US$ ${t.usd}` : t.label, usd: t.usd,
+    ...COMMISSION_TIERS.map(t => ({
+      id: t.id, label: `${t.label} · US$ ${SAAS_BASE_USD} + ${t.pct}%`, usd: SAAS_BASE_USD, pct: t.pct,
       count: rows.filter(r => !r.beta && r.tier === t.id).length,
-      activated: rows.filter(r => !r.beta && r.plan_activated === t.id).length,
+      activated: rows.filter(r => !r.beta && r.plan_activated && r.tier === t.id).length,
     })),
   ].filter(x => x.count > 0 || x.activated > 0);
   const paying = rows.filter(r => !r.beta && r.plan_activated);
@@ -429,9 +433,10 @@ async function overview(query) {
     })(),
     // Mis tiendas, aparte: para verlas sin que ensucien los números del negocio.
     internal: { count: internalRows.length, subs: sum(internalRows.map(r => r.subs)), mrr: Math.round(sum(internalRows.map(r => r.mrr))), names: internalRows.map(r => r.name) },
-    saas: { paying: paying.length, usd_month: sum(paying.map(r => TIER_BY_ID[r.plan_activated]?.usd || 0)), beta: rows.filter(r => r.beta).length },
+    // El abono es el mismo para todas; la comisión se suma cuando cierra cada ciclo.
+    saas: { paying: paying.length, usd_month: sum(paying.map(r => Number(r.tier_usd) || 0)), beta: rows.filter(r => r.beta).length },
     needs_activation: rows.filter(r => r.needs_activation).sort((a, b) => b.subs - a.subs).map(r => ({
-      id: r.id, name: r.name, tier: r.tier, tier_label: TIER_BY_ID[r.tier]?.label || r.tier, tier_usd: TIER_BY_ID[r.tier]?.usd || 0,
+      id: r.id, name: r.name, tier: r.tier, tier_label: r.tier_label || r.tier, tier_usd: Number(r.tier_usd) || 0, commission_pct: r.commission_pct,
       subs: r.subs, plan_requested: r.plan_requested, plan_requested_at: r.plan_requested_at,
       whatsapp_url: r.whatsapp_url, email: r.contact_email || r.email,
     })),
