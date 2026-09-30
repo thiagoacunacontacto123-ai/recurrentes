@@ -110,6 +110,29 @@ export default async function handler(req, res) {
     await cronHeartbeat("bill-wa-usage", { ok: true });
     return res.json({ ok: true, ...r });
   }
+  // ── Comisión del SaaS (30-sept-2026) ──────────────────────────────────────
+  // Diario: por cada tienda con plan activo, los ciclos de 30 días que ya
+  // cerraron y todavía no se facturaron. La comisión va SIEMPRE vencida y se
+  // suma como ítem a la próxima factura del abono.
+  if (action === "bill-commission") {
+    const { stripeRequest, saasStripeAvailable } = await import("./_lib/saasBilling.js");
+    if (!saasStripeAvailable()) { await cronHeartbeat("bill-commission", { ok: true }); return res.json({ ok: true, skipped: "no_stripe" }); }
+    const { billCommissionForMerchant } = await import("./_lib/commission.js");
+    const out = { checked: 0, billed: 0, total_usd: 0, errors: 0 };
+    const q = await db().collection("merchants").where("saas_status", "in", ["active", "past_due"]).get();
+    for (const d of q.docs) {
+      const m = d.data();
+      if (m.archived_at || m.deleted || !m.plan_activated_at) continue;
+      out.checked++;
+      try {
+        const r = await billCommissionForMerchant({ db, merchantId: d.id, merchant: m, stripeCall: stripeRequest, countActive: (mid) => activeSubscribers(mid, m) });
+        out.billed += r.billed; out.total_usd = Math.round((out.total_usd + r.total_usd) * 100) / 100;
+      } catch (e) { out.errors++; console.warn("[bill-commission]", d.id, e.message); }
+    }
+    await cronHeartbeat("bill-commission", { ok: out.errors === 0 });
+    return res.json({ ok: true, ...out });
+  }
+
   // ── Stock antes del cobro (28-sept-2026, Thiago) ──────────────────────────
   // Solo mira los comercios que eligieron "pausar si no hay stock" en Ventas →
   // Logística. El resto ni se lee: es el default y no tiene que costar nada.

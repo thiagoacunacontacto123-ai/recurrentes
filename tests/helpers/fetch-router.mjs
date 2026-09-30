@@ -17,6 +17,9 @@ const ALLOWED = [
   (u) => u.hostname === "graph.facebook.com",
   (u) => u.hostname === "oauth2.googleapis.com",
   (u) => u.hostname === "www.googleapis.com",
+  // Cotización del dólar para facturar la comisión (30-sept-2026).
+  (u) => u.hostname === "dolarapi.com",
+  (u) => u.hostname === "api.bluelytics.com.ar",
 ];
 
 function headersToObject(h) {

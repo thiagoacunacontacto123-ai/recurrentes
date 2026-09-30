@@ -17,7 +17,7 @@
 // saas_current_period_end, plan_activated, plan_activated_at.
 import { db } from "./firebase.js";
 import { appBaseUrl } from "./config.js";
-import { PRICING_TIERS, TIER_BY_ID, tierFor, tierPriceFor } from "../../shared/platform/pricing.js";
+import { PRICING_TIERS, TIER_BY_ID, tierFor, tierPriceFor, SAAS_BASE_USD, planFor, priceFactor } from "../../shared/platform/pricing.js";
 import { formEncode, verifyStripeSignature } from "./providers/stripe.js";
 import { readRawBody } from "./providers/rawBody.js";
 import { notifyAdmin } from "./adminAlerts.js";
@@ -46,20 +46,22 @@ async function stripe(method, path, params) {
 // `merchant` entra para respetar su `legacy_pricing`: las tiendas anteriores al
 // aumento del 22-sept pagan la mitad. El precio de Stripe se cachea por monto,
 // así que conviven el de lista y el heredado sin pisarse.
-async function ensurePrice(tierId, merchant) {
-  const tier = TIER_BY_ID[tierId];
-  if (!tier || !tier.usd) throw new Error(`Tramo inválido: ${tierId}`);
-  const usd = tierPriceFor(tier, merchant);
-  if (!usd) throw new Error(`Precio en 0 para ${tierId}`);
+// Desde el 30-sept-2026 hay UN solo precio recurrente: el abono de US$ 99 (o lo
+// que le toque a esa tienda con su descuento de por vida). La comisión NO es un
+// precio de Stripe: se agrega como ítem a la factura de cada ciclo, porque
+// depende de cuánto cobró el comercio en esos 30 días (ver _lib/commission.js).
+async function ensurePrice(_tierId, merchant) {
+  const usd = Math.round(SAAS_BASE_USD * priceFactor(merchant) * 100) / 100;
+  if (!(usd > 0)) throw new Error("Abono en 0: usá `beta` en vez de un descuento del 100%");
   const ref = db().collection("system").doc("stripe_saas_prices");
   const snap = await ref.get();
   const cache = snap.exists ? (snap.data() || {}) : {};
   const mode = /^sk_test_/.test(String(process.env.STRIPE_SAAS_SECRET_KEY || "")) ? "test" : "live";
-  const key = `${mode}:${tierId}:${usd}`;
+  const key = `${mode}:abono:${usd}`;
   if (cache[key]) return cache[key];
-  const nombre = usd === tier.usd ? `Recurrentes · ${tier.label}` : `Recurrentes · ${tier.label} (precio anterior)`;
-  const product = await stripe("POST", "/v1/products", { name: nombre, metadata: { tier: tierId, app: "recurrentes" } });
-  const price = await stripe("POST", "/v1/prices", { product: product.id, currency: "usd", unit_amount: usd * 100, recurring: { interval: "month" }, metadata: { tier: tierId, usd: String(usd) } });
+  const nombre = usd === SAAS_BASE_USD ? "Recurrentes · Abono mensual" : `Recurrentes · Abono mensual (US$ ${usd})`;
+  const product = await stripe("POST", "/v1/products", { name: nombre, metadata: { app: "recurrentes", kind: "abono" } });
+  const price = await stripe("POST", "/v1/prices", { product: product.id, currency: "usd", unit_amount: Math.round(usd * 100), recurring: { interval: "month" }, metadata: { kind: "abono", usd: String(usd) } });
   await ref.set({ [key]: price.id }, { merge: true });
   return price.id;
 }
@@ -79,7 +81,7 @@ export async function createSaasCheckout({ merchantId, merchant, tierId, email, 
     metadata: { merchant_id: merchantId, tier: tierId },
     "subscription_data[metadata][merchant_id]": merchantId,
     "subscription_data[metadata][tier]": tierId,
-    "subscription_data[description]": `Plan ${TIER_BY_ID[tierId].label} de Recurrentes · ${merchant.store_name || merchant.shopify_shop || merchantId}`,
+    "subscription_data[description]": `Abono de Recurrentes · ${merchant.store_name || merchant.shopify_shop || merchantId}`,
   };
   if (merchant.saas_stripe_customer_id) params.customer = merchant.saas_stripe_customer_id;
   else if (email) params.customer_email = email;
@@ -154,7 +156,7 @@ export async function createSaasSubscriptionWithCard({ merchantId, merchant, tie
     customer, "items[0][price]": price, default_payment_method: pm,
     payment_behavior: "error_if_incomplete",
     "metadata[merchant_id]": merchantId, "metadata[tier]": tierId,
-    description: `Plan ${TIER_BY_ID[tierId].label} de Recurrentes · ${merchant.store_name || merchant.shopify_shop || merchantId}`,
+    description: `Abono de Recurrentes · ${merchant.store_name || merchant.shopify_shop || merchantId}`,
   });
   await activatePlan({ mid: merchantId, sub, subId: sub.id, customer, tier: tierId, key: `sub_${sub.id}` });
   return { activated: true, tier: tierId, subscription_id: sub.id };
@@ -262,8 +264,13 @@ export async function handleSaasWebhook(req, res) {
   }
 }
 
-// ─── Cron diario: alinear el precio de cada suscripción con el tramo actual ───
-// Sin prorrateo: la próxima factura sale por el tramo vigente ese día.
+// ─── Cron diario: que Stripe cobre el abono correcto ─────────────────────────
+// Con un solo abono ya no hay tramos que mover. Lo que sí puede cambiar es el
+// PRECIO de esa tienda: si desde el Admin le ponemos (o le sacamos) el descuento
+// de por vida, Stripe seguiría cobrando el viejo para siempre. Por eso se
+// compara el importe, no el nombre del plan. Sin prorrateo: la próxima factura
+// sale con el número nuevo. También acompaña al que cambió de plan (Starter →
+// Estándar) aunque el abono no cambie, para que la metadata quede al día.
 export async function syncSaasTiers({ countActive }) {
   if (!saasStripeAvailable()) return { skipped: "no_stripe" };
   // Cancelados cuyo período pagado ya venció: recién ahora pierden el plan.
@@ -279,30 +286,22 @@ export async function syncSaasTiers({ countActive }) {
     out.checked++;
     try {
       const n = await countActive(d.id, m);
-      const tier = tierFor(n);
-      const current = m.saas_stripe_price_tier || m.plan_activated || null;
-      if (tier.usd === 0) {
-        if (!m.saas_cancel_at_period_end) { await stripe("POST", `/v1/subscriptions/${subId}`, { cancel_at_period_end: "true" }); await d.ref.set({ saas_cancel_at_period_end: true }, { merge: true }); out.to_free++; }
-        continue;
-      }
-      // No alcanza con comparar el TRAMO: si a esa tienda le cambiamos el
-      // descuento de por vida desde el Admin, el tramo es el mismo pero el
-      // precio no, y Stripe seguiría cobrando el viejo para siempre
-      // (27-sept-2026). Por eso se compara también el importe.
-      const usd = tierPriceFor(tier, m);
+      const plan = planFor(n);                                   // starter | estandar | pro
+      const usd = Math.round(SAAS_BASE_USD * priceFactor(m) * 100) / 100;
       const usdActual = Number(m.saas_stripe_price_usd);
-      const mismoPrecio = Number.isFinite(usdActual) ? usdActual === usd : true;
-      if (tier.id === current && mismoPrecio && !m.saas_cancel_at_period_end) continue;
+      const mismoPrecio = Number.isFinite(usdActual) ? usdActual === usd : false;
+      const mismoPlan = m.saas_stripe_price_tier === plan.id;
+      if (mismoPrecio && mismoPlan && !m.saas_cancel_at_period_end) continue;
       const sub = await stripe("GET", `/v1/subscriptions/${subId}`);
       const item = sub.items?.data?.[0];
       if (!item) continue;
-      const price = await ensurePrice(tier.id, m);
-      await stripe("POST", `/v1/subscriptions/${subId}`, { "items[0][id]": item.id, "items[0][price]": price, proration_behavior: "none", cancel_at_period_end: "false", "metadata[tier]": tier.id });
-      await d.ref.set({ saas_stripe_price_tier: tier.id, saas_stripe_price_usd: usd, saas_cancel_at_period_end: false, saas_tier_synced_at: new Date().toISOString() }, { merge: true });
+      const price = await ensurePrice(plan.id, m);
+      await stripe("POST", `/v1/subscriptions/${subId}`, { "items[0][id]": item.id, "items[0][price]": price, proration_behavior: "none", cancel_at_period_end: "false", "metadata[tier]": plan.id, "metadata[commission_pct]": String(plan.pct) });
+      await d.ref.set({ saas_stripe_price_tier: plan.id, saas_stripe_price_usd: usd, saas_commission_pct: plan.pct, saas_cancel_at_period_end: false, saas_tier_synced_at: new Date().toISOString() }, { merge: true });
       out.changed++;
     } catch (e) { out.errors++; console.warn("[sync-saas-tiers]", d.id, e.message); }
   }
   return out;
 }
-// Para módulos que necesitan hablar con Stripe sin importar todo esto (referrals.js recibe esta función).
+
 export const stripeRequest = stripe;

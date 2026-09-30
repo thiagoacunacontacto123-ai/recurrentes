@@ -125,6 +125,10 @@
     {
       "path": "/api/cron?action=bill-wa-usage",
       "schedule": "30 9 * * *"
+    },
+    {
+      "path": "/api/cron?action=bill-commission",
+      "schedule": "0 10 * * *"
     }
   ]
 }
