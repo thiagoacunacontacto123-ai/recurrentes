@@ -1,4 +1,4 @@
-import { FREE_SUBSCRIBERS } from "../../shared/platform/pricing.js";
+import { SAAS_BASE_USD } from "../../shared/platform/pricing.js";
 // Sitio público de Recurrentes: Landing + AuthScreen (login / registro /
 // recuperar contraseña). Adaptado de la AuthScreen de Growith. NO escribe
 // Firestore desde el cliente: el doc del merchant se crea en el primer GET
@@ -200,7 +200,7 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
   }
 
   const title = isLogin ? "Iniciá sesión" : isRegister ? "Creá tu cuenta" : "Recuperar contraseña";
-  const subtitle = isLogin ? "Entrá a tu panel de suscripciones." : isRegister ? `Gratis hasta ${FREE_SUBSCRIBERS} suscriptores · sin comisión por venta · conectás tu tienda y Mercado Pago en minutos.` : "Te mandamos un link por mail para elegir una contraseña nueva.";
+  const subtitle = isLogin ? "Entrá a tu panel de suscripciones." : isRegister ? `US$ ${SAAS_BASE_USD} por mes + comisión · conectás tu tienda y Mercado Pago en minutos.` : "Te mandamos un link por mail para elegir una contraseña nueva.";
   const label = { display:"block", fontSize:12, fontWeight:600, color:T.textMd, marginBottom:5, textTransform:"uppercase", letterSpacing:0.5 };
   const onFocus = e => e.target.style.borderColor = T.accent, onBlur = e => e.target.style.borderColor = T.inputBorder;
   const linkBtn = { background:"none", border:"none", color:T.accent, fontWeight:600, cursor:"pointer", fontFamily:F, fontSize:13, padding:0 };

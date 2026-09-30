@@ -239,7 +239,23 @@ Todo apagado por env hasta que Thiago configure cada consola (ver `TAREAS_THIAGO
 ## Foco y comunicación (desde 2026-09-14)
 Tiendas online de **Argentina**: Shopify hoy; Tiendanube e Impultienda (tienda de ebooks) próximos. La landing habla de ecommerce argentino. Los tipos digital/servicio y la venta por link siguen en el producto, pero no son el foco comercial.
 
-## Planes del SaaS (desde 2026-09-14)
+## Planes del SaaS (desde 2026-09-30: ABONO + COMISIÓN)
+
+**US$ 99 por mes para todos + un % de lo cobrado**, y el % baja por cantidad de suscriptores activos: **Starter 1,8 %** (hasta 300) · **Estándar 1,5 %** (301–1000) · **Profesional 1,3 %** (+1000). Fuente única `shared/platform/pricing.js` (`SAAS_BASE_USD`, `COMMISSION_TIERS`, `planFor`, `commissionPct`, `billFor`). Los tres cuestan lo mismo: lo único que cambia es el porcentaje y el comercio no elige, le toca por cantidad.
+
+- **Por qué**: los tramos por cantidad tenían un escalón brutal (el suscriptor 51 costaba US$ 100/mes). Lo marcó una prospecta y los números le daban la razón.
+- **Ciclo**: paga los primeros US$ 99 cuando le dejamos el widget andando (`plan_activated_at`). A los 30 días, Stripe cobra el abono del mes que empieza y nosotros le sumamos a esa factura el % del mes que TERMINÓ. La comisión va siempre vencida.
+- **Base del %**: los cobros `approved` del ciclo MENOS los que terminaron en `money_back` (devuelto o contracargo). Cobrar comisión por una venta que perdió sería sacarle plata dos veces.
+- **Dólar**: `api/_lib/usdRate.js` — blue **VENTA**, el más barato entre dolarapi y bluelytics, cacheado un día en `system/usd_rate`. Cada factura guarda la cotización que usó (`usd_rate`, `usd_source`) para poder auditarla. **Sin cotización no se factura** (mejor no cobrar que inventar un número). `USD_RATE_MANUAL` la pisa.
+- **Facturación**: `api/_lib/commission.js` → `merchants/{mid}/commissions/{YYYY-MM-DD}` (inicio del ciclo), idempotente con `create()`, ítem de Stripe en USD. Lo que no llega a US$ 0,50 viaja al ciclo siguiente (`commission_carry_usd`). Cron `bill-commission` 10:00 UTC.
+- **El descuento de por vida (`legacy_pricing`) toca SOLO el abono, nunca el %**: Wellfresh paga US$ 49,50 + 1,8 %.
+- **NO hay plan gratis.** Sin plan activo no entran suscripciones nuevas (widget apagado, checkout 402); lo que ya está cobrando sigue cobrando igual. Única excepción: `legacy_free_tier: true` (Wellfresh) conserva sus 10 gratis + 5 de gracia y al llegar a 11 entra al sistema nuevo, con su copy propio.
+- **Rebote de tarjeta**: `past_due` ya no corta de un día para el otro — sigue vendiendo **7 días** (`PAST_DUE_GRACE_DAYS`) mientras Stripe reintenta.
+- **Stripe**: un solo precio recurrente (`ensurePrice` → el abono de esa tienda). `syncSaasTiers` ya no mueve tramos: alinea el importe cuando cambia el descuento de por vida.
+- **Landing (30-sept)**: fuera la comparativa (`ComparisonArena`) y las capturas del panel (`PanelTour`) — los componentes siguen en `LandingMotion.jsx` pero no se montan. `StickyDesigns` **ya no se clava en celular** (rebotaba con la barra del navegador). `PriceWeapon` muestra los tres planes y una calculadora de abono + comisión. No queda un solo lugar que diga "0% de comisión" ni "suscriptores gratis" (landing, panel, registro y las 34 páginas de SEO).
+- Tests: `tests/money-path/comision.test.mjs` (7) + `plan-limit.test.mjs` reescrito.
+
+## Planes del SaaS (hasta 2026-09-29, histórico)
 Precio por **suscriptores activos** (`status` active o payment_failed), fuente única en `shared/platform/pricing.js`. **Escala del 2026-09-16:** Free hasta 10 · Starter USD 49 (11–50) · Growth 99 (51–100) · Scale 199 (101–300) · Pro 349 (301–1000) · Business 499 (1001–2000) · Enterprise 749 (2001–5000) · Max 999 (5001–10000) · Unlimited 1999 (10001–20000) · Ultra 2999 (+20000). **La instalación NO es gratis: USD 100, obligatoria (25-sept-2026, Thiago).** (Escala anterior: Free hasta 5 · Starter USD 29 (6–30) · Growth 69 (31–100) · Scale 99 (101–300) · Pro 149 (301–1000) · Unlimited 299 (+1000). Todo incluido en todos. Sin prueba de 7 días ni bloqueo del panel: si le corresponde un tramo pago muestra aviso y "Activar plan" (plan-request); lo confirmamos a mano con `plan_activated: "<tier>"` en el merchant. Cuentas creadas antes de 2026-09-13 sin plan pago = **beta** (Lumina), sin cargo.
 
 ## Integraciones evaluadas (investigación 2026-09-14)

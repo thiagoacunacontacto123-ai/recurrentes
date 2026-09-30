@@ -1,9 +1,9 @@
 import React from "react";
 import { BtnSolid, BtnSecondary } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
-import { FREE_SUBSCRIBERS } from "../../shared/platform/pricing.js";
+import { SAAS_BASE_USD } from "../../shared/platform/pricing.js";
 import { SectionsStyle, FaqSection, BigFooter } from "./LandingSections.jsx";
-import { MotionStyle, useReveal, HeroWidgetLoop, StickyDesigns, HorizontalSteps, PriceWeapon, IntegrationsMarquee, ClosingCta, FeatureStack, ComparisonArena, PanelTour, BuyJourney, PartnerBadges, FlowsSection, MetaAdsSection /*, ReviewsBlock */ } from "./LandingMotion.jsx";
+import { MotionStyle, useReveal, HeroWidgetLoop, StickyDesigns, HorizontalSteps, PriceWeapon, IntegrationsMarquee, ClosingCta, BuyJourney, PartnerBadges, FlowsSection, MetaAdsSection /*, FeatureStack, ComparisonArena, PanelTour, ReviewsBlock */ } from "./LandingMotion.jsx";
 
 const F = "'Inter',system-ui,sans-serif";
 // Display (25-sept-2026, Thiago: "bien zarpado, estético"): Manrope apretada para los
@@ -232,7 +232,7 @@ function StickyCta({ T, onRegister, onToggle }) {
       <RecLogo size={26}/>
       <div style={{flex:1, minWidth:0, lineHeight:1.2}}>
         <div style={{fontSize:13.5, fontWeight:800, color:T.text, whiteSpace:"nowrap"}}>Demo de 15 minutos</div>
-        <div className="rec-sticky-sub" style={{fontSize:11.5, color:T.textSm, whiteSpace:"nowrap"}}>Casos reales andando · 0% de comisión</div>
+        <div className="rec-sticky-sub" style={{fontSize:11.5, color:T.textSm, whiteSpace:"nowrap"}}>Casos reales andando · US$ 99 por mes + comisión</div>
       </div>
       <button onClick={onRegister} style={{...BtnSolid(T), padding:"10px 18px", fontSize:13.5, whiteSpace:"nowrap", flexShrink:0, borderRadius:99}}>Pedir demo</button>
     </div>
@@ -386,7 +386,7 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
               <a href="/demos/tostado.html" style={{...BtnSecondary(T),padding:"14px 20px",fontSize:15,borderRadius:14,textDecoration:"none",display:"inline-flex",alignItems:"center",gap:8}}>Probar la tienda de ejemplo</a>
             </div>
             <div style={{marginTop:18,display:"flex",gap:"6px 16px",flexWrap:"wrap",fontSize:13,color:T.textSm}}>
-              {["0% de comisión por venta","Demo de 15 minutos, con casos reales"].map(t => (
+              {["US$ 99 por mes + una comisión que baja","Demo de 15 minutos, con casos reales"].map(t => (
                 <span key={t} style={{display:"inline-flex",alignItems:"center",gap:6}}><span style={{width:5,height:5,borderRadius:99,background:T.accentSolid}}/>{t}</span>
               ))}
             </div>
@@ -400,9 +400,9 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
 
         <div style={{marginTop:40,display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:14}} className="rec-land-benefits">
           {[
-            ["0%", "de comisión por venta", "Lo que cobra tu cliente es tuyo. Pagás un plan según tus suscriptores, no un porcentaje de cada cobro."],
+            ["1,8%", "de comisión, y baja", "Un abono de US$ 99 y un porcentaje de lo que de verdad cobrás. Cuantos más suscriptores tenés, más chico: 1,5% y 1,3%."],
             ["1 llamada", "y queda integrado", "La integración la hacemos nosotros con vos, guiada paso a paso: tienda, Mercado Pago, planes y widget."],
-            [`${FREE_SUBSCRIBERS}`, "suscriptores gratis", "Arrancás sin pagar el plan y recién pagás cuando la suscripción ya te está funcionando."],
+            [`US$ ${SAAS_BASE_USD}`, "por mes, para todos", "El mismo abono tengas 5 suscriptores o 5.000. Lo único que cambia es el porcentaje, y baja."],
           ].map(([v,l,d], i)=>(
             <div key={l} className="rec-stat" data-reveal={["flip","pop","spin"][i]}>
               <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:8}}>
@@ -419,9 +419,10 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
           confiar → precio → comparar → integraciones → dudas → acción). */}
       <BuyJourney T={T}/>
       <StickyDesigns T={T}/>
-      <PanelTour T={T}/>
+      {/* 30-sept-2026 (Thiago): fuera las capturas del panel (PanelTour) y la
+          comparativa (ComparisonArena). Los componentes siguen en
+          LandingMotion.jsx por si vuelven, pero no se montan. */}
       <PriceWeapon T={T} onDemo={irDemo}/>
-      <ComparisonArena T={T}/>
       <IntegrationsMarquee T={T}/>
       <FlowsSection T={T}/>
       <MetaAdsSection T={T}/>

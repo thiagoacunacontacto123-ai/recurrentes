@@ -4,7 +4,7 @@
 //   #/como-funciona · #/funciones · #/integraciones · #/precios (+ #/calculadora) · #/preguntas
 import React from "react";
 import { LandingShell, FlowMap } from "./Landing.jsx";
-import { HorizontalSteps, StickyDesigns, FeatureStack, PriceWeapon, ComparisonArena, IntegrationsMarquee, ClosingCta, PanelTour, BuyJourney, FlowsSection, MetaAdsSection } from "./LandingMotion.jsx";
+import { HorizontalSteps, StickyDesigns, PriceWeapon, IntegrationsMarquee, ClosingCta, BuyJourney, FlowsSection, MetaAdsSection } from "./LandingMotion.jsx";
 import { FaqSection, SectionHead } from "./LandingSections.jsx";
 import { BtnSolid } from "../ui/components.jsx";
 
@@ -44,7 +44,6 @@ export default function SitePage({ T, darkMode, onToggleDark, onLogin, page }) {
       </>}
       {key === "funciones" && <>
         <PageHead T={T} eyebrow="Funciones" title={<>Todo lo que la suscripción necesita,<br/>en un solo lugar</>} sub="Widget con tu marca, checkout con envíos en vivo, portal del cliente, avisos por WhatsApp y mail, panel con todo. Sin apps sueltas." reveal="flip"/>
-        <PanelTour T={T}/>
         <StickyDesigns T={T}/>
         <ClosingCta T={T} onDemo={IR_DEMO}/>
       </>}
@@ -63,10 +62,9 @@ export default function SitePage({ T, darkMode, onToggleDark, onLogin, page }) {
         <ClosingCta T={T} onDemo={IR_DEMO}/>
       </>}
       {key === "precios" && <>
-        <PageHead T={T} eyebrow="Precios" title={<>Un costo de instalación<br/>y un abono. Nada más.</>} sub="0% de comisión por venta. Gratis hasta los primeros suscriptores, después un tramo fijo que sabés de antemano." reveal="pop"/>
+        <PageHead T={T} eyebrow="Precios" title={<>Un abono fijo<br/>y una comisión que baja.</>} sub="Un abono fijo de US$ 99 por mes más una comisión de lo que cobrás, que baja a medida que crecés. Sin sorpresas y sin letra chica." reveal="pop"/>
         <div id="rec-calculadora"/>
         <PriceWeapon T={T} onDemo={IR_DEMO} hideHead/>
-        <ComparisonArena T={T} onDemo={IR_DEMO}/>
         <FaqSection T={T}/>
       </>}
       {key === "preguntas" && <>

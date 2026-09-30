@@ -125,7 +125,7 @@ function pagina(p, todas) {
     description: "Suscripciones con cobro recurrente por Mercado Pago para tiendas Shopify y Tiendanube en Argentina. Cada cobro genera la orden en la tienda automáticamente.",
     inLanguage: "es-AR",
     areaServed: { "@type": "Country", name: "Argentina" },
-    offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "Gratis hasta 10 suscriptores activos. Desde USD 99 por mes, sin comisión por venta." },
+    offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "US$ 99 por mes más una comisión de lo que cobrás, que baja a medida que crecés." },
     publisher: { "@type": "Organization", name: "Recurrentes", url: SITIO, email: "soporte@recurrentesapp.com", logo: `${SITIO}/icon-512.png`, sameAs: ["https://www.linkedin.com/company/recurrentes-app", "https://www.instagram.com/recurrentes.app/"] },
   };
   // Marcado de artículo con fecha y autor (Reval lo tiene; Google lo usa para el "Actualizado el…").
@@ -214,7 +214,7 @@ ${p.vs ? `<section class="alt"><div class="wrap">
 <section><div class="wrap">
   <div class="box">
     <h2>Te lo mostramos funcionando en 15 minutos</h2>
-    <p>Vemos tiendas que ya venden por suscripción con Recurrentes y qué se podría armar en la tuya. Gratis hasta 10 suscriptores activos y 0% de comisión por venta.</p>
+    <p>Vemos tiendas que ya venden por suscripción con Recurrentes y qué se podría armar en la tuya. US$ 99 por mes más una comisión de lo que cobrás, que baja a medida que crecés.</p>
     <a class="cta big" href="/#/demo">Pedir una demo →</a>
   </div>
 </div></section>

@@ -21,7 +21,7 @@ export const PAGINAS = [
   {
     slug: "suscripciones-shopify",
     title: "Suscripciones en Shopify con Mercado Pago | Recurrentes",
-    description: "Vendé por suscripción en tu Shopify cobrando con Mercado Pago. El cliente se suscribe una vez, se le cobra solo y la orden se crea sola en tu tienda. Gratis hasta 10 suscriptores.",
+    description: "Vendé por suscripción en tu Shopify cobrando con Mercado Pago. El cliente se suscribe una vez, se le cobra solo y la orden se crea sola en tu tienda. US$ 99 por mes más una comisión que baja cuando crecés.",
     h1: "Suscripciones en Shopify, cobrando con Mercado Pago",
     intro: "Shopify no tiene suscripciones con Mercado Pago. Las apps de suscripción del App Store cobran con Shopify Payments o Stripe, que en Argentina no le sirven a casi nadie. Recurrentes resuelve justo eso: tu cliente se suscribe en la ficha de producto y Mercado Pago le cobra cada período, con la plata cayendo en tu cuenta.",
     bloques: [
@@ -32,7 +32,7 @@ export const PAGINAS = [
     ],
     faq: [
       ["¿Necesito una app del App Store de Shopify?", "No. La conexión se hace con una app privada que creás vos en el panel de desarrolladores de Shopify, en dos pasos guiados. Si preferís, lo dejamos andando nosotros en una llamada."],
-      ["¿Cuánto cuesta?", "Es gratis hasta 10 suscriptores activos. Después pagás según cuántos clientes tengas cobrando, desde USD 99 por mes, y nunca cobramos comisión por venta. La puesta en marcha es un pago único de USD 100 a 200, según lo que haya que armar, y se paga cuando ya está funcionando."],
+      ["¿Cuánto cuesta?", "US$ 99 por mes más una comisión de lo que cobrás: 1,8% hasta 300 suscriptores, 1,5% hasta 1.000 y 1,3% arriba de eso. Solo se cobra sobre lo que de verdad entró: lo que se rechaza o se devuelve no cuenta. La puesta en marcha es un pago único de USD 100 a 200, según lo que haya que armar, y se paga cuando ya está funcionando."],
       ["¿Mis clientes pueden cancelar solos?", "Sí. Cada suscriptor tiene un portal propio donde pausa, cambia la dirección o cancela sin escribirte."],
     ],
   },
@@ -50,7 +50,7 @@ export const PAGINAS = [
     faq: [
       ["¿Sirve si estoy en el plan más básico de Tiendanube?", "Sí. Recurrentes no depende del plan de Tiendanube ni de Pago Nube."],
       ["¿Puedo usar débito?", "Depende de lo que habilite Mercado Pago para suscripciones en tu cuenta. La suscripción nativa de Tiendanube solo acepta crédito."],
-      ["¿Cuánto cuesta?", "Gratis hasta 10 suscriptores activos, después desde USD 99 por mes y sin comisión por venta. La puesta en marcha es un pago único de USD 100 a 200, según lo que haya que armar."],
+      ["¿Cuánto cuesta?", "US$ 99 por mes más una comisión de lo que cobrás: 1,8% hasta 300 suscriptores, 1,5% hasta 1.000 y 1,3% arriba de eso. La puesta en marcha es un pago único de USD 100 a 200, según lo que haya que armar."],
     ],
   },
   {
@@ -81,10 +81,10 @@ export const PAGINAS = [
       { h: "Lo que Puentify hace bien", p: "Funciona en Shopify y Tiendanube, cobra con Mercado Pago, tiene portal del cliente y no cobra abono mensual. Tiendas conocidas lo usan hace tiempo. Es una opción razonable para arrancar sin costo fijo." },
       { h: "Qué conviene mirar: el 2%", p: "Sin abono, cobra un porcentaje de cada venta (2%, según comercios que trabajan con ellos; no está publicado). Con poca facturación es barato; cuando la suscripción crece, ese 2% supera a cualquier abono." },
       { h: "Qué conviene mirar: packs, variantes y automatizaciones", p: "No permite suscribirse a una variante puntual ni dos productos con suscripción en el mismo carrito, y no trae diseños de widget ni mails con tu marca ni avisos por WhatsApp." },
-      { h: "Dónde Recurrentes hace las cosas distinto", p: "Abono fijo por suscriptores y 0% por venta, gratis hasta 10. Packs con regalos, variantes, checkout y widget con tu marca, recupero de carritos por WhatsApp y mails propios. Todo en un panel." },
+      { h: "Dónde Recurrentes hace las cosas distinto", p: "Abono fijo de US$ 99 y una comisión que baja cuando crecés (1,8% · 1,5% · 1,3%). Packs con regalos, variantes, checkout y widget con tu marca, recupero de carritos por WhatsApp y mails propios. Todo en un panel." },
     ],
     vs: { titulo: "Puentify y Recurrentes, con los datos puestos", intro: "El setup y la comisión de Puentify no figuran en su web: salen de comercios que trabajan con ellos. El resto, de su sitio público.", nombre: "Puentify", fuente: "Datos verificados el 21 de septiembre de 2026 en puentify.app. Los precios los pone cada empresa y pueden cambiar.", filas: [
-      ["Precio del plan", "<b>Gratis hasta 10</b><small>después desde USD 99/mes</small>", "Sin abono<small>solo comisión</small>"],
+      ["Precio del plan", "<b>USD 99/mes + 1,8%</b><small>el % baja a 1,5 y 1,3</small>", "Sin abono<small>solo comisión</small>"],
       ["Comisión sobre cada venta", "<b>0%</b>", "2%<small>de todo lo que cobrás</small>"],
       ["Cobra con Mercado Pago", "✓ Sí", "✓ Sí"],
       ["Funciona en Shopify y Tiendanube", "✓ Sí", "✓ Sí"],
@@ -96,7 +96,7 @@ export const PAGINAS = [
       ["Portal del cliente", "✓ Sí", "✓ Sí"],
     ] },
     faq: [
-      ["¿Cobran comisión por venta?", "No. Solo el abono mensual, que arranca en cero hasta 10 suscriptores activos."],
+      ["¿Cobran comisión por venta?", "Sí: US$ 99 por mes más un porcentaje de lo que cobrás, que baja a medida que crecés (1,8% · 1,5% · 1,3%). Se calcula sobre lo que de verdad se cobró, no sobre lo que facturaste en teoría."],
       ["¿Puedo migrar suscriptores que ya tengo en otra herramienta?", "Las autorizaciones de cobro de Mercado Pago no se transfieren entre aplicaciones: cada suscriptor tiene que volver a autorizar. Lo que sí se puede es acompañar esa migración con un flujo de mails para que no se te caiga nadie en el camino."],
     ],
   },
@@ -116,7 +116,7 @@ export const PAGINAS = [
     ],
     faq: [
       ["¿Necesito una cuenta especial de Mercado Pago?", "No. Se usa la cuenta que ya tenés. Se conecta desde el panel en un clic."],
-      ["¿La plata pasa por Recurrentes?", "Nunca. El cobro es de tu cuenta de Mercado Pago a tu cuenta. No cobramos comisión por venta."],
+      ["¿La plata pasa por Recurrentes?", "Nunca. El cobro va de la tarjeta de tu cliente a tu cuenta de Mercado Pago, sin escalas. Nuestra comisión te la facturamos aparte, a fin de mes."],
       ["¿Mi cliente puede cancelar?", "Sí, desde su portal o desde su propia cuenta de Mercado Pago. Las dos formas quedan reflejadas en tu panel."],
     ],
   },
@@ -200,7 +200,7 @@ export const PAGINAS = [
       { h: "Con qué se cobra", p: "Mercado Pago es la opción realista: es donde ya está tu comprador y su API de suscripciones funciona. Stripe no abre cuentas a comercios argentinos, así que solo entra si tenés una sociedad afuera, y en ese caso cada tarjeta argentina te sale más cara por ser internacional. Las pasarelas locales alternativas están en distintos estados de madurez." },
       { h: "Qué plataformas lo soportan", p: "Shopify tiene API de suscripciones pero atada a pasarelas que no incluyen Mercado Pago. Tiendanube tiene suscripciones nativas con límites fuertes (solo Pago Nube, crédito, sin variantes). WooCommerce y Empretienda no traen nada nativo. En los cuatro casos, el cobro recurrente con Mercado Pago hay que resolverlo por fuera. Recurrentes funciona en las cuatro: Shopify y Tiendanube con app propia, WooCommerce y Empretienda con la conexión armada a medida en la puesta en marcha." },
       { h: "El problema que nadie menciona", p: "Cobrar es la mitad del trabajo. La otra mitad es que cada cobro se convierta en una orden en tu tienda, con stock, dirección y envío. Si eso no pasa solo, alguien va a cargar pedidos a mano todos los meses, y ahí la suscripción deja de ser un negocio y pasa a ser una tarea." },
-      { h: "Qué mirar antes de elegir herramienta", p: "Si cobra comisión por venta además del abono; si soporta variantes y packs; si genera la orden sola; y qué pasa cuando un cobro se rechaza. Esas cuatro definen si escala o si te da trabajo." },
+      { h: "Qué mirar antes de elegir herramienta", p: "Cuánto cobra de comisión y sobre qué base; si soporta variantes y packs; si genera la orden sola; y qué pasa cuando un cobro se rechaza. Esas cuatro definen si escala o si te da trabajo." },
     ],
     faq: [
       ["¿Se puede cobrar con débito?", "Depende de lo que Mercado Pago habilite en tu cuenta para cobro recurrente. No es algo que decida la herramienta."],
@@ -217,7 +217,7 @@ export const PAGINAS = [
       { h: "El número que decide: tu recompra actual", p: "Mirá qué porcentaje de tus clientes ya te vuelve a comprar sin que hagas nada. Si es menos del 10%, la suscripción no va a arreglar eso: el problema está en el producto o en la experiencia, y una suscripción solo lo va a hacer más visible. Del 20% para arriba, tenés con qué trabajar: esa gente ya decidió que le sirve." },
       { h: "Qué descuento poner", p: "Entre 10% y 20% suele alcanzar. El cliente no se suscribe por el precio, se suscribe por no quedarse sin el producto. Un descuento más alto te come el margen sin mover la conversión, y te ata a venderle barato para siempre." },
       { h: "Cómo se mide si funciona", p: "Tres números: cuántos suscriptores entran por mes, cuántos se van (churn) y cuánto factura cada uno antes de irse. Si se van más de los que entran, casi nunca es el precio: es la frecuencia mal elegida. Le estás mandando producto antes de que termine el anterior." },
-      { h: "Cuánto cuesta arrancar", p: "El abono de Recurrentes es gratis hasta 10 suscriptores activos y no cobramos comisión por venta, así que podés validar sin poner plata por adelantado. La puesta en marcha es un pago único de USD 100 a 200, según lo que haya que armar, y se paga recién cuando está funcionando." },
+      { h: "Cuánto cuesta arrancar", p: "US$ 99 por mes más una comisión de lo que cobrás: 1,8% hasta 300 suscriptores, 1,5% hasta 1.000 y 1,3% arriba de eso. La puesta en marcha es un pago único de USD 100 a 200, según lo que haya que armar, y se paga cuando ya está funcionando." },
     ],
     faq: [
       ["¿Cuánto tarda en verse el resultado?", "El primer mes ves cuántos se suscriben. El número que importa —cuántos siguen— recién se ve en el tercer o cuarto cobro."],
@@ -254,11 +254,11 @@ export const PAGINAS = [
     bloques: [
       { h: "Qué es Puentify", p: "Una app argentina para cobrar suscripciones en Shopify y Tiendanube con Mercado Pago. Se instala en tu tienda, el cliente se suscribe y Puentify genera los cobros y las órdenes." },
       { h: "Cómo cobra", p: "No tiene abono mensual: cobra un porcentaje de cada venta por suscripción (2%, según comercios que trabajan con ellos; no está publicado en su web). El setup tampoco está publicado." },
-      { h: "Qué conviene mirar antes de elegir", p: "Si cobra comisión por venta además del abono; si funciona en tu plataforma; si soporta packs y variantes o solo un producto suelto; y si la orden se crea sola en tu tienda. Pedí ver las cuatro funcionando." },
+      { h: "Qué conviene mirar antes de elegir", p: "Cuánto cobra de comisión y sobre qué base; si funciona en tu plataforma; si soporta packs y variantes o solo un producto suelto; y si la orden se crea sola en tu tienda. Pedí ver las cuatro funcionando." },
       { h: "Cómo se compara con Recurrentes", p: "Recurrentes cobra abono fijo por suscriptores activos y 0% por venta, gratis hasta 10. Suma packs con regalos, variantes, widget y checkout con tu marca, mails propios y recupero de carritos por WhatsApp. Abajo la tabla con los datos públicos." },
     ],
     vs: { titulo: "Puentify y Recurrentes, con los datos puestos", intro: "El setup y la comisión de Puentify no figuran en su web: salen de comercios que trabajan con ellos. El resto, de su sitio público.", nombre: "Puentify", fuente: "Datos verificados el 21 de septiembre de 2026 en puentify.app. Los precios los pone cada empresa y pueden cambiar.", filas: [
-      ["Precio del plan", "<b>Gratis hasta 10</b><small>después desde USD 99/mes</small>", "Sin abono<small>solo comisión</small>"],
+      ["Precio del plan", "<b>USD 99/mes + 1,8%</b><small>el % baja a 1,5 y 1,3</small>", "Sin abono<small>solo comisión</small>"],
       ["Comisión sobre cada venta", "<b>0%</b>", "2%<small>de todo lo que cobrás</small>"],
       ["Cobra con Mercado Pago", "✓ Sí", "✓ Sí"],
       ["Funciona en Shopify y Tiendanube", "✓ Sí", "✓ Sí"],
@@ -282,9 +282,9 @@ export const PAGINAS = [
     intro: "Comparar precios de herramientas de suscripción es difícil porque cada una cobra distinto. Acá va cómo hacer la cuenta bien y cuánto cuesta Recurrentes, con los números puestos.",
     bloques: [
       { h: "El abono es la parte fácil de comparar", p: "Es un número fijo por mes. Lo que hay que mirar es de qué depende: si sube por cantidad de suscriptores, por facturación o por funciones. Un abono que sube con tus suscriptores es más justo al principio y más caro cuando funcionás; uno fijo es al revés." },
-      { h: "La comisión por venta es donde se esconde la plata", p: "Un 2% suena a poco. Sobre 100 suscriptores que pagan 30.000 pesos por mes, son 60.000 pesos mensuales que se van además del abono. Y crece justo cuando te empieza a ir bien. Hacé esa cuenta con tus números antes de elegir: es la diferencia más grande entre dos herramientas que parecen iguales." },
+      { h: "La comisión por venta es donde se esconde la plata", p: "Mirá dos cosas: el porcentaje y sobre qué se calcula. No es lo mismo un 2% sobre todo lo facturado que un 1,8% sobre lo que de verdad entró, sin contar rechazos ni devoluciones. Y fijate si baja cuando crecés o se queda fijo para siempre." },
       { h: "La instalación", p: "Dejar el selector andando en un tema de Shopify, con packs y descuentos, lleva horas de trabajo real. Algunas herramientas te lo cobran, otras te lo dejan a vos. Ninguna de las dos está mal; lo que está mal es enterarte después." },
-      { h: "Cuánto cuesta Recurrentes", p: "Gratis hasta 10 suscriptores activos. De 11 a 50, USD 99 por mes; de 51 a 100, USD 199; de 101 a 300, USD 399. Cero comisión por venta, siempre. La instalación es un pago único de USD 100 a 200, según lo que haya que armar, y se paga cuando está terminada y funcionando." },
+      { h: "Cuánto cuesta Recurrentes", p: "US$ 99 por mes, el mismo abono para todos, más una comisión de lo que cobrás: 1,8% hasta 300 suscriptores activos, 1,5% de 301 a 1.000 y 1,3% arriba de eso. El porcentaje baja solo cuando llegás al tramo. La instalación es un pago único de USD 100 a 200, según lo que haya que armar, y se paga cuando está terminada y funcionando." },
     ],
     faq: [
       ["¿Por qué cobran por suscriptores y no un fijo?", "Porque al principio no tenés ninguno y no tiene sentido que pagues. Cuando pagás, ya te está entrando plata de esos suscriptores."],
@@ -312,14 +312,14 @@ export const PAGINAS = [
   },
   {
     slug: "suscripciones-sin-comision-por-venta",
-    title: "Suscripciones sin comisión por venta | Recurrentes",
+    title: "Cuánto cuesta cobrar por suscripción | Recurrentes",
     description: "Cuánto te cuesta realmente una comisión del 1% o 2% sobre tus suscripciones, y por qué en Recurrentes solo pagás el abono.",
-    h1: "Suscripciones sin comisión por venta",
+    h1: "Cuánto te cuesta cobrar por suscripción",
     intro: "Casi todas las herramientas de suscripción cobran un porcentaje de cada cobro, además del abono mensual. Suena a poco hasta que lo multiplicás por doce meses y por la cantidad de clientes que querés tener.",
     bloques: [
       { h: "La cuenta que conviene hacer", p: "Tomá tu ticket promedio, multiplicalo por la cantidad de suscriptores que querés tener en un año, y sacale el porcentaje. Con 100 suscriptores que pagan 30.000 pesos por mes, un 2% son 60.000 pesos mensuales. Al año, 720.000 pesos que se van sin que nadie haga nada nuevo por vos." },
       { h: "Por qué la comisión duele más que el abono", p: "El abono es previsible y lo podés presupuestar. La comisión crece exactamente cuando te está yendo bien, así que te castiga el éxito: cuanto mejor vendés, más pagás, aunque el trabajo de la herramienta sea el mismo con 10 que con 500 suscriptores." },
-      { h: "Qué cobramos nosotros", p: "El abono, y nada más. Gratis hasta 10 suscriptores activos, y después según cuántos tengas cobrando: USD 99 de 11 a 50, USD 199 de 51 a 100. Cero por ciento de cada venta, siempre. La única otra cosa es la instalación: un pago único de USD 100 a 200, según lo que haya que armar." },
+      { h: "Qué cobramos nosotros", p: "El abono, y nada más. US$ 99 por mes más una comisión de lo que cobrás: 1,8% hasta 300 suscriptores, 1,5% hasta 1.000 y 1,3% arriba de eso. Cero por ciento de cada venta, siempre. La única otra cosa es la instalación: un pago único de USD 100 a 200, según lo que haya que armar." },
       { h: "Lo que sí te va a cobrar alguien", p: "Mercado Pago cobra su comisión por procesar el pago, como en cualquier venta tuya. Eso no lo evita ninguna herramienta y no pasa por nosotros: es la relación entre tu cuenta y Mercado Pago." },
     ],
     faq: [
@@ -344,7 +344,7 @@ export const PAGINAS = [
       { h: "Dónde Recurrentes hace las cosas distinto", p: "Abono fijo por suscriptores activos y 0% por venta. Shopify y Tiendanube con el mismo panel. Mails con tu marca y recupero de carritos por WhatsApp incluidos, sin Klaviyo. Y diseños de widget 100% personalizables con tus fotos." },
     ],
     vs: { titulo: "Orquesty y Recurrentes, con los datos puestos", intro: "Datos públicos de cada uno. Lo que Orquesty no documenta, no lo inventamos.", nombre: "Orquesty", fuente: "Datos verificados el 26 de septiembre de 2026 en orquesty.com. Los precios los pone cada empresa y pueden cambiar.", filas: [
-      ["Precio del plan", "<b>Gratis hasta 10</b><small>después desde USD 99/mes</small>", "USD 79 a 229 por mes<small>según el plan</small>"],
+      ["Precio del plan", "<b>US$ 99 + comisión</b><small>después desde USD 99/mes</small>", "USD 79 a 229 por mes<small>según el plan</small>"],
       ["Comisión sobre cada venta", "<b>0%</b>", "1% a 2%<small>de las ventas por suscripción</small>"],
       ["Cobra con Mercado Pago", "✓ Sí", "✓ Sí"],
       ["Funciona en Shopify", "✓ Sí", "✓ Sí"],
@@ -357,7 +357,7 @@ export const PAGINAS = [
     faq: [
       ["¿Puedo migrar mis suscriptores desde Orquesty?", "Los planes los migramos nosotros en la misma llamada. Las suscripciones activas se dan de alta de nuevo con el cliente, porque la tarjeta la guarda cada plataforma en Mercado Pago."],
       ["¿Recurrentes también se instala como app personalizada?", "En Shopify se conecta con una app privada que creás vos en dos pasos guiados, o la dejamos andando nosotros. En Tiendanube se instala desde su tienda de apps."],
-      ["¿Cuánto cuesta Recurrentes?", "Gratis hasta 10 suscriptores activos, después desde USD 99 por mes con todo incluido y 0% de comisión. La puesta en marcha es un pago único de USD 100 a 200, según lo que haya que armar, cuando ya está funcionando."],
+      ["¿Cuánto cuesta Recurrentes?", "US$ 99 por mes más una comisión de lo que cobrás: 1,8% hasta 300 suscriptores, 1,5% hasta 1.000 y 1,3% arriba de eso, con todo incluido. La puesta en marcha es un pago único de USD 100 a 200, según lo que haya que armar, cuando ya está funcionando."],
     ],
   },
   {
@@ -372,10 +372,10 @@ export const PAGINAS = [
       { h: "Lo que Reval hace bien", p: "Cobra con Mercado Pago dentro de Shopify, tiene portal del suscriptor y mails automáticos, y lleva tiempo en el mercado. Si estás en Shopify y querés algo probado, es una opción sólida." },
       { h: "Qué conviene mirar: la comisión", p: "Reval publica entre 1,2% y 1,8% de todo lo que cobrás, además de USD 99 a 249 por mes. Cuanto más vendés, más pagás. Hacé la cuenta con tu facturación real antes de firmar." },
       { h: "Qué conviene mirar: Tiendanube y variantes", p: "No funciona en Tiendanube (te proponen pasar a Shopify) y no permite suscribirse a una variante puntual ni llevar dos productos con suscripción en el mismo carrito." },
-      { h: "Dónde Recurrentes hace las cosas distinto", p: "0% de comisión, abono fijo por suscriptores. Shopify y Tiendanube. Variantes, dos productos en el carrito, packs con regalos, recupero de carritos por WhatsApp y checkout con tu marca. Todo incluido." },
+      { h: "Dónde Recurrentes hace las cosas distinto", p: "Abono fijo de US$ 99 y una comisión que baja cuando crecés. Shopify y Tiendanube. Variantes, dos productos en el carrito, packs con regalos, recupero de carritos por WhatsApp y checkout con tu marca. Todo incluido." },
     ],
     vs: { titulo: "Reval y Recurrentes, con los datos puestos", intro: "Datos públicos de cada uno. Lo que Reval no documenta, no lo inventamos.", nombre: "Reval", fuente: "Datos verificados el 21 de septiembre de 2026 en appreval.com. Los precios los pone cada empresa y pueden cambiar.", filas: [
-      ["Precio del plan", "<b>Gratis hasta 10</b><small>después desde USD 99/mes</small>", "USD 99 a 249 por mes<small>según el plan</small>"],
+      ["Precio del plan", "<b>US$ 99 + comisión</b><small>después desde USD 99/mes</small>", "USD 99 a 249 por mes<small>según el plan</small>"],
       ["Comisión sobre cada venta", "<b>0%</b>", "1,2% a 1,8%<small>de todo lo que cobrás</small>"],
       ["Cobra con Mercado Pago", "✓ Sí", "✓ Sí"],
       ["Funciona en Shopify", "✓ Sí", "✓ Sí"],
@@ -388,7 +388,7 @@ export const PAGINAS = [
     faq: [
       ["¿Qué pasa con mis suscriptores actuales de Reval?", "Migramos los planes en la llamada de puesta en marcha. Las suscripciones activas se vuelven a dar de alta con cada cliente, con un mail o WhatsApp con su link."],
       ["¿Recurrentes cobra con la misma cuenta de Mercado Pago?", "Sí, con la que ya usás. Se conecta desde el panel en un clic y la plata entra en tu cuenta como cualquier venta."],
-      ["¿Cuánto cuesta?", "Gratis hasta 10 suscriptores activos, después desde USD 99 por mes, todo incluido y 0% de comisión. La puesta en marcha es un pago único de USD 100 a 200, según lo que haya que armar, cuando ya está andando."],
+      ["¿Cuánto cuesta?", "US$ 99 por mes más una comisión de lo que cobrás: 1,8% hasta 300 suscriptores, 1,5% hasta 1.000 y 1,3% arriba de eso, todo incluido. La puesta en marcha es un pago único de USD 100 a 200, según lo que haya que armar, cuando ya está andando."],
     ],
   },
   {
@@ -403,10 +403,10 @@ export const PAGINAS = [
       { h: "Lo que Recharge hace muy bien", p: "Es la app más completa del ecosistema Shopify: años de producto, integraciones con todo, herramientas para tiendas enormes y una comunidad gigante. Si vendés en Estados Unidos o Europa, es la referencia." },
       { h: "Qué pasa desde Argentina", p: "Cobra con Shopify Payments o Stripe, que no operan para comercios argentinos. Sin Mercado Pago, tus clientes no pueden pagar como pagan siempre. Los mails salen en inglés y el soporte también." },
       { h: "Qué conviene mirar: el precio", p: "USD 99 a 499 por mes más 1,49% + USD 0,19 por cada transacción. En dólares y por cobro, con una tienda argentina la cuenta se hace pesada rápido." },
-      { h: "Dónde Recurrentes hace las cosas distinto", p: "Nació para el ecommerce argentino: Mercado Pago, castellano, soporte por WhatsApp, Shopify y Tiendanube, 0% de comisión. No tenemos todo lo que tiene Recharge; tenemos lo que una tienda de acá usa." },
+      { h: "Dónde Recurrentes hace las cosas distinto", p: "Nació para el ecommerce argentino: Mercado Pago, castellano, soporte por WhatsApp, Shopify y Tiendanube, y una comisión más baja que la de afuera. No tenemos todo lo que tiene Recharge; tenemos lo que una tienda de acá usa." },
     ],
     vs: { titulo: "Recharge y Recurrentes, con los datos puestos", intro: "Datos públicos de cada uno. Recharge es excelente en su mercado; esto es lo que cambia desde Argentina.", nombre: "Recharge", fuente: "Datos verificados el 21 de septiembre de 2026 en getrecharge.com/pricing. Recharge compró Skio en abril de 2026. Los precios los pone cada empresa y pueden cambiar.", filas: [
-      ["Precio del plan", "<b>Gratis hasta 10</b><small>después desde USD 99/mes</small>", "USD 99 a 499 por mes<small>según el plan</small>"],
+      ["Precio del plan", "<b>US$ 99 + comisión</b><small>después desde USD 99/mes</small>", "USD 99 a 499 por mes<small>según el plan</small>"],
       ["Comisión sobre cada venta", "<b>0%</b>", "1,49% + USD 0,19<small>por transacción</small>"],
       ["Cobra con Mercado Pago", "✓ Sí", "✕ No"],
       ["Funciona en Tiendanube", "✓ Sí", "✕ No"],
@@ -417,7 +417,7 @@ export const PAGINAS = [
     faq: [
       ["¿Recharge funciona en Argentina?", "Se instala, pero cobra con Shopify Payments o Stripe, que no operan para comercios argentinos. Sin Mercado Pago, tus clientes no pueden pagar como pagan siempre."],
       ["¿Recurrentes tiene lo mismo que Recharge?", "Lo que una tienda argentina usa: packs, descuentos, portal del cliente, pausas, cambio de dirección, mails y WhatsApp, y la orden creada en la tienda. No tenemos integraciones con Klaviyo ni herramientas para Shopify Plus."],
-      ["¿Cuánto cuesta?", "Gratis hasta 10 suscriptores activos, después desde USD 99 por mes, todo incluido y 0% de comisión. La puesta en marcha es un pago único de USD 100 a 200, según lo que haya que armar."],
+      ["¿Cuánto cuesta?", "US$ 99 por mes más una comisión de lo que cobrás: 1,8% hasta 300 suscriptores, 1,5% hasta 1.000 y 1,3% arriba de eso, todo incluido. La puesta en marcha es un pago único de USD 100 a 200, según lo que haya que armar."],
     ],
   },
   // ── Verticales: una página por rubro, con el producto de ejemplo ──
@@ -446,7 +446,7 @@ export const PAGINAS = [
     slug: "suscripcion-de-suplementos",
     eyebrow: "Suplementos y vitaminas",
     title: "Suscripción de suplementos y vitaminas en tu ecommerce | Recurrentes",
-    description: "Vendé suplementos por suscripción: el envase dura 30 días, el cobro cae cada 30 días y el pedido se crea solo en tu Shopify o Tiendanube. Cobro con Mercado Pago, 0% de comisión.",
+    description: "Vendé suplementos por suscripción: el envase dura 30 días, el cobro cae cada 30 días y el pedido se crea solo en tu Shopify o Tiendanube. Cobro con Mercado Pago, comisión que baja cuando crecés.",
     h1: "Suplementos por suscripción: el caso más limpio",
     intro: "Si son 60 cápsulas a dos por día, son 30 días. La frecuencia se calcula sola, el cliente entiende de inmediato por qué le conviene y vos dejás de depender de que se acuerde de recomprar.",
     imagen: "/landing/prod-supl.jpg", imagenLabel: "Nodo · tienda de ejemplo", imagenFoto: true,
@@ -459,7 +459,7 @@ export const PAGINAS = [
     faq: [
       ["¿Sirve para productos con receta o control?", "Recurrentes no vende: crea la suscripción y el pedido. Las reglas de venta de tu producto siguen siendo las de tu tienda."],
       ["¿Puedo cambiar el precio a los que ya están suscriptos?", "Mercado Pago mantiene el monto autorizado. Desde el panel podés repreciar una suscripción cuando haga falta."],
-      ["¿Cuánto cuesta?", "Gratis hasta 10 suscriptores activos, después desde USD 99 por mes y 0% de comisión por venta."],
+      ["¿Cuánto cuesta?", "US$ 99 por mes más una comisión de lo que cobrás: 1,8% hasta 300 suscriptores, 1,5% hasta 1.000 y 1,3% arriba de eso."],
     ],
   },
   {
@@ -479,14 +479,14 @@ export const PAGINAS = [
     faq: [
       ["¿Se puede cambiar el sabor sin cancelar?", "El cliente pausa y se vuelve a suscribir a la variante nueva desde tu ficha; el pack no se modifica una vez activo, para que nunca haya sorpresas en el cobro."],
       ["¿Qué pasa si el cliente se queda sin stock de mi lado?", "La orden se crea igual en tu tienda y la ves marcada; la despachás cuando repongas, como con cualquier venta."],
-      ["¿Cuánto cuesta?", "Gratis hasta 10 suscriptores activos, después desde USD 99 por mes, sin comisión por venta."],
+      ["¿Cuánto cuesta?", "US$ 99 por mes más una comisión de lo que cobrás: 1,8% hasta 300 suscriptores, 1,5% hasta 1.000 y 1,3% arriba de eso."],
     ],
   },
   {
     slug: "suscripcion-cosmetica-skincare",
     eyebrow: "Cosmética y skincare",
     title: "Suscripción de cosmética y skincare en tu tienda online | Recurrentes",
-    description: "Vendé sérums, cremas y rutinas por suscripción: frecuencia según lo que dura cada producto, descuento por suscribirse y cobro automático con Mercado Pago. 0% de comisión.",
+    description: "Vendé sérums, cremas y rutinas por suscripción: frecuencia según lo que dura cada producto, descuento por suscribirse y cobro automático con Mercado Pago. comisión que baja cuando crecés.",
     h1: "Tu rutina, en automático",
     intro: "Un sérum dura dos meses; una crema, uno. La suscripción convierte esa rutina en un cobro cada tanto y un envío que llega antes de que se termine. Y el cliente deja de irse a la góndola.",
     imagen: "/landing/prod-skin.jpg", imagenLabel: "Ámbar · tienda de ejemplo", imagenFoto: true,
@@ -499,7 +499,7 @@ export const PAGINAS = [
     faq: [
       ["¿Mis clientes pueden cambiar de producto?", "Pausan y se suscriben al nuevo desde la ficha. El pack activo no se modifica para que el cobro sea siempre el que aceptaron."],
       ["¿Funciona con Tiendanube?", "Sí, y con Shopify. Cobrando con tu Mercado Pago."],
-      ["¿Cuánto cuesta?", "Gratis hasta 10 suscriptores activos, después desde USD 99 por mes y 0% de comisión."],
+      ["¿Cuánto cuesta?", "US$ 99 por mes más una comisión de lo que cobrás: 1,8% hasta 300 suscriptores, 1,5% hasta 1.000 y 1,3% arriba de eso."],
     ],
   },
   // ── Guías de intención (qué busca la gente antes de comprar) ──
@@ -598,11 +598,11 @@ export const PAGINAS = [
       { h: "Orquesty · para Shopify con acompañamiento", p: "Plataforma latinoamericana solo para Shopify, con Mercado Pago, portal del suscriptor, bundles y una implementación guiada por su equipo. USD 79 a 229 por mes más 1% a 2% de las ventas por suscripción. Mails vía Klaviyo o Mailchimp." },
       { h: "Reval · el veterano en Shopify", p: "De los primeros en cobrar suscripciones con Mercado Pago en Shopify. USD 99 a 249 por mes más 1,2% a 1,8% de todo lo que cobrás. No funciona en Tiendanube y no permite variantes ni dos productos con suscripción en el mismo carrito." },
       { h: "Recharge · la referencia mundial", p: "La app más completa del ecosistema Shopify, pensada para Estados Unidos y Europa. USD 99 a 499 por mes más 1,49% + USD 0,19 por transacción. No cobra con Mercado Pago y los mails salen en inglés: desde Argentina, difícil." },
-      { h: "Recurrentes · hecho para el ecommerce argentino", p: "Shopify y Tiendanube con Mercado Pago. Abono fijo por suscriptores activos, gratis hasta 10 y 0% de comisión por venta. Packs con regalos, variantes, widget y checkout con tu marca, mails propios, recupero de carritos por WhatsApp y portal del cliente. La puesta en marcha la hacemos nosotros: pago único de USD 100 a 200, según lo que haya que armar." },
+      { h: "Recurrentes · hecho para el ecommerce argentino", p: "Shopify y Tiendanube con Mercado Pago. Abono fijo por suscriptores activos, gratis hasta 10 y Comisión más baja que la de afuera. Packs con regalos, variantes, widget y checkout con tu marca, mails propios, recupero de carritos por WhatsApp y portal del cliente. La puesta en marcha la hacemos nosotros: pago único de USD 100 a 200, según lo que haya que armar." },
       { h: "Cómo elegir", p: "Cuatro preguntas deciden: ¿cobra comisión por venta además del abono? ¿funciona en tu plataforma? ¿soporta packs y variantes o solo un producto suelto? ¿la orden se crea sola en tu tienda? Hacé la cuenta con tu facturación real a 12 meses, no con la del primer mes." },
     ],
     vs: { titulo: "Las cinco, lado a lado", intro: "Datos públicos de cada sitio (verificados en septiembre de 2026). Lo que una herramienta no documenta, no lo inventamos.", nombre: "Puentify · Orquesty · Reval · Recharge", fuente: "Fuentes: puentify.app, orquesty.com, appreval.com, getrecharge.com/pricing. El setup y la comisión de Puentify salen de comercios que trabajan con ellos. Los precios los pone cada empresa y pueden cambiar.", filas: [
-      ["Precio del plan", "<b>Gratis hasta 10</b><small>después desde USD 99/mes</small>", "Puentify: sin abono · Orquesty: USD 79–229 · Reval: USD 99–249 · Recharge: USD 99–499"],
+      ["Precio del plan", "<b>US$ 99 + comisión</b><small>después desde USD 99/mes</small>", "Puentify: sin abono · Orquesty: USD 79–229 · Reval: USD 99–249 · Recharge: USD 99–499"],
       ["Comisión sobre cada venta", "<b>0%</b>", "Puentify: 2% · Orquesty: 1–2% · Reval: 1,2–1,8% · Recharge: 1,49% + USD 0,19"],
       ["Cobra con Mercado Pago", "✓ Sí", "Puentify, Orquesty y Reval sí · Recharge no"],
       ["Funciona en Tiendanube", "✓ Sí", "Solo Puentify · Orquesty, Reval y Recharge no"],
@@ -708,7 +708,7 @@ export const PAGINAS = [
       { h: "Dónde se queda corta", p: "Solo cobra con Pago Nube y tarjeta de crédito (sin débito ni dinero en cuenta de Mercado Pago), no soporta variantes (talle, aroma, molienda), permite un producto con suscripción por carrito y no tiene packs, regalos, portal del cliente ni recupero por WhatsApp." },
       { h: "Lo que suma una app", p: "Cobrar con Mercado Pago (crédito, débito y dinero en cuenta), packs de 2, 3 o 4 con precio propio, variantes, regalos, widget y checkout con tu marca, mails y WhatsApp automáticos, portal para pausar o cambiar la dirección, y analíticas de retención." },
       { h: "La orden sigue siendo tuya", p: "Con Recurrentes cada cobro crea el pedido pago en tu Tiendanube, con el producto, la variante y la dirección. Facturación, envíos y stock siguen funcionando como con cualquier venta." },
-      { h: "Cuánto cuesta cada camino", p: "La nativa no tiene costo aparte del plan de Tiendanube y la comisión de Pago Nube. Recurrentes es gratis hasta 10 suscriptores activos y después un abono fijo por tramo, con 0% de comisión por venta; la puesta en marcha la hacemos nosotros por un pago único de USD 100 a 200, según lo que haya que armar." },
+      { h: "Cuánto cuesta cada camino", p: "La nativa no tiene costo aparte del plan de Tiendanube y la comisión de Pago Nube. Recurrentes es gratis hasta 10 suscriptores activos y después un abono fijo por tramo, con una comisión que baja cuando crecés; la puesta en marcha la hacemos nosotros por un pago único de USD 100 a 200, según lo que haya que armar." },
       { h: "Cómo decidir", p: "Si tenés variantes, querés packs o cobrar con Mercado Pago, la nativa no te sirve. Si vendés un solo producto suelto con Pago Nube y no necesitás retención automática, probá la nativa primero: cambiar después es posible, pero cada cliente tiene que volver a suscribirse." },
     ],
     vs: { titulo: "Tiendanube nativa y Recurrentes, lado a lado", intro: "Datos del centro de ayuda de Tiendanube (septiembre de 2026). Lo que no está documentado, no lo inventamos.", nombre: "Suscripción nativa de Tiendanube", fuente: "Fuente: ayuda.tiendanube.com, 'Cómo vender productos por suscripción en Tiendanube'.", filas: [
@@ -719,7 +719,7 @@ export const PAGINAS = [
       ["Dos productos con suscripción en el carrito", "✓ Sí", "No, uno por carrito"],
       ["Portal del cliente (pausar, dirección)", "✓ Sí", "No documentado"],
       ["Recupero de carritos y avisos por WhatsApp", "✓ Sí", "No"],
-      ["Costo", "Gratis hasta 10 · después abono fijo, 0% por venta", "Incluida en el plan"],
+      ["Costo", "US$ 99 por mes + una comisión que baja", "Incluida en el plan"],
     ] },
     faq: [
       ["¿Puedo tener las dos a la vez?", "No conviene: el cliente vería dos formas de suscribirse en la misma tienda. Elegí una."],

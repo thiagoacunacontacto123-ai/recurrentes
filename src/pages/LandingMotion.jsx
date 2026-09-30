@@ -15,7 +15,7 @@ import { BtnSolid } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
 import { buildBundleVM } from "../../shared/bundle/viewmodel.js";
 import { renderBundle } from "../../shared/bundle/templates.js";
-import { FREE_SUBSCRIBERS, INSTALL_RANGE, PRICING_TIERS } from "../../shared/platform/pricing.js";
+import { INSTALL_RANGE, PRICING_TIERS, COMMISSION_TIERS, SAAS_BASE_USD } from "../../shared/platform/pricing.js";
 import { COMPARE_ROWS, COMPARE_COLS, COMPARE_SOURCES, CompareCell, CompareMark, RecLogoMini } from "./LandingSections.jsx";
 
 const F = "'Inter',system-ui,sans-serif";
@@ -692,9 +692,11 @@ export function StickyDesigns({ T }) {
   const innerRef = useRef(null);
   const reduce = useReducedMotion();
   const desktop = useDesktop();
-  // Clavado también en celular (Thiago, 27-sept: "que se frene hasta que pasen todas"). Lo que
-  // vibraba era recalcular el top y los paneles con scroll interno; acá el top es fijo por CSS.
-  const pinned = !reduce;
+  // 30-sept-2026 (Thiago: "en el celular rebotaba para arriba y para abajo,
+  // súper bugueado"): en celular NO se clava. Un bloque de alto de pantalla
+  // clavado pelea con la barra del navegador, que aparece y desaparece al
+  // scrollear y cambia innerHeight en cada frame. En compu queda como estaba.
+  const pinned = desktop && !reduce;
   const trackRef = useRef(null);
   useScrollDriveTrack(trackRef, false);
   // Dos fases con el mismo scroll (Thiago, 27-sept): 0–50 % pasan los widgets,
@@ -726,7 +728,7 @@ export function StickyDesigns({ T }) {
         </div>
         <div style={{ display: pinned ? "grid" : "block" }}>
           <div className="lm-wrap lm-phase" style={{ width: "100%", overflow: "visible", gridArea: pinned ? "1/1" : "auto", opacity: pinned && phase === 1 ? 0 : 1, pointerEvents: pinned && phase === 1 ? "none" : "auto", transition: "opacity .45s" }}>
-            <div ref={trackRef} className="lm-track lm-track-center" style={{ "--w": "min(330px, 82vw)", "--n": n, "--pp": "var(--pa)", alignItems: "flex-start" }}>
+            <div ref={trackRef} className={"lm-track " + (pinned ? "lm-track-center" : "")} style={{ "--w": "min(330px, 82vw)", "--n": n, "--pp": "var(--pa)", alignItems: "flex-start" }}>
               {DESIGNS.map((d) => <DesignCard key={d.key} T={T} d={d}/>)}
             </div>
           </div>
@@ -852,91 +854,70 @@ const sliderToRev = (x) => { const v = REV_MIN * Math.pow(REV_MAX / REV_MIN, x /
 
 // ─── 4. El precio como arma ──────────────────────────────────────────────
 export function PriceWeapon({ T, onDemo, hideHead = false }) {
-  const [rev, setRev] = useState(2000000); // facturación mensual en suscripciones (ARS)
-  const [rate, setRate] = useState(2);
-  const fee = rev * rate / 100;
-  const tiers = PRICING_TIERS.filter(t => t.usd > 0).slice(0, 3);
-  const free = PRICING_TIERS[0];
+  // 30-sept-2026 (Thiago): se va el precio por tramos y entra abono + comisión.
+  // Tres planes que cuestan lo mismo y solo cambian el %. El comercio no elige:
+  // le toca el que corresponde a sus suscriptores activos.
+  const [rev, setRev] = useState(2000000);   // facturación mensual en suscripciones (ARS)
+  const [rate, setRate] = useState(1560);    // dólar para la cuenta de la calculadora
   const inp = { fontFamily: F, fontSize: 15, fontWeight: 600, color: T.text, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: "12px 14px", width: "100%", outline: "none" };
+  const usd = rev / (rate || 1);
+  const pct = COMMISSION_TIERS[0].pct;       // la calculadora usa el tramo de entrada
+  const comision = usd * pct / 100;
+  const total = SAAS_BASE_USD + comision;
   return (
     <section id="rec-precios" className="lm-wrap" style={{ padding: hideHead ? "24px 24px 104px" : "104px 24px" }}>
       <div style={{ textAlign: "center", maxWidth: 760, margin: "0 auto 28px" }} data-reveal="flip">
         {!hideHead && <><div className="lm-eyebrow">Precio</div>
-        <h2 className="lm-h2">Un costo de instalación<br/>y un abono. <em style={{ fontStyle: "italic", fontFamily: "Georgia, 'Times New Roman', serif", fontWeight: 500 }}>Nada más.</em></h2></>}
-        <p className="lm-sub" style={{ margin: "0 auto" }}>Las plataformas con comisión te sacan <Hi T={T} d={1}>un poquito</Hi> de cada venta. Un poquito, todos los meses, de todas las ventas. Al año son <Hi T={T} d={2}>miles de dólares</Hi> que se van sin que lo veas en ninguna factura. Acá pagás la instalación, el abono de tu tramo, <Hi T={T} d={3}>y listo</Hi>.</p>
-      </div>
-      <div data-reveal="pop" style={{ textAlign: "center", margin: "0 auto 44px", maxWidth: 760 }}>
-        <div className="lm-subs-row">
-          {[["Netflix", "abono fijo"], ["Tu app de running", "abono fijo"], ["Tu cliente con vos", "abono fijo"], ["Recurrentes", "abono fijo · 0% por venta"]].map(([n, d], i) => (
-            <span key={n} style={i === 3 ? { borderColor: T.accentSolid, color: T.accent, background: T.accentSolid + "14" } : undefined}><span style={{ width: 8, height: 8, borderRadius: 99, background: i === 3 ? T.accentSolid : T.textSm, display: "inline-block" }}/>{n}<small style={{ fontWeight: 600, color: T.textSm }}>· {d}</small></span>
-          ))}
-        </div>
-        <div style={{ fontSize: 14.5, color: T.textMd, marginTop: 16, lineHeight: 1.6, maxWidth: 620, marginLeft: "auto", marginRight: "auto" }}>Sí, leíste bien: <Hi T={T} d={1}>te cobramos una suscripción por vender suscripciones</Hi>. Lo sabemos, es redundante. Pero es <Hi T={T} d={2}>el mismo trato que vos le das a tu cliente</Hi>: un precio fijo, que sabés antes de que empiece el mes, y nadie metiendo la mano en cada venta.</div>
+        <h2 className="lm-h2">Un abono fijo y una comisión<br/>que <em style={{ fontStyle: "italic", fontFamily: "Georgia, 'Times New Roman', serif", fontWeight: 500 }}>baja cuando crecés.</em></h2></>}
+        <p className="lm-sub" style={{ margin: "0 auto" }}>US$ {SAAS_BASE_USD} por mes, iguales para todos, más un porcentaje de lo que <Hi T={T} d={1}>de verdad cobrás</Hi>. Si un mes vendés menos, pagás menos. Y cuantos más suscriptores tenés, <Hi T={T} d={2}>más chico es el porcentaje</Hi>.</p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 16 }} className="lm-price-grid">
-        <style>{`@media(max-width:900px){.lm-price-grid{grid-template-columns:1fr!important;}.lm-calc-grid{grid-template-columns:1fr!important;}}`}</style>
-        <div className="lm-card" style={{ padding: 26 }} data-reveal="tilt">
-          <div style={{ fontSize: 12, fontWeight: 800, color: T.textSm, letterSpacing: .6, textTransform: "uppercase", marginBottom: 14 }}>Los demás</div>
-          <div style={{ fontFamily: FD, fontSize: 28, fontWeight: 800, letterSpacing: -0.8, color: T.text, lineHeight: 1.1 }}>Abono <span style={{ color: T.textSm }}>+</span> 1–2% de cada venta</div>
-          <div style={{ marginTop: 14, display: "grid", gap: 8, fontSize: 14, color: T.textMd, lineHeight: 1.5 }}>
-            {["Cuanto más vendés, más pagás.", "El porcentaje se suma a la comisión de la pasarela.", "Nunca sabés cuánto te va a costar el mes."].map(t => <div key={t} style={{ display: "flex", gap: 8 }}><span style={{ color: T.red, fontWeight: 800 }}>×</span>{t}</div>)}
-          </div>
-        </div>
-        <div className="lm-card" style={{ padding: 26, borderColor: T.accentSolid + "88", boxShadow: `0 24px 60px -30px ${T.accentSolid}88` }} data-reveal="swing">
-          <div style={{ fontSize: 12, fontWeight: 800, color: T.accent, letterSpacing: .6, textTransform: "uppercase", marginBottom: 14 }}>Recurrentes</div>
-          <div style={{ fontFamily: FD, fontSize: 28, fontWeight: 800, letterSpacing: -0.8, color: T.text, lineHeight: 1.1 }}>Pago único <span style={{ color: T.textSm }}>+</span> abono fijo</div>
-          <div style={{ marginTop: 14, display: "grid", gap: 8, fontSize: 14, color: T.textMd, lineHeight: 1.5 }}>
-            {[`Gratis hasta ${FREE_SUBSCRIBERS} suscriptores activos.`, "0% de comisión por venta. Siempre.", `La puesta en marcha (${INSTALL_RANGE}, según lo que haya que armar) se paga cuando ya está funcionando.`].map(t => <div key={t} style={{ display: "flex", gap: 8 }}><span style={{ color: T.accent, fontWeight: 800 }}>✓</span>{t}</div>)}
-          </div>
-        </div>
-      </div>
-
-      {/* Tramos reales (shared/platform/pricing.js) */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))", gap: 12, marginTop: 16 }} className="lm-tiers" data-reveal="rise">
-        <style>{`@media(max-width:900px){.lm-tiers{grid-template-columns:repeat(2,minmax(0,1fr))!important;}}`}</style>
-        {[free, ...tiers].map((t, i) => (
-          <div key={t.id} className="lm-card" style={{ padding: "16px 18px", borderColor: i === 0 ? T.accentSolid + "66" : T.border }}>
-            <div style={{ fontSize: 11.5, fontWeight: 800, color: T.textSm, letterSpacing: .5, textTransform: "uppercase" }}>{t.label}</div>
-            <div style={{ fontFamily: FD, fontSize: 26, fontWeight: 800, letterSpacing: -1, color: i === 0 ? T.accent : T.text, marginTop: 4 }}>{t.usd === 0 ? "Gratis" : <>USD {t.usd}<span style={{ fontSize: 12, fontWeight: 600, color: T.textSm, letterSpacing: 0 }}>/mes</span></>}</div>
-            <div style={{ fontSize: 12.5, color: T.textSm, marginTop: 4 }}>{t.max == null ? `Más de ${t.min - 1} suscriptores` : t.min <= 1 ? `Hasta ${t.max} suscriptores` : `${t.min} a ${t.max} suscriptores`}</div>
+      {/* Los tres planes (shared/platform/pricing.js) */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 14 }} className="lm-tiers" data-reveal="rise">
+        <style>{`@media(max-width:900px){.lm-tiers{grid-template-columns:1fr!important;}.lm-calc-grid{grid-template-columns:1fr!important;}}`}</style>
+        {COMMISSION_TIERS.map((t, i) => (
+          <div key={t.id} className="lm-card" style={{ padding: "22px 22px 20px", borderColor: i === 0 ? T.accentSolid + "88" : T.border, boxShadow: i === 0 ? `0 24px 60px -34px ${T.accentSolid}88` : undefined }}>
+            <div style={{ fontSize: 11.5, fontWeight: 800, color: i === 0 ? T.accent : T.textSm, letterSpacing: .6, textTransform: "uppercase" }}>{t.label}</div>
+            <div style={{ fontFamily: FD, fontSize: 30, fontWeight: 800, letterSpacing: -1.2, color: T.text, marginTop: 6, lineHeight: 1.05 }}>
+              USD {SAAS_BASE_USD}<span style={{ fontSize: 13, fontWeight: 600, color: T.textSm, letterSpacing: 0 }}>/mes</span>
+            </div>
+            <div style={{ fontFamily: FD, fontSize: 19, fontWeight: 800, color: T.accent, marginTop: 2, letterSpacing: -.4 }}>+ {String(t.pct).replace(".", ",")}% de lo que cobrás</div>
+            <div style={{ fontSize: 12.5, color: T.textSm, marginTop: 8 }}>{t.range}</div>
           </div>
         ))}
       </div>
-      <div style={{ fontSize: 12.5, color: T.textSm, textAlign: "center", marginTop: 12, maxWidth: 720, marginLeft: "auto", marginRight: "auto", lineHeight: 1.55 }}>Después sigue subiendo por tramos, y siempre pasa lo mismo: <b style={{ color: T.text }}>cuantos más clientes activos tenés, más barato te sale el plan por cada cliente</b>. Suscriptor activo = cliente con su suscripción cobrando. Precios en dólares, sin contrato.</div>
+      <div style={{ fontSize: 12.5, color: T.textSm, textAlign: "center", marginTop: 14, maxWidth: 760, marginLeft: "auto", marginRight: "auto", lineHeight: 1.55 }}>
+        El abono es el mismo en los tres: lo único que cambia es el porcentaje, y baja solo cuando llegás al tramo. La comisión se calcula sobre <b style={{ color: T.text }}>lo que realmente se cobró</b> en los últimos 30 días —lo que se rechaza o se devuelve no cuenta— y se suma a la factura del mes siguiente. La puesta en marcha ({INSTALL_RANGE}, según lo que haya que armar) se paga una sola vez, cuando ya está funcionando. Precios en dólares, sin contrato.
+      </div>
 
-      {/* Calculadora: el argumento que se toca */}
+      {/* Calculadora */}
       <div className="lm-card" style={{ marginTop: 40, padding: 26 }} data-reveal="wipe">
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 28, alignItems: "center" }} className="lm-calc-grid">
           <div>
-            <div style={{ fontFamily: FD, fontSize: 22, fontWeight: 800, letterSpacing: -0.5, marginBottom: 6 }}>¿Cuánto te lleva una comisión?</div>
-            <div style={{ fontSize: 14, color: T.textSm, lineHeight: 1.55, marginBottom: 18 }}>Poné cuánto facturás por mes en suscripciones y mirá cuánto se quedaría una plataforma con comisión por venta.</div>
+            <div style={{ fontFamily: FD, fontSize: 22, fontWeight: 800, letterSpacing: -0.5, marginBottom: 6 }}>¿Cuánto te saldría a vos?</div>
+            <div style={{ fontSize: 14, color: T.textSm, lineHeight: 1.55, marginBottom: 18 }}>Poné cuánto facturás por mes en suscripciones y te decimos el total, abono incluido.</div>
             <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textSm, textTransform: "uppercase", letterSpacing: .5, marginBottom: 6 }}>Facturación mensual en suscripciones</label>
-            {/* Franja de $200.000 a $2.000.000.000 (Thiago, 27-sept) en escala logarítmica:
-                así los primeros millones no quedan aplastados en dos píxeles. */}
             <input type="range" min={0} max={1000} step={1} value={revToSlider(rev)} onChange={e => setRev(sliderToRev(Number(e.target.value)))} style={{ width: "100%", accentColor: T.accentSolid, marginBottom: 10 }} aria-label="Facturación mensual"/>
             <input type="text" inputMode="numeric" value={fmtARS(rev)} onChange={e => { const n = Number(String(e.target.value).replace(/[^\d]/g, "")); if (Number.isFinite(n)) setRev(Math.min(REV_MAX, Math.max(0, n))); }} style={inp} aria-label="Facturación mensual en pesos"/>
             <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center", flexWrap: "wrap" }}>
-              <span style={{ fontSize: 12.5, color: T.textSm }}>Comisión de los demás:</span>
-              {[1, 2, 3].map(r => <button key={r} onClick={() => setRate(r)} style={{ fontFamily: F, fontSize: 13, fontWeight: 700, padding: "6px 12px", borderRadius: 99, cursor: "pointer", border: `1px solid ${rate === r ? T.accentSolid : T.border}`, background: rate === r ? T.accentSolid + "1a" : "transparent", color: rate === r ? T.accent : T.textMd }}>{r}%</button>)}
+              <span style={{ fontSize: 12.5, color: T.textSm }}>Dólar:</span>
+              {[1200, 1560, 2000].map(r => <button key={r} onClick={() => setRate(r)} style={{ fontFamily: F, fontSize: 13, fontWeight: 700, padding: "6px 12px", borderRadius: 99, cursor: "pointer", border: `1px solid ${rate === r ? T.accentSolid : T.border}`, background: rate === r ? T.accentSolid + "1a" : "transparent", color: rate === r ? T.accent : T.textMd }}>${r}</button>)}
             </div>
           </div>
           <div style={{ display: "grid", gap: 12 }}>
-            <div style={{ padding: "18px 20px", borderRadius: 16, background: T.red + "12", border: `1px solid ${T.red}44` }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: T.red, letterSpacing: .5, textTransform: "uppercase" }}>Con {rate}% de comisión</div>
-              <div style={{ fontFamily: FD, fontSize: 34, fontWeight: 800, letterSpacing: -1.2, color: T.text, lineHeight: 1.1, marginTop: 4, fontVariantNumeric: "tabular-nums" }}>{fmtARS(fee)}<span style={{ fontSize: 14, fontWeight: 600, color: T.textSm, letterSpacing: 0 }}> /mes</span></div>
-              <div style={{ fontSize: 13, color: T.textMd, marginTop: 4 }}>{fmtARS(fee * 12)} al año que se van sin que los veas en ninguna factura.</div>
-            </div>
             <div style={{ padding: "18px 20px", borderRadius: 16, background: T.accentSolid + "14", border: `1px solid ${T.accentSolid}66` }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: T.accent, letterSpacing: .5, textTransform: "uppercase" }}>Con Recurrentes · 0%</div>
-              <div style={{ fontFamily: FD, fontSize: 34, fontWeight: 800, letterSpacing: -1.2, color: T.text, lineHeight: 1.1, marginTop: 4 }}>$0</div>
-              <div style={{ fontSize: 13, color: T.textMd, marginTop: 4 }}>Solo el abono de tu tramo. Te ahorrás {fmtARS(fee * 12)} por año.</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: T.accent, letterSpacing: .5, textTransform: "uppercase" }}>Tu mes con Recurrentes</div>
+              <div style={{ fontFamily: FD, fontSize: 34, fontWeight: 800, letterSpacing: -1.2, color: T.text, lineHeight: 1.1, marginTop: 4, fontVariantNumeric: "tabular-nums" }}>USD {Math.round(total)}<span style={{ fontSize: 14, fontWeight: 600, color: T.textSm, letterSpacing: 0 }}> /mes</span></div>
+              <div style={{ fontSize: 13, color: T.textMd, marginTop: 4 }}>US$ {SAAS_BASE_USD} de abono + US$ {Math.round(comision)} de comisión ({String(pct).replace(".", ",")}% de {fmtARS(rev)}).</div>
             </div>
+            <div style={{ padding: "18px 20px", borderRadius: 16, background: T.surface, border: `1px solid ${T.border}` }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: T.textSm, letterSpacing: .5, textTransform: "uppercase" }}>Sobre tu facturación</div>
+              <div style={{ fontFamily: FD, fontSize: 34, fontWeight: 800, letterSpacing: -1.2, color: T.text, lineHeight: 1.1, marginTop: 4 }}>{rev > 0 ? ((total * rate / rev) * 100).toFixed(1).replace(".", ",") : "0"}%</div>
+              <div style={{ fontSize: 13, color: T.textMd, marginTop: 4 }}>Es lo que representa todo junto, abono incluido. Cuanto más vendés, menos pesa.</div>
+            </div>
+            {onDemo && <button onClick={onDemo} style={{ ...BtnSolid(T), padding: "14px 20px", fontSize: 15, borderRadius: 14 }}>Pedir demo</button>}
           </div>
         </div>
-      </div>
-      <div style={{ textAlign: "center", marginTop: 28 }} data-reveal>
-        <button onClick={onDemo} style={{ ...BtnSolid(T), padding: "14px 24px", fontSize: 15, borderRadius: 14 }}>Pedir demo</button>
       </div>
     </section>
   );
@@ -1434,7 +1415,7 @@ export function ClosingCta({ T, onDemo, onLogin }) {
         <div style={{ position: "relative" }}>
           <RecLogo size={44} style={{ marginBottom: 18 }}/>
           <h2 style={{ fontFamily: FD, fontSize: "clamp(30px, 4vw, 50px)", fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1.04, margin: "0 auto 14px", maxWidth: 760, color: "#fff", textWrap: "balance" }}>Que te compren todos los meses sin tener que pedírselo</h2>
-          <p style={{ fontSize: 16, color: "#A9C3B9", margin: "0 auto 28px", maxWidth: 520, lineHeight: 1.6 }}>En una demo de 15 minutos te mostramos cómo lo usan las tiendas que ya venden con Recurrentes y qué se podría armar en la tuya. Gratis hasta {FREE_SUBSCRIBERS} suscriptores.</p>
+          <p style={{ fontSize: 16, color: "#A9C3B9", margin: "0 auto 28px", maxWidth: 520, lineHeight: 1.6 }}>En una demo de 15 minutos te mostramos cómo lo usan las tiendas que ya venden con Recurrentes y qué se podría armar en la tuya. US$ {SAAS_BASE_USD} por mes más una comisión que baja cuando crecés.</p>
           <button onClick={onDemo} style={{ ...BtnSolid(T), display: "inline-flex", alignItems: "center", gap: 10, padding: "15px 26px", fontSize: 16, borderRadius: 14 }}>Pedir demo <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
           <PartnerBadges T={T} tone="dark" compact style={{ justifyContent: "center", marginTop: 22 }}/>
           {onLogin && <div style={{ fontSize: 13, color: "#A9C3B9", marginTop: 16 }}>¿Ya tenés cuenta? <button onClick={onLogin} style={{ background: "none", border: "none", color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: F, fontSize: 13, padding: 0, textDecoration: "underline", textUnderlineOffset: 3 }}>Iniciá sesión</button></div>}

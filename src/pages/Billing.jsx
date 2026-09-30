@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { apiPost } from "../lib/api.js";
 import { DS as DS_ } from "../ui/theme.js";
 import { Card, BtnSolid, Badge, Callout, toast } from "../ui/components.jsx";
-import { PRICING_TIERS, TIER_BY_ID, FREE_SUBSCRIBERS, PLAN_FEATURES, tierRangeLabel } from "../../shared/platform/pricing.js";
+import { PRICING_TIERS, TIER_BY_ID, PLAN_FEATURES, tierRangeLabel, COMMISSION_TIERS, SAAS_BASE_USD } from "../../shared/platform/pricing.js";
 import { WhatsAppUsageLine } from "./WhatsAppIntegration.jsx";
 
 // Planes del SaaS (lo que paga el comerciante). Tramos y precios en
@@ -96,22 +96,23 @@ export function PricingTable({ T, current, factor = 1 }) {
         </div>
       )}
       <div className="rec-pricing-grid">
-        {PRICING_TIERS.map(t => {
+        {COMMISSION_TIERS.map(t => {
           const on = current === t.id;
-          const free = t.usd === 0;
+          const abono = Math.round(SAAS_BASE_USD * (Number(factor) || 1) * 100) / 100;
           return (
-            <div key={t.id} style={{ position: "relative", background: on ? T.accentSolid + "12" : T.card, border: `1.5px solid ${on ? T.accentSolid : free ? T.accentSolid + "55" : T.border}`, borderRadius: 14, padding: "14px 14px 13px", display: "flex", flexDirection: "column", gap: 4 }}>
+            <div key={t.id} style={{ position: "relative", background: on ? T.accentSolid + "12" : T.card, border: `1.5px solid ${on ? T.accentSolid : T.border}`, borderRadius: 14, padding: "14px 14px 13px", display: "flex", flexDirection: "column", gap: 4 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
                 <span style={{ fontSize: 13, fontWeight: 800, color: T.text }}>{t.label}</span>
                 {on && <Badge T={T} colors={{ bg: T.accentSolid + "1a", dot: T.accent }}>Tu plan</Badge>}
               </div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginTop: 4 }}>
-                {free
-                  ? <span style={{ fontSize: 26, fontWeight: 900, color: T.accent, letterSpacing: -0.8, lineHeight: 1.05 }}>Gratis</span>
-                  : <><span style={{ fontSize: 12, fontWeight: 700, color: T.textSm }}>USD</span><span style={{ fontSize: 26, fontWeight: 900, color: T.text, letterSpacing: -0.8, lineHeight: 1.05, fontVariantNumeric: "tabular-nums" }}>{priceOf(t)}</span><span style={{ fontSize: 11, color: T.textSm }}>/mes</span>
-                    {pct > 0 && <span style={{ fontSize: 11, color: T.textSm, textDecoration: "line-through", marginLeft: 4 }}>USD {t.usd}</span>}</>}
+                <span style={{ fontSize: 12, fontWeight: 700, color: T.textSm }}>USD</span>
+                <span style={{ fontSize: 26, fontWeight: 900, color: T.text, letterSpacing: -0.8, lineHeight: 1.05, fontVariantNumeric: "tabular-nums" }}>{abono}</span>
+                <span style={{ fontSize: 11, color: T.textSm }}>/mes</span>
+                {pct > 0 && <span style={{ fontSize: 11, color: T.textSm, textDecoration: "line-through", marginLeft: 4 }}>USD {SAAS_BASE_USD}</span>}
               </div>
-              <div style={{ fontSize: 12, color: on ? T.accent : T.textMd, fontWeight: 600, lineHeight: 1.4 }}>{tierRangeLabel(t)}</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: T.accent, letterSpacing: -0.2 }}>+ {String(t.pct).replace(".", ",")}% de lo que cobrás</div>
+              <div style={{ fontSize: 12, color: on ? T.accent : T.textMd, fontWeight: 600, lineHeight: 1.4 }}>{t.range}</div>
             </div>
           );
         })}
@@ -148,7 +149,7 @@ function StatusCard({ T, billing, loadingId, onActivate, stripe }) {
         </span>
         {beta
           ? <Badge T={T} colors={{ bg: T.accentSolid + "1a", dot: T.accent }}>Sin cargo durante la beta</Badge>
-          : <Badge T={T} colors={{ bg: edge + "1a", dot: edge }}>{b.plan_usd ? `USD ${b.plan_usd}/mes` : "Gratis"}</Badge>}
+          : <Badge T={T} colors={{ bg: edge + "1a", dot: edge }}>{`USD ${b.base_usd ?? SAAS_BASE_USD}/mes + ${String(b.commission_pct ?? 1.8).replace(".", ",")}%`}</Badge>}
       </div>
       <div style={{ marginTop: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12, color: T.textMd, marginBottom: 6 }}>
@@ -208,8 +209,9 @@ function StatusCard({ T, billing, loadingId, onActivate, stripe }) {
 
 const FAQS = [
   { q: "¿Qué es un suscriptor activo?", a: "Un cliente con su suscripción cobrando: activa o con un pago fallido que Mercado Pago está reintentando. Pausados, cancelados y los que nunca pagaron no cuentan." },
-  { q: "¿Qué pasa si paso de tramo?", a: "Nada se corta: los cobros, las órdenes y el panel siguen. Te avisamos y activás el plan que corresponde." },
-  { q: "¿Cómo se paga?", a: "Con tarjeta, en dólares, sin contrato. Se cobra cada 30 días desde tu primer pago, y ese día pagás el tramo que corresponda a tus suscriptores activos en ese momento. Si creciste, el tramo nuevo entra en ese cobro; nunca cobramos diferenciales a mitad de mes. Si bajás de 10 suscriptores, dejás de pagar." },
+  { q: "¿Sobre qué se calcula la comisión?", a: "Sobre lo que de verdad se cobró en esos 30 días. Un cobro rechazado no cuenta, y si devolviste una venta tampoco: esa plata no la tuviste, así que no pagás comisión por ella." },
+  { q: "¿Cuándo se cobra?", a: "Con tarjeta, en dólares, sin contrato. Cada 30 días se cobra el abono del mes que empieza más la comisión del mes que terminó. La comisión siempre va vencida: nunca te cobramos por plata que todavía no entró." },
+  { q: "¿Cuándo baja el porcentaje?", a: "Solo. Al pasar los 300 suscriptores activos pasás a 1,5% y arriba de 1.000, a 1,3%. No hay que pedir nada ni cambiar de plan." },
 ];
 
 // Configuración → Facturación ("Tu plan de Recurrentes").
@@ -226,8 +228,8 @@ export function PlanPage({ T, DS = DS_, merchant, reloadMerchant }) {
         </Card>
       )}
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", margin: "8px 0 14px" }}>
-        <span style={{ fontSize: 15, fontWeight: 800, color: T.text, letterSpacing: -0.3 }}>Pagás según tus suscriptores activos</span>
-        <span style={{ fontSize: 12, color: T.textSm }}>Los primeros {FREE_SUBSCRIBERS} son gratis · en dólares · sin contrato</span>
+        <span style={{ fontSize: 15, fontWeight: 800, color: T.text, letterSpacing: -0.3 }}>Un abono fijo y una comisión que baja</span>
+        <span style={{ fontSize: 12, color: T.textSm }}>El mismo abono en los tres · en dólares · sin contrato</span>
       </div>
       <PricingTable T={T} current={billing.plan === "beta" ? null : billing.tier} factor={billing.price_factor}/>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%, 250px),1fr))", gap: 12, marginTop: 24 }}>
