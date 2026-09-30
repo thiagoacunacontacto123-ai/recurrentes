@@ -848,22 +848,12 @@ function Hi({ T, d = 0, children }) {
   return <span className="lm-hi" style={{ "--d": `${0.35 + d * 0.35}s`, "--c": T.accentSolid }}>{children}</span>;
 }
 
-const REV_MIN = 200000, REV_MAX = 2000000000;
-const revToSlider = (v) => Math.round(1000 * Math.log(Math.max(REV_MIN, Math.min(REV_MAX, v)) / REV_MIN) / Math.log(REV_MAX / REV_MIN));
-const sliderToRev = (x) => { const v = REV_MIN * Math.pow(REV_MAX / REV_MIN, x / 1000); const step = v < 5e6 ? 1e5 : v < 5e7 ? 1e6 : v < 5e8 ? 1e7 : 1e8; return Math.round(v / step) * step; };
 
 // ─── 4. El precio como arma ──────────────────────────────────────────────
 export function PriceWeapon({ T, onDemo, hideHead = false }) {
   // 30-sept-2026 (Thiago): se va el precio por tramos y entra abono + comisión.
   // Tres planes que cuestan lo mismo y solo cambian el %. El comercio no elige:
   // le toca el que corresponde a sus suscriptores activos.
-  const [rev, setRev] = useState(2000000);   // facturación mensual en suscripciones (ARS)
-  const [rate, setRate] = useState(1560);    // dólar para la cuenta de la calculadora
-  const inp = { fontFamily: F, fontSize: 15, fontWeight: 600, color: T.text, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: "12px 14px", width: "100%", outline: "none" };
-  const usd = rev / (rate || 1);
-  const pct = COMMISSION_TIERS[0].pct;       // la calculadora usa el tramo de entrada
-  const comision = usd * pct / 100;
-  const total = SAAS_BASE_USD + comision;
   return (
     <section id="rec-precios" className="lm-wrap" style={{ padding: hideHead ? "24px 24px 104px" : "104px 24px" }}>
       <div style={{ textAlign: "center", maxWidth: 760, margin: "0 auto 28px" }} data-reveal="flip">
@@ -890,30 +880,11 @@ export function PriceWeapon({ T, onDemo, hideHead = false }) {
         El abono es el mismo en los tres: lo único que cambia es el porcentaje, y baja solo cuando llegás al tramo. La comisión se calcula sobre <b style={{ color: T.text }}>lo que realmente se cobró</b> en los últimos 30 días —lo que se rechaza o se devuelve no cuenta— y se suma a la factura del mes siguiente. La puesta en marcha va incluida: la dejamos funcionando nosotros y no se cobra aparte. Precios en dólares, sin contrato.
       </div>
 
-      {/* Calculadora */}
-      <div className="lm-card" style={{ marginTop: 40, padding: 26 }} data-reveal="wipe">
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 28, alignItems: "center" }} className="lm-calc-grid">
-          <div>
-            <div style={{ fontFamily: FD, fontSize: 22, fontWeight: 800, letterSpacing: -0.5, marginBottom: 6 }}>¿Cuánto te saldría a vos?</div>
-            <div style={{ fontSize: 14, color: T.textSm, lineHeight: 1.55, marginBottom: 18 }}>Poné cuánto facturás por mes en suscripciones y te decimos el total, abono incluido.</div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textSm, textTransform: "uppercase", letterSpacing: .5, marginBottom: 6 }}>Facturación mensual en suscripciones</label>
-            <input type="range" min={0} max={1000} step={1} value={revToSlider(rev)} onChange={e => setRev(sliderToRev(Number(e.target.value)))} style={{ width: "100%", accentColor: T.accentSolid, marginBottom: 10 }} aria-label="Facturación mensual"/>
-            <input type="text" inputMode="numeric" value={fmtARS(rev)} onChange={e => { const n = Number(String(e.target.value).replace(/[^\d]/g, "")); if (Number.isFinite(n)) setRev(Math.min(REV_MAX, Math.max(0, n))); }} style={inp} aria-label="Facturación mensual en pesos"/>
-            <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center", flexWrap: "wrap" }}>
-              <span style={{ fontSize: 12.5, color: T.textSm }}>Dólar:</span>
-              {[1200, 1560, 2000].map(r => <button key={r} onClick={() => setRate(r)} style={{ fontFamily: F, fontSize: 13, fontWeight: 700, padding: "6px 12px", borderRadius: 99, cursor: "pointer", border: `1px solid ${rate === r ? T.accentSolid : T.border}`, background: rate === r ? T.accentSolid + "1a" : "transparent", color: rate === r ? T.accent : T.textMd }}>${r}</button>)}
-            </div>
-          </div>
-          <div style={{ display: "grid", gap: 12 }}>
-            <div style={{ padding: "18px 20px", borderRadius: 16, background: T.accentSolid + "14", border: `1px solid ${T.accentSolid}66` }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: T.accent, letterSpacing: .5, textTransform: "uppercase" }}>Tu mes con Recurrentes</div>
-              <div style={{ fontFamily: FD, fontSize: 34, fontWeight: 800, letterSpacing: -1.2, color: T.text, lineHeight: 1.1, marginTop: 4, fontVariantNumeric: "tabular-nums" }}>USD {Math.round(total)}<span style={{ fontSize: 14, fontWeight: 600, color: T.textSm, letterSpacing: 0 }}> /mes</span></div>
-              <div style={{ fontSize: 13, color: T.textMd, marginTop: 4 }}>US$ {SAAS_BASE_USD} de abono + US$ {Math.round(comision)} de comisión ({String(pct).replace(".", ",")}% de {fmtARS(rev)}).</div>
-            </div>
-            {onDemo && <button onClick={onDemo} style={{ ...BtnSolid(T), padding: "14px 20px", fontSize: 15, borderRadius: 14 }}>Pedir demo</button>}
-          </div>
+      {onDemo && (
+        <div style={{ textAlign: "center", marginTop: 34 }} data-reveal="pop">
+          <button onClick={onDemo} style={{ ...BtnSolid(T), padding: "15px 28px", fontSize: 15.5, borderRadius: 14 }}>Pedir demo</button>
         </div>
-      </div>
+      )}
     </section>
   );
 }

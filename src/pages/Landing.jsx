@@ -1,7 +1,6 @@
 import React from "react";
 import { BtnSolid, BtnSecondary } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
-import { SAAS_BASE_USD } from "../../shared/platform/pricing.js";
 import { SectionsStyle, FaqSection, BigFooter } from "./LandingSections.jsx";
 import { MotionStyle, useReveal, HeroWidgetLoop, StickyDesigns, HorizontalSteps, PriceWeapon, IntegrationsMarquee, ClosingCta, BuyJourney, PartnerBadges, FlowsSection, MetaAdsSection /*, FeatureStack, ComparisonArena, PanelTour, ReviewsBlock */ } from "./LandingMotion.jsx";
 
@@ -400,9 +399,11 @@ export default function Landing({ T, darkMode, onToggleDark, onLogin, onRegister
 
         <div style={{marginTop:40,display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:14}} className="rec-land-benefits">
           {[
-            ["1,8%", "de comisión, y baja", "Un abono de US$ 99 y un porcentaje de lo que de verdad cobrás. Cuantos más suscriptores tenés, más chico: 1,5% y 1,3%."],
-            ["1 llamada", "y queda integrado", "La integración la hacemos nosotros con vos, guiada paso a paso: tienda, Mercado Pago, planes y widget."],
-            [`US$ ${SAAS_BASE_USD}`, "por mes, para todos", "El mismo abono tengas 5 suscriptores o 5.000. Lo único que cambia es el porcentaje, y baja."],
+            // 30-sept-2026 (Thiago): acá van BENEFICIOS, no el precio. El precio
+            // tiene su sección más abajo; en el hero lo que convence es qué gana.
+            ["1 llamada", "y queda integrado", "La integración la hacemos nosotros con vos, guiada paso a paso: tienda, Mercado Pago, planes y widget. No tenés que tocar código."],
+            ["Todo junto", "y automático", "Tu tienda, tu pasarela, los envíos, los mails y el WhatsApp, conectados entre sí. El cobro entra, la orden se crea y al cliente le avisan: sin que muevas un dedo."],
+            ["Ventas", "que vuelven solas", "Facturación que se repite todos los meses sin pagar pauta de nuevo ni subir contenido nuevo. El cliente que ya te compró te sigue comprando."],
           ].map(([v,l,d], i)=>(
             <div key={l} className="rec-stat" data-reveal={["flip","pop","spin"][i]}>
               <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:8}}>
