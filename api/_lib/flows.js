@@ -29,6 +29,7 @@ import { computeRecoverUrl } from "./abandoned.js";
 // Paso "whatsapp": plantilla aprobada por la Cloud API de Meta; registra en message_log.
 import { runWhatsappFlowStep } from "./whatsapp.js";
 import { TRIGGER_BY_ID, FLOW_VARIABLES, renderVars, waitMs } from "../../shared/platform/flows.js";
+import { giftsLine } from "./email.js";
 
 const H = 3600e3, D = 24 * H;
 const nowIso = () => new Date().toISOString();
@@ -117,6 +118,8 @@ export function flowVars(merchant, mid, sub) {
     nombre: String(sub?.customer_name || "").trim().split(/\s+/)[0] || "",
     producto: ps.product_title || "tu suscripción",
     monto: amount ? fmtArs(amount) : "",
+    cantidad: String(Math.max(1, parseInt(sub?.quantity, 10) || 1)),
+    regalos: giftsLine(Array.isArray(sub?.gift_items) ? sub.gift_items : []),
     marca: effectiveBrand(merchant) || "",
     proximo_cobro: fmtDay(sub?.next_charge_at),
     link_portal: portalUrlOf(sub),
@@ -266,6 +269,30 @@ export async function syncFlowsIndex(mid) {
 }
 
 // ── Prueba desde el editor: el mail tal cual, con datos de ejemplo, al dueño ──
+/**
+ * Prueba de un mail AUTOMÁTICO (activación, pago rechazado, sin stock, baja).
+ * Usa el texto que el comerciante está editando, no el guardado, así ve
+ * exactamente lo que acaba de escribir sin tener que guardar primero.
+ * 30-sept-2026, pedido de Wellfresh.
+ */
+export async function sendAutoEmailTest(mid, merchant, { id, subject, body, cta_label, to }) {
+  const { AUTO_EMAIL_VARIABLES, AUTO_EMAIL_BY_ID, resolveAutoEmail } = await import("../../shared/platform/flows.js");
+  if (!AUTO_EMAIL_BY_ID[id]) return { ok: false, error: "Ese mail no existe" };
+  const guardado = resolveAutoEmail(id, merchant) || {};
+  const txt = (v, k) => (typeof v === "string" && v.trim() ? v : guardado[k]);
+  const sample = Object.fromEntries(AUTO_EMAIL_VARIABLES.map(v => [v.key, v.sample]));
+  const vars = { ...sample, marca: effectiveBrand(merchant) || sample.marca };
+  const label = renderVars(txt(cta_label, "cta_label") || "", vars).trim();
+  return emailFlowStep({
+    to, merchant, merchantId: mid, test: true,
+    subject: `[Prueba] ${renderVars(txt(subject, "subject"), vars).slice(0, 180)}`,
+    bodyText: renderVars(txt(body, "body"), vars),
+    ctaLabel: label,
+    ctaUrl: label ? `${appBaseUrl()}/#/portal` : null,
+    tags: { type: "auto_email_test", auto_email: id },
+  });
+}
+
 export async function sendFlowTest(mid, merchant, { step, to }) {
   const sample = Object.fromEntries(FLOW_VARIABLES.map(v => [v.key, v.sample]));
   let sub = null;

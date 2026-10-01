@@ -399,7 +399,7 @@ export default async function handler(req, res) {
       try { const { claimReferral } = await import("./_lib/referrals.js"); const r = await claimReferral(uid, req.body?.code); return res.status(r.ok ? 200 : 400).json(r); }
       catch (e) { return res.status(500).json({ error: e.message }); }
     }
-    if (action.startsWith("flow-") || action === "auto-email-save") return flowsApi(ctx, action, req, res);
+    if (action.startsWith("flow-") || action.startsWith("auto-email-")) return flowsApi(ctx, action, req, res);
     if (action.startsWith("whatsapp-"))    return whatsappApi(ctx, action, req, res);
     if (action.startsWith("alerts-"))      return merchantAlertsApi(ctx, action, req, res); // avisos para el dueño (solo dueño)
     if (PROVIDER_CONNECT_ACTIONS.has(action)) return providerConnectAction(ctx, action, req, res); // Stripe / Whop (solo dueño)

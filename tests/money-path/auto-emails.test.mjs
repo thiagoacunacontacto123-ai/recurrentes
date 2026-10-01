@@ -154,3 +154,52 @@ test("el saneo corta los largos y no deja pasar cualquier cosa", () => {
   // Todo vacío = como si no hubiera editado nada.
   assert.equal(sanitizeAutoEmails({ activation: { subject: "  ", body: "" } }).auto_emails, null);
 });
+
+// ── 30-sept-2026, pedido de Wellfresh ───────────────────────────────────────
+test("el mail nombra el regalo y aclara que el 'solo en el primero' llega una vez", async () => {
+  const merchant = luminaMerchant({ auto_emails: { activation: {
+    subject: "Activa — {{producto}}",
+    body: "Hola {{nombre}},\n\nLlevás {{cantidad}} por envío.\n\n{{regalos}}",
+    cta_label: "",
+  } } });
+  await emailSubscriptionActivated({
+    to: "ana@cliente.test", customerName: "Ana", productTitle: "Café 250 g",
+    frequencyDays: 30, amount: 9480, portalUrl: "https://x.test/portal", merchant,
+    quantity: 3, gifts: [{ title: "Raspador", every: "once" }, { title: "Guía", every: "always" }],
+  });
+  const m = ultimo();
+  assert.match(m.html, /Llevás 3 por envío/);
+  assert.match(m.html, /Raspador \(solo en tu primer envío\)/, "el punto del pedido: que no quede duda");
+  assert.match(m.html, /Guía \(en cada envío\)/);
+});
+
+test("sin regalos el párrafo desaparece: nunca sale un 'De regalo:' colgado", async () => {
+  const merchant = luminaMerchant({ auto_emails: { activation: {
+    subject: "Activa", body: "Hola {{nombre}},\n\n{{regalos}}\n\nGracias.", cta_label: "",
+  } } });
+  await emailSubscriptionActivated({
+    to: "ana@cliente.test", customerName: "Ana", productTitle: "Café", frequencyDays: 30,
+    amount: 9480, portalUrl: "https://x.test/portal", merchant, quantity: 1, gifts: [],
+  });
+  const m = ultimo();
+  assert.ok(!/De regalo/.test(m.html), "sin regalos no se nombra el tema");
+  assert.match(m.html, /Gracias\./);
+});
+
+test("negrita y cursiva: el comerciante las escribe, pero no puede meter HTML", async () => {
+  const merchant = luminaMerchant({ auto_emails: { activation: {
+    subject: "Activa",
+    body: "Esto es **importante** y esto *suave*.\n\n<script>alert(1)</script> <b>no</b>",
+    cta_label: "",
+  } } });
+  await emailSubscriptionActivated({
+    to: "ana@cliente.test", customerName: "Ana", productTitle: "Café", frequencyDays: 30,
+    amount: 9480, portalUrl: "https://x.test/portal", merchant,
+  });
+  const m = ultimo();
+  assert.match(m.html, /<strong>importante<\/strong>/);
+  assert.match(m.html, /<em>suave<\/em>/);
+  // Lo que escribe el comercio se escapa ANTES de marcar: nada de HTML propio.
+  assert.ok(!/<script>/.test(m.html), "el script quedó escapado");
+  assert.ok(!/<b>no<\/b>/.test(m.html), "el <b> a mano no pasa");
+});

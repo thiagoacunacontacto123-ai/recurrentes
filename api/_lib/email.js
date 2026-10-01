@@ -166,6 +166,21 @@ const fmtArs = (n) => `$${Math.round(Number(n) || 0).toLocaleString("es-AR")}`;
 
 // ─── Templates ───────────────────────────────────────────────────
 
+// Los regalos, en una línea para el mail. La aclaración de "solo en tu primer
+// envío" es el punto: un cliente de Wellfresh preguntó si el raspador le iba a
+// llegar todos los meses, y el mail no lo decía en ningún lado (30-sept-2026).
+// Devuelve la frase ENTERA ("De regalo: …") y no solo la lista: así, cuando la
+// suscripción no tiene regalos, el párrafo queda vacío y desaparece solo. Si la
+// variable fuera solo la lista, el mail diría "De regalo:" y nada más.
+export function giftsLine(gifts) {
+  const list = (Array.isArray(gifts) ? gifts : []).filter(g => g && g.title);
+  if (!list.length) return "";
+  return "De regalo: " + list.map(g => {
+    const t = plain(g.title, 80);
+    return g.every === "once" ? `${t} (solo en tu primer envío)` : `${t} (en cada envío)`;
+  }).join(" · ") + ".";
+}
+
 // ── Mails automáticos con el texto del comerciante ──────────────────────────
 // Los tres mails de abajo (activación, pago rechazado, baja) salen de fábrica
 // con el texto y el diseño que están acá. Desde el 27-sept-2026 el comercio los
@@ -193,13 +208,15 @@ async function sendAutoEmailCustom(id, { merchant, to, vars, ctaUrl, tags }) {
   });
 }
 
-export async function emailSubscriptionActivated({ to, customerName, productTitle, frequencyDays, amount, portalUrl, merchant, from, brand, accent, replyTo }) {
+export async function emailSubscriptionActivated({ to, customerName, productTitle, frequencyDays, amount, portalUrl, merchant, from, brand, accent, replyTo, quantity, gifts }) {
   const snd = resolveSender({ merchant, from, brand, accent, replyTo });
   const prodTxt = plain(productTitle) || "tu suscripción";
   const freq = parseInt(frequencyDays, 10) || 30;
+  const qty = Math.max(1, parseInt(quantity, 10) || 1);
   if (merchant?.auto_emails?.activation) {
     return sendAutoEmailCustom("activation", { merchant, to, ctaUrl: portalUrl,
-      vars: { nombre: plain(customerName) || "", producto: prodTxt, monto: fmtArs(amount), frecuencia: `cada ${freq} días`, marca: snd.brand } });
+      vars: { nombre: plain(customerName) || "", producto: prodTxt, monto: fmtArs(amount), frecuencia: `cada ${freq} días`, marca: snd.brand,
+              cantidad: String(qty), regalos: giftsLine(gifts) } });
   }
   const html = baseTemplate({
     brand: snd.brand, accent: snd.accent, support: snd.support,
@@ -464,8 +481,15 @@ export async function emailFlowStep({ to, subject, bodyText, ctaLabel, ctaUrl, m
   const snd = resolveSender({ merchant });
   const col = /^#[0-9a-fA-F]{3,8}$/.test(String(snd.accent || "")) ? snd.accent : "#10b981";
   const linkify = (s) => s.replace(/(https?:\/\/[^\s<]+)/g, (u) => `<a href="${u}" style="color:${col};">${u}</a>`);
+  // Negrita y cursiva (30-sept-2026, pedido de Wellfresh): **negrita** y *cursiva*,
+  // aplicadas DESPUÉS de escapar, así lo que escribe el comerciante nunca puede
+  // meter HTML en el mail. Nada de editor visual: un WYSIWYG termina generando
+  // HTML que Gmail rompe, y acá el texto tiene que llegar igual en todos lados.
+  const marcar = (s) => s
+    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
   const body = String(bodyText || "").trim().split(/\n{2,}/).filter(Boolean)
-    .map(p => `<p style="margin:0 0 12px;">${linkify(escapeHtml(p.trim())).replace(/\n/g, "<br/>")}</p>`).join("");
+    .map(p => `<p style="margin:0 0 12px;">${marcar(linkify(escapeHtml(p.trim()))).replace(/\n/g, "<br/>")}</p>`).join("");
   let unsubUrl = null, headers;
   if (merchantId && !test) {
     try {

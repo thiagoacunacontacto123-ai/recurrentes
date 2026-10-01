@@ -150,6 +150,22 @@ export async function flowsApi(ctx, action, req, res) {
       return res.json({ ok: true });
     }
 
+    // Prueba de un mail automático con el texto que está editando (sin guardar).
+    if (action === "auto-email-test") {
+      const to = String(ctx.email || "").trim().toLowerCase();
+      if (!EMAIL_RE.test(to)) return res.status(400).json({ error: "Tu cuenta no tiene un mail para mandarte la prueba" });
+      const rl = await rateLimit(`flowtest:${mid}`, { limit: 20, windowSec: 86400 });
+      if (!rl.ok) return res.status(429).json({ error: "Tope de 20 mails de prueba por día alcanzado" });
+      const merchant = (await db().collection("merchants").doc(mid).get()).data() || {};
+      const { sendAutoEmailTest } = await import("./flows.js");
+      const r = await sendAutoEmailTest(mid, merchant, {
+        id: String(req.body?.id || ""), subject: req.body?.subject, body: req.body?.body, cta_label: req.body?.cta_label, to,
+      });
+      if (r?.skipped) return res.status(503).json({ error: "El envío de mails no está configurado todavía (falta RESEND_API_KEY)" });
+      if (!r?.ok) return res.status(502).json({ error: r?.error || "No se pudo enviar el mail de prueba" });
+      return res.json({ ok: true, to });
+    }
+
     if (action === "flow-test") {
       const { flow, error } = sanitizeFlow({ trigger: req.body?.trigger, steps: [req.body?.step || {}] });
       if (error) return res.status(400).json({ error });

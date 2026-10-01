@@ -52,6 +52,8 @@ export const FLOW_VARIABLES = [
   { key:"nombre",        label:"Nombre",            sample:"Ana" },
   { key:"producto",      label:"Producto",          sample:"Café de especialidad 250 g" },
   { key:"monto",         label:"Monto por cobro",   sample:"$9.480" },
+  { key:"cantidad",      label:"Cuántas unidades",  sample:"3" },
+  { key:"regalos",       label:"Regalos (frase entera)", sample:"De regalo: Raspador (solo en tu primer envío)." },
   { key:"marca",         label:"Tu marca",          sample:"Tu marca" },
   { key:"proximo_cobro", label:"Fecha próximo cobro", sample:"15 de octubre" },
   { key:"link_portal",   label:"Link del portal",   sample:"https://recurrentesapp.com/#/portal" },
@@ -75,7 +77,7 @@ export const AUTO_EMAILS = [
     when: "Apenas Mercado Pago confirma el primer pago y la suscripción queda activa.",
     says: "Le confirma el pago, qué compró, cada cuánto se renueva y el link a su portal.",
     subject: "¡Suscripción activa — {{producto}}!",
-    body: "Hola {{nombre}},\n\nRecibimos la confirmación de tu pago. Ya estás suscrito a {{producto}}.\n\nSe cobra {{monto}} {{frecuencia}}.\n\nEn los próximos días vas a recibir tu primer envío a la dirección que cargaste.\n\nPodés pausar, cancelar o cambiar la dirección cuando quieras desde tu portal.",
+    body: "Hola {{nombre}},\n\nRecibimos la confirmación de tu pago. Ya estás suscrito a **{{producto}}** ({{cantidad}} por envío).\n\nSe cobra {{monto}} {{frecuencia}}.\n\n{{regalos}}\n\nEn los próximos días vas a recibir tu primer envío a la dirección que cargaste.\n\nPodés pausar, cancelar o cambiar la dirección cuando quieras desde tu portal.",
     cta_label: "Gestionar mi suscripción",
   },
   {
@@ -126,6 +128,8 @@ export const AUTO_EMAIL_VARIABLES = [
   { key: "producto",   label: "Producto",      sample: "Café de especialidad 250 g" },
   { key: "monto",      label: "Monto",         sample: "$9.480" },
   { key: "frecuencia", label: "Cada cuánto",   sample: "cada 30 días" },
+  { key: "cantidad",   label: "Cuántas unidades", sample: "3" },
+  { key: "regalos",    label: "Regalos (frase entera)", sample: "De regalo: Raspador (solo en tu primer envío)." },
   { key: "marca",      label: "Tu marca",      sample: "Tu marca" },
 ];
 

@@ -78,3 +78,17 @@ test("modo clásico: el regalo del plan queda en gift_items del suscriptor (el v
     { shopify_variant_id: "46639706079430", shopify_product_id: "8993345372358", title: "Ebook de recetas + masajes", every: "always" },
   ]);
 });
+
+// 30-sept-2026 (pedido de Wellfresh): el mail de activación tiene que DECIR el
+// regalo y aclarar que el "solo en el primero" llega una sola vez. Un cliente
+// preguntó si el raspador le iba a llegar todos los meses y el mail no lo decía.
+test("el mail de activación nombra los regalos y aclara cuál llega una sola vez", async () => {
+  const { giftsLine } = await loadApi("api/_lib/email.js");
+  assert.equal(giftsLine([{ title: "Raspador", every: "once" }]), "De regalo: Raspador (solo en tu primer envío).");
+  assert.equal(giftsLine([{ title: "Guía", every: "always" }, { title: "Raspador", every: "once" }]),
+    "De regalo: Guía (en cada envío) · Raspador (solo en tu primer envío).");
+  // Sin regalos la frase queda vacía: el párrafo del mail desaparece solo y
+  // nunca sale un "De regalo:" colgado.
+  assert.equal(giftsLine([]), "");
+  assert.equal(giftsLine(null), "");
+});

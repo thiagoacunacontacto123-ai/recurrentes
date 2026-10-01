@@ -230,6 +230,8 @@ export async function notifyActivation(merchantId, merchant, subscriberId, sub, 
         frequencyDays: sub.plan_snapshot?.frequency_days || 30,
         amount,
         portalUrl: portalUrlFor(sub),
+        quantity: sub.quantity || sub.plan_snapshot?.quantity || 1,
+        gifts: Array.isArray(sub.gift_items) ? sub.gift_items : [],
         merchant, // email.js lo usa para brandear (from/brand)
       });
       if (!er?.skipped) await logEmail(merchantId, {

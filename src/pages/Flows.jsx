@@ -501,6 +501,21 @@ function FlowEditor({ T, merchant, initial, onBack }) {
 // No se pueden apagar, pero el texto es del comerciante (27-sept-2026, Thiago).
 // Guarda parcial en merchants.auto_emails.<id>; "Volver al texto original" borra
 // lo suyo y vuelve al de fábrica.
+// **negrita** y *cursiva* en la vista previa, con el MISMO criterio que el mail
+// (api/_lib/email.js): si se ve acá de una forma, tiene que llegar igual.
+function marcarTexto(txt) {
+  const out = [];
+  const re = /\*\*([^*\n]+)\*\*|\*([^*\n]+)\*/g;
+  let last = 0, m;
+  while ((m = re.exec(txt))) {
+    if (m.index > last) out.push(txt.slice(last, m.index));
+    out.push(m[1] != null ? <strong key={m.index}>{m[1]}</strong> : <em key={m.index}>{m[2]}</em>);
+    last = m.index + m[0].length;
+  }
+  if (last < txt.length) out.push(txt.slice(last));
+  return out.length ? out : txt;
+}
+
 function AutoEmailEditor({ T, merchant, id, flow, onBack }) {
   const def = AUTO_EMAILS.find(m => m.id === id);
   const actual = resolveAutoEmail(id, merchant) || {};
@@ -510,8 +525,20 @@ function AutoEmailEditor({ T, merchant, id, flow, onBack }) {
   // Los mails DE DESPUÉS: pares espera + mail, igual que cualquier flujo.
   const [steps, setSteps] = useState(() => (flow?.steps || []).map(s => ({ ...s })));
   const [saving, setSaving] = useState(false);
+  const [probando, setProbando] = useState(false);
   const editado = Boolean(merchant?.auto_emails?.[id]);
   if (!def) return null;
+
+  // Mail de prueba con lo que está escrito AHORA (sin guardar): es lo que pidió
+  // Wellfresh para ver cómo le llega de verdad antes de dejarlo publicado.
+  async function probar() {
+    setProbando(true);
+    const d = await apiPost("merchant", { id, subject: subject.trim(), body: body.trim(), cta_label: cta.trim() },
+      { action: "auto-email-test" }).catch(e => ({ error: e.message }));
+    setProbando(false);
+    if (d?.error) return toast("No se pudo enviar: " + d.error, "error", 7000);
+    toast(`Te lo mandamos a ${d.to}`, "success", 6000);
+  }
 
   const sinCambios = subject === actual.subject && body === actual.body && cta === (actual.cta_label || "") && !steps.length && !(flow?.steps || []).length;
   const mails = steps.filter(s => s.type === "email");
@@ -601,6 +628,9 @@ function AutoEmailEditor({ T, merchant, id, flow, onBack }) {
             <Btn T={T} variant="solid" disabled={saving || (!subject.trim() || !body.trim())} onClick={() => guardar(true)}>
               {saving ? "Guardando…" : "Guardar"}
             </Btn>
+            <Btn T={T} variant="secondary" disabled={probando || !subject.trim() || !body.trim()} onClick={probar}>
+              {probando ? "Enviando…" : "Enviarme una prueba"}
+            </Btn>
             {editado && <Btn T={T} variant="secondary" disabled={saving} onClick={() => guardar(false)}>Volver al texto original</Btn>}
             {sinCambios && !editado && <span style={{ fontSize:DS.font.sm, color:T.textSm }}>Este es el texto de fábrica.</span>}
           </div>
@@ -610,6 +640,7 @@ function AutoEmailEditor({ T, merchant, id, flow, onBack }) {
           <EmailPreview T={T} merchant={merchant} step={paso} vars={vars}/>
           <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, marginTop:10 }}>
             Variables: {AUTO_EMAIL_VARIABLES.map(v => `{{${v.key}}}`).join(" · ")}
+            <br/>Para resaltar: <b>**negrita**</b> y <i>*cursiva*</i>.
           </div>
           <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, marginTop:8 }}>
             Este mail no lleva link de baja: es de la suscripción, no publicidad.
@@ -642,7 +673,7 @@ function EmailPreview({ T, merchant, step, vars: varsIn }) {
           <div style={{ padding:"14px 18px 10px", borderBottom:"1px solid #e5e7eb", fontSize:16, fontWeight:800, color:accent }}>{brand}</div>
           <div style={{ padding:"16px 18px" }}>
             <div style={{ fontSize:16, fontWeight:700, color:"#111827", marginBottom:10 }}>{subject}</div>
-            {paras.length ? paras.map((p, i) => <p key={i} style={{ margin:"0 0 10px", fontSize:13, lineHeight:1.6, color:"#374151", whiteSpace:"pre-line", overflowWrap:"anywhere" }}>{p}</p>)
+            {paras.length ? paras.map((p, i) => <p key={i} style={{ margin:"0 0 10px", fontSize:13, lineHeight:1.6, color:"#374151", whiteSpace:"pre-line", overflowWrap:"anywhere" }}>{marcarTexto(p)}</p>)
               : <p style={{ margin:0, fontSize:13, color:"#9ca3af" }}>(escribí el mensaje)</p>}
             {step.cta !== "none" && step.cta_label && <span style={{ display:"inline-block", marginTop:8, background:accent, color:"#fff", padding:"9px 18px", borderRadius:10, fontWeight:700, fontSize:13 }}>{renderVars(step.cta_label, vars)}</span>}
           </div>
