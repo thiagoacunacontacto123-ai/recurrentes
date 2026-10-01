@@ -1,8 +1,8 @@
 import { WidgetStatusCard } from "./WidgetVerify.jsx";
 import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { apiPatch } from "../lib/api.js";
+import { apiPatch, apiGet } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
-import { Card, Field, InputStyle, Btn, DSToggle, Callout, toast } from "../ui/components.jsx";
+import { Card, Field, InputStyle, Btn, DSToggle, Callout, Spinner, toast } from "../ui/components.jsx";
 import { BUNDLE_VARIANTS, renderBundle } from "../../shared/bundle/templates.js";
 import { buildBundleVM } from "../../shared/bundle/viewmodel.js";
 import { pricingModeOf } from "./PacksEditor.jsx";
@@ -634,6 +634,8 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
               ?rec_modo={modeDefault === "sub" ? "once" : "sub"}
             </code> al link del producto. El comprador igual puede cambiarlo.
           </div>
+          <AbTestBox T={T} merchant={merchant} modeDefault={modeDefault} onChange={onSaved}/>
+
           <div style={{display:"flex",gap:18,flexWrap:"wrap",marginBottom:14}}>
             <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:T.textMd}}>Precio tachado <DSToggle T={T} active={showCompare} onToggle={()=>setShowCompare(v=>!v)}/></label>
             <label style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:T.textMd}}>Precio por unidad <DSToggle T={T} active={showPerUnit} onToggle={()=>setShowPerUnit(v=>!v)}/></label>
@@ -719,3 +721,68 @@ export default function WidgetDesigner({ merchant, plans = [], onSaved, onEditPl
   );
 }
 
+
+// ── Prueba A/B (30-sept-2026, pedido de Wellfresh) ──────────────────────────
+// El sorteo lo hace el widget en la MISMA URL y se acuerda de lo que le tocó a
+// cada visitante. Acá solo se prende, se apaga y se mira el resultado.
+function AbTestBox({ T, merchant, modeDefault, onChange }) {
+  const prueba = merchant?.ab_test || null;
+  const [guardando, setGuardando] = useState(false);
+  const [res, setRes] = useState(null);
+  const otro = modeDefault === "sub" ? "once" : "sub";
+  const nombre = (v) => (v === "sub" ? "Suscripción" : "Compra única");
+
+  useEffect(() => {
+    if (!prueba) { setRes(null); return; }
+    apiGet("stats", { action: "ab-result" }).then(d => setRes(d && !d.error ? d : null)).catch(() => {});
+  }, [prueba?.started_at]);
+
+  async function cambiar(on) {
+    setGuardando(true);
+    const d = await apiPatch("merchant", { ab_test: on ? { on: true, cambio: "mode_default", valor: otro } : null }, { action: "save-settings" })
+      .catch(e => ({ error: e.message }));
+    setGuardando(false);
+    if (d?.error) return toast("No se pudo guardar: " + d.error, "error", 6000);
+    toast(on ? "Prueba A/B empezada" : "Prueba A/B terminada", on ? "success" : "warning");
+    onChange?.();
+  }
+
+  return (
+    <div style={{ border:`1px solid ${prueba ? T.accentSolid + "66" : T.borderL}`, background: prueba ? T.accentSolid + "0d" : T.surface, borderRadius:DS.r.lg, padding:"14px 16px", margin:"0 0 14px" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+        <div style={{ flex:"1 1 240px", minWidth:0 }}>
+          <div style={{ fontSize:13, fontWeight:800, color:T.text }}>Probar cuál convierte más (A/B)</div>
+          <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, marginTop:3 }}>
+            {prueba
+              ? <>La mitad de tus visitantes ve <strong style={{color:T.text}}>{nombre(modeDefault)}</strong> y la otra mitad <strong style={{color:T.text}}>{nombre(prueba.valor)}</strong>. A cada persona le toca siempre lo mismo, así el número sirve.</>
+              : <>Mostramos <strong style={{color:T.text}}>{nombre(modeDefault)}</strong> a la mitad y <strong style={{color:T.text}}>{nombre(otro)}</strong> a la otra mitad, y contamos cuál trae más suscripciones.</>}
+          </div>
+        </div>
+        {guardando ? <Spinner size={14} color={T.textMd}/> : <DSToggle T={T} active={!!prueba} onToggle={() => cambiar(!prueba)}/>}
+      </div>
+      {prueba && res && (
+        <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${T.borderL}` }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+            {[["A · " + nombre(modeDefault), res.a], ["B · " + nombre(prueba.valor), res.b]].map(([l, n], i) => {
+              const gana = res.suficiente && res.ganadora === (i === 0 ? "a" : "b");
+              return (
+                <div key={l} style={{ background:T.card, border:`1px solid ${gana ? T.accentSolid : T.borderL}`, borderRadius:DS.r.md, padding:"10px 12px" }}>
+                  <div style={{ fontSize:11, fontWeight:800, color:T.textSm, textTransform:"uppercase", letterSpacing:.5 }}>{l}</div>
+                  <div style={{ fontSize:22, fontWeight:900, color: gana ? T.accent : T.text, marginTop:2 }}>{n}</div>
+                  <div style={{ fontSize:11, color:T.textSm }}>suscripciones</div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ fontSize:DS.font.sm, color:T.textSm, lineHeight:1.5, marginTop:10 }}>
+            {res.suficiente
+              ? res.ganadora
+                ? <>Va ganando <strong style={{color:T.text}}>{res.ganadora === "a" ? "A" : "B"}</strong>{res.dif_pct ? ` por ${Math.abs(res.dif_pct)}%` : ""}. Si querés cerrarla, apagá la prueba y dejá fija la que ganó.</>
+                : "Van empatadas: por ahora da igual cuál dejes."
+              : <>Todavía son pocas ({res.total}). Con menos de 40 suscripciones entre las dos, la diferencia puede ser casualidad y no conviene decidir nada.</>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

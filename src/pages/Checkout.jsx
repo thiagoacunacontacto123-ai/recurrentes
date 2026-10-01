@@ -222,6 +222,7 @@ export default function Checkout() {
         ...(!pack && baseParam > 0 ? { base_price: baseParam, sub_discount: subOffParam } : {}),
         customer: { email: em, name: name.trim(), phone: phone.trim() },
         fb: fbAttribution(qParams()),
+        ab: qParams().get("ab") || undefined,   // variante de la prueba A/B, para medir
       };
       fetch("/api/checkout/init", { method: "POST", headers: { "Content-Type": "application/json" }, keepalive: true, body: JSON.stringify(body) }).catch(() => {});
     } catch (_) {}
@@ -563,6 +564,7 @@ export default function Checkout() {
         customer: { email: email.trim(), name: name.trim(), phone: phone.trim(), tax_id: taxid.trim() },
         ...(cfg?.whatsapp_optin ? { whatsapp_optin: waOptin } : {}),
         fb: fbAttribution(qParams()),
+        ab: qParams().get("ab") || undefined,   // variante de la prueba A/B, para medir
       };
       if (askAddress) {
         body.shipping_address = {

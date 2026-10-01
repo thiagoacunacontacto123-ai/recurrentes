@@ -22,6 +22,7 @@ import { buildBundleVM, planHasPacks, resolvePack, freqLabel, fmtARS } from "../
 import { createHash } from "node:crypto";
 import { resolveCheckoutTheme } from "../shared/platform/checkoutTheme.js";
 import { rateOffered, pricedRates } from "../shared/platform/logistics.js";
+import { resolveAbTest } from "../shared/platform/abtest.js";
 import { resolveCartSettings, cartCss, cartShellHtml, cartBodyHtml, cartCtaText } from "../shared/bundle/cart.js";
 // Funciones compartidas que viajan al navegador dentro del template literal. Lo que se
 // interpola con ${} entra TAL CUAL (el template solo procesa escapes del texto literal),
@@ -176,6 +177,8 @@ export default async function handler(req, res) {
   // abajo que vuelve al bundle (25-sept-2026, Wellfresh). Drawer prendido por
   // defecto; el sticky se prende en Widget → ajustes.
   let cartDrawer = true, stickyCta = false;
+  // Prueba A/B corriendo (null = ninguna). El sorteo lo hace el navegador.
+  let abTest = null;
   let checkoutColor = "#10b981"; // acento del checkout (tema propio o el del widget): loader y &color= en la URL
   // Colores del carrito propio = los del checkout de la tienda (25-sept-2026, Thiago:
   // "que el carrito se lleve con sus colores"): acento, fondo, texto, letra y radio.
@@ -222,6 +225,7 @@ export default async function handler(req, res) {
       } catch (e) { console.warn("[widget] enforcement:", e.message); }
       if (m.widget_mode_order === "once_first") widgetModeOrder = "once_first";
       if (m.widget_mode_default === "once") widgetModeDefault = "once";
+      abTest = resolveAbTest(m);
       if (m.widget_cart_drawer === false) cartDrawer = false;
       if (m.widget_sticky_cta === true) stickyCta = true;
       if (typeof m.widget_color === "string" && /^#[0-9a-fA-F]{6}$/.test(m.widget_color)) widgetColor = m.widget_color;
@@ -578,6 +582,7 @@ export default async function handler(req, res) {
       if (fbc) q += "&fbc=" + encodeURIComponent(fbc);
       q += "&src=" + encodeURIComponent((location.origin + location.pathname).slice(0, 300));
       q += "&color=" + encodeURIComponent(CHECKOUT_COLOR); // el cargando del checkout sale del color de la tienda desde el primer instante
+      if (AB_VAR) q += "&ab=" + AB_VAR;                     // para poder medir qué variante trajo la suscripción
       return q;
     } catch (e) { return ""; }
   }
@@ -594,6 +599,21 @@ export default async function handler(req, res) {
     var _m = /[?&]rec_modo=(sub|once)(&|$)/i.exec(location.search || "");
     if (_m) { MODE_LINK = _m[1].toLowerCase(); MODE_DEFAULT = MODE_LINK; }
   } catch (e) {}
+
+  // ── Prueba A/B ───────────────────────────────────────────────────────────
+  // El sorteo pasa acá, en la MISMA URL, y se guarda en el navegador: si no, el
+  // que vuelve vería otra variante y el test no mediría nada. Con ?rec_modo en
+  // el link no se sortea: ese link ya pidió un modo a propósito.
+  var AB = ${JSON.stringify(abTest)};
+  var AB_VAR = null;
+  if (AB && !MODE_LINK) {
+    try {
+      var _k = "rec_ab_" + MERCHANT_ID;
+      AB_VAR = localStorage.getItem(_k);
+      if (AB_VAR !== "a" && AB_VAR !== "b") { AB_VAR = Math.random() < 0.5 ? "a" : "b"; localStorage.setItem(_k, AB_VAR); }
+    } catch (e) { AB_VAR = Math.random() < 0.5 ? "a" : "b"; }   // sin localStorage igual se sortea
+    if (AB_VAR === "b" && AB.cambio === "mode_default") MODE_DEFAULT = AB.valor;
+  }
   var CHECKOUT_FLOW = ${JSON.stringify(checkoutFlow)};
   var CHECKOUT_PAGE_PATH = ${JSON.stringify(checkoutPagePath)};
   var CHECKOUT_ON_STORE = ${checkoutOnStore ? "true" : "false"};

@@ -19,6 +19,30 @@
 import { db, requireMerchant } from "./_lib/firebase.js";
 import { adminHandler } from "./_lib/admin.js";
 
+// Resultado de la prueba A/B: cuántas suscripciones trajo cada variante
+// (30-sept-2026). Con el reparto 50/50 las dos vieron la misma cantidad de
+// visitas, así que comparar los totales alcanza. No contamos visitas a
+// propósito: con la caché de la CDN no las podríamos contar bien y un número
+// que miente es peor que no tenerlo.
+async function abResult(merchantId, req, res) {
+  const { resolveAbTest, abResultado } = await import("../shared/platform/abtest.js");
+  const { db } = await import("./_lib/firebase.js");
+  const mSnap = await db().collection("merchants").doc(merchantId).get();
+  const prueba = resolveAbTest(mSnap.data() || {});
+  if (!prueba) return res.json({ test: null });
+  const desde = prueba.started_at || "1970-01-01";
+  const snap = await db().collection("merchants").doc(merchantId).collection("subscribers")
+    .where("created_at", ">=", desde).get();
+  let a = 0, b = 0;
+  for (const d of snap.docs) {
+    const s = d.data();
+    // Solo las que llegaron a pagar: una pendiente no dice nada de la variante.
+    if (!["active", "paused", "payment_failed", "cancelled"].includes(s.status)) continue;
+    if (s.ab_variant === "a") a++; else if (s.ab_variant === "b") b++;
+  }
+  return res.json({ test: prueba, ...abResultado({ a, b }) });
+}
+
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
   // Super-admin (#/admin): GET/POST ?action=admin-* → _lib/admin.js (requireAdmin en cada request).
@@ -33,6 +57,7 @@ export default async function handler(req, res) {
   if (!ctx) return;
   const { merchantId } = ctx;
 
+  if (req.query.action === "ab-result") return abResult(merchantId, req, res);
   if (req.query.action === "activity") return activity(merchantId, req, res);
   if (req.query.action === "analytics") return analytics(merchantId, req, res);
 

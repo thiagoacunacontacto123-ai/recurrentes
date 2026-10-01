@@ -50,6 +50,7 @@ import { computeRecoverUrl } from "../_lib/abandoned.js";
 import { merchantProfile, hostedCheckoutUrl } from "../../shared/platform/profile.js";
 import { clampDiscountPct, discountAmountFor } from "../../shared/platform/discounts.js";
 import { subRatePrice } from "../../shared/platform/logistics.js";
+import { abVariant } from "../../shared/platform/abtest.js";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 // Subs que ya son cliente: su perfil en Klaviyo no se degrada a "checkout_started".
@@ -834,6 +835,8 @@ export default async function handler(req, res) {
     // Regalos del pack vinculados a un producto de la tienda: van a la orden a $0
     // (sync.js); "once" = solo en la primera orden.
     ...(giftItems.length ? { gift_items: giftItems } : {}),
+    // Variante de la prueba A/B que vio quien se suscribió (30-sept-2026).
+    ...(abVariant(req.body.ab || req.query?.ab) ? { ab_variant: abVariant(req.body.ab || req.query?.ab) } : {}),
     // Cupón sólo primer cobro: sync sube el monto a full_price_per_charge_ars después.
     discount_first_charge_only: discountFirstOnly,
     full_price_per_charge_ars: discountFirstOnly ? fullPricePerCharge : null,
