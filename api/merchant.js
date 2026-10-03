@@ -137,6 +137,21 @@ export default async function handler(req, res) {
       const { listMoneyBack } = await import("./_lib/moneyBack.js");
       return res.json({ items: await listMoneyBack(merchantId) });
     }
+    // Lo que va acumulado de comisión en el ciclo EN CURSO, para que el comercio
+    // sepa cuánto le va a venir en la próxima factura y no se entere el día del
+    // cobro (30-sept-2026, Thiago: "eso el cliente lo va a querer saber").
+    // Va en su propia acción y no en el GET general: lee los cobros del ciclo y
+    // no hay por qué pagar esa consulta cada vez que se abre el panel.
+    if (gAction === "commission-now") {
+      const mSnap = await db().collection("merchants").doc(merchantId).get();
+      const m = mSnap.exists ? mSnap.data() : {};
+      if (!m.plan_activated_at) return res.json({ cycle: null });
+      const [{ cicloEnCurso }, { usdRate }] = await Promise.all([import("./_lib/commission.js"), import("./_lib/usdRate.js")]);
+      const subs = await activeSubscribers(merchantId, m);
+      const { rate, source, stale } = await usdRate(db);
+      const ciclo = await cicloEnCurso(db, merchantId, m, { subs, rate });
+      return res.json({ cycle: ciclo ? { ...ciclo, usd_source: source, usd_stale: !!stale, subs } : null });
+    }
     if (gAction === "flows") return flowsApi(ctx, "flows", req, res);
     if (gAction === "whatsapp-templates" || gAction === "whatsapp-usage" || gAction === "whatsapp-flows") return whatsappApi(ctx, gAction, req, res);
     // Afiliados: del LOGIN (no de la tienda activa). Solo el dueño.

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { apiPost } from "../lib/api.js";
+import { apiPost, apiGet } from "../lib/api.js";
 import { DS as DS_ } from "../ui/theme.js";
-import { Card, BtnSolid, Badge, Callout, toast } from "../ui/components.jsx";
+import { Card, BtnSolid, Badge, Callout, Spinner, toast } from "../ui/components.jsx";
 import { PRICING_TIERS, TIER_BY_ID, PLAN_FEATURES, tierRangeLabel, COMMISSION_TIERS, SAAS_BASE_USD } from "../../shared/platform/pricing.js";
 import { WhatsAppUsageLine } from "./WhatsAppIntegration.jsx";
 
@@ -129,6 +129,54 @@ export function PricingTable({ T, current, factor = 1 }) {
   );
 }
 
+// Lo que va a venir en la próxima factura, con la cuenta hecha (30-sept-2026,
+// Thiago: "el cliente lo va a querer saber"). Se pide aparte porque lee los
+// cobros del ciclo: no se paga esa consulta cada vez que se abre el panel.
+function ProximaFactura({ T, b, abono, pct }) {
+  const [c, setC] = useState(null);
+  const [cargando, setCargando] = useState(true);
+  useEffect(() => {
+    let vivo = true;
+    apiGet("merchant", { action: "commission-now" })
+      .then(d => { if (vivo) setC(d && !d.error ? d.cycle : null); })
+      .catch(() => {})
+      .then(() => { if (vivo) setCargando(false); });
+    return () => { vivo = false; };
+  }, []);
+  if (cargando) return (
+    <div style={{ marginTop:14, display:"flex", alignItems:"center", gap:8, fontSize:12, color:T.textSm }}>
+      <Spinner size={12} color={T.textSm}/> Calculando tu próxima factura…
+    </div>
+  );
+  if (!c) return null;
+  const n = (x) => "USD " + (Math.round((Number(x) || 0) * 100) / 100).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const ars = (x) => "$" + Math.round(Number(x) || 0).toLocaleString("es-AR");
+  return (
+    <div style={{ marginTop:14, background:T.surface, border:`1px solid ${T.borderL}`, borderRadius:DS_.r.lg, padding:"14px 16px" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline", gap:10, flexWrap:"wrap", marginBottom:10 }}>
+        <span style={{ fontSize:13.5, fontWeight:800, color:T.text }}>Tu próxima factura</span>
+        <span style={{ fontSize:11.5, color:T.textSm }}>{fmtDia(b.next_payment_at)} · va cambiando con lo que cobres</span>
+      </div>
+      <div style={{ display:"grid", gap:6, fontSize:13 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", gap:10, color:T.textMd }}>
+          <span>Abono del mes que empieza</span><span style={{ fontVariantNumeric:"tabular-nums" }}>{n(abono)}</span>
+        </div>
+        <div style={{ display:"flex", justifyContent:"space-between", gap:10, color:T.textMd }}>
+          <span>Comisión del {String(pct).replace(".", ",")}% · {c.cobros} cobro{c.cobros === 1 ? "" : "s"} por {ars(c.gmv_ars)}</span>
+          <span style={{ fontVariantNumeric:"tabular-nums" }}>{n(c.commission_usd)}</span>
+        </div>
+        <div style={{ display:"flex", justifyContent:"space-between", gap:10, paddingTop:8, marginTop:2, borderTop:`1px solid ${T.borderL}`, fontWeight:800, color:T.text, fontSize:15 }}>
+          <span>Total estimado</span><span style={{ fontVariantNumeric:"tabular-nums" }}>{n(Number(abono) + Number(c.commission_usd || 0))}</span>
+        </div>
+      </div>
+      <div style={{ fontSize:11.5, color:T.textSm, lineHeight:1.5, marginTop:10 }}>
+        Es lo que va <strong style={{ color:T.textMd }}>hasta ahora</strong> en este ciclo: cada cobro nuevo le suma y lo que se rechace o devuelvas se descuenta.
+        {c.usd_rate ? <> La comisión se calcula en pesos y se pasa a dólares con el blue venta del día del cierre (hoy {ars(c.usd_rate)}).</> : null}
+      </div>
+    </div>
+  );
+}
+
 // Card de estado: suscriptores activos, tramo actual y cuánto falta para el siguiente.
 function StatusCard({ T, billing, loadingId, onActivate, stripe }) {
   const b = billing || {};
@@ -191,6 +239,7 @@ function StatusCard({ T, billing, loadingId, onActivate, stripe }) {
           {b.billing_method === "stripe" && stripe && <button onClick={stripe.portal} disabled={!!stripe.busy} style={{ ...BtnSolid(T), padding: "7px 12px", fontSize: 12, opacity: stripe.busy ? 0.6 : 1 }}>{stripe.busy === "portal" ? "Abriendo…" : "Tarjeta y facturas"}</button>}
         </div>
       )}
+      {!beta && b.activated_plan && <ProximaFactura T={T} b={b} abono={abono} pct={pctCom}/>}
       {b.saas_status === "past_due" && (
         <Callout T={T} tone="danger" title="El último cobro de tu plan fue rechazado" style={{ marginTop: 12 }}
           right={stripe && b.billing_method === "stripe" && <button onClick={stripe.portal} style={{ ...BtnSolid(T), padding: "8px 14px", fontSize: 12.5 }}>Actualizar tarjeta</button>}>

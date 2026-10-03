@@ -123,3 +123,25 @@ test("(p) una comisión chiquita no se cobra: viaja al ciclo siguiente", async (
   assert.ok(r.carry_usd > 0 && r.carry_usd < MIN_COMISION_USD);
   assert.equal(rawGet(`merchants/${MID}`).commission_carry_usd, r.carry_usd, "queda anotado para el mes que viene");
 });
+
+// 30-sept-2026 (Thiago): el comercio tiene que poder ver cuánto le va a venir
+// en la próxima factura, no enterarse el día del cobro.
+test("(p) el ciclo en curso dice cuánto va de comisión hasta ahora", async () => {
+  const { cicloEnCurso } = await loadApi("api/_lib/commission.js");
+  // Ciclo abierto: del 1-oct en adelante (la activación fue el 1-sept).
+  cobro("p1", 780000, "2026-10-02T10:00:00.000Z");
+  cobro("p2", 780000, "2026-10-04T10:00:00.000Z");
+  cobro("p3", 500000, "2026-09-10T10:00:00.000Z");   // del ciclo anterior: no cuenta
+  const c = await cicloEnCurso(db, MID, tienda(), { nowMs: AHORA, subs: 50, rate: RATE });
+  assert.equal(c.cobros, 2);
+  assert.equal(c.gmv_ars, 1560000);
+  assert.equal(c.pct, 1.8);
+  assert.equal(c.commission_usd, 18, "1,8% de US$ 1.000");
+  assert.equal(c.base_usd, SAAS_BASE_USD);
+  assert.equal(c.total_usd, 117);
+});
+
+test("(p) sin plan activado todavía no hay ciclo que mostrar", async () => {
+  const { cicloEnCurso } = await loadApi("api/_lib/commission.js");
+  assert.equal(await cicloEnCurso(db, MID, { }, { nowMs: AHORA, subs: 5, rate: RATE }), null);
+});
