@@ -78,3 +78,8 @@ Diferencias con la plantilla de G4U:
 **Ojo si después se instala el widget en su ficha**: Kaching está en `KNOWN_BUNDLES`, así que
 `detectForeignBundles()` lo esconde solo. Eso es lo que queremos, pero hay que avisarle al
 comercio: el 6x3 y el 3x2 de compra única dejan de verse en esa página.
+
+**4-oct-2026 · la ficha es un CLON de la de ellos** (`emilycosmetic.ar/products/crema-anticelulitis-emily`):
+mismas secciones, orden, textos, colores y fotos (clases `e-*` en `emily.template.html`); lo único
+distinto es el bundle (planes 1 crema / 2 cremas con el formato de sus tarjetas, sérum como casillero
+a $23.730, regalos en renglones a $0) y los textos que lo nombran. Carrito, checkout y portal no cambian.
