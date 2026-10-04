@@ -1,9 +1,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Emily Cosmetic · Suscripción</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Lora:wght@600;700&display=swap">
 <style>
-:root{--wine:#6e2437;--wine-d:#551a29;--cream:#fff;--cream-2:#fdf5f7;--brown:#4a3b3f;--rose:#e49aa7;--rose-2:#f7dde2;--ink:#1a1a1a;--muted:#7a6a6e;--ok:#1f7a3e;--r:8px}
+:root{--wine:#c2566b;--wine-d:#a8475b;--cream:#fff;--cream-2:#fdf5f7;--brown:#4a3b3f;--rose:#e49aa7;--rose-2:#f7dde2;--ink:#1a1a1a;--muted:#7a6a6e;--ok:#1f7a3e;--r:8px}
 html,body{margin:0;overflow-x:clip;background:var(--cream);color:var(--ink);font-family:'Montserrat',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
 *{box-sizing:border-box}
 a{color:inherit}
@@ -358,7 +358,7 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 .ok-card div:last-child{border:0}
 .demo-tag{position:fixed;left:14px;bottom:14px;z-index:50;display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#10b981,#059669);color:#04140d;font-size:12px;font-weight:700;padding:7px 12px 7px 9px;border-radius:99px;box-shadow:0 8px 24px rgba(16,185,129,.35);pointer-events:none;font-family:'Inter',Poppins,system-ui,sans-serif}
 .demo-tag svg{width:18px;height:18px;flex:none}
-.demo-tag img{height:18px;width:auto;display:block;background:var(--wine);border-radius:5px;padding:2px 5px}
+.demo-tag img{height:18px;width:auto;display:block;background:#fff;border-radius:5px;padding:2px 5px}
 /* marquesina (como la de su tienda): una palabra cada ~3 s, muy lenta */
 .mq{background:#1a0a10;color:#f3d9e0;font-size:12.5px;font-weight:600;letter-spacing:.02em;overflow:hidden;white-space:nowrap;border-bottom:1px solid rgba(255,255,255,.08)}
 .mq div{display:inline-block;padding:9px 0;animation:mq 48s linear infinite}
@@ -448,7 +448,7 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 .e-pk-p{flex:none;text-align:right}
 .e-pk-p s{display:block;font-size:13px;color:#777}
 .e-pk-p b{display:block;font-size:22px;font-weight:800;line-height:1.15}
-.e-pk.on .e-pk-p b{color:#6e2437}
+.e-pk.on .e-pk-p b{color:#c2566b}
 .e-pk-p small{display:block;font-size:10.5px;font-weight:600;color:#777;margin-top:2px}
 .e-hint{margin:0 16px 16px;border:1.5px dashed #e9a9b4;background:#fffaf5;border-radius:8px;padding:9px 12px;font-size:13px;font-weight:700}
 .e-pk.on .e-hint{display:none}
@@ -470,7 +470,7 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 .e-gn{margin:0 16px;padding:2px 0 12px;font-size:11.5px;color:#8a6f75;font-weight:600}
 .e-cta{display:block;width:100%;margin-top:18px;border:0;border-radius:8px;background:#e49aa7;color:#fff;font-weight:700;font-size:18px;letter-spacing:.02em;padding:19px 12px;cursor:pointer;box-shadow:0 6px 14px rgba(228,154,167,.45)}
 .e-cta:active{transform:translateY(1px)}
-.e-cta-s{text-align:center;font-size:12.5px;font-weight:600;color:#6e2437;margin-top:9px;line-height:1.4}
+.e-cta-s{text-align:center;font-size:12.5px;font-weight:600;color:#c2566b;margin-top:9px;line-height:1.4}
 .e-sec{text-align:center;font-size:12.5px;color:#777;margin-top:8px;line-height:1.5}
 .e-gar{display:flex;align-items:center;gap:14px;border:1px solid #eee;border-radius:12px;padding:14px;margin-top:16px;font-size:15px;line-height:1.45}
 .e-gar .c{flex:none;width:64px;height:64px;border-radius:50%;border:3px solid #e49aa7;display:grid;place-items:center;text-align:center;color:#c2566b;font-weight:800;font-size:20px;line-height:1}
@@ -559,19 +559,40 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
 .e-stk button{flex:none;border:0;border-radius:8px;background:#e49aa7;color:#fff;font-weight:700;font-size:16px;padding:15px 20px;cursor:pointer;box-shadow:0 4px 10px rgba(228,154,167,.45)}
 body.stk-on .demo-tag{bottom:82px}
 .demo-tag{transition:bottom .25s}
+.e-hero{display:block;width:100%;aspect-ratio:600/196;background:#eac7c6 right center/cover no-repeat;position:relative;container-type:inline-size}
+.e-hero div{position:absolute;inset:0;background:linear-gradient(90deg,#eac8c6 0,#e8c1c1 52%,rgba(231,191,191,0) 62%);display:flex;flex-direction:column;justify-content:center;padding-left:7cqw;color:#6a2a3a}
+.e-hero b{font-family:'Lora',Georgia,serif;font-weight:700;font-size:5.3cqw;line-height:1.08;letter-spacing:-.01em}
+.e-hero span{display:block;max-width:50cqw;margin-top:2.2cqw;padding-top:1.6cqw;border-top:1px solid rgba(106,42,58,.45);font-size:max(8px,1.75cqw);line-height:1.35;color:#3c2a2e}
+.e-h1 em{font-style:normal;color:#c2566b;white-space:nowrap}
+.e-cards{margin-top:0}
+.ck-happy{background:#e49aa7;color:#fff;text-align:center;font-weight:700;font-size:13px;letter-spacing:.04em;padding:9px 12px}
+.e-stk > *{position:relative}
 @media(min-width:960px){
-  .e-hd .e-w{height:84px}.e-hd .lg{height:34px}.e-hd .bg{display:none}
-  .e-nav{display:flex;gap:28px;justify-content:center;padding:0 0 16px;font-size:14px}.e-nav a{text-decoration:none}
-  .e-top{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start;padding-top:32px}
-  .e-gal{position:sticky;top:100px}
+  #v-prod{font-size:16px}
+  .e-w{max-width:1188px}
+  .e-hd .e-w{height:90px;grid-template-columns:auto 1fr auto;gap:44px}.e-hd .lg{height:34px}.e-hd .bg{display:none}
+  .e-nav{display:flex;gap:30px;font-size:15px;color:#333}.e-nav a{text-decoration:none}
+  .e-top{display:grid;grid-template-columns:563fr 537fr;gap:48px;align-items:start;padding-top:28px}
+  .e-gal{position:sticky;top:110px}
+  .e-th img{width:84px;height:84px}
   .e-pill{margin-top:0}
-  .e-vids,.e-rr{justify-content:center}
-  .e-why .e-w{max-width:760px}
-  .e-ft .g{display:grid;grid-template-columns:1fr 1fr;gap:40px}
+  .e-h2{font-size:34px}
+  .e-sum{padding:80px 0 40px}.e-vids{justify-content:center;gap:14px}.e-vids video{width:220px}
+  .e-sci{padding:60px 0}.e-sci h2{font-size:26px}
+  .e-sl{max-width:870px;display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center;text-align:center}
+  .e-cards .e-card:first-child{margin-top:0}
+  .e-nv{top:50%}.e-nv.p{left:-54px}.e-nv.n{right:-54px}
+  .e-why{padding:50px 0}.e-why .e-w{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center}.e-why img{margin:0;max-width:none}
+  .e-why .e-cta{max-width:340px}
+  .e-rev{padding:70px 0 40px}.e-rr{max-width:1188px;margin:0 auto;gap:20px}.e-rc{width:373px}
+  .e-res{padding:60px 0 80px}.e-res h2{font-size:40px}
+  .e-ft .g{display:grid;grid-template-columns:1fr 1fr;gap:60px}
+  .e-stk{padding-left:max(20px,calc(50vw - 574px));padding-right:max(20px,calc(50vw - 574px))}
+  .e-stk button{padding:15px 44px}
 }
 </style>
 
-<div id="ld"><svg width="56" height="56" viewBox="0 0 32 32"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8a2d4d"/><stop offset="1" stop-color="#3b0218"/></linearGradient></defs><circle cx="16" cy="16" r="16" fill="url(#lg)"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><div>Abriendo el checkout seguro…</div></div>
+<div id="ld"><svg width="56" height="56" viewBox="0 0 32 32"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e49aa7"/><stop offset="1" stop-color="#c2566b"/></linearGradient></defs><circle cx="16" cy="16" r="16" fill="url(#lg)"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><div>Abriendo el checkout seguro…</div></div>
 <div class="demo-tag"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#04140d" opacity=".18"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#04140d" stroke-width="2.8" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#04140d" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>demo.recurrentes para</span><img id="logoTag" alt="Emily Cosmetic"></div>
 
 <!-- ════════ VISTA PRODUCTO ════════ -->
@@ -583,14 +604,15 @@ body.stk-on .demo-tag{bottom:82px}
     <div class="e-w">
       <svg class="bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
       <img class="lg" id="logo" alt="Emily Cosmetic">
+      <nav class="e-nav"><a href="#">Productos</a><a href="#">Combos</a><a href="#">Accesorios</a><a href="#">Ayuda con mi Pedido</a><a href="#">Nosotros</a><a href="#">Mayoristas</a></nav>
       <div class="r">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
         <span class="badge-cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 8h14l-1 13H6z"/><path d="M9 8V6a3 3 0 016 0v2"/></svg><b>1</b></span>
       </div>
     </div>
-    <nav class="e-nav"><a href="#">Productos</a><a href="#">Combos</a><a href="#">Accesorios</a><a href="#">Ayuda con mi Pedido</a><a href="#">Nosotros</a><a href="#">Mayoristas</a></nav>
+    
   </header>
-  <img class="e-hero" id="hero" alt="#1 crema anti celulitis en Argentina">
+  <div class="e-hero" id="hero"><div><b>#1 crema anti celulitis<br>ahora en suscripción</b><span>Hasta 25% OFF en cada envío · Envío gratis · Regalos · Pausás o cancelás cuando quieras</span></div></div>
 
   <main class="e-w e-top">
     <div class="e-gal"><img class="main" id="galMain" alt="Crema para Celulitis Emily"><div class="e-th" id="thumbs"></div></div>
@@ -598,7 +620,7 @@ body.stk-on .demo-tag{bottom:82px}
       <span class="e-pill">PRODUCTO VIRAL | STOCK BAJO</span>
       <div class="e-sale"><b>💐 DÍA DE LA MADRE SALE</b><small>SOLO HASTA EL 7/10</small><div class="e-cd" id="cd"></div></div>
       <div class="e-stars"><b>★★★★★</b> +14.000 pedidos en el último año</div>
-      <h1 class="e-h1">Crema para Celulitis Emily</h1>
+      <h1 class="e-h1">Crema para Celulitis Emily <em>· Suscripción</em></h1>
       <div class="e-chips"><span>TRATAMIENTO CELULITIS + FLACIDEZ</span><span>🇦🇷 APROBADA POR ANMAT</span></div>
       <ul class="e-bul">
         <li>La piel de naranja se ve menos marcada desde las primeras semanas</li>
@@ -635,13 +657,13 @@ body.stk-on .demo-tag{bottom:82px}
       </div>
 
       <div class="e-acc">
-        <details><summary>¿Y si no me funciona?</summary><p>Tenés 60 días para probarla. Si no ves tu piel más lisa y firme, nos escribís y te devolvemos el dinero. El riesgo lo corremos nosotros. Y la suscripción no te ata: la pausás o la cancelás desde tu portal, en un clic. <a href="#portal">Ver cómo es el portal →</a></p></details>
-        <details><summary>¿Cuánto tarda en notarse?</summary><p>Muchas clientas notan la piel más suave y lisa en las primeras 2 semanas. El cambio en la piel de naranja se consolida con 60 a 90 días de uso diario: por eso el tratamiento funciona cuando no se corta, y con la suscripción la crema te llega sola antes de que se termine.</p></details>
-        <details><summary>¿Por qué un plan de 1 o 2 cremas?</summary><p>Un pote de 200 ml rinde 30 días usándolo todos los días. El plan de 1 crema te la manda todos los meses; el de 2 cremas te manda dos juntas cada 2 meses, con mejor precio por crema y un envío menos. Podés pausar o cancelar cuando quieras desde tu portal.</p></details>
-        <details><summary>¿En qué se diferencia de otras cremas que ya probé?</summary><p>Una crema humectante común hidrata la superficie y listo. Emily combina Centella Asiática (firmeza y elasticidad) con alcanfor (activa la zona) y se aplica con masaje ascendente: trabaja sobre la firmeza de la piel, que es lo que hace que la celulitis se vea.</p></details>
-        <details><summary>¿Cómo y cuándo se aplica?</summary><p>Sobre la piel limpia y seca, idealmente después de la ducha. Masajeá con movimientos circulares y ascendentes hasta que se absorba. 1 o 2 veces por día.</p></details>
-        <details><summary>¿Necesito combinarla con otra cosa?</summary><p>No hace falta. Si querés potenciarla, sumale el cepillo corporal antes de aplicarla: estimula la circulación y prepara la piel. En el plan de 2 cremas va de regalo en tu primer envío.</p></details>
-        <details><summary>¿Sirve para piel sensible?</summary><p>Sí, pero como con cualquier cosmético, la primera vez probala en una zona chica y esperá 24 horas.</p></details>
+        <details><summary>¿Cómo funciona la suscripción?</summary><p>Elegís tu plan una sola vez y la crema te llega sola: todos los meses con el plan de 1 crema, cada 2 meses con el de 2. Tenés descuento en cada envío, no solo en el primero, y el envío es gratis.</p></details>
+        <details><summary>¿Puedo pausar o cancelar cuando quiera?</summary><p>Sí. Desde tu portal pausás, cambiás la dirección o cancelás en un clic, sin llamadas ni formularios. El link te llega por mail y WhatsApp con cada cobro. <a href="#portal">Ver cómo es el portal →</a></p></details>
+        <details><summary>¿Cuándo y cómo me cobran?</summary><p>El primer pago es hoy, con tarjeta o con tu cuenta de Mercado Pago. Después se cobra solo el mismo importe en cada renovación, y te avisamos antes de cada cobro.</p></details>
+        <details><summary>¿Por qué un plan de 1 o 2 cremas?</summary><p>Un pote de 200 ml rinde 30 días usándolo todos los días. El plan de 1 crema te la manda todos los meses; el de 2 cremas te manda dos juntas cada 2 meses, con mejor precio por crema y un envío menos.</p></details>
+        <details><summary>¿Qué regalos entran?</summary><p>En tu primer envío va la Guía de cuidado corporal. Con el plan de 2 cremas también va el Cepillo Corporal. Son de regalo: no se cobran ni ahora ni en las renovaciones.</p></details>
+        <details><summary>¿Y si no me funciona?</summary><p>Tenés 60 días para probarla. Si no ves tu piel más lisa y firme, nos escribís y te devolvemos el dinero. El riesgo lo corremos nosotros, y la suscripción la cancelás desde tu portal.</p></details>
+        <details><summary>¿Cuánto tarda en notarse?</summary><p>Muchas clientas notan la piel más suave y lisa en las primeras 2 semanas. El cambio en la piel de naranja se consolida con 60 a 90 días de uso diario: por eso el tratamiento funciona cuando no se corta, y con la suscripción la crema te llega antes de que se termine.</p></details>
       </div>
     </div>
   </main>
@@ -657,11 +679,11 @@ body.stk-on .demo-tag{bottom:82px}
 
   <section class="e-why"><div class="e-w">
     <img id="whyImg" alt="¿Hasta dónde llega? Crema común vs Emily">
-    <h2 class="e-h2">Por qué Emily sí, y una crema común no</h2>
+    <div><h2 class="e-h2">Por qué Emily sí, y una crema común no</h2>
     <h3>El problema no está en la superficie</h3><p>La celulitis se forma cuando la grasa empuja contra un tejido que perdió firmeza. Una crema que solo humecta se queda arriba: la piel se siente suave un rato, pero los pozos siguen ahí.</p>
     <h3>Centella Asiática: firmeza desde adentro</h3><p>Ayuda a la producción natural de colágeno, que es el soporte que la piel pierde con los años. Más soporte = menos piel de naranja a la vista.</p>
     <h3>Masaje + alcanfor: la zona se activa</h3><p>El alcanfor estimula y refresca, y el masaje ascendente mueve la circulación. Por eso se siente distinta desde la primera aplicación.</p>
-    <button class="e-cta" data-go>Suscribirme</button>
+    <button class="e-cta" data-go>Suscribirme</button></div>
   </div></section>
 
   <section class="e-rev"><h2 class="e-h2">Clientas reales, resultados reales</h2><div class="e-rr" id="revs"></div></section>
@@ -734,9 +756,10 @@ body.stk-on .demo-tag{bottom:82px}
 
 <!-- ════════ VISTA CHECKOUT ════════ -->
 <div id="v-ck" class="ck" hidden>
+  <div class="ck-happy">💗 +100.000 clientas felices con Emily</div>
   <div class="ck-shell">
     <div class="ck-main"><div>
-      <div style="display:flex;align-items:center;gap:12px;padding:22px 0 6px;min-height:56px"><img id="logoCk" alt="Emily Cosmetic" style="height:44px;width:auto;background:var(--wine);border-radius:10px;padding:6px 10px"></div>
+      <div style="display:flex;align-items:center;gap:12px;padding:22px 0 6px;min-height:56px"><img id="logoCk" alt="Emily Cosmetic" style="height:44px;width:auto;border-radius:10px;padding:6px 10px"></div>
       <div class="mob-sum"><button type="button" id="msBtn"><span>Mostrar resumen del pedido ▾</span><b id="msTot"></b></button><div id="msBody" hidden style="padding-bottom:18px"></div></div>
 
       <section class="sec" style="margin-top:22px"><h2>Contacto</h2>
@@ -864,7 +887,7 @@ const giftList = () => pk().gifts.map(byH).filter(Boolean);
 const F = "https://cdn.shopify.com/s/files/1/0672/5933/4848/files/";
 ["logo", "logoCk", "logoOk", "logoMl", "logoTag"].forEach(id => { const e = $("#" + id); if (e) e.src = A.logo; });
 $("#mq").innerHTML = Array(12).fill("<span>🌸PROBALA GRATIS ANTES DE PAGAR🌸</span>").join("");
-$("#hero").src = F + "grok-image-234ea9e3-9107-42a3-b8be-75e618ea438e.jpg?width=1100";
+$("#hero").style.backgroundImage = `url(${F}grok-image-234ea9e3-9107-42a3-b8be-75e618ea438e.jpg?width=1600)`;
 $("#whyImg").src = F + "advertorial-razon-4_jpg.png?width=900";
 const GAL = ["crema-anticelulitis-dia-de-la-madre-estilo-burn_1.png?v=1790960923", "ANTES_Y_DESPUES-38.webp?v=1772071203", "AnyConv.com__pagina_webbb-18.webp", "AnyConv.com__PLACAS_WEB-22.webp", "AnyConv.com__PLACAS_WEB-19.webp", "AnyConv.com__placas_web_1.webp", "AnyConv.com__pagina_web-15.webp", "AnyConv.com__ppaginaaa_web.webp"].map(f => F + f + (f.includes("?") ? "&" : "?") + "width=");
 let gi = 0;
@@ -885,7 +908,7 @@ renderGal();
   const now = new Date(); let v = new Date(now.getFullYear(), 11, 21); if (v < now) v = new Date(now.getFullYear() + 1, 11, 21);
   $("#verano").textContent = Math.ceil((v - now) / 864e5) + " días";
 })();
-$("#vids").innerHTML = ["2bdcd7b5515d486ba65638c208d96e92", "efb220a8f2a840ee8f41a7ef8c313a95", "6d0343b3ef2340aca4c656536f07fdbf"].map(v => `<video src="https://cdn.shopify.com/videos/c/o/v/${v}.mp4#t=0.1" muted playsinline loop preload="metadata"></video>`).join("");
+$("#vids").innerHTML = ["2bdcd7b5515d486ba65638c208d96e92", "efb220a8f2a840ee8f41a7ef8c313a95", "6d0343b3ef2340aca4c656536f07fdbf", "c783e085df9f4b6b861193dc906bffc8.mov", "a9f619371add4b21a1cd2ee9af0d7346.mov"].map(v => `<video src="https://cdn.shopify.com/videos/c/o/v/${v.includes(".") ? v : v + ".mp4"}#t=0.1" muted playsinline loop preload="metadata"></video>`).join("");
 $("#vids").addEventListener("click", e => { const v = e.target.closest("video"); if (!v) return; if (v.paused) { v.muted = false; v.play(); } else v.pause(); });
 // La Ciencia Detrás de Emily (sus 3 pestañas, tal cual)
 const SCI = [
@@ -897,7 +920,7 @@ let si = 0;
 function renderSci() {
   $("#tabs").innerHTML = SCI.map((s, i) => `<button type="button" class="${i === si ? "on" : ""}" data-i="${i}">${s[0]}</button>`).join("");
   const s = SCI[si];
-  $("#sl").innerHTML = `<img src="${F + s[1]}?width=800" alt="${s[0]}"><div class="e-card"><span>La Biología</span><p>${s[2]}</p></div><div class="e-con"></div><div class="e-card"><span>Cómo Ayuda</span><p>${s[3]}</p></div><button type="button" class="e-nv p" data-d="-1" aria-label="Anterior">❮</button><button type="button" class="e-nv n" data-d="1" aria-label="Siguiente">❯</button>`;
+  $("#sl").innerHTML = `<img src="${F + s[1]}?width=800" alt="${s[0]}"><div class="e-cards"><div class="e-card"><span>La Biología</span><p>${s[2]}</p></div><div class="e-con"></div><div class="e-card"><span>Cómo Ayuda</span><p>${s[3]}</p></div></div><button type="button" class="e-nv p" data-d="-1" aria-label="Anterior">❮</button><button type="button" class="e-nv n" data-d="1" aria-label="Siguiente">❯</button>`;
 }
 $("#tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (b) { si = +b.dataset.i; renderSci(); } });
 $("#sl").addEventListener("click", e => { const b = e.target.closest(".e-nv"); if (b) { si = (si + (+b.dataset.d) + SCI.length) % SCI.length; renderSci(); } });
@@ -907,7 +930,7 @@ $("#revs").innerHTML = [
   ["IMG_6890_430x_a8f60e6b-7107-439a-9ca3-515465424eee.webp", 5, "Hace 20 días que empecé a usar Emily corporal y puedo notar un resultado favorable en muy poco tiempo. Ya realice mi segunda compra 😊", "Gabriela C."],
   ["IMG_6889_430x_927afc0b-fe8f-45c2-b013-db0fa6bd3faa.webp", 4, "Te deja la piel muy suave y desinflama. Muy linda.", "Cynthia M."],
   ["IMG_6887_430x_b23aeca0-af09-4a76-86ee-961f5d19beed.webp", 5, "Muy buena la crema", "Cecilia G."],
-].map(r => `<div class="e-rc"><img src="${F + r[0]}?width=520" alt="Resultado de ${r[3]}" loading="lazy"><div class="s">${"★".repeat(r[1])}${"☆".repeat(5 - r[1])}</div><p>"${r[2]}"</p><b>${r[3]}</b><small>✔ Compra verificada</small></div>`).join("");
+].map(r => `<div class="e-rc"><img src="${F + r[0]}?width=520" alt="Resultado de ${r[3]}" loading="lazy"><div class="s">${"★".repeat(r[1])}${"☆".repeat(5 - r[1])}</div><p>"${r[2]}"</p><b>${r[3]}</b><small>✔ Compra verificada</small></div>`).join("") + `<div class="e-rc"><img src="${F}eb1d6963-e131-4dff-b9a5-36888968bfb8_430x_93d30043-62cb-452c-931e-0f02e558023a.webp?width=520" alt="Resultado de clienta Emily" loading="lazy" style="aspect-ratio:auto"></div>`;
 
 // ── Planes (el bundle): lo único que cambia respecto de su ficha ──
 const SERUM = "serum-para-celulitis";
@@ -959,7 +982,7 @@ function renderCta() {
 function renderAll() { renderPacks(); renderCta(); }
 renderAll();
 // Los "COMPRAR AHORA" de abajo: acá llevan a elegir el plan; el de la barra fija abre el carrito.
-document.querySelectorAll("#v-prod [data-go]").forEach(b => b.addEventListener("click", () => { if (b.dataset.go === "cart") $("#goCk").click(); else $("#packs").scrollIntoView({ behavior: "smooth", block: "center" }); }));
+document.querySelectorAll("#v-prod [data-go]").forEach(b => b.addEventListener("click", () => { if (b.dataset.go === "cart") $("#goCk").click(); else $("#goCk").scrollIntoView({ behavior: "smooth", block: "center" }); }));
 // Barra fija al pie: aparece cuando el botón principal quedó arriba, fuera de pantalla (como la de ellos).
 new IntersectionObserver(([en]) => { const on = !en.isIntersecting && en.boundingClientRect.top < 0 && S.view === "prod"; $("#stk").classList.toggle("on", on); document.body.classList.toggle("stk-on", on); }).observe($("#goCk"));
 
