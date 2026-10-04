@@ -8,7 +8,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { SITIO, PAGINAS } from "./paginas.mjs";
+import { SITIO, PAGINAS as BASE } from "./paginas.mjs";
+import { EXTRA } from "./paginas-extra.mjs";
+// Las dos listas son lo mismo: están separadas solo por tamaño del archivo.
+const PAGINAS = [...BASE, ...EXTRA];
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PUBLIC = path.join(RAIZ, "public");

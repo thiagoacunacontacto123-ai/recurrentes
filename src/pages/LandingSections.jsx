@@ -908,8 +908,8 @@ export function ComparisonSection({ T }) {
   return (
     <section className="ls-sec-alt" id="rec-comparar">
       <div className="ls-wrap">
-        <SectionHead T={T} eyebrow="Comparativa" title="Lo mismo, sin comisión y con más funciones"
-          sub="Casi todos cobran un porcentaje de cada venta que hacés, además del abono. Nosotros no cobramos comisión, los primeros 10 suscriptores son gratis y viene todo incluido: recupero de carritos por WhatsApp, mails con tu marca y diseños de widget 100% personalizables."/>
+        <SectionHead T={T} eyebrow="Comparativa" title="El mismo abono en los tres planes, y el porcentaje baja cuando crecés"
+          sub="US$ 99 por mes más 1,8% de lo cobrado, que baja a 1,5% y a 1,3% a medida que sumás suscriptores. La puesta en marcha va incluida, y también el recupero de carritos por WhatsApp, los mails con tu marca y el widget con el diseño de tu tienda."/>
         <div className="ls-cmp-wrap" style={{borderRadius:18,border:`1px solid ${T.border}`,background:T.card}}>
           <table className="ls-cmp">
             <thead>
