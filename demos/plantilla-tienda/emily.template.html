@@ -566,6 +566,10 @@ body.stk-on .demo-tag{bottom:82px}
 .e-pk-c em{font-style:normal;font-weight:700;color:#c2566b}
 .e-nav a.on{color:#c2566b;font-weight:700}
 .e-faq{padding:10px 0 56px}.e-faq .e-w{max-width:800px}.e-faq .e-h2{text-align:center;margin-bottom:10px}.e-faq .e-cta{margin-top:26px}
+.badge-cart{cursor:pointer}.e-hd .bg,.e-hd .r > svg{cursor:pointer}
+.e-toast{position:fixed;left:50%;bottom:64px;z-index:60;transform:translate(-50%,20px);opacity:0;pointer-events:none;transition:.25s;background:linear-gradient(135deg,#10b981,#059669);color:#04140d;font-size:12.5px;font-weight:700;line-height:1.35;text-align:center;padding:10px 16px;border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.18);width:max-content;max-width:calc(100vw - 32px)}
+.e-toast.on{opacity:1;transform:translate(-50%,0)}
+body.stk-on .e-toast{bottom:132px}
 .e-h1 em{font-style:normal;color:#c2566b;white-space:nowrap}
 .e-cards{margin-top:0}
 .ck-happy{background:#e49aa7;color:#fff;text-align:center;font-weight:700;font-size:13px;letter-spacing:.04em;padding:9px 12px}
@@ -610,7 +614,7 @@ body.stk-on .demo-tag{bottom:82px}
       <nav class="e-nav"><a href="#">Productos</a><a href="#">Combos</a><a href="#">Accesorios</a><a href="#" class="on">Suscripción</a><a href="#">Ayuda con mi Pedido</a><a href="#">Nosotros</a><a href="#">Mayoristas</a></nav>
       <div class="r">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
-        <span class="badge-cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 8h14l-1 13H6z"/><path d="M9 8V6a3 3 0 016 0v2"/></svg><b>1</b></span>
+        <span class="badge-cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 8h14l-1 13H6z"/><path d="M9 8V6a3 3 0 016 0v2"/></svg><b hidden>0</b></span>
       </div>
     </div>
     
@@ -721,6 +725,7 @@ body.stk-on .demo-tag{bottom:82px}
     <div class="b"><span>© 2026, Emily Cosmetic</span><a href="https://www.recurrentesapp.com" target="_blank" rel="noopener">Suscripciones con <svg width="16" height="16" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#10b981"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><b>Recurrentes</b></a></div>
   </div></footer>
 
+  <div class="e-toast" id="demoToast" role="status"></div>
   <div class="e-stk" id="stk"><div class="t"><b id="stkT"></b><span id="stkP"></span></div><button type="button" data-go="cart">Suscribirme</button></div>
 </div>
 
@@ -966,6 +971,14 @@ renderAll();
 document.querySelectorAll("#v-prod [data-go]").forEach(b => b.addEventListener("click", () => { if (b.dataset.go === "cart") $("#goCk").click(); else $("#goCk").scrollIntoView({ behavior: "smooth", block: "center" }); }));
 // Barra fija al pie: aparece cuando el botón principal quedó arriba, fuera de pantalla (como la de ellos).
 new IntersectionObserver(([en]) => { const on = !en.isIntersecting && en.boundingClientRect.top < 0 && S.view === "prod"; $("#stk").classList.toggle("on", on); document.body.classList.toggle("stk-on", on); }).observe($("#goCk"));
+// Lo que en la demo no lleva a ningún lado (menú, pie, lupa) avisa con un cartelito en vez de no hacer nada.
+function demoToast(m) { const e = $("#demoToast"); e.textContent = m; e.classList.add("on"); clearTimeout(demoToast.t); demoToast.t = setTimeout(() => e.classList.remove("on"), 3200); }
+$("#v-prod").addEventListener("click", e => {
+  if (e.target.closest(".badge-cart")) { if (S.inCart) openCart(); else demoToast("Tu carrito está vacío. Elegí tu plan y tocá Suscribirme."); return; }
+  if (e.target.closest('a[href="#"], .e-hd .bg, .e-hd .r > svg, .e-ft .nl button')) { e.preventDefault(); demoToast("Esto es una demo. Cuando lo adaptemos a tu tienda, desde acá vas a esa sección."); }
+});
+// El carrito no suma: cada "Suscribirme" lo deja con el plan elegido en ese momento. El ícono lo reabre.
+$("#goCk").addEventListener("click", () => { S.inCart = true; });
 
 // ── checkout ──
 function show(v) { S.view = v; $("#v-prod").hidden = v !== "prod"; $("#v-ck").hidden = v !== "ck"; $("#v-ok").hidden = v !== "ok"; $("#v-portal").hidden = v !== "portal"; if (v !== "prod") { $("#stk").classList.remove("on"); document.body.classList.remove("stk-on"); } if (v === "portal") renderPortal(); window.scrollTo(0, 0); }
@@ -1040,7 +1053,7 @@ function renderCart() {
       ${ups.map(i => { const q = S.extras[i.h] || 0; return `<div class="up ${q ? "on" : ""}"><img src="${i.img}" alt=""><div class="t"><b>${i.title}</b><span>${money(exSub(i))}<s>${money(i.price)}</s></span></div>${q ? `<div class="stp"><button type="button" data-ex="${i.h}" data-d="-1">−</button><b>${q}</b><button type="button" data-ex="${i.h}" data-d="1">+</button></div>` : `<button type="button" class="ab" data-ex="${i.h}" data-d="1">+ Agregar</button>`}</div>`; }).join("")}
     </div>`;
   $("#cartTot").textContent = money(t.sub); $("#cartSv").textContent = `Estás ahorrando ${money(t.saving)} en cada envío · envío gratis`;
-  $(".badge-cart b").textContent = String(S.packQty + extrasList().reduce((a, i) => a + i.q, 0));
+  $(".badge-cart b").hidden = false; $(".badge-cart b").textContent = String(S.packQty + extrasList().reduce((a, i) => a + i.q, 0));
 }
 function openCart() { renderCart(); $("#cartBg").style.display = "block"; $("#cart").classList.add("open"); }
 $("#cartBody").addEventListener("click", e => {
