@@ -1,0 +1,35 @@
+{
+  "logo": "https://cdn.shopify.com/s/files/1/0672/5933/4848/files/LOGO_X2_b8d022dc-ae4b-4a01-8ed0-fbcdf431132b.png?width=400",
+  "main": "crema-anticelulitis-emily",
+  "gallery": [
+    "https://cdn.shopify.com/s/files/1/0672/5933/4848/files/AnyConv.com__PLACAS_WEB-19.webp?width=900",
+    "https://cdn.shopify.com/s/files/1/0672/5933/4848/files/ANTES_Y_DESPUES-38.webp?width=900",
+    "https://cdn.shopify.com/s/files/1/0672/5933/4848/files/AnyConv.com__pagina_webbb-18.webp?width=900",
+    "https://cdn.shopify.com/s/files/1/0672/5933/4848/files/AnyConv.com__placas_web_1.webp?width=900",
+    "https://cdn.shopify.com/s/files/1/0672/5933/4848/files/AnyConv.com__pagina_web-15.webp?width=900",
+    "https://cdn.shopify.com/s/files/1/0672/5933/4848/files/AnyConv.com__PLACAS_WEB-22.webp?width=900",
+    "https://cdn.shopify.com/s/files/1/0672/5933/4848/files/AnyConv.com__ppaginaaa_web.webp?width=900"
+  ],
+  "icons": [
+    "https://cdn.shopify.com/s/files/1/0672/5933/4848/files/AnyConv.com__PLACAS_WEB-19.webp?width=360",
+    "https://cdn.shopify.com/s/files/1/0672/5933/4848/files/AnyConv.com__placas_web_1.webp?width=360",
+    "https://cdn.shopify.com/s/files/1/0672/5933/4848/files/AnyConv.com__pagina_web-15.webp?width=360",
+    "https://cdn.shopify.com/s/files/1/0672/5933/4848/files/ANTES_Y_DESPUES-38.webp?width=360"
+  ],
+  "items": [
+    {"h":"crema-anticelulitis-emily","title":"Crema para Celulitis","sub":"200 ml · Centella + Vitamina E","price":39500,"img":"https://cdn.shopify.com/s/files/1/0672/5933/4848/files/AnyConv.com__PLACAS_WEB-19.webp?width=240"},
+    {"h":"serum-para-celulitis","title":"Sérum Anticelulitis","sub":"30 ml · Ácido hialurónico + Té verde","price":33900,"img":"https://cdn.shopify.com/s/files/1/0672/5933/4848/files/serum-anticelulitis-estilo-burn.png?width=240"},
+    {"h":"cepillo","title":"Cepillo Corporal","sub":"Anticelulitis y antiestrías","price":19900,"img":"https://cdn.shopify.com/s/files/1/0672/5933/4848/files/copy1.2_3.png?width=240"},
+    {"h":"crema-antiestrias-emily","title":"Crema para Estrías","sub":"200 ml · Rosa mosqueta","price":37500,"img":"https://cdn.shopify.com/s/files/1/0672/5933/4848/files/crema-antiestrias-dia-de-la-madre-estilo-burn.png?width=240"},
+    {"h":"crema-reafirmante-abdomen","title":"Crema Reafirmante","sub":"Abdomen y busto","price":34900,"img":"https://cdn.shopify.com/s/files/1/0672/5933/4848/files/crema-reafirmante-estilo-burn.png?width=240"},
+    {"h":"serum-antiarrugas-cuello-y-brazo","title":"Sérum Antiarrugas","sub":"Cuello y brazos · Colágeno","price":33900,"img":"https://cdn.shopify.com/s/files/1/0672/5933/4848/files/serum-antiarrugas-estilo-burn.png?width=240"},
+    {"h":"crema-reparadora-de-manos","title":"Crema para Manos","sub":"Aloe vera y caléndula","price":33900,"img":"https://cdn.shopify.com/s/files/1/0672/5933/4848/files/crema-manos-estilo-burn.png?width=240"},
+    {"h":"ebook-elimina-la-celulitis-y-las-estrias-desde-la-raiz","title":"Guía de cuidado corporal","sub":"20 tips para eliminar la celulitis","price":23900,"img":"https://cdn.shopify.com/s/files/1/0672/5933/4848/files/20_TIPS_PARA_ELIMINAR_LA_CELULITIS_1.png?width=240"}
+  ],
+  "testimonials": [
+    ["Piel hidratada y suave al instante. Super recomendable.", "Natalia Lorena R."],
+    ["Hace 20 días que empecé a usar Emily corporal y puedo notar un resultado favorable en muy poco tiempo. Ya realicé mi segunda compra 😊", "Gabriela C."],
+    ["Te deja la piel muy suave y desinflama. Muy linda.", "Cynthia M."],
+    ["Llevo un tiempo usando Emily y la verdad es que me sorprendió. Noté mi piel más suave e hidratada, y con el uso constante empecé a ver una mejora en la firmeza.", "Fiorella B."]
+  ]
+}

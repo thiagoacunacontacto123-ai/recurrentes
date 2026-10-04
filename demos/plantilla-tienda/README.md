@@ -54,3 +54,27 @@ van por URL al CDN de la tienda), pensado primero para **celular** (el 95% compr
 - Envíos en la demo = los que la tienda ya muestra (tarifa plana, sin sucursales).
 
 - `main` (opcional) en el assets.json: handle del producto de la página; en el modal de armá-tu-pack va primero, como en la app de bundles de la tienda.
+
+## Emily Cosmetic (3-oct-2026) — el pack es el TIEMPO, no la cantidad
+`emily.template.html` + `emily.assets.json` → `public/demos/emily.html`.
+
+Su ficha vende packs de **1 / 3 / 6 cremas** con la app **Kaching Bundles** (6x3 $126.900,
+3x2 $76.900, 1 $39.500) más add-on del sérum y regalos (3.ª crema, guía, sorteo de botas).
+Para suscripción eso NO se copia tal cual (Thiago, 3-oct): **un pote rinde 30 días**, así que
+el pack es el tiempo de tratamiento — **1 crema = 1 mes · 2 cremas = 2 meses** — y nadie se
+compromete a 6 meses de una. La frecuencia la define el plan: no hay selector aparte, igual
+que nuestro widget en modo packs.
+
+Diferencias con la plantilla de G4U:
+- **Sin armá-tu-pack**: no hay casilleros ni modal de elegir producto (acá es un solo producto).
+- **Regalos del primer envío** dentro de la tarjeta del plan, en el carrito y en el checkout, a
+  $0 y con el tachado: 1 crema → Guía de cuidado corporal; 2 cremas → Guía + Cepillo Corporal.
+  Son productos REALES de su tienda, así que pueden viajar en la orden (`gift.shopify_variant_id`).
+- **Sin bloque de Revie** (no la usan): sus 4 reseñas van en el carrusel de citas.
+- Paleta: botón rosa `#e49aa7` (su "COMPRAR AHORA"), bordó `#6e2437` del título de su hero,
+  header BLANCO con el logo rosa, Montserrat, radio 8 px.
+- Envío gratis a todo el país en todos los planes (es lo que dicen sus packs hoy).
+
+**Ojo si después se instala el widget en su ficha**: Kaching está en `KNOWN_BUNDLES`, así que
+`detectForeignBundles()` lo esconde solo. Eso es lo que queremos, pero hay que avisarle al
+comercio: el 6x3 y el 3x2 de compra única dejan de verse en esa página.

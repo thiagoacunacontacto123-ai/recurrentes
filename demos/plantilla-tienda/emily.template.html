@@ -1,0 +1,858 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Emily Cosmetic · Suscripción</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap">
+<style>
+:root{--wine:#6e2437;--wine-d:#551a29;--cream:#fff;--cream-2:#fdf5f7;--brown:#4a3b3f;--rose:#e49aa7;--rose-2:#f7dde2;--ink:#1a1a1a;--muted:#7a6a6e;--ok:#1f7a3e;--r:8px}
+html,body{margin:0;overflow-x:clip;background:var(--cream);color:var(--ink);font-family:'Montserrat',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+a{color:inherit}
+button{font-family:inherit}
+.wrap{max-width:1280px;margin:0 auto;padding:0 28px}
+/* header */
+.hdr{background:#fff;color:var(--ink);position:sticky;top:0;z-index:30;border-bottom:1px solid #f2e7ea}
+.hdr .wrap{display:flex;align-items:center;gap:40px;height:96px}
+.hdr img{height:56px;width:auto;display:block}
+.hdr nav{display:flex;gap:30px;font-size:15px;font-weight:500}
+.hdr nav a{text-decoration:none;color:#5a4a4e;padding:6px 0;border-bottom:2px solid transparent}
+.hdr nav a.on{color:var(--ink);border-bottom-color:var(--rose)}
+.hdr .sp{flex:1}
+.hdr .ic{display:flex;gap:22px;align-items:center}
+.hdr .ic svg{width:24px;height:24px}
+.hdr .burger{display:none;width:26px;height:26px;color:var(--ink)}
+.badge-cart{position:relative}
+.badge-cart b{position:absolute;right:-9px;bottom:-6px;background:var(--rose);color:#fff;font-size:10px;width:18px;height:18px;border-radius:99px;display:grid;place-items:center;font-weight:700}
+/* intro suscripción */
+.intro{background:linear-gradient(180deg,#5a0a2b 0%,var(--wine) 100%);color:#fff;padding:64px 0 56px;position:relative;overflow:hidden}
+.intro:after{content:"";position:absolute;right:-140px;top:-140px;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle,rgba(233,183,196,.28),transparent 65%)}
+.intro .wrap{position:relative}
+.eyebrow{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);padding:6px 12px;border-radius:99px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.intro h1{font-size:46px;line-height:1.08;margin:18px 0 12px;max-width:760px;font-weight:800;letter-spacing:-.5px;text-wrap:balance}
+.intro p.lead{font-size:18px;color:#f3d9e0;max-width:640px;margin:0 0 30px;line-height:1.5}
+.benef{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;max-width:960px}
+.benef div{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:16px;padding:18px 18px 16px}
+.benef b{display:block;font-size:26px;letter-spacing:-.5px;margin-bottom:4px}
+.benef span{font-size:13.5px;color:#f3d9e0;line-height:1.45}
+.steps{display:flex;gap:10px;margin-top:26px;flex-wrap:wrap;font-size:13.5px;color:#f3d9e0}
+.steps span{display:inline-flex;align-items:center;gap:8px}
+.steps i{width:22px;height:22px;border-radius:50%;background:var(--rose);color:var(--wine);display:grid;place-items:center;font-style:normal;font-weight:700;font-size:12px}
+/* producto */
+.prod{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:56px;padding:48px 28px 40px;align-items:start}
+.gal{min-width:0;position:sticky;top:110px;align-self:start} /* como Shopify: la galería queda fija mientras se desliza la descripción */
+.gal img.main{width:100%;border-radius:18px;display:block;background:#fff}
+.thumbs{display:flex;gap:10px;margin-top:14px;overflow-x:auto;padding-bottom:4px}
+.thumbs img{width:104px;height:104px;object-fit:cover;border-radius:12px;border:2px solid transparent;cursor:pointer;background:#fff;flex:none}
+.thumbs img.on{border-color:var(--wine)}
+.stars{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--brown);font-weight:600}
+.stars svg{width:15px;height:15px;fill:#f2b705}
+h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-spacing:-.3px}
+.ttl-sub{display:block;font-size:40px;font-weight:800;color:var(--wine);letter-spacing:-.6px;margin-top:2px}
+.sub{font-size:15px;color:var(--muted);margin:0 0 18px}
+.bul{margin:0 0 6px;padding:0;list-style:none;font-size:15px;line-height:1.6}
+.bul li{margin:6px 0}
+.bul b{font-weight:600}
+.sep{display:flex;align-items:center;gap:14px;margin:26px 0 14px;color:var(--wine);font-weight:800;font-size:13px;letter-spacing:.06em;text-transform:uppercase;text-align:center}
+.sep:before,.sep:after{content:"";flex:1;height:2px;background:var(--wine);opacity:.5}
+.packs{display:grid;gap:12px}
+.pack{display:flex;flex-wrap:wrap;align-items:center;gap:12px 14px;padding:20px 22px;border-radius:12px;background:#fdf1f4;border:2px solid #f1dde2;cursor:pointer;position:relative;transition:.15s}
+.slots{flex-basis:100%;display:grid;gap:8px;margin-top:8px;padding-top:14px;border-top:1px solid rgba(80,3,34,.2)}
+.slot{display:flex;align-items:center;gap:12px;min-height:44px}
+.slot .ic{width:40px;height:40px;border-radius:8px;background:#fff;display:grid;place-items:center;font-size:22px;flex:none;overflow:hidden}
+.slot .ic img{width:100%;height:100%;object-fit:cover;display:block}
+.slot .add{background:var(--wine);color:#fff;border:none;border-radius:8px;padding:9px 16px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.slot .nm{flex:1;min-width:0;font-size:14px;line-height:1.3}
+.slot .nm small{display:block;color:#6a4a52;font-size:12px}
+.slot .rm{background:none;border:none;color:#6a4a52;font-size:18px;cursor:pointer;padding:4px 8px}
+.slot .rm:hover{color:var(--wine)}
+/* modal "Elegí un producto" (como el de su app de bundles) */
+#pkBg{position:fixed;inset:0;background:rgba(29,20,22,.55);z-index:70;display:none;align-items:center;justify-content:center;padding:20px}
+#pk{background:#fff;border-radius:16px;width:min(760px,100%);max-height:88vh;display:flex;flex-direction:column;box-shadow:0 30px 80px rgba(0,0,0,.35)}
+#pk .h{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;font-weight:700;font-size:17px;border-bottom:1px solid #eee}
+#pk .h button{background:none;border:none;font-size:22px;cursor:pointer;color:#555}
+#pk .list{overflow:auto;padding:8px 22px 18px}
+.pr-row{display:flex;align-items:center;gap:16px;padding:12px 0;border-bottom:1px solid #f0e6e9}
+.pr-row img{width:104px;height:104px;border-radius:10px;object-fit:cover;background:#fff;flex:none}
+.pr-row .t{flex:1;min-width:0;font-size:14px;line-height:1.35}
+.pr-row .t b{font-weight:700}
+.pr-row .t .p{margin-top:4px;font-weight:700}
+.pr-row .t .p s{color:#8a8a8a;font-weight:400;margin-left:6px}
+.pr-row .sel{background:var(--wine);color:#fff;border:none;border-radius:8px;padding:12px 18px;font-weight:700;font-size:14px;cursor:pointer;flex:none}
+@media(max-width:600px){.pr-row img{width:72px;height:72px}.pr-row .sel{padding:10px 12px;font-size:13px}}
+.pack .rad{width:22px;height:22px;border-radius:50%;border:2px solid #dcc3c9;background:#fff;flex:none;display:grid;place-items:center}
+.pack .rad:after{content:"";width:12px;height:12px;border-radius:50%;background:var(--wine);transform:scale(0);transition:.15s}
+.pack.on{background:#fff6f8;border-color:var(--rose);box-shadow:0 2px 14px rgba(228,154,167,.22)}
+.pack.on .rad:after{transform:scale(1)}
+.pack .nm{font-size:20px;font-weight:700;flex:1 1 auto;min-width:0;white-space:nowrap}
+.pack .pr{text-align:right;line-height:1.15;flex:none}
+.pack .pr b{font-size:22px;font-weight:700;display:block}
+.pack .pr s{font-size:13px;color:#9a7f85}
+.pack .pr small{display:block;font-size:12px;color:var(--wine);font-weight:600}
+.pack .bd{position:absolute;right:16px;top:-12px;background:#1d1416;color:#fff;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:6px}
+.pack .bd.rose{background:var(--wine)}
+/* armá tu pack */
+.build{background:#fff;border:2px solid var(--wine);border-radius:16px;padding:18px;margin-top:14px}
+.build .h{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}
+.build .h b{font-size:16px}
+.prog{height:8px;background:var(--rose-2);border-radius:99px;overflow:hidden;margin:8px 0 14px}
+.prog i{display:block;height:100%;background:var(--wine);width:0;transition:width .2s}
+.cnt{font-size:13px;color:var(--muted)}
+.cnt b{color:var(--wine)}
+.items{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.it{display:flex;gap:10px;align-items:center;padding:8px;border:1.5px solid #eadfe2;border-radius:12px;background:var(--cream-2)}
+.it.on{border-color:var(--wine);background:#fbf1f3}
+.it img{width:58px;height:58px;border-radius:9px;object-fit:cover;flex:none;background:#fff}
+.it .t{flex:1;min-width:0;font-size:12.5px;line-height:1.25}
+.it .t b{display:block;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.it .t span{color:var(--muted)}
+.it .q{display:flex;align-items:center;gap:6px}
+.it .q button{width:28px;height:28px;border-radius:8px;border:1.5px solid var(--wine);background:#fff;color:var(--wine);font-weight:700;font-size:16px;cursor:pointer;line-height:1;display:grid;place-items:center}
+.it .q button:disabled{opacity:.3;cursor:default}
+.it .q b{min-width:16px;text-align:center;font-size:14px}
+.freq{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px}
+.freq button{padding:12px 8px;border-radius:12px;border:1.5px solid #d9c3c8;background:#fff;font-size:13.5px;font-weight:600;cursor:pointer;color:var(--ink)}
+.freq button.on{border-color:var(--wine);background:var(--wine);color:#fff}
+.freq small{display:block;font-weight:400;font-size:11.5px;opacity:.8;margin-top:2px}
+.cta{width:100%;margin-top:16px;padding:20px;border-radius:8px;border:none;background:var(--rose);color:#fff;font-size:19px;font-weight:700;cursor:pointer;box-shadow:0 10px 26px rgba(228,154,167,.4);transition:.15s;letter-spacing:.02em}
+.cta:hover{background:#d98392}
+.cta:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+.cta small{display:block;font-size:12.5px;font-weight:500;color:#fff;opacity:.92;margin-top:3px}
+.cta .l1{display:block;white-space:nowrap;font-size:clamp(15px,4.4vw,22px)} /* "Suscribirme · $X cada mes" siempre en UNA línea, también en iPhone chicos (25-sept) */
+.trust{display:flex;justify-content:center;gap:8px;font-size:12.5px;color:var(--muted);margin-top:12px;align-items:center}
+.acc{margin-top:22px;border-top:1px solid #dccfd2}
+.acc details{border-bottom:1px solid #dccfd2}
+.acc summary{padding:14px 4px;font-weight:600;font-size:15px;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center}
+.acc summary:after{content:"";width:8px;height:8px;border-right:1.5px solid var(--ink);border-bottom:1.5px solid var(--ink);transform:rotate(45deg);margin-right:6px;transition:transform .15s}
+.acc details[open] summary:after{transform:rotate(-135deg)}
+.acc p{margin:0 4px 14px;font-size:14px;color:var(--muted);line-height:1.55}
+.strip{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:26px 0 8px;text-align:center}
+.strip div{font-size:12.5px;font-weight:700;line-height:1.3}
+.strip svg{width:34px;height:34px;stroke:var(--wine);fill:none;stroke-width:1.8;display:block;margin:0 auto 10px}
+.foot{background:var(--wine);color:#f3d9e0;padding:28px 0;font-size:13px}
+.foot .wrap{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+.foot .rec{margin-left:auto;display:inline-flex;align-items:center;gap:7px;color:#fff;text-decoration:none}
+.foot .rec b{font-weight:700}
+/* ─── carrito (drawer) ─── */
+#cartBg{position:fixed;inset:0;background:rgba(29,20,22,.5);z-index:60;display:none}
+#cart{position:fixed;top:0;right:0;bottom:0;width:min(440px,100%);background:#fff;z-index:61;transform:translateX(100%);transition:transform .25s ease;display:flex;flex-direction:column;box-shadow:-20px 0 60px rgba(0,0,0,.2)}
+#cart.open{transform:none}
+#cart .ch{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid #eee;font-size:18px;font-weight:700}
+#cart .ch button{background:none;border:none;font-size:22px;cursor:pointer;color:#555}
+#cart .cb{flex:1;overflow:auto;padding:18px 20px}
+.cl{display:flex;gap:14px}
+.cl img{width:64px;height:64px;border-radius:12px;object-fit:cover;border:1px solid #eee;background:#fff}
+.cl .t{flex:1;min-width:0;font-size:14px}
+.cl .t b{display:block;font-size:15px;line-height:1.3}
+.cl .t .pill{margin:6px 0}
+.cl .t small{display:block;color:#7a6a6e;font-size:12.5px;line-height:1.45}
+.cl .p{text-align:right;font-size:15px;font-weight:600;line-height:1.2}
+.cl .p s{display:block;font-size:12px;color:#9a8a8e;font-weight:400}
+.cl .p em{display:block;font-size:11.5px;color:var(--ok);font-style:normal}
+.cfreq{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:14px 0 0}
+.cfreq button{border:1.5px solid #e3d3d8;background:#fff;border-radius:10px;padding:9px 6px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--ink)}
+.crow{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;font-size:13px;color:#555}
+.crow .stp{margin:0}
+.cfreq button.on{background:var(--wine);border-color:var(--wine);color:#fff}
+.stp{display:inline-flex;align-items:center;border:1.5px solid #e3d3d8;border-radius:8px;overflow:hidden;margin-top:8px}
+.stp button{width:30px;height:30px;border:none;background:#fff;font-size:16px;cursor:pointer;color:var(--wine);font-weight:700}
+.stp b{min-width:28px;text-align:center;font-size:13px}
+.ups{margin-top:22px;border-top:1px solid #eee;padding-top:16px}
+.ups h4{margin:0 0 10px;font-size:14px;font-weight:700}
+.ups p{margin:0 0 12px;font-size:12.5px;color:#7a6a6e}
+.up{display:flex;gap:12px;align-items:center;padding:10px;border:1.5px solid #eee;border-radius:12px;margin-bottom:8px;background:#fff}
+.up img{width:56px;height:56px;border-radius:9px;object-fit:cover;background:#fff;flex:none}
+.up .t{flex:1;min-width:0;font-size:13px;line-height:1.3}
+.up .t b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.up .t span{color:var(--ok);font-weight:600;font-size:12.5px}
+.up .t s{color:#9a8a8e;font-weight:400;margin-left:4px}
+.up .ab{background:var(--wine);color:#fff;border:none;border-radius:8px;padding:9px 12px;font-size:12px;font-weight:700;cursor:pointer;flex:none}
+.up.on{border-color:var(--wine);background:#fbf1f3}
+.up .stp{margin:0}
+.cart-items{margin-top:14px;border-top:1px dashed #e6dadd;padding-top:12px;display:grid;gap:6px}
+.cart-items div{display:flex;justify-content:space-between;font-size:13px;color:#555}
+.cf{padding:18px 20px;border-top:1px solid #eee;background:#faf7f4}
+.cf .tot{display:flex;justify-content:space-between;font-size:17px;font-weight:700;margin-bottom:4px}
+.cf .sv{font-size:12.5px;color:var(--ok);margin-bottom:12px}
+.cf .cta{margin-top:0;padding:16px;font-size:16px}
+.cf .lnk{display:block;text-align:center;margin-top:12px;font-size:13px;color:#555}
+.pack .desc{flex-basis:100%;width:100%;margin:-4px 0 0;font-size:13px;color:var(--muted);line-height:1.45}
+.pack .gifts{flex-basis:100%;width:100%;margin-top:2px;padding-top:12px;border-top:1px dashed #e8d6db;display:none}
+.pack.on .gifts{display:block}
+.pack .gift{display:flex;align-items:center;gap:10px;padding:5px 0;font-size:13px}
+.pack .gift img{width:30px;height:30px;border-radius:6px;object-fit:cover;background:#fff;border:1px solid #f0e2e6}
+.pack .gift span{flex:1;min-width:0}
+.pack .gift em{font-style:normal;font-weight:700;color:var(--ok);font-size:12px}
+.pack .gift-note{display:block;margin-top:6px;font-size:11.5px;color:var(--muted)}
+.cart-gifts{border-top:1px dashed #e8d6db;margin-top:12px;padding-top:12px}
+.cart-gifts div{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13.5px;padding:4px 0}
+.cart-gifts div span:first-child{display:flex;align-items:center;gap:9px;min-width:0}
+.cart-gifts img{width:30px;height:30px;border-radius:6px;object-fit:cover;border:1px solid #f0e2e6;background:#fff}
+.cart-gifts b{color:var(--ok)}
+.cart-gifts s{color:var(--muted);margin-left:7px;font-size:12px}
+.cart-gifts small{display:block;margin-top:5px;font-size:11.5px;color:var(--muted)}
+/* ─── secciones de abajo (como la web de Emily) ─── */
+.iwt{background:var(--wine);color:#fff;margin:20px 0 0}
+.iwt .wrap{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center;padding:48px 28px}
+.iwt img{width:100%;border-radius:18px;display:block}
+.iwt h3{font-size:40px;line-height:1.1;margin:0 0 18px;font-weight:800;letter-spacing:-.5px}
+.iwt p{color:#f3d9e0;font-size:16px;line-height:1.6;margin:0 0 24px}
+.btn-rose{display:inline-block;background:var(--rose);color:var(--wine);font-weight:700;padding:16px 28px;border-radius:12px;text-decoration:none;font-size:15px;letter-spacing:.04em;text-transform:uppercase;border:none;cursor:pointer}
+.ibar{padding:56px 28px 30px;text-align:center}
+.ibar h3{font-size:30px;margin:0 0 34px;font-weight:800;color:var(--wine)}
+.ibar .g{display:grid;grid-template-columns:repeat(4,1fr);gap:22px}
+.ibar img{height:64px;width:auto;display:block;margin:0 auto 14px}
+.ibar b{display:block;font-size:16px;margin-bottom:6px}
+.ibar span{font-size:14px;color:var(--muted);line-height:1.5}
+.testi{padding:40px 28px 60px}
+.tcar{margin:18px 0 6px;text-align:left}
+.tq{font-size:17px;font-style:italic;line-height:1.5;color:var(--ink)}
+.tmeta{display:flex;justify-content:space-between;align-items:center;margin-top:12px;font-style:italic;color:var(--muted);font-size:15px}
+.tst{color:#f2b705;letter-spacing:2px;font-style:normal;font-size:18px}
+.tnav{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:14px;border-bottom:1px solid #dccfd2;padding-bottom:16px}
+.tnav button{background:none;border:none;font-size:22px;cursor:pointer;color:var(--ink);line-height:1;padding:0 6px}
+.tnav i{display:inline-block;width:8px;height:8px;border-radius:50%;border:1.5px solid var(--ink);margin:0 4px;vertical-align:middle}
+.tnav i.on{background:var(--ink)}
+/* Bloque de reseñas: mismo formato que el de Revie en su tienda */
+.rvsec{max-width:780px;margin:0 auto;padding:8px 28px 40px}
+@media(max-width:960px){.rvsec{padding:0 20px 30px}}
+.rv{font-family:Poppins,system-ui,sans-serif;color:#111}
+.rv-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.rv .rv-head h3{margin:0;font-size:24px;font-weight:800;letter-spacing:.5px;color:#111;text-align:left}
+.rv-head span{font-size:12px;color:#555;letter-spacing:.06em}
+.rv-score{display:flex;align-items:center;gap:12px}
+.rv-score b{background:#e9e9e9;font-size:22px;padding:8px 14px;border-radius:4px}
+.rv-stars{--r:5;display:inline-block;font-size:26px;line-height:1;letter-spacing:2px;font-style:normal;background:linear-gradient(90deg,#000 calc(var(--r)/5*100%),#ccc 0);-webkit-background-clip:text;background-clip:text;color:transparent}
+.rv-stars:before{content:"★★★★★"}
+.rv hr{border:0;border-top:1px solid #ddd;margin:16px 0}
+.rv-by{text-align:right;font-size:14px;color:#333;display:flex;justify-content:flex-end;align-items:center;gap:6px;margin-bottom:6px}
+.rv-by img{height:24px;width:auto;display:inline-block;vertical-align:middle}
+.rv-item{display:flex;justify-content:space-between;gap:16px;padding:22px 0;border-bottom:1px solid #ddd}
+.rv-item .rv-stars{font-size:22px}
+.rv-item label{display:block;font-size:14px;color:#333;margin-top:6px}
+.rv-name{display:flex;align-items:center;gap:6px;font-weight:700;font-size:17px;margin:10px 0 8px}
+.rv-name svg{width:16px;height:16px}
+.rv-txt{font-size:17px;line-height:1.5;white-space:pre-line}
+.rv-img{width:120px;height:120px;object-fit:cover;border-radius:4px;flex:none}
+.rv-pag{display:flex;justify-content:center;gap:10px;padding:18px 0 0;font-size:14px}
+.rv-pag a{color:#111;text-decoration:none;padding:4px 8px;border-radius:4px}
+.rv-pag a.on{background:#111;color:#fff}
+.rv-pag a.dis{opacity:.35;pointer-events:none}
+@media(max-width:600px){.rv-score{width:100%;justify-content:flex-start}.rv-score b{font-size:18px;padding:6px 10px}.rv-stars{font-size:22px}.rv-item{flex-direction:column}.rv-img{width:100%;height:auto;max-width:260px}.tq{font-size:17px}.rv-head h3{font-size:22px}}
+.testi h3{font-size:30px;text-align:center;margin:0 0 30px;font-weight:800;color:var(--wine)}
+.testi .g{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.testi .c{background:#fff;border-radius:18px;padding:26px 24px;border:1px solid #e6dadd}
+.testi .st{color:#f2b705;font-size:18px;letter-spacing:2px;margin-bottom:12px}
+.testi p{font-size:15px;line-height:1.6;margin:0 0 14px;color:var(--ink)}
+.testi small{font-weight:600;color:var(--muted)}
+.rev{display:flex;align-items:center;gap:10px;padding:18px 0 6px;font-size:15px;color:var(--muted)}.rev:before{content:"";display:none}
+.rev b{color:var(--ink)}
+.foot2{background:var(--wine);color:#f3d9e0;padding:44px 0 26px;font-size:13.5px}
+.foot2 .g{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:28px;margin-bottom:30px}
+.foot2 h4{color:#fff;margin:0 0 12px;font-size:14px;letter-spacing:.06em;text-transform:uppercase}
+.foot2 a{display:block;color:#f3d9e0;text-decoration:none;margin:6px 0}
+.foot2 .b{border-top:1px solid rgba(255,255,255,.15);padding-top:18px;display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+.foot2 .rec{margin-left:auto;display:inline-flex;align-items:center;gap:7px;color:#fff;text-decoration:none}
+@media(max-width:960px){.iwt .wrap{grid-template-columns:1fr;padding:34px 18px}.iwt h3{font-size:30px}.ibar .g,.testi .g{grid-template-columns:1fr}.foot2 .g{grid-template-columns:1fr 1fr}}
+/* ─── portal del suscriptor ─── */
+.pt-wrap{max-width:640px;margin:0 auto;padding:28px 20px 60px}
+.pt-hello{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:16px}
+.pt-eyebrow{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.pt-hello h1{margin:2px 0 0;font-size:26px;letter-spacing:-.4px}
+.pt-status{background:#dff5e7;color:#1f7a3e;font-size:12px;font-weight:700;padding:6px 12px;border-radius:99px}
+.pt-card{background:#fff;border:1px solid #e6dadd;border-radius:18px;padding:20px;margin-bottom:14px}
+.pt-row3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.pt-row3 div{background:var(--cream-2);border-radius:12px;padding:12px}
+.pt-row3 small{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
+.pt-row3 b{font-size:15px;line-height:1.2}
+.pt-sec{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin:18px 0 8px}
+.pt-items{display:grid;gap:6px}
+.pt-it{display:flex;align-items:center;gap:10px;font-size:13.5px}
+.pt-it img{width:40px;height:40px;border-radius:8px;object-fit:cover;background:#fff;border:1px solid #eee}
+.pt-it .n{flex:1;min-width:0}
+.pt-it .n small{display:block;color:var(--muted);font-size:12px}
+.pt-lnk{background:none;border:none;color:var(--wine);font-weight:700;font-size:12.5px;cursor:pointer;font-family:inherit}
+.pt-addr{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13.5px;padding:10px 12px;background:var(--cream-2);border-radius:12px}
+.pt-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:18px}
+.pt-btn{border:1.5px solid #e3d3d8;background:#fff;border-radius:10px;padding:10px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink)}
+.pt-btn.danger{color:#b42318;border-color:#f3c2c2}
+.pt-hist div{display:flex;justify-content:space-between;padding:9px 0;border-top:1px solid #f0e6e9;font-size:13.5px}
+.pt-hist div:first-child{border-top:none}
+.pt-hist span.ok{color:#1f7a3e;font-weight:600}
+.pt-foot{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--muted);margin-top:10px}
+.pt-foot .rec{display:inline-flex;align-items:center;gap:7px;text-decoration:none;color:var(--muted)}
+.pt-foot .rec b{color:var(--ink)}
+.pt-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1d1416;color:#fff;font-size:13px;padding:10px 16px;border-radius:99px;z-index:80}
+@media(max-width:600px){.pt-row3{grid-template-columns:1fr 1fr}.pt-row3 div:first-child{grid-column:1/-1}.pt-lbl{display:none}#v-portal .hdr .wrap{grid-template-columns:1fr;padding:12px 16px}#v-portal .hdr img{height:44px}}
+/* modal del portal */
+.md-bg{position:fixed;inset:0;background:rgba(29,20,22,.55);z-index:90;display:none;align-items:center;justify-content:center;padding:18px}
+.md{background:#fff;border-radius:16px;width:min(460px,100%);padding:22px 22px 18px;box-shadow:0 30px 80px rgba(0,0,0,.35);max-height:90vh;overflow:auto}
+.md-t{font-size:18px;font-weight:700;margin-bottom:8px}
+.md-b{font-size:14px;line-height:1.55;color:#444}
+.md-b .f{position:relative;margin-bottom:10px}.md-b .f input{width:100%;height:50px;padding:20px 12px 6px;font-size:15px;border:1px solid #dedede;border-radius:10px;font-family:inherit;outline:none}.md-b .f label{position:absolute;left:13px;top:15px;font-size:14px;color:#6b6b6b;pointer-events:none;transition:.12s}.md-b .f input:focus+label,.md-b .f input:not(:placeholder-shown)+label{top:6px;font-size:11px}.md-b .f input:focus{border-color:var(--wine);box-shadow:0 0 0 1px var(--wine)}.md-b .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.md-b .note{background:var(--cream-2);border-radius:10px;padding:10px 12px;font-size:12.5px;color:var(--muted);margin-top:8px}
+.md-b .rz{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1.5px solid #e6dadd;border-radius:10px;margin-top:8px;cursor:pointer;font-size:14px}
+.md-b .rz.on{border-color:var(--wine);background:#fbf1f3}
+.md-b .rz input{accent-color:var(--wine)}
+.md-a{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap}
+.md-a button{border-radius:10px;padding:11px 16px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;border:1.5px solid #e3d3d8;background:#fff;color:var(--ink)}
+.md-a button.pri{background:var(--wine);border-color:var(--wine);color:#fff}
+.md-a button.dng{background:#b42318;border-color:#b42318;color:#fff}
+/* ─── checkout (estilo Recurrentes) ─── */
+.ck{background:#fff;color:#1a1a1a;min-height:100vh}
+.ck-shell{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);min-height:100vh}
+.ck-main{display:flex;justify-content:flex-end;padding:34px 40px 64px}
+.ck-main>div{width:100%;max-width:580px;min-width:0}
+.ck-side{background:var(--cream-2);border-left:1px solid #eee;padding:34px 40px 64px}
+.ck-side>div{max-width:440px;position:sticky;top:34px}
+.ck h2{font-size:21px;font-weight:600;margin:0 0 14px}
+.ck .sec{margin-top:34px}
+.f{position:relative;margin-bottom:12px}
+.f input,.f select{width:100%;height:52px;padding:22px 13px 6px;font-size:16px;border:1px solid #dedede;border-radius:var(--r);background:#fff;color:#1a1a1a;font-family:inherit;outline:none;-webkit-appearance:none}
+.f label{position:absolute;left:14px;top:16px;font-size:15px;color:#6b6b6b;pointer-events:none;transition:.12s}
+.f input:focus+label,.f input:not(:placeholder-shown)+label,.f select+label{top:7px;font-size:11.5px}
+.f input:focus,.f select:focus{border-color:var(--wine);box-shadow:0 0 0 1px var(--wine)}
+.f input::placeholder{color:transparent}
+.f.is-err input,.f.is-err select{border-color:#d92d20;box-shadow:0 0 0 1px #d92d20}.f.is-err label{color:#d92d20}.fe{color:#d92d20;font-size:13px;line-height:1.35;margin-top:6px;padding-left:2px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.g3{display:grid;grid-template-columns:1fr 1.4fr 1.4fr;gap:12px}
+.pay-methods{display:flex;flex-direction:column;gap:12px}
+.pay-box{border:1px solid #dedede;border-radius:var(--r);overflow:hidden;background:#fff}
+.pay-box.sel{box-shadow:0 0 0 1px var(--wine);border-color:var(--wine)}
+.pay-box .opt.on{box-shadow:none}
+.card-body{padding:14px 16px;border-top:1px solid #eee;background:#fff}
+.card-doc{display:grid;grid-template-columns:minmax(0,110px) minmax(0,1fr);gap:12px;margin-top:12px}
+.card-g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.opts{border:1px solid #dedede;border-radius:var(--r);overflow:hidden;background:#fff}
+.opt{display:flex;align-items:center;gap:12px;padding:15px 16px;cursor:pointer;border-top:1px solid #eee;font-size:14px}
+.opt:first-child{border-top:none}
+.opt.on{background:#fbf1f3;box-shadow:inset 0 0 0 1px var(--wine)}
+.opt input{accent-color:var(--wine);width:18px;height:18px;margin:0}
+.opt .n{flex:1}
+.opt small{display:block;color:#6b6b6b;font-size:13px}
+.pay{width:100%;height:58px;margin-top:16px;font-size:17px;font-weight:600;color:#fff;background:var(--wine);border:none;border-radius:var(--r);cursor:pointer}
+.pay:disabled{opacity:.7;cursor:wait}
+.tr{display:flex;justify-content:center;align-items:center;gap:8px;font-size:12.5px;color:#6b6b6b;margin-top:14px}
+.ck-foot{margin-top:40px;padding-top:16px;border-top:1px solid #eee;font-size:12px;color:#6b6b6b;display:flex;gap:14px;align-items:center}
+.ck-foot .rec{margin-left:auto;display:inline-flex;align-items:center;gap:7px;text-decoration:none;color:#6b6b6b}
+.ck-foot .rec b{color:#1a1a1a}
+.line{display:flex;justify-content:space-between;gap:12px;font-size:14px;margin-top:10px}
+.line span:first-child{color:#6b6b6b}
+.sum-item{display:flex;gap:12px;align-items:center;margin-top:10px;font-size:13.5px}
+.sum-item img{width:46px;height:46px;border-radius:9px;object-fit:cover;background:#fff;border:1px solid #eee}
+.sum-item .qb{position:relative;flex:none}
+.sum-item .qb b{position:absolute;top:-7px;right:-7px;min-width:20px;height:20px;border-radius:99px;background:#6b6b6b;color:#fff;font-size:11px;display:grid;place-items:center;padding:0 5px}
+.pill{display:inline-flex;font-size:12px;font-weight:600;color:var(--wine);background:#f3d9e0;padding:3px 9px;border-radius:99px}
+.mob-sum{display:none}
+.err{background:#fde8e8;border:1px solid #f5b5b5;color:#b42318;font-size:14px;padding:11px 13px;border-radius:var(--r);margin-top:14px}
+/* loader */
+#ld{position:fixed;inset:0;background:#fff;z-index:100;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px}
+#ld svg{animation:spin 1.1s linear infinite;filter:drop-shadow(0 6px 18px rgba(80,3,34,.35))}
+#ld div{font-size:13px;font-weight:600;color:#777;animation:pulse 1.6s ease-in-out infinite}
+@keyframes spin{to{transform:rotate(360deg)}}@keyframes pulse{50%{opacity:.5}}
+/* gracias */
+.ok-wrap{max-width:560px;margin:0 auto;padding:80px 24px;text-align:center}
+.ok-wrap .chk{width:78px;height:78px;border-radius:50%;background:var(--wine);color:#fff;display:grid;place-items:center;margin:0 auto 22px}
+.ok-wrap h1{font-size:32px;margin:0 0 10px;letter-spacing:-.4px}
+.ok-wrap p{color:var(--muted);font-size:16px;line-height:1.55}
+.ok-card{background:#fff;border-radius:16px;padding:20px;text-align:left;margin-top:26px;border:1px solid #e6dadd}
+.ok-card div{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0e6e9;font-size:14px}
+.ok-card div:last-child{border:0}
+.demo-tag{position:fixed;left:14px;bottom:14px;z-index:50;display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#10b981,#059669);color:#04140d;font-size:12px;font-weight:700;padding:7px 12px 7px 9px;border-radius:99px;box-shadow:0 8px 24px rgba(16,185,129,.35);pointer-events:none;font-family:'Inter',Poppins,system-ui,sans-serif}
+.demo-tag svg{width:18px;height:18px;flex:none}
+.demo-tag img{height:18px;width:auto;display:block;background:var(--wine);border-radius:5px;padding:2px 5px}
+/* marquesina (como la de su tienda): una palabra cada ~3 s, muy lenta */
+.mq{background:#1a0a10;color:#f3d9e0;font-size:12.5px;font-weight:600;letter-spacing:.02em;overflow:hidden;white-space:nowrap;border-bottom:1px solid rgba(255,255,255,.08)}
+.mq div{display:inline-block;padding:9px 0;animation:mq 48s linear infinite}
+.mq span{display:inline-block;padding:0 34px}
+@keyframes mq{to{transform:translateX(-50%)}}
+@media(prefers-reduced-motion:reduce){.mq div{animation:none}}
+@media(max-width:960px){
+  .gal{position:static}
+  .hdr .wrap{height:auto;gap:10px 14px;padding:10px 16px 0;flex-wrap:wrap;display:grid;grid-template-columns:40px 1fr 40px;align-items:center}
+  .hdr img{height:52px;margin:0 auto;grid-column:2}
+  .hdr .burger{display:block;grid-column:1;grid-row:1}
+  .hdr .sp{display:none}.hdr .ic{grid-column:3;grid-row:1;justify-content:flex-end}.hdr .ic svg:first-child{display:none}
+  .hdr nav{grid-column:1/-1;grid-row:2}
+  .hdr nav{order:3;flex-basis:100%;display:flex;gap:18px;overflow-x:auto;padding:4px 0 10px;font-size:13.5px;scrollbar-width:none;-webkit-overflow-scrolling:touch}.hdr nav::-webkit-scrollbar{display:none}.hdr nav a{white-space:nowrap;flex:none}
+  .hdr .sp{order:1;flex:1}.hdr .ic{order:2;gap:16px}
+  .wrap{padding:0 20px}.intro{padding:40px 0 36px}.intro h1{font-size:32px}.benef{grid-template-columns:1fr}.steps{flex-direction:column;gap:8px}
+  .prod{grid-template-columns:minmax(0,1fr);gap:22px;padding:22px 20px}
+  .thumbs img{width:72px;height:72px}
+  h2.ttl{font-size:26px;line-height:1.15}.ttl-sub{font-size:30px;margin-top:4px}.sub{font-size:14px}
+  .bul{font-size:16px;line-height:1.5}.bul li{margin:10px 0}
+  .sep{margin:26px 0 16px}
+  .packs{gap:14px}.pack{padding:22px 20px;gap:14px;border-radius:12px}.pack .rad{width:24px;height:24px}.pack .nm{font-size:19px}.pack .pr b{font-size:22px}.pack .pr s{font-size:14px}.pack .pr small{font-size:11px}
+  .slot .add{padding:10px 14px;font-size:11.5px}
+  .freq{grid-template-columns:1fr 1fr 1fr;gap:8px}.freq button{padding:14px 4px;font-size:13px}
+  .cta{font-size:22px;padding:26px 16px;border-radius:14px}.cta small{font-size:13px;margin-top:6px}
+  .strip{gap:10px;padding:22px 0 6px}.strip div{font-size:12px}.strip svg{width:30px;height:30px}
+  .ibar{padding:40px 20px 10px}.testi{padding:30px 20px 50px}.ibar h3,.testi h3{font-size:26px}.ibar .g{grid-template-columns:1fr 1fr;gap:18px}.ibar img{height:52px}.ibar b{font-size:14px}.ibar span{font-size:12.5px}
+  .acc summary{padding:16px 4px;font-size:16px}
+  .ck-shell{grid-template-columns:1fr}.ck-side{display:none}.ck-main{justify-content:center;padding:0 20px 48px}
+  .mob-sum{display:block;background:var(--cream-2);border-bottom:1px solid #eee;margin:0 -20px 8px;padding:0 20px}
+  .mob-sum button{width:100%;display:flex;justify-content:space-between;align-items:center;padding:14px 0;background:none;border:none;color:var(--wine);font-size:14px;cursor:pointer;font-family:inherit}
+  .mob-sum button b{color:#1a1a1a;font-size:18px}
+  .g3{grid-template-columns:1fr 1fr}.g3>:last-child{grid-column:1/-1}
+}
+@media(max-width:420px){.g2{grid-template-columns:1fr}}
+</style>
+
+<div id="ld"><svg width="56" height="56" viewBox="0 0 32 32"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8a2d4d"/><stop offset="1" stop-color="#3b0218"/></linearGradient></defs><circle cx="16" cy="16" r="16" fill="url(#lg)"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><div>Abriendo el checkout seguro…</div></div>
+<div class="demo-tag"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#04140d" opacity=".18"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#04140d" stroke-width="2.8" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#04140d" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>demo.recurrentes para</span><img id="logoTag" alt="Emily Cosmetic"></div>
+
+<!-- ════════ VISTA PRODUCTO ════════ -->
+<div id="v-prod">
+  <div class="mq" aria-hidden="true"><div id="mq"></div></div>
+  <header class="hdr"><div class="wrap">
+    <svg class="burger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    <img id="logo" alt="Emily Cosmetic">
+    <nav><a href="#">Productos</a><a href="#">Combos</a><a href="#">Accesorios</a><a href="#" class="on">Suscripción</a><a href="#">Ayuda</a><a href="#">Mayoristas</a></nav>
+    <span class="sp"></span>
+    <div class="ic">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg>
+      <span class="badge-cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h2l2.4 11.2a2 2 0 002 1.6h8.6a2 2 0 002-1.6L21 8H6"/><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/></svg><b>1</b></span>
+    </div>
+  </div></header>
+
+  <section class="intro"><div class="wrap">
+    <span class="eyebrow">✦ Nuevo · Suscripción Emily</span>
+    <h1>Tu tratamiento, todos los meses. Sin cortarlo a la mitad.</h1>
+    <p class="lead">La celulitis se trabaja con constancia: la piel cambia cuando la crema no se corta. Elegís tu plan una vez y te llega sola, con descuento en cada envío. Pausás o cancelás cuando quieras.</p>
+    <div class="benef">
+      <div><b>Hasta 25% OFF</b><span>en cada envío, siempre. No solo en el primero.</span></div>
+      <div><b>Regalos de bienvenida</b><span>la guía de cuidado corporal y el cepillo, en tu primer envío.</span></div>
+      <div><b>Sin ataduras</b><span>pausá o cancelá desde tu portal. Un clic.</span></div>
+    </div>
+    <div class="steps"><span><i>1</i> Elegí tu plan</span><span><i>2</i> Pagás con Mercado Pago</span><span><i>3</i> Te llega sola, sin volver a pedirla</span></div>
+  </div></section>
+
+  <main class="wrap prod">
+    <div class="gal">
+      <img class="main" id="galMain" alt="">
+      <div class="thumbs" id="thumbs"></div>
+    </div>
+    <div>
+      <div class="stars"><span id="starRow"></span> 4.9/5 · +14.000 pedidos en el último año</div>
+      <h2 class="ttl">Crema para Celulitis Emily · 200 ml <span class="ttl-sub">· Suscripción</span></h2>
+      <p class="sub">Versión suscripción · la misma crema, con hasta 25% OFF y entrega automática</p>
+      <ul class="bul">
+        <li>🌸 <b>Un pote dura 30 días</b> de tratamiento: por eso el plan de 1 crema es de un mes.</li>
+        <li>🌸 <b>La piel de naranja se ve menos marcada</b> desde las primeras semanas.</li>
+        <li>🌸 <b>Centella asiática, Vitamina E y alcanfor</b>: trabaja la firmeza, no solo hidrata por arriba.</li>
+        <li>🌸 <b>Envío gratis</b> a todo el país en todos los planes.</li>
+        <li>🇦🇷 Aprobada por ANMAT · 60 días de garantía</li>
+      </ul>
+
+      <div class="sep">Elegí tu plan</div>
+      <div class="packs" id="packs"></div>
+
+
+      <button class="cta" id="goCk">Suscribirme<small id="ctaSub"></small></button>
+      <div class="trust"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Pago seguro con Mercado Pago · Pausás o cancelás cuando quieras</div>
+
+  <div class="strip">
+    <div><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>60 días de garantía</div>
+    <div><svg viewBox="0 0 24 24"><path d="M3 12h13l5-5v10l-5-5M3 6v12"/></svg>Envío gratis a todo el país</div>
+    <div><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Llega en 3 a 5 días con seguimiento</div>
+  </div>
+      <div class="testi" style="padding:0"><div class="tcar"><div class="tq" id="tq"></div><div class="tmeta"><span id="ta"></span><span class="tst">★★★★★</span></div>
+      <div class="tnav"><button type="button" data-t="-1" aria-label="Anterior">‹</button><span id="tdots"></span><button type="button" data-t="1" aria-label="Siguiente">›</button></div></div>
+    </div>
+      <div class="acc">
+        <details><summary>🌸 ¿Y si no me funciona?</summary><p>Tenés <b>60 días para probarla</b>. Si no ves la piel más lisa, te devolvemos el dinero. Con la suscripción es igual: se cancela desde tu portal y listo, sin llamadas ni formularios.</p></details>
+        <details><summary>⏱ ¿Cuánto tarda en notarse?</summary><p>La mayoría nota la piel <b>más suave e hidratada en los primeros días</b> y un cambio en la firmeza <b>entre la segunda y la cuarta semana</b>. Por eso el tratamiento se mide en meses y no en potes: la constancia es lo que sostiene el resultado.</p></details>
+        <details><summary>🧴 ¿Por qué un plan de 1 o 2 cremas?</summary><p>Un pote de 200 ml <b>rinde 30 días</b> usándolo todos los días. El plan de <b>1 crema</b> te la manda cada mes; el de <b>2 cremas</b> te manda dos y vuelve <b>cada 2 meses</b>, con mejor precio por unidad y un envío menos.</p></details>
+        <details><summary>🎁 ¿Qué regalos entran?</summary><p>En tu <b>primer envío</b> va la <b>Guía de cuidado corporal</b> (los 20 tips para eliminar la celulitis). Si elegís el plan de 2 cremas, también va el <b>Cepillo Corporal</b> anticelulitis. Son de regalo: no se cobran ni ahora ni en las renovaciones.</p></details>
+        <details><summary>🚚 Envío</summary><p><b>Envío gratis a todo el país</b> en todos los planes, con seguimiento. Llega entre <b>3 y 5 días</b> hábiles. En cada envío de tu suscripción te mandamos el seguimiento por mail y WhatsApp.</p></details>
+        <details><summary>⏸ ¿Cómo pauso o cancelo?</summary><p>Desde tu portal de suscripción (el link te llega por mail y WhatsApp con cada cobro): pausar, cambiar la dirección o cancelar. Sin llamadas ni formularios. <a href="#portal" style="color:var(--wine);font-weight:600">Ver cómo es el portal →</a></p></details>
+      </div>
+  </main>
+
+
+
+
+  <section class="iwt"><div class="wrap">
+    <img id="iwtImg" alt="">
+    <div><h3>El tratamiento funciona cuando no se corta.</h3><p>La mayoría abandona al primer pote, justo cuando la piel empieza a cambiar. Con la suscripción la crema te llega sola el mes siguiente, con descuento en cada envío y sin volver a hacer el pedido.</p><button class="btn-rose" id="iwtCta">Elegir mi plan</button></div>
+  </div></section>
+  <section class="wrap ibar"><h3>Por qué Emily sí, y una crema común no</h3><div class="g" id="ibar"></div></section>
+
+  <footer class="foot2"><div class="wrap">
+    <div class="g">
+      <div><img id="logoFt" alt="Emily Cosmetic" style="height:48px;width:auto;margin-bottom:12px"><div>Cosmética corporal argentina aprobada por ANMAT. Celulitis, estrías y firmeza, con fórmulas de dosis clínicas.</div></div>
+      <div><h4>Tienda</h4><a href="#">Inicio</a><a href="#">Productos</a><a href="#">Combos</a><a href="#">Suscripción</a></div>
+      <div><h4>Info</h4><a href="#">Accesorios</a><a href="#">Mayoristas</a><a href="#">Envíos y entregas</a><a href="#">Ayuda con mi pedido</a></div>
+      <div><h4>Contacto</h4><a href="#">WhatsApp</a><a href="#">Instagram</a><a href="#">hola@emilycosmetic.ar</a></div>
+    </div>
+    <div class="b"><span>© Emily Cosmetic · Argentina</span><a class="rec" href="https://www.recurrentesapp.com" target="_blank" rel="noopener">Suscripciones con <svg width="16" height="16" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#10b981"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><b>Recurrentes</b></a></div>
+  </div></footer>
+</div>
+
+<!-- ════════ VISTA PORTAL DEL SUSCRIPTOR ════════ -->
+<div id="v-portal" hidden>
+  <header class="hdr"><div class="wrap" style="height:auto;padding:14px 28px"><img id="logoPt" alt="Emily Cosmetic"><span class="sp"></span><span class="pt-lbl" style="font-size:12.5px;color:#f3d9e0">Portal de suscripción</span></div></header>
+  <div class="pt-wrap">
+    <div class="pt-hello"><div><div class="pt-eyebrow">Hola, Ana</div><h1>Tu suscripción Emily</h1></div><span class="pt-status">Activa</span></div>
+    <div class="pt-card">
+      <div class="pt-row3">
+        <div><small>Próximo cobro</small><b id="ptNext"></b></div>
+        <div><small>Cada</small><b id="ptFreq"></b></div>
+        <div><small>Total por cobro</small><b id="ptTotal"></b></div>
+      </div>
+      <div class="pt-sec">Tu pack</div>
+      <div id="ptItems" class="pt-items"></div>
+      <div id="ptExtrasWrap"><div class="pt-sec">Extras que sumaste</div><div id="ptExtras" class="pt-items"></div></div>
+      <div class="pt-sec">Dirección de envío</div>
+      <div class="pt-addr"><span id="ptAddr">Av. Corrientes 1234, CABA (1043)</span><button type="button" class="pt-lnk" id="ptAddrBtn">Cambiar</button></div>
+      <div class="pt-sec">Medio de pago</div>
+      <div class="pt-addr"><span style="display:inline-flex;align-items:center;gap:8px"><img src="https://www.recurrentesapp.com/brand/mercadopago.png" alt="" style="width:22px;height:22px;object-fit:contain"> Mercado Pago · Visa terminada en 4421</span><span style="color:var(--muted);font-size:12px">Se cobra solo</span></div>
+      <div class="pt-actions">
+        <button type="button" class="pt-btn" id="ptPause">⏸ Pausar</button>
+        <button type="button" class="pt-btn danger" id="ptCancel">✕ Cancelar</button>
+      </div>
+    </div>
+    <div class="pt-card">
+      <div class="pt-sec" style="margin-top:0">Historial de cobros</div>
+      <div id="ptHist" class="pt-hist"></div>
+    </div>
+    <div class="pt-foot"><a href="#" id="ptBack">← Volver a la tienda</a><a class="rec" href="https://www.recurrentesapp.com" target="_blank" rel="noopener">Con tecnología de <svg width="16" height="16" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#10b981"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><b>Recurrentes</b></a></div>
+  </div>
+  <div id="ptToast" class="pt-toast" hidden></div>
+</div>
+
+<!-- ════════ MODAL DEL PORTAL ════════ -->
+<div id="mdBg" class="md-bg"><div class="md" role="dialog" aria-modal="true"><div class="md-t" id="mdT"></div><div class="md-b" id="mdB"></div><div class="md-a" id="mdA"></div></div></div>
+
+<!-- ════════ ELEGÍ UN PRODUCTO ════════ -->
+</div>
+
+<!-- ════════ CARRITO ════════ -->
+<div id="cartBg"></div>
+<aside id="cart" aria-label="Tu carrito">
+  <div class="ch"><span>Tu carrito</span><button type="button" id="cartX" aria-label="Cerrar">✕</button></div>
+  <div class="cb" id="cartBody"></div>
+  <div class="cf"><div class="tot"><span>Subtotal</span><b id="cartTot"></b></div><div class="sv" id="cartSv"></div><button class="cta" id="cartGo">Finalizar suscripción</button><a href="#" class="lnk" id="cartMore">Seguir viendo</a></div>
+</aside>
+
+<!-- ════════ VISTA CHECKOUT ════════ -->
+<div id="v-ck" class="ck" hidden>
+  <div class="ck-shell">
+    <div class="ck-main"><div>
+      <div style="display:flex;align-items:center;gap:12px;padding:22px 0 6px;min-height:56px"><img id="logoCk" alt="Emily Cosmetic" style="height:44px;width:auto;background:var(--wine);border-radius:10px;padding:6px 10px"></div>
+      <div class="mob-sum"><button type="button" id="msBtn"><span>Mostrar resumen del pedido ▾</span><b id="msTot"></b></button><div id="msBody" hidden style="padding-bottom:18px"></div></div>
+
+      <section class="sec" style="margin-top:22px"><h2>Contacto</h2>
+        <div class="f"><input id="ckEmail" type="email" placeholder=" " autocomplete="email"><label>Correo electrónico</label></div>
+        <label style="display:flex;gap:10px;align-items:flex-start;font-size:14px;cursor:pointer"><input type="checkbox" checked style="width:18px;height:18px;accent-color:var(--wine);margin:1px 0 0"> Quiero recibir novedades de mi pedido por email y WhatsApp</label>
+      </section>
+      <section class="sec"><h2>Entrega</h2>
+        <div class="f"><input id="ckName" placeholder=" " autocomplete="name"><label>Nombre y apellido</label></div>
+        <div class="g2"><div class="f"><input type="tel" placeholder=" "><label>Teléfono</label></div><div class="f"><input inputmode="numeric" placeholder=" "><label>DNI o CUIT (opcional)</label></div></div>
+        <div class="f"><input id="ckAddr" placeholder=" " autocomplete="address-line1"><label>Calle y número</label></div>
+        <div class="f"><input placeholder=" "><label>Piso, depto o referencia (opcional)</label></div>
+        <div class="g3"><div class="f"><input id="ckZip" placeholder=" " inputmode="numeric"><label>C.P.</label></div><div class="f"><input placeholder=" "><label>Localidad</label></div>
+          <div class="f"><select id="ckProv"><option value=""></option><option>Buenos Aires</option><option>Ciudad Autónoma de Buenos Aires</option><option>Córdoba</option><option>Santa Fe</option><option>Mendoza</option><option>Otra provincia</option></select><label>Provincia</label><span style="position:absolute;right:14px;top:20px;width:8px;height:8px;border-right:1.5px solid #6b6b6b;border-bottom:1.5px solid #6b6b6b;transform:rotate(45deg);pointer-events:none"></span></div></div>
+      </section>
+      <section class="sec"><h2>Envío</h2>
+        <div id="shipHint" style="display:flex;align-items:center;gap:10px;font-size:14px;color:#6b6b6b;padding:14px 16px;background:#f5f5f5;border-radius:var(--r)">ⓘ Completá tu dirección para ver las opciones de envío.</div>
+        <div class="opts" id="ship" hidden></div>
+        <div style="font-size:13px;color:#6b6b6b;margin-top:10px">Recibís un mail con los detalles de tu envío al confirmar la compra.</div>
+      </section>
+      <section class="sec"><h2>Pago</h2>
+        <div class="pay-methods">
+          <div class="pay-box sel" id="boxCard">
+            <label class="opt on"><input type="radio" name="pay" checked><img src="https://www.recurrentesapp.com/brand/mercadopago.png" alt="" style="width:30px;height:30px;border-radius:7px;object-fit:contain;flex:none"><span class="n"><b>Tarjeta de crédito o débito</b><small id="payFreq"></small></span></label>
+            <div class="card-body" id="cardBody">
+              <div class="f"><input id="ckHolder" placeholder=" " autocomplete="cc-name"><label>Titular, como figura en la tarjeta</label></div>
+              <div class="card-doc">
+                <div class="f" style="margin-bottom:0"><select id="ckDocType"><option>DNI</option><option>CUIL</option><option>CUIT</option></select><label>Documento</label></div>
+                <div class="f" style="margin-bottom:0"><input id="ckDoc" placeholder=" " inputmode="numeric"><label>Número de documento</label></div>
+              </div>
+              <div class="f" style="margin-top:12px"><input id="ckCard" placeholder=" " inputmode="numeric" autocomplete="cc-number"><label>Número de tarjeta</label></div>
+              <div class="card-g2">
+                <div class="f" style="margin-bottom:0"><input id="ckExp" placeholder=" " inputmode="numeric" autocomplete="cc-exp"><label>Vencimiento (MM/AA)</label></div>
+                <div class="f" style="margin-bottom:0"><input id="ckCvv" placeholder=" " inputmode="numeric" autocomplete="cc-csc"><label>Código de seguridad</label></div>
+              </div>
+            </div>
+          </div>
+          <div class="pay-box" id="boxMp">
+            <label class="opt"><input type="radio" name="pay"><img src="https://www.recurrentesapp.com/brand/mercadopago.png" alt="" style="width:30px;height:30px;border-radius:7px;object-fit:contain;flex:none"><span class="n"><b>Con tu cuenta de Mercado Pago</b><small>Te redirigiremos a la aplicación de Mercado Pago para que pagues desde ahí.</small></span></label>
+          </div>
+        </div>
+        <div class="err" id="ckErr" hidden></div>
+        <button class="pay" id="payBtn"></button>
+        <div class="tr"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> <span id="trFreq"></span></div>
+      </section>
+      <div class="ck-foot"><a href="#" id="backProd">← Volver a la tienda</a><a class="rec" href="https://www.recurrentesapp.com" target="_blank" rel="noopener">Con tecnología de <svg width="16" height="16" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#10b981"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><b>Recurrentes</b></a></div>
+    </div></div>
+    <aside class="ck-side"><div id="sumSide"></div></aside>
+  </div>
+</div>
+
+<!-- ════════ VISTA GRACIAS ════════ -->
+<div id="v-ok" hidden>
+  <header class="hdr"><div class="wrap"><img id="logoOk" alt="Emily Cosmetic"></div></header>
+  <div class="ok-wrap">
+    <div class="chk"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+    <h1>¡Listo! Tu suscripción está activa</h1>
+    <p>Desde tu portal pausás, cambiás la dirección o cancelás cuando quieras.</p>
+    <div class="ok-card" id="okCard"></div>
+    <p style="margin-top:22px"><a href="#portal" class="btn-rose" style="display:inline-block">Ir a mi portal de suscripción</a></p>
+  </div>
+</div>
+
+<script>
+const A = __ASSETS__;
+const $ = (s) => document.querySelector(s);
+const money = (n) => "$" + Math.round(n).toLocaleString("es-AR");
+// ── Los planes de Emily (3-oct-2026, Thiago) ───────────────────────────────
+// Su tienda vende packs de 1 / 3 / 6 cremas (app Kaching). Para suscripción eso
+// no sirve: un pote RINDE 30 DÍAS, así que el pack es el TIEMPO de tratamiento.
+// 1 crema = 1 mes, 2 cremas = 2 meses. Nadie quiere comprometerse a 6 meses de
+// una, y con 2 cremas ya se ahorra un envío. La frecuencia la define el plan:
+// no hay selector aparte, igual que en nuestro widget en modo packs.
+const CREMA = "crema-anticelulitis-emily";
+const BASE_UNIT = 39500;                    // precio de lista de la crema en su tienda
+const GIFT_GUIA = "ebook-elimina-la-celulitis-y-las-estrias-desde-la-raiz";
+const GIFT_CEPILLO = "cepillo";
+const PACKS = [
+  { n: 1, off: 0.20, freq: 30, label: "1 crema", sub: "Un mes de tratamiento. Se renueva sola cada mes.", gifts: [GIFT_GUIA] },
+  { n: 2, off: 0.25, freq: 60, label: "2 cremas", sub: "Dos meses juntos. Te llega cada 2 meses y ahorrás un envío.", badge: "Más elegido", gifts: [GIFT_GUIA, GIFT_CEPILLO] },
+];
+const SUB_OFF = PACKS[0].off;               // el de los extras
+const ITEMS = A.items;
+const byH = (h) => ITEMS.find(i => i.h === h);
+const S = { pack: 2, view: "prod", ship: null, packQty: 1, extras: {} };
+const pk = () => PACKS.find(p => p.n === S.pack) || PACKS[0];
+// Los regalos del primer envío: viajan en la orden a $0, como en el widget real.
+const giftList = () => pk().gifts.map(byH).filter(Boolean);
+
+// logos / galería
+["logo", "logoCk", "logoOk", "logoFt", "logoTag"].forEach(id => { $("#" + id).src = A.logo; });
+const MQ = ["🌸 PROBALA GRATIS ANTES DE PAGAR 🌸", "ENVÍO GRATIS A TODO EL PAÍS", "60 DÍAS DE GARANTÍA", "SUSCRIBITE Y AHORRÁ HASTA 25% EN CADA ENVÍO"];
+$("#mq").innerHTML = (MQ.concat(MQ).concat(MQ).concat(MQ)).map(x => `<span>${x}</span>`).join("");
+$("#iwtImg").src = A.gallery[2];
+const IBAR = [["El problema no está en la superficie", "La celulitis se forma cuando la grasa empuja contra un tejido que perdió firmeza. Una crema que solo humecta se queda arriba."], ["Centella asiática: firmeza desde adentro", "Ayuda a la producción natural de colágeno, el soporte que la piel pierde con los años."], ["Masaje + alcanfor: la zona se activa", "El alcanfor estimula y refresca, y el masaje ascendente mueve la circulación."], ["Constancia, que es lo que casi nadie sostiene", "El 97% vio menos celulitis en 2 semanas de uso continuo. La suscripción existe para que no se corte."]];
+$("#ibar").innerHTML = IBAR.map((x, i) => `<div><img src="${A.icons[i]}" alt=""><b>${x[0]}</b><span>${x[1]}</span></div>`).join("");
+$("#iwtCta").addEventListener("click", () => { $("#packs").scrollIntoView({ behavior: "smooth", block: "center" }); });
+$("#starRow").innerHTML = "★★★★★".split("").map(() => '<svg viewBox="0 0 24 24"><path d="M12 2l3 6.6 7 .8-5.2 4.9 1.4 7.1L12 18l-6.2 3.4 1.4-7.1L2 9.4l7-.8z"/></svg>').join("");
+let gi = 0;
+function renderGal() { $("#galMain").src = A.gallery[gi]; $("#thumbs").innerHTML = A.gallery.map((g, i) => `<img src="${g}" class="${i === gi ? "on" : ""}" data-i="${i}">`).join(""); }
+$("#thumbs").addEventListener("click", e => { const t = e.target.closest("img"); if (t) { gi = +t.dataset.i; renderGal(); } });
+renderGal();
+
+const selCount = () => S.pack;
+const freqTxt = () => ({ 30: "cada mes", 60: "cada 2 meses" })[pk().freq];
+function chosen() { const c = byH(CREMA); return c ? [{ ...c, q: S.pack }] : []; }
+function extrasList() { return ITEMS.filter(i => S.extras[i.h] > 0).map(i => ({ ...i, q: S.extras[i.h] })); }
+function totals() {
+  const p = pk();
+  const packList = BASE_UNIT * p.n * S.packQty;
+  const packSub = Math.round(packList * (1 - p.off));
+  const extrasTotal = extrasList().reduce((a, i) => a + i.price * i.q, 0);
+  const extrasSub = Math.round(extrasTotal * (1 - SUB_OFF));
+  return { list: packList + extrasTotal, sub: packSub + extrasSub, saving: (packList + extrasTotal) - (packSub + extrasSub), packSub, packList };
+}
+function renderPacks() {
+  $("#packs").innerHTML = PACKS.map(p => {
+    const list = p.n * BASE_UNIT, sub = Math.round(list * (1 - p.off)), on = S.pack === p.n;
+    const g = p.gifts.map(h => ITEMS.find(i => i.h === h)).filter(Boolean);
+    return `<div class="pack ${on ? "on" : ""}" data-n="${p.n}">${p.badge ? `<span class="bd rose">${p.badge}</span>` : ""}<span class="rad"></span>
+      <span class="nm">${p.label}</span>
+      <span class="pr"><b>${money(sub)}</b><s>${money(list)}</s><small>−${Math.round(p.off * 100)}% · ${money(sub / p.n)} por crema</small></span>
+      <span class="desc">${p.sub}</span>
+      <div class="gifts">${g.map(i => `<div class="gift"><img src="${i.img}" alt=""><span>${i.title}</span><em>Gratis</em></div>`).join("")}
+        <small class="gift-note">Solo en tu primer envío</small></div>
+    </div>`;
+  }).join("");
+}
+$("#packs").addEventListener("click", e => {
+  const t = e.target.closest(".pack"); if (!t) return;
+  S.pack = +t.dataset.n; renderAll();
+});
+// Modal "Elegí un producto" (misma lista que su tienda: foto, nombre, precio con el tachado)
+function renderCta() {
+  const t = totals();
+  $("#goCk").disabled = false;
+  $("#goCk").innerHTML = `<span class="l1">Suscribirme · ${money(t.sub)}</span><small>Te llega ${freqTxt()} · ahorrás ${money(t.saving)} en cada envío · envío gratis</small>`;
+}
+function renderAll() { renderPacks(); renderCta(); }
+renderAll();
+
+// ── testimonios (carrusel) + reseñas de Revie tal cual ──
+let ti = 0; const TESTI = A.testimonials || [];
+function renderTesti() { if (!TESTI.length) return; $("#tq").textContent = TESTI[ti][0]; $("#ta").textContent = TESTI[ti][1]; $("#tdots").innerHTML = TESTI.map((_, i) => `<i class="${i === ti ? "on" : ""}"></i>`).join(""); }
+$(".tnav").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; ti = (ti + (+b.dataset.t) + TESTI.length) % TESTI.length; renderTesti(); });
+setInterval(() => { ti = (ti + 1) % Math.max(1, TESTI.length); renderTesti(); }, 6000); renderTesti();
+// (Emily no usa Revie: su ficha muestra las reseñas como citas, que van en el carrusel de arriba)
+
+// ── checkout ──
+function show(v) { S.view = v; $("#v-prod").hidden = v !== "prod"; $("#v-ck").hidden = v !== "ck"; $("#v-ok").hidden = v !== "ok"; $("#v-portal").hidden = v !== "portal"; if (v === "portal") renderPortal(); window.scrollTo(0, 0); }
+// ── Portal del suscriptor (demo): lo que ve el cliente después de suscribirse ──
+$("#logoPt").src = A.logo;
+const P = { paused: false, cancelled: false, extras: null, items: null };
+function ptToast(t) { const e = $("#ptToast"); e.textContent = t; e.hidden = false; clearTimeout(ptToast.t); ptToast.t = setTimeout(() => { e.hidden = true; }, 2600); }
+function renderPortal() {
+  // Si entró directo a #portal sin armar nada, mostramos una suscripción de ejemplo.
+  if (!P.items) { const ch = chosen(); P.items = ch.length ? ch : [{ ...byH(CREMA), q: 2 }]; }
+  if (!P.extras) { P.extras = extrasList(); }
+  const list = P.items.reduce((a, i) => a + i.price * i.q, 0) * S.packQty, exT = P.extras.reduce((a, i) => a + i.price * i.q, 0);
+  const total = Math.round(list * (1 - pk().off)) + Math.round(exT * (1 - SUB_OFF));
+  const days = pk().freq;
+  $("#ptNext").textContent = P.paused ? "En pausa" : new Date(Date.now() + days * 864e5).toLocaleDateString("es-AR", { day: "numeric", month: "long" });
+  $("#ptFreq").textContent = freqTxt().replace("cada ", "");
+  $("#ptTotal").textContent = money(total);
+  const st = P.cancelled ? ["Cancelada", "#fde8e8", "#b42318"] : P.paused ? ["Pausada", "#fdf0d5", "#8a5a00"] : ["Activa", "#dff5e7", "#1f7a3e"];
+  $(".pt-status").textContent = st[0]; $(".pt-status").style.background = st[1]; $(".pt-status").style.color = st[2];
+  if (P.cancelled) $("#ptNext").textContent = "—";
+  $(".pt-actions").innerHTML = P.cancelled ? `<div style="font-size:13px;color:var(--muted);line-height:1.5">Tu suscripción fue cancelada. Si querés volver a suscribirte, andá al producto en la tienda y elegí Suscripción de nuevo.</div>` : `<button type="button" class="pt-btn" id="ptPause">${P.paused ? "▶ Reactivar" : "⏸ Pausar"}</button><button type="button" class="pt-btn danger" id="ptCancel">✕ Cancelar</button>`;
+  bindPortalActions();
+  $("#ptItems").innerHTML = P.items.map(i => `<div class="pt-it"><img src="${i.img}" alt=""><span class="n">${i.q * S.packQty} × ${i.title}<small>${money(i.price * i.q * S.packQty)} · −${Math.round(pk().off * 100)}% en suscripción</small></span></div>`).join("");
+  $("#ptExtrasWrap").hidden = !P.extras.length;
+  $("#ptItems").insertAdjacentHTML("beforeend", giftList().map(i => `<div class="pt-it"><img src="${i.img}" alt=""><span class="n">1 × ${i.title}<small style="color:var(--ok)">Regalo del primer envío</small></span></div>`).join(""));
+  $("#ptExtras").innerHTML = P.extras.map(i => `<div class="pt-it"><img src="${i.img}" alt=""><span class="n">${i.q} × ${i.title}<small>${money(i.price * i.q)} por cobro</small></span></div>`).join("");
+  const hist = [[0, total], [pk().freq, total], [pk().freq * 2, total]].map(([d, m], k) => `<div><span>${new Date(Date.now() - d * 864e5).toLocaleDateString("es-AR", { day: "numeric", month: "short" })} · ${pk().label}${k ? "" : " · hoy"}</span><span class="ok">${money(m)} · pagado</span></div>`);
+  $("#ptHist").innerHTML = hist.join("");
+}
+// Modales como los del portal real (nada de prompt/confirm del navegador).
+function modal({ title, body, actions }) {
+  $("#mdT").textContent = title; $("#mdB").innerHTML = body;
+  $("#mdA").innerHTML = actions.map((a, i) => `<button type="button" data-i="${i}" class="${a.cls || ""}">${a.label}</button>`).join("");
+  $("#mdA").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; const a = actions[+b.dataset.i]; if (a.keep !== true) closeModal(); if (a.run) a.run(); };
+  $("#mdBg").style.display = "flex";
+}
+function closeModal() { $("#mdBg").style.display = "none"; }
+$("#mdBg").addEventListener("click", e => { if (e.target === $("#mdBg")) closeModal(); });
+const REASONS = [["precio", "Me resulta caro"], ["stock", "Todavía tengo producto"], ["no_uso", "Ya no lo uso"], ["calidad", "No me convenció"], ["otro", "Otro motivo"]];
+// Los botones se re-crean en cada render del portal → se enganchan acá.
+function bindPortalActions() {
+  const pp = $("#ptPause"), pc = $("#ptCancel");
+  if (pp) pp.onclick = () => {
+    if (P.paused) return modal({ title: "Reactivar suscripción", body: "Reactivamos tu suscripción y volvés a recibir tus envíos. ¿Confirmás?", actions: [{ label: "Cancelar" }, { label: "Sí, reactivar", cls: "pri", run: () => { P.paused = false; renderPortal(); ptToast("Suscripción reactivada."); } }] });
+    modal({ title: "Pausar suscripción", body: "Pausamos tu suscripción. No se hacen más cobros ni envíos hasta que la reactives. ¿Confirmás?", actions: [{ label: "Cancelar" }, { label: "Sí, pausar", cls: "pri", run: () => { P.paused = true; renderPortal(); ptToast("Suscripción pausada. No se cobra hasta que la reactives."); } }] });
+  };
+  if (pc) pc.onclick = () => {
+    modal({ title: "¿Por qué querés cancelar?", body: `<div style="color:#666;font-size:13px">Nos ayuda a mejorar. Elegí un motivo:</div>${REASONS.map((r, i) => `<label class="rz ${i === 0 ? "on" : ""}"><input type="radio" name="rz" value="${r[0]}" ${i === 0 ? "checked" : ""}> ${r[1]}</label>`).join("")}<div class="note">💡 Si todavía tenés producto, podés <b>pausar</b> en vez de cancelar: no se cobra nada y lo retomás cuando quieras.</div>`,
+      actions: [{ label: "Volver" }, { label: "Prefiero pausar", run: () => { P.paused = true; renderPortal(); ptToast("Suscripción pausada. La reactivás cuando quieras."); } }, { label: "Cancelar suscripción", cls: "dng", run: () => { P.cancelled = true; renderPortal(); ptToast("Suscripción cancelada. No se hacen más cobros."); } }] });
+    $("#mdB").onchange = () => { [...$("#mdB").querySelectorAll(".rz")].forEach(l => l.classList.toggle("on", l.querySelector("input").checked)); };
+  };
+}
+$("#ptAddrBtn").addEventListener("click", () => {
+  modal({ title: "Cambiar la dirección de envío", body: `<div class="f"><input id="mAddr" value="Av. Corrientes 1234" placeholder=" "><label>Calle y número</label></div><div class="f"><input id="mApt" value="" placeholder=" "><label>Piso, depto o referencia (opcional)</label></div><div class="g2"><div class="f"><input id="mZip" value="1043" placeholder=" "><label>C.P.</label></div><div class="f"><input id="mCity" value="CABA" placeholder=" "><label>Localidad</label></div></div><div class="f"><input id="mPhone" value="11 4444 0000" placeholder=" "><label>Teléfono</label></div><div class="note">Se usa desde tu próximo envío. Los que ya salieron no cambian.</div>`,
+    actions: [{ label: "Cancelar" }, { label: "Guardar dirección", cls: "pri", run: () => { const a = $("#mAddr").value.trim(), c = $("#mCity").value.trim(), z = $("#mZip").value.trim(), ap = $("#mApt").value.trim(); if (a && c) $("#ptAddr").textContent = `${a}${ap ? ", " + ap : ""}, ${c} (${z})`; ptToast("Dirección actualizada para el próximo envío."); } }] });
+});
+$("#ptBack").addEventListener("click", e => { e.preventDefault(); location.hash = ""; show("prod"); });
+function route() { if (location.hash === "#portal") show("portal"); }
+window.addEventListener("hashchange", route); route();
+// Suscribirme → carrito (como en su tienda) → Finalizar compra → checkout de Recurrentes.
+function renderCart() {
+  const t = totals();
+  // Upsells: lo que no está en el pack, 3 sugerencias (como los "Sumá a tu pedido" de las tiendas).
+  
+  const ups = ITEMS.filter(i => i.h !== CREMA && !pk().gifts.includes(i.h)).slice(0, 3);
+  $("#cartBody").innerHTML = `<div class="cl"><img src="${A.gallery[0]}" alt=""><div class="t"><b>${pk().label} · ${pk().n} ${pk().n === 1 ? "mes" : "meses"} de tratamiento</b><span class="pill">Suscripción · ${freqTxt()}</span></div><div class="p">${money(t.packSub)}<s>${money(t.packList)}</s><em>−${Math.round(pk().off * 100)}% cada envío</em></div></div>
+    <div class="cart-gifts">${giftList().map(i => `<div><span><img src="${i.img}" alt="">${i.title}</span><span><b>Gratis</b><s>${money(i.price)}</s></span></div>`).join("")}<small>Solo en tu primer envío</small></div>
+
+    <div class="cart-items">${chosen().map(i => `<div><span>${i.q * S.packQty} × ${i.title}</span><span>${money(i.price * i.q * S.packQty)}</span></div>`).join("")}</div>
+    ${extrasList().length ? `<div class="cart-items" style="border-top-style:solid"><div style="font-weight:700;color:var(--ink)"><span>Extras en tu suscripción</span><span></span></div>${extrasList().map(i => `<div><span>${i.q} × ${i.title}</span><span>${money(i.price * i.q)}</span></div>`).join("")}</div>` : ""}
+    <div class="ups"><h4>Sumá a tu suscripción</h4>
+      ${ups.map(i => { const q = S.extras[i.h] || 0; return `<div class="up ${q ? "on" : ""}"><img src="${i.img}" alt=""><div class="t"><b>${i.title}</b><span>${money(i.price * (1 - SUB_OFF))}<s>${money(i.price)}</s></span></div>${q ? `<div class="stp"><button type="button" data-ex="${i.h}" data-d="-1">−</button><b>${q}</b><button type="button" data-ex="${i.h}" data-d="1">+</button></div>` : `<button type="button" class="ab" data-ex="${i.h}" data-d="1">+ Agregar</button>`}</div>`; }).join("")}
+    </div>`;
+  $("#cartTot").textContent = money(t.sub); $("#cartSv").textContent = `Estás ahorrando ${money(t.saving)} en cada envío · envío gratis`;
+  $(".badge-cart b").textContent = String(S.packQty + extrasList().reduce((a, i) => a + i.q, 0));
+}
+function openCart() { renderCart(); $("#cartBg").style.display = "block"; $("#cart").classList.add("open"); }
+$("#cartBody").addEventListener("click", e => {
+  const cf = e.target.closest("[data-cf]"), pq = e.target.closest("[data-pq]"), ex = e.target.closest("[data-ex]");
+  if (cf) { renderCart(); }
+  else if (pq) { S.packQty = Math.max(1, Math.min(3, S.packQty + (+pq.dataset.pq))); renderCart(); }
+  else if (ex) { S.extras[ex.dataset.ex] = Math.max(0, (S.extras[ex.dataset.ex] || 0) + (+ex.dataset.d)); renderCart(); }
+});
+function closeCart() { $("#cartBg").style.display = "none"; $("#cart").classList.remove("open"); }
+$("#goCk").addEventListener("click", openCart);
+$("#cartX").addEventListener("click", closeCart); $("#cartBg").addEventListener("click", closeCart); $("#cartMore").addEventListener("click", e => { e.preventDefault(); closeCart(); });
+$("#cartGo").addEventListener("click", () => { closeCart(); $("#ld").style.display = "flex"; setTimeout(() => { $("#ld").style.display = "none"; S.ship = null; renderCk(); show("ck"); }, 900); });
+$("#backProd").addEventListener("click", e => { e.preventDefault(); show("prod"); });
+// Como en su tienda hoy (shipnow): dos tarifas a domicilio. Gratis desde $85.000.
+// Lo que Emily muestra hoy: envío con seguimiento, 3 a 5 días, gratis en todos
+// los planes (en su ficha los packs dicen "Envío gratis").
+const SHIP = () => { const d = (n) => new Date(Date.now() + n * 864e5).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
+  return [
+    { n: "Envío a domicilio con seguimiento", s: `Llega entre el ${d(3)} y el ${d(5)}`, p: 0 },
+    { n: "Envío exprés 🚀", s: `Llega el ${d(2)}, de 09 a 20 h`, p: 6900 },
+    { n: "Retiro en sucursal Correo Argentino", s: `Llega entre el ${d(3)} y el ${d(6)}`, p: 0 },
+  ]; };
+function shipPrice() { return S.ship == null ? 0 : SHIP()[S.ship].p; }
+function summaryHtml() {
+  const t = totals(); const total = t.sub + shipPrice();
+  return `<div style="display:flex;gap:14px;align-items:flex-start"><div style="position:relative"><img src="${A.gallery[0]}" style="width:64px;height:64px;border-radius:10px;object-fit:cover;border:1px solid #eee;background:#fff"><span style="position:absolute;top:-8px;right:-8px;min-width:22px;height:22px;padding:0 6px;border-radius:99px;background:#6b6b6b;color:#fff;font-size:12px;font-weight:600;display:grid;place-items:center">${S.pack}</span></div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600">${S.packQty > 1 ? S.packQty + " × " : ""}${pk().label} · ${pk().n} ${pk().n === 1 ? "mes" : "meses"} de tratamiento</div><span class="pill" style="margin-top:6px">Suscripción</span><div style="font-size:13px;color:#6b6b6b;margin-top:6px">Frecuencia: ${freqTxt()}</div></div><div style="font-size:14px;font-weight:500">${money(t.packSub)}</div></div>
+    <div style="margin-top:6px">${chosen().map(i => `<div class="sum-item"><span class="qb"><img src="${i.img}"><b>${i.q * S.packQty}</b></span><span style="flex:1;min-width:0">${i.title}</span><span style="color:#6b6b6b">${money(i.price * i.q * S.packQty)}</span></div>`).join("")}</div>
+    ${extrasList().length ? `<div style="margin-top:14px;font-size:12px;font-weight:700;color:#6b6b6b;text-transform:uppercase;letter-spacing:.06em">Extras en tu suscripción</div>${extrasList().map(i => `<div class="sum-item"><span class="qb"><img src="${i.img}"><b>${i.q}</b></span><span style="flex:1;min-width:0">${i.title}</span><span style="color:#6b6b6b">${money(i.price * i.q)}</span></div>`).join("")}` : ""}
+    <div style="margin-top:14px;font-size:12px;font-weight:700;color:#6b6b6b;text-transform:uppercase;letter-spacing:.06em">Regalos de tu primer envío</div>
+    ${giftList().map(i => `<div class="sum-item"><span class="qb"><img src="${i.img}"><b>1</b></span><span style="flex:1;min-width:0">${i.title}</span><span style="color:#1f7a3e;font-weight:600">Gratis</span></div>`).join("")}
+    <div style="border-top:1px solid #e8e8e8;margin:18px 0 4px"></div>
+    <div class="line"><span>Productos</span><span>${money(t.list)}</span></div>
+    <div class="line" style="color:#1f7a3e"><span style="color:#1f7a3e">Descuento suscripción · ${Math.round(pk().off * 100)}%</span><span>−${money(t.saving)}</span></div>
+    <div class="line"><span>Envío</span><span>${S.ship == null ? '<span style="color:#6b6b6b;font-weight:400">Completá tu dirección</span>' : (shipPrice() === 0 ? "Gratis" : money(shipPrice()))}</span></div>
+    <div style="border-top:1px solid #e8e8e8;margin:14px 0"></div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:17px;font-weight:600">Total</span><span><span style="font-size:12px;color:#6b6b6b;margin-right:8px">ARS</span><span style="font-size:22px;font-weight:700">${money(total)}</span></span></div>
+    <div style="font-size:12px;color:#6b6b6b;line-height:1.5;margin-top:10px">Se cobra ${money(total)} ahora y se renueva automáticamente ${freqTxt()}. Podés pausar o cancelar cuando quieras.</div>`;
+}
+function renderCk() {
+  $("#sumSide").innerHTML = summaryHtml(); $("#msBody").innerHTML = summaryHtml();
+  const t = totals(); $("#msTot").textContent = money(t.sub + shipPrice());
+  $("#payBtn").textContent = `Pagar suscripción · ${money(t.sub + shipPrice())}`;
+  $("#payFreq").textContent = `Se cobra ${freqTxt()}, sin que hagas nada.`;
+  $("#trFreq").textContent = `Envío automático ${freqTxt()} · Pago seguro con Mercado Pago`;
+  const has = $("#ckZip").value.trim() || $("#ckProv").value;
+  $("#shipHint").style.display = has ? "none" : "flex"; $("#ship").hidden = !has; // el hint tiene display:flex inline: `hidden` solo no alcanza
+  if (has) { if (S.ship == null) S.ship = 0; $("#ship").innerHTML = SHIP().map((s, i) => `<label class="opt ${S.ship === i ? "on" : ""}"><input type="radio" name="sh" ${S.ship === i ? "checked" : ""} data-i="${i}"><span class="n"><b>${s.n}</b><small>${s.s}</small></span><b>${s.p === 0 ? "Gratis" : "$ " + s.p.toLocaleString("es-AR", { minimumFractionDigits: 2 })}</b></label>`).join(""); }
+}
+["#ckZip", "#ckProv"].forEach(s => $(s).addEventListener("input", renderCk));
+document.querySelectorAll("#v-ck .f").forEach(f => f.addEventListener("input", () => { f.classList.remove("is-err"); f.querySelector(".fe")?.remove(); }));
+$("#ship").addEventListener("change", e => { const r = e.target.closest("input"); if (r) { S.ship = +r.dataset.i; renderCk(); } });
+$("#msBtn").addEventListener("click", () => { $("#msBody").hidden = !$("#msBody").hidden; });
+// Los campos de la tarjeta, prolijos: cada uno toma solo lo que corresponde. En
+// el checkout real esto lo hace Mercado Pago con sus campos seguros; acá, que es
+// una maqueta, lo hacemos a mano para que se vea igual (27-sept-2026, Thiago).
+(function () {
+  const num = (v, max) => v.replace(/\D/g, "").slice(0, max);
+  const mask = (sel, fn) => {
+    const e = $(sel); if (!e) return;
+    e.addEventListener("input", () => { const antes = e.value, ahora = fn(antes); if (ahora !== antes) { e.value = ahora; try { e.setSelectionRange(ahora.length, ahora.length); } catch (_) {} } });
+  };
+  mask("#ckDoc", v => num(v, 11));
+  mask("#ckCvv", v => num(v, 4));
+  mask("#ckCard", v => num(v, 16).replace(/(\d{4})(?=\d)/g, "$1 "));
+  mask("#ckHolder", v => v.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ .'-]/g, "").slice(0, 40));
+  mask("#ckExp", v => {
+    let d = num(v, 4);
+    if (d.length === 1 && +d > 1) d = "0" + d;                    // "5" → "05"
+    if (d.length >= 2 && (+d.slice(0, 2) < 1 || +d.slice(0, 2) > 12)) d = "12" + d.slice(2);
+    return d.length > 2 ? d.slice(0, 2) + "/" + d.slice(2) : d;   // MM/AA y nada más
+  });
+})();
+$("#payBtn").addEventListener("click", () => {
+  // Error por campo (borde rojo + texto debajo) y deslizamiento al primero que falta, como
+  // el checkout real de Recurrentes.
+  // Sin validar nada: esto es una demo. El que la mira quiere ver cómo se ve el
+  // checkout, no que le pidan el código postal (27-sept-2026, Thiago).
+  const b = $("#payBtn"); b.disabled = true; b.textContent = $("#boxCard")?.classList.contains("sel") ? "Procesando el pago…" : "Redirigiendo a Mercado Pago…";
+  setTimeout(() => { b.disabled = false; const t = totals(); const next = new Date(Date.now() + pk().freq * 864e5).toLocaleDateString("es-AR", { day: "numeric", month: "long" });
+    $("#okCard").innerHTML = `<div><span>Pack</span><b>${S.packQty > 1 ? S.packQty + " × " : ""}${S.pack} producto${S.pack === 1 ? "" : "s"} · armado por vos${extrasList().length ? " + " + extrasList().reduce((a, i) => a + i.q, 0) + " extra" : ""}</b></div><div><span>Cobrado hoy</span><b>${money(t.sub + shipPrice())}</b></div><div><span>Frecuencia</span><b>${freqTxt()}</b></div><div><span>Próximo cobro</span><b>${next}</b></div><div><span>Ahorro por envío</span><b style="color:#1f7a3e">${money(t.saving)}</b></div>`;
+    show("ok"); }, 1400);
+});
+// Tarjeta / Mercado Pago: el desglose se abre y se cierra, igual que en el checkout real.
+(function () {
+  const bc = $("#boxCard"), bm = $("#boxMp"), body = $("#cardBody");
+  if (!bc || !bm) return;
+  const pick = (card) => {
+    bc.classList.toggle("sel", card); bm.classList.toggle("sel", !card);
+    bc.querySelector(".opt").classList.toggle("on", card);
+    bm.querySelector(".opt").classList.toggle("on", !card);
+    bc.querySelector("input").checked = card; bm.querySelector("input").checked = !card;
+    body.hidden = !card;
+  };
+  bc.querySelector(".opt").addEventListener("click", () => pick(true));
+  bm.querySelector(".opt").addEventListener("click", () => pick(false));
+})();
+</script>
