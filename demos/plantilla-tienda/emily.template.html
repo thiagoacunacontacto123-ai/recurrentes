@@ -563,6 +563,9 @@ body.stk-on .demo-tag{bottom:82px}
 .e-hero div{position:absolute;inset:0;background:linear-gradient(90deg,#eac8c6 0,#e8c1c1 52%,rgba(231,191,191,0) 62%);display:flex;flex-direction:column;justify-content:center;padding-left:7cqw;color:#6a2a3a}
 .e-hero b{font-family:'Lora',Georgia,serif;font-weight:700;font-size:5.3cqw;line-height:1.08;letter-spacing:-.01em}
 .e-hero span{display:block;max-width:50cqw;margin-top:2.2cqw;padding-top:1.6cqw;border-top:1px solid rgba(106,42,58,.45);font-size:max(8px,1.75cqw);line-height:1.35;color:#3c2a2e}
+.e-pk-c em{font-style:normal;font-weight:700;color:#c2566b}
+.e-nav a.on{color:#c2566b;font-weight:700}
+.e-faq{padding:10px 0 56px}.e-faq .e-w{max-width:800px}.e-faq .e-h2{text-align:center;margin-bottom:10px}.e-faq .e-cta{margin-top:26px}
 .e-h1 em{font-style:normal;color:#c2566b;white-space:nowrap}
 .e-cards{margin-top:0}
 .ck-happy{background:#e49aa7;color:#fff;text-align:center;font-weight:700;font-size:13px;letter-spacing:.04em;padding:9px 12px}
@@ -604,7 +607,7 @@ body.stk-on .demo-tag{bottom:82px}
     <div class="e-w">
       <svg class="bg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
       <img class="lg" id="logo" alt="Emily Cosmetic">
-      <nav class="e-nav"><a href="#">Productos</a><a href="#">Combos</a><a href="#">Accesorios</a><a href="#">Ayuda con mi Pedido</a><a href="#">Nosotros</a><a href="#">Mayoristas</a></nav>
+      <nav class="e-nav"><a href="#">Productos</a><a href="#">Combos</a><a href="#">Accesorios</a><a href="#" class="on">Suscripción</a><a href="#">Ayuda con mi Pedido</a><a href="#">Nosotros</a><a href="#">Mayoristas</a></nav>
       <div class="r">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/></svg>
         <span class="badge-cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 8h14l-1 13H6z"/><path d="M9 8V6a3 3 0 016 0v2"/></svg><b>1</b></span>
@@ -695,6 +698,21 @@ body.stk-on .demo-tag{bottom:82px}
     <div class="e-row"><div class="e-pc" style="--p:97%"><b>97%</b></div><div>Reducción visible de la celulitis desde las primeras aplicaciones</div></div>
     <div class="e-row"><div class="e-pc" style="--p:94%"><b>94%</b></div><div>Piel visiblemente más firme y suave</div></div>
     <div class="e-row"><div class="e-pc" style="--p:90%"><b>90%</b></div><div>Estimula la circulación y favorece la eliminación de toxinas</div></div>
+  </div></section>
+
+  <section class="e-faq"><div class="e-w">
+    <h2 class="e-h2">Preguntas sobre la suscripción</h2>
+    <div class="e-acc">
+      <details open><summary>¿Cómo funciona?</summary><p>Elegís tu plan una sola vez y la crema te llega sola: todos los meses con el plan de 1 crema, cada 2 meses con el de 2. Descuento en cada envío y envío gratis.</p></details>
+      <details><summary>¿Tengo que quedarme un mínimo de meses?</summary><p>No. No hay permanencia ni letra chica: cancelás cuando quieras desde tu portal, en un clic.</p></details>
+      <details><summary>¿Puedo pausarla si todavía me queda crema?</summary><p>Sí. Desde tu portal la pausás y la retomás cuando quieras. El link al portal te llega por mail y WhatsApp con cada cobro. <a href="#portal">Ver cómo es el portal →</a></p></details>
+      <details><summary>¿Cuándo me cobran?</summary><p>El primer pago es hoy. Después se cobra solo el mismo importe en cada renovación, con tarjeta o con tu cuenta de Mercado Pago, y te avisamos antes de cada cobro.</p></details>
+      <details><summary>¿El descuento es solo en el primer envío?</summary><p>No, es en todos: 20% con el plan de 1 crema y 25% con el de 2, en cada envío mientras la suscripción esté activa.</p></details>
+      <details><summary>¿Los regalos vienen siempre?</summary><p>Van en tu primer envío: la Guía de cuidado corporal en los dos planes y el Cepillo Corporal en el de 2 cremas. No se cobran ni ahora ni después.</p></details>
+      <details><summary>¿Puedo cambiar la dirección de entrega?</summary><p>Sí, desde tu portal, antes de cada envío.</p></details>
+      <details><summary>¿Sigue valiendo la garantía de 60 días?</summary><p>Sí, igual que en la compra común: si no ves la piel más lisa, te devolvemos el dinero.</p></details>
+    </div>
+    <button class="e-cta" data-go>Suscribirme</button>
   </div></section>
 
   <footer class="e-ft"><div class="e-w">
@@ -837,8 +855,8 @@ const BASE_UNIT = 39500;                    // precio de lista de la crema en su
 const GIFT_GUIA = "ebook-elimina-la-celulitis-y-las-estrias-desde-la-raiz";
 const GIFT_CEPILLO = "cepillo";
 const PACKS = [
-  { n: 1, off: 0.20, freq: 30, label: "1 crema", sub: "Un mes de tratamiento. Te llega todos los meses.", gifts: [GIFT_GUIA] },
-  { n: 2, off: 0.25, freq: 60, label: "2 cremas", sub: "Dos meses de tratamiento. Te llega cada 2 meses y ahorrás un envío.", badge: "Más elegido", gifts: [GIFT_GUIA, GIFT_CEPILLO] },
+  { n: 1, off: 0.20, freq: 30, label: "1 crema", sub: "Un mes de tratamiento. <em>Te llega todos los meses.</em>", gifts: [GIFT_GUIA] },
+  { n: 2, off: 0.25, freq: 60, label: "2 cremas", sub: "Dos meses de tratamiento. <em>Te llega cada 2 meses</em> y ahorrás un envío.", badge: "Más elegido", gifts: [GIFT_GUIA, GIFT_CEPILLO] },
 ];
 const SUB_OFF = PACKS[0].off;               // el de los extras
 const ITEMS = A.items;
