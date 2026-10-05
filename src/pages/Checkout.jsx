@@ -273,6 +273,14 @@ export default function Checkout() {
   // dígitos (11 = CUIT), y al que pone su CUIL le mandábamos "CUIT" → MP lo
   // rechazaba. Ahora lo elige él, con la lista que da MP para el país.
   const [docType, setDocType] = useState("DNI");
+  // El documento del TITULAR de la tarjeta es OTRO dato que el del que compra:
+  // muchas veces la tarjeta es del padre, la pareja o un tercero (Thiago,
+  // 5-oct-2026). Antes compartían `taxid` y además el campo de Contacto
+  // aparecía y desaparecía según el medio de pago, así que al elegir Mercado
+  // Pago había que volver a subir a escribirlo. Ahora son dos campos, los dos
+  // siempre visibles: `taxid` va al PEDIDO y `cardTaxid` va al token de MP.
+  const [cardTaxid, setCardTaxid] = useState("");
+  const [cardDocTouched, setCardDocTouched] = useState(false);
   const [docTypes, setDocTypes] = useState([{ id: "DNI", name: "DNI" }, { id: "CUIL", name: "CUIL" }, { id: "CUIT", name: "CUIT" }]);
   const [cardReady, setCardReady] = useState(false);
   const mpRef = useRef(null);
@@ -509,11 +517,11 @@ export default function Checkout() {
     // de Contacto deja de ser opcional en vez de pedirle el DNI dos veces.
     if (useCard) {
       if (!cardholder.trim()) miss.cardholder = "Ingresá el nombre como figura en la tarjeta";
-      const dig = taxid.replace(/\D/g, "");
+      const dig = (cardTaxid || taxid).replace(/\D/g, "");
       const esCuit = /^(CUIL|CUIT)$/.test(docType);
-      if (!dig) miss.taxid = `Ingresá tu ${docType}: Mercado Pago lo pide para cobrar con tarjeta`;
-      else if (esCuit && dig.length !== 11) miss.taxid = `Un ${docType} tiene 11 números`;
-      else if (!esCuit && (dig.length < 7 || dig.length > 9)) miss.taxid = `Revisá el número de ${docType}`;
+      if (!dig) miss.cardTaxid = `Ingresá el ${docType} del titular: Mercado Pago lo pide para cobrar con tarjeta`;
+      else if (esCuit && dig.length !== 11) miss.cardTaxid = `Un ${docType} tiene 11 números`;
+      else if (!esCuit && (dig.length < 7 || dig.length > 9)) miss.cardTaxid = `Revisá el número de ${docType}`;
       if (!cardReady) miss.card = "Esperá a que cargue el formulario de la tarjeta";
     }
     setErrs(miss);
@@ -529,7 +537,7 @@ export default function Checkout() {
         const t = await mpRef.current.fields.createCardToken({
           cardholderName: cardholder.trim(),
           identificationType: docType,
-          identificationNumber: taxid.replace(/\D/g, ""),
+          identificationNumber: (cardTaxid || taxid).replace(/\D/g, ""),
         });
         cardTokenId = t?.id || "";
       } catch (e) {
@@ -780,22 +788,25 @@ export default function Checkout() {
                 {/* El titular arriba: es el único que se escribe en NUESTRA página.
                     Los tres de abajo son iframes de Mercado Pago (Secure Fields):
                     se escriben adentro de su página, no de la nuestra. */}
+                <div style={{ fontSize: 12.5, color: theme.text_muted, margin: "0 0 10px" }}>Si la tarjeta es de otra persona, poné sus datos acá.</div>
                 <Field label="Titular, como figura en la tarjeta" error={errs.cardholder} onFix={fix("cardholder")}>
                   <input autoComplete="cc-name" placeholder=" " value={cardholder} onChange={e => setCardholder(e.target.value)}/>
                 </Field>
                 {/* Documento del TITULAR de la tarjeta, como lo pide Mercado Pago:
-                    el tipo al lado del número. Es el mismo dato que va en el
-                    pedido (`taxid`), así que arriba, en Contacto, no se repite. */}
+                    el tipo al lado del número. NO es el mismo dato que el DNI de
+                    arriba: la tarjeta puede ser del padre, la pareja o un tercero
+                    (Thiago, 5-oct-2026). Arranca copiado del de Contacto por
+                    comodidad y se despega apenas el comprador lo toca. */}
                 <div className="rc-doc">
                   <div className="rc-f" style={{ marginBottom: 0 }}>
-                    <select value={docType} onChange={e => { setDocType(e.target.value); fix("taxid")(); }} aria-label="Tipo de documento">
+                    <select value={docType} onChange={e => { setDocType(e.target.value); fix("cardTaxid")(); }} aria-label="Tipo de documento">
                       {docTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
-                    <label>Documento</label>
+                    <label>Documento del titular</label>
                     {chevron}
                   </div>
-                  <Field label={`Número de ${docType}`} error={errs.taxid} onFix={fix("taxid")}>
-                    <input inputMode="numeric" autoComplete="off" placeholder=" " value={taxid} onChange={e => setTaxid(soloDigitos(e.target.value))}/>
+                  <Field label={`Número de ${docType}`} error={errs.cardTaxid} onFix={fix("cardTaxid")}>
+                    <input inputMode="numeric" autoComplete="off" placeholder=" " value={cardTaxid} onChange={e => { setCardDocTouched(true); setCardTaxid(soloDigitos(e.target.value)); }}/>
                   </Field>
                 </div>
                 <div className="rc-mpf-wrap">
@@ -974,9 +985,9 @@ export default function Checkout() {
             <section className="rc-sec">
               <h2 className="rc-h2">{askAddress ? "Entrega" : "Quién se suscribe"}</h2>
               <Field label="Nombre y apellido" error={errs.name} onFix={fix("name")}><input autoComplete="name" placeholder=" " value={name} onChange={e => setName(e.target.value)}/></Field>
-              <div className={useCard ? "" : "rc-2"}>
+              <div className="rc-2">
                 <Field label={requirePhone ? "Teléfono" : "Teléfono (opcional)"} error={errs.phone} onFix={fix("phone")}><input type="tel" autoComplete="tel" placeholder=" " value={phone} onChange={e => setPhone(e.target.value)}/></Field>
-                {!useCard ? <Field label={requireTaxId ? "DNI o CUIT" : "DNI o CUIT (opcional)"} error={errs.taxid} onFix={fix("taxid")}><input inputMode="numeric" placeholder=" " value={taxid} onChange={e => setTaxid(soloDigitos(e.target.value))}/></Field> : null}
+                <Field label={requireTaxId ? "DNI o CUIT" : "DNI o CUIT (opcional)"} error={errs.taxid} onFix={fix("taxid")}><input inputMode="numeric" placeholder=" " value={taxid} onChange={e => { const v = soloDigitos(e.target.value); setTaxid(v); if (!cardDocTouched) setCardTaxid(v); }}/></Field>
               </div>
               {askAddress ? (<>
                 <Field label="Calle y número" error={errs.address1} onFix={fix("address1")}><input autoComplete="address-line1" placeholder=" " value={address1} onChange={e => setAddress1(e.target.value)}/></Field>
