@@ -788,7 +788,6 @@ export default function Checkout() {
                 {/* El titular arriba: es el único que se escribe en NUESTRA página.
                     Los tres de abajo son iframes de Mercado Pago (Secure Fields):
                     se escriben adentro de su página, no de la nuestra. */}
-                <div style={{ fontSize: 12.5, color: theme.text_muted, margin: "0 0 10px" }}>Si la tarjeta es de otra persona, poné sus datos acá.</div>
                 <Field label="Titular, como figura en la tarjeta" error={errs.cardholder} onFix={fix("cardholder")}>
                   <input autoComplete="cc-name" placeholder=" " value={cardholder} onChange={e => setCardholder(e.target.value)}/>
                 </Field>
