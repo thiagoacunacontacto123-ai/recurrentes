@@ -163,7 +163,10 @@ test("(e) MP rechaza payment_methods_allowed: cae en cascada hasta el plan sin r
 });
 
 test("(e) MP caído: 502 con mensaje para el comprador, sub en error y aviso al merchant", async () => {
-  W.router.failNext("POST", "api.mercadopago.com", /^\/preapproval_plan$/, { status: 500, json: { message: "internal_error", status: 500 } }, 3);
+  // 6 y no 3 (5-oct-2026): desde la escalera de rescate, fallar la cascada una
+  // vez ya no alcanza — se reintenta entera. Para que el comprador vea el 502,
+  // MP tiene que estar caído de verdad.
+  W.router.failNext("POST", "api.mercadopago.com", /^\/preapproval_plan$/, { status: 500, json: { message: "internal_error", status: 500 } }, 6);
   const res = await post(body({ quantity: 1 }));
   assert.equal(res.statusCode, 502);
   assert.doesNotMatch(res.body.error, /internal_error/, "no exponer el error crudo de MP al comprador");

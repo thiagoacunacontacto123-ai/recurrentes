@@ -35,6 +35,9 @@ export const ADMIN_EVENT_LABEL = {
   plan_grace: "Entró en gracia (pasó los 10 sin pagar)",
   plan_last_call: "Al borde del bloqueo (14–15 sin pagar)",
   plan_blocked: "Bloqueada (16+ sin pagar)",
+  // 5-oct-2026: un comprador se quedó sin poder suscribirse y nos enteramos
+  // porque Thiago lo vio. Esto NO puede volver a pasar en silencio.
+  mp_plan_error: "Mercado Pago le rechazó el plan a un comprador",
 };
 export const ADMIN_EVENTS = Object.keys(ADMIN_EVENT_LABEL);
 

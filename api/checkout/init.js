@@ -33,7 +33,7 @@
 // distintos). Sin pack_index → 400 "Elegí un pack". Planes "theme" (Lumina, el
 // tema manda base/sub_off/freq_days por URL) siguen el flujo de computeSubtotal.
 import { db } from "../_lib/firebase.js";
-import { mpCreatePreapprovalPlan, mpCreatePreapproval, mpCardErrorText, mpReason } from "../_lib/mp.js";
+import { mpCreatePreapprovalPlan, mpCreatePreapproval, mpCardErrorText, mpReason, mpReasonAscii, isMpContentError } from "../_lib/mp.js";
 import { generatePortalToken, verifyPortalToken, merchantStoreUrl } from "../public.js";
 import { syncSubscriber } from "../_lib/sync.js";
 import { verifyToken } from "../_lib/token.js";
@@ -988,15 +988,50 @@ export default async function handler(req, res) {
     { payment_types: [{ id: "credit_card" }, { id: "debit_card" }], payment_methods: [] },
     null, // sin restricción
   ];
-  let preapprovalPlan = null, lastPlanErr = null;
-  for (const pma of pmaAttempts) {
-    try {
-      preapprovalPlan = await mpCreatePreapprovalPlan(
-        merchant.mp_access_token,
-        pma ? { ...planBodyBase, payment_methods_allowed: pma } : planBodyBase
-      );
-      break;
-    } catch (e) { lastPlanErr = e; }
+  // Escalera para que esto NO le explote al comprador (5-oct-2026, Thiago:
+  // "que casi no exista"). El 5-oct a las 14:40 MP rechazó los tres intentos
+  // con `invalid_field_content` y 50 segundos después el MISMO pedido salió
+  // bien: es transitorio. Así que antes de rendirnos:
+  //   1) la cascada de payment_methods_allowed, como siempre;
+  //   2) si falló TODO, esperamos un toque y la repetimos (lo transitorio se
+  //      arregla solo);
+  //   3) si el rechazo es del filtro de CONTENIDO de MP, probamos con el
+  //      `reason` en ASCII pelado y, por último, con uno genérico.
+  // El camino feliz no cambia: sigue siendo UNA sola llamada.
+  const esperar = (ms) => new Promise(r => setTimeout(r, ms));
+  let preapprovalPlan = null, lastPlanErr = null, planIntentos = 0, planRescate = null;
+
+  async function intentarCascada(reason) {
+    for (const pma of pmaAttempts) {
+      try {
+        planIntentos++;
+        const base = reason === planBodyBase.reason ? planBodyBase : { ...planBodyBase, reason };
+        return await mpCreatePreapprovalPlan(merchant.mp_access_token, pma ? { ...base, payment_methods_allowed: pma } : base);
+      } catch (e) { lastPlanErr = e; }
+    }
+    return null;
+  }
+
+  preapprovalPlan = await intentarCascada(planBodyBase.reason);
+  if (!preapprovalPlan?.id) {
+    await esperar(700);
+    preapprovalPlan = await intentarCascada(planBodyBase.reason);
+    if (preapprovalPlan?.id) planRescate = "reintento";
+  }
+  if (!preapprovalPlan?.id && isMpContentError(lastPlanErr)) {
+    const ascii = mpReasonAscii(planBodyBase.reason);
+    if (ascii && ascii !== planBodyBase.reason) {
+      preapprovalPlan = await intentarCascada(ascii);
+      if (preapprovalPlan?.id) planRescate = "reason_ascii";
+    }
+    if (!preapprovalPlan?.id) {
+      preapprovalPlan = await intentarCascada(mpReasonAscii(`Suscripcion cada ${freqDays} dias`));
+      if (preapprovalPlan?.id) planRescate = "reason_generico";
+    }
+  }
+  if (planRescate) {
+    console.warn("[checkout/init] plan de MP rescatado por", planRescate, { merchantId, subscriberId, intentos: planIntentos });
+    await merchantRef.set({ mp_plan_rescued_at: new Date().toISOString(), mp_plan_rescued_by: planRescate }, { merge: true }).catch(() => {});
   }
   if (!preapprovalPlan || !preapprovalPlan.id) {
     // No exponemos el error crudo de MP al comprador: lo logueamos y lo dejamos
@@ -1005,6 +1040,17 @@ export default async function handler(req, res) {
     console.error("[checkout/init] MP preapproval_plan falló:", { merchantId, subscriberId, detail });
     await subRef.update({ status: "error", error: detail }).catch(() => {});
     await merchantRef.set({ mp_last_error: String(detail).slice(0, 500), mp_last_error_at: new Date().toISOString() }, { merge: true }).catch(() => {});
+    // Que NO nos enteremos por un cliente (Thiago, 5-oct-2026). Best-effort y
+    // deduplicado por hora: si una tienda queda rota no manda 200 mensajes.
+    try {
+      const { notifyAdmin } = await import("../_lib/adminAlerts.js");
+      await notifyAdmin("mp_plan_error", {
+        merchantId,
+        store: merchant.shopify_shop || merchant.tiendanube_store_name || merchantId,
+        detail: `Un comprador no pudo suscribirse: Mercado Pago rechazó el plan despues de ${planIntentos} intentos. ${String(detail).slice(0, 300)}`,
+        key: new Date().toISOString().slice(0, 13),   // 1 aviso por tienda por hora
+      });
+    } catch (e) { console.warn("[checkout/init] no pude avisar el fallo de MP:", e.message); }
     return res.status(502).json({ error: "La tienda tiene un problema con Mercado Pago. Avisale al vendedor e intentá más tarde." });
   }
 

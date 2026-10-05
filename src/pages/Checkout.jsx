@@ -3,7 +3,7 @@ import { resolvePack } from "../../shared/bundle/viewmodel.js";
 import { AppLoader } from "../ui/components.jsx";
 import { discountAmountFor } from "../../shared/platform/discounts.js";
 import { resolveCheckoutTheme, ctaText } from "../../shared/platform/checkoutTheme.js";
-import { mpTokenErrorText } from "../../shared/platform/mpCardError.js";
+import { mpTokenErrorText, mpTokenErrorField } from "../../shared/platform/mpCardError.js";
 
 // Checkout propio de Recurrentes (hosteado). Dos entradas:
 //   · Link de suscripción (negocios sin tienda: servicios, digitales, venta por link):
@@ -282,6 +282,12 @@ export default function Checkout() {
   const [cardTaxid, setCardTaxid] = useState("");
   const [cardDocTouched, setCardDocTouched] = useState(false);
   const [docTypes, setDocTypes] = useState([{ id: "DNI", name: "DNI" }, { id: "CUIL", name: "CUIL" }, { id: "CUIT", name: "CUIT" }]);
+  // Los tres campos de la tarjeta viven en iframes de Mercado Pago: no podemos
+  // leer lo que hay adentro. Lo que sí podemos es escuchar a MP y marcarlos.
+  // Antes el comprador mandaba el formulario vacío, se le ponían en rojo el
+  // titular y el DNI, y las tres cajas de la tarjeta quedaban blancas: parecía
+  // que la tarjeta no hacía falta (Thiago, 5-oct-2026).
+  const [cardErrs, setCardErrs] = useState({});
   const [cardReady, setCardReady] = useState(false);
   const mpRef = useRef(null);
   // La vista previa del diseñador TAMBIÉN muestra el formulario de tarjeta: si
@@ -311,11 +317,24 @@ export default function Checkout() {
         mpRef.current = mp;
         // Los iframes no heredan nuestro CSS: hay que pasarles el estilo.
         const estilo = { fontSize: "15px", color: theme.text, placeholderColor: theme.text_muted };
+        const CAJA = { cardNumber: "number", expirationDate: "exp", securityCode: "cvv" };
         campos = [
           mp.fields.create("cardNumber", { placeholder: "1234 1234 1234 1234", style: estilo }).mount("rec-card-number"),
           mp.fields.create("expirationDate", { placeholder: "MM/AA", style: estilo }).mount("rec-card-exp"),
           mp.fields.create("securityCode", { placeholder: "123", style: estilo }).mount("rec-card-cvv"),
         ];
+        // Best-effort: según la versión del SDK el evento puede no existir o
+        // traer otra forma. Si no llega, el rescate es el error del token al
+        // enviar, que igual marca la caja que corresponde.
+        for (const c of campos) {
+          try {
+            c.on?.("validityChange", (ev) => {
+              const caja = CAJA[ev?.field] || null;
+              if (!vivo || !caja) return;
+              setCardErrs(prev => (ev?.errorMessages?.length ? prev : { ...prev, [caja]: null }));
+            });
+          } catch (_) {}
+        }
         // La lista la manda MP según el país de la cuenta: así no ofrecemos un
         // tipo que después no acepta.
         try {
@@ -542,9 +561,18 @@ export default function Checkout() {
         cardTokenId = t?.id || "";
       } catch (e) {
         // MP dice qué campo está mal; mostrar "revisá todo" era tirar esa
-        // información a la basura y dejarlo adivinando.
-        setFormErr(mpTokenErrorText(e));
+        // información a la basura y dejarlo adivinando. Y además lo pintamos
+        // en la caja que corresponde, que es donde el comprador lo busca.
+        const txt = mpTokenErrorText(e), caja = mpTokenErrorField(e);
+        if (caja === "cardholder" || caja === "cardTaxid") setErrs(p => ({ ...p, [caja]: txt }));
+        else if (caja) setCardErrs({ [caja]: txt });
+        else setCardErrs({ number: " ", exp: " ", cvv: " " });   // no sabemos cuál: las tres
+        setFormErr(txt);
         setSubmitting(false);
+        requestAnimationFrame(() => {
+          const el = document.querySelector(".rc-ck .rc-mpf.is-err, .rc-ck .rc-f.is-err");
+          el?.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
         return;
       }
       if (!cardTokenId) { setFormErr("No pudimos validar la tarjeta. Revisá los datos e intentá de nuevo."); setSubmitting(false); return; }
@@ -809,14 +837,16 @@ export default function Checkout() {
                   </Field>
                 </div>
                 <div className="rc-mpf-wrap">
-                  <div className="rc-mpf rc-mpf-full"><span>Número de tarjeta</span><div id="rec-card-number"/>
+                  <div className={"rc-mpf rc-mpf-full" + (cardErrs.number ? " is-err" : "")}><span>Número de tarjeta</span><div id="rec-card-number"/>
                     <svg className="rc-mpf-ic" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
                   </div>
-                  <div className="rc-mpf"><span>Vencimiento</span><div id="rec-card-exp"/></div>
-                  <div className="rc-mpf"><span>Código de seguridad</span><div id="rec-card-cvv"/>
+                  <div className={"rc-mpf" + (cardErrs.exp ? " is-err" : "")}><span>Vencimiento</span><div id="rec-card-exp"/></div>
+                  <div className={"rc-mpf" + (cardErrs.cvv ? " is-err" : "")}><span>Código de seguridad</span><div id="rec-card-cvv"/>
                     <svg className="rc-mpf-ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><title>Son los 3 números del dorso de la tarjeta</title><circle cx="12" cy="12" r="9"/><path d="M9.2 9.3a2.9 2.9 0 015.6 1c0 1.9-2.8 2.3-2.8 4"/><path d="M12 17.8h.01"/></svg>
                   </div>
                 </div>
+                {(() => { const m = [cardErrs.number, cardErrs.exp, cardErrs.cvv].find(x => x && x.trim()); return m
+                  ? <div className="rc-fe" data-f="card-fields" role="alert" style={{ marginTop: 8 }}>{m}</div> : null; })()}
                 {!cardReady ? <div style={{ fontSize: 12.5, color: theme.text_muted, marginTop: 8 }}>Cargando el formulario seguro de {providerLabel}…</div> : null}
                 {/* Sin esto, "esperá a que cargue" se guardaba en errs y no se
                     pintaba en ningún lado: el botón no hacía nada y el comprador
@@ -915,6 +945,8 @@ export default function Checkout() {
         .rc-mpf-wrap{display:grid;grid-template-columns:1fr 1fr;gap:12px}
         .rc-mpf{position:relative;border:1px solid ${theme.border};border-radius:${R}px;background:${theme.input_bg};height:52px;padding:7px 13px 6px;min-width:0;overflow:hidden}
         .rc-mpf-full{grid-column:1 / -1}
+        .rc-mpf.is-err{border-color:#d92d20;box-shadow:0 0 0 1px #d92d20}
+        .rc-mpf.is-err>span{color:#d92d20}
         /* El icono va sobre la caja, nunca adentro del iframe de MP: ahi no
            podemos dibujar nada. Sin eventos, para no robarle el click. */
         .rc-mpf-ic{position:absolute;right:12px;top:19px;color:${theme.text_muted};pointer-events:none}

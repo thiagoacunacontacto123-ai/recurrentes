@@ -59,6 +59,30 @@ export function mpReason(titulo, sufijo = "") {
   return (corto + suf).slice(0, MP_REASON_MAX);
 }
 
+/**
+ * El mismo `reason`, pero en ASCII pelado. Se usa SOLO como red: si MP rechaza
+ * el plan con `invalid_field_content` (su filtro de contenido), reintentamos
+ * con esta versión antes de darnos por vencidos.
+ *
+ * No se usa en el camino normal a propósito: el 99,9% de las veces MP acepta
+ * "Cápsulas LuminaLabs × 1 — cada 30 días" y así es más lindo en el resumen de
+ * la tarjeta del comprador. Esto es para el caso raro.
+ */
+export function mpReasonAscii(reason) {
+  return String(reason || "")
+    .replace(/[×✕✖]/g, "x")
+    .replace(/[—–‒]/g, "-")
+    .replace(/[…]/g, "...")
+    .replace(/[“”«»]/g, '"').replace(/[‘’]/g, "'")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")   // á → a, ñ → n
+    .replace(/[^\x20-\x7E]/g, " ")                       // lo que quede fuera de ASCII
+    .replace(/\s+/g, " ").trim()
+    .slice(0, MP_REASON_MAX);
+}
+
+/** `true` si MP rechazó por su filtro de contenido (no por el token ni el monto). */
+export const isMpContentError = (e) => !!e && e.status === 400 && /invalid_field_content|disallowed content/i.test(String(e.message || ""));
+
 export const isMpAuthError = (e) => !!e && (e.status === 401 || e.status === 403);
 
 // GET genérico (path con query ya armada). Lanza en !ok.

@@ -38,6 +38,28 @@ const TOKEN_CODES = {
 };
 const TOKEN_FALLBACK = "No pudimos validar la tarjeta. Revisá el número, el vencimiento y el código.";
 
+// A QUÉ CAJA pertenece cada código. Sin esto el comprador leía "Ingresá el
+// código de seguridad" arriba de todo y los tres campos de la tarjeta seguían
+// blancos, como si no hicieran falta (Thiago, 5-oct-2026: "la tarjeta no me lo
+// pide, ¿acaso se puede comprar sin poner la tarjeta?"). No se podía —el token
+// falla y el backend ni se llama— pero no se veía.
+const TOKEN_FIELD = {
+  205: "number", 220: "number", E301: "number",
+  208: "exp", 209: "exp", 325: "exp", 326: "exp",
+  224: "cvv", E302: "cvv",
+  221: "cardholder", 316: "cardholder",
+  212: "cardTaxid", 213: "cardTaxid", 214: "cardTaxid", 322: "cardTaxid", 323: "cardTaxid", 324: "cardTaxid",
+};
+
+/** "number" | "exp" | "cvv" | "cardholder" | "cardTaxid" | null */
+export function mpTokenErrorField(e) {
+  for (const c of causas(e)) {
+    const f = TOKEN_FIELD[String(c?.code || "").trim()];
+    if (f) return f;
+  }
+  return null;
+}
+
 // El SDK tira el error de varias formas según la versión y el navegador: a veces
 // un array de causas, a veces un objeto con `cause`, a veces solo un mensaje.
 function causas(e) {
