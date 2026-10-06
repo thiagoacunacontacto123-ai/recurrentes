@@ -104,9 +104,30 @@ export async function sendMetaPurchase(o) { return sendMetaEvent("Purchase", o);
 export async function sendMetaInitiateCheckout(o) { return sendMetaEvent("InitiateCheckout", o); }
 export async function sendMetaAddToCart(o) { return sendMetaEvent("AddToCart", o); }
 
+/**
+ * Deja anotado en el merchant CÓMO le fue al último evento (6-oct-2026).
+ * Antes el resultado solo iba a la consola de Vercel: para saber si el Meta de
+ * una tienda estaba andando había que buscar en los logs, y a los dos días ya
+ * no estaban. Ahora se ve en el doc del comercio y se puede contestar siempre.
+ * Best-effort: nunca lanza y nunca frena el camino del cobro.
+ */
+export async function recordMetaResult(merchantId, eventName, r) {
+  if (!merchantId) return;
+  try {
+    const { db } = await import("./firebase.js");
+    const now = new Date().toISOString();
+    await db().collection("merchants").doc(String(merchantId)).set(
+      r?.ok
+        ? { meta_last_ok_at: now, meta_last_event: eventName, meta_last_error: null, meta_last_error_at: null }
+        : { meta_last_error: String(r?.error || "sin detalle").slice(0, 300), meta_last_error_at: now, meta_last_event: eventName },
+      { merge: true },
+    );
+  } catch (e) { console.warn("[meta] no pude anotar el resultado:", e.message); }
+}
+
 // Manda un evento del embudo si la tienda tiene Meta conectado. Nunca lanza.
 // `fb` = lo que capturó el navegador: { fbp, fbc, event_source_url, user_agent }.
-export async function metaFunnel(merchant, eventName, { fb = null, clientIp = null, tag = "checkout", ...o } = {}) {
+export async function metaFunnel(merchant, eventName, { fb = null, clientIp = null, tag = "checkout", merchantId = null, ...o } = {}) {
   if (!merchant?.meta_pixel_id || !merchant?.meta_capi_token) return null;
   try {
     const r = await sendMetaEvent(eventName, {
@@ -117,6 +138,7 @@ export async function metaFunnel(merchant, eventName, { fb = null, clientIp = nu
       ...o,
     });
     console.log(`[${tag}] Meta CAPI ${eventName} ${o.eventId || ""}: ${r.ok ? "ok" : "FALLO " + r.error}`);
+    await recordMetaResult(merchantId, eventName, r);
     return r;
   } catch (e) {
     console.warn(`[${tag}] Meta CAPI ${eventName}:`, e.message);

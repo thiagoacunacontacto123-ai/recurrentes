@@ -23,7 +23,7 @@ import {
 import { shFindOrCreateCustomer, shCreatePaidOrder } from "./shopify.js";
 import { createTiendanubeOrderForSub } from "./tiendanube.js";
 import { emailSubscriptionActivated, emailPaymentFailed } from "./email.js";
-import { sendMetaPurchase } from "./meta.js";
+import { sendMetaPurchase, recordMetaResult } from "./meta.js";
 import { logEmail } from "./emaillog.js";
 import { claimCharge } from "./chargeclaim.js";
 import { appBaseUrl } from "./config.js";
@@ -217,6 +217,7 @@ export async function notifyActivation(merchantId, merchant, subscriberId, sub, 
         eventSourceUrl: sub.fb_data?.event_source_url || sub.plan_snapshot?.product_url || (merchant.shopify_shop ? `https://${merchant.shopify_shop}` : undefined),
       });
       console.log(`[${tag}] Meta CAPI Purchase sub=${subscriberId}: ${r.ok ? "ok" : "FALLO " + r.error}`);
+      await recordMetaResult(merchantId, "Purchase", r);
     } catch (e) {
       console.warn(`[${tag}] Meta CAPI falló:`, e.message);
     }

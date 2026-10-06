@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { createWorld, loadApi, MID, PLAN_ID, ADDRESS } from "../helpers/world.mjs";
 import { invoke } from "../helpers/http.mjs";
-import { seedDoc } from "../helpers/fake-firestore.mjs";
+import { seedDoc, rawGet } from "../helpers/fake-firestore.mjs";
 
 const { default: init } = await loadApi("api/checkout/init.js");
 const { computeRecoverUrl } = await loadApi("api/_lib/abandoned.js");
@@ -94,4 +94,26 @@ test("link de 'carrito sin pagar': siempre con merchant y plan (modo clásico), 
   const fixed = computeRecoverUrl({ ...W.merchant(), id: MID }, old, { merchantId: MID, code: "VUELVE10", email: "dani@cliente.test" });
   const q = new URLSearchParams(fixed.split("?")[1]);
   assert.equal(q.get("merchant"), MID); assert.equal(q.get("plan"), PLAN_ID); assert.ok(q.get("rc"), "cupón firmado");
+});
+
+// 6-oct-2026: "¿está bien conectado el Meta de Lumina?" — no se podía contestar.
+// El resultado del CAPI solo iba a la consola de Vercel y a los dos días no
+// estaba más. Ahora queda anotado en el comercio.
+test("(m) el resultado del CAPI queda anotado en el comercio, para bien y para mal", async () => {
+  const { recordMetaResult } = await loadApi("api/_lib/meta.js");
+
+  await recordMetaResult(MID, "Purchase", { ok: true });
+  let m = rawGet(`merchants/${MID}`);
+  assert.ok(m.meta_last_ok_at, "queda la hora del último evento aceptado");
+  assert.equal(m.meta_last_event, "Purchase");
+  assert.equal(m.meta_last_error, null);
+
+  await recordMetaResult(MID, "Purchase", { ok: false, error: "Invalid OAuth access token" });
+  m = rawGet(`merchants/${MID}`);
+  assert.match(m.meta_last_error, /Invalid OAuth/);
+  assert.ok(m.meta_last_error_at);
+
+  // Nunca puede romper el camino del cobro.
+  await recordMetaResult(null, "Purchase", { ok: true });
+  await recordMetaResult(MID, "Purchase", null);
 });

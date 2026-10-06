@@ -321,7 +321,7 @@ export default async function handler(req, res) {
       const mData = mSnap.exists ? mSnap.data() : null;
       if (mData?.meta_pixel_id && mData?.meta_capi_token) {
         const viewId = String(req.body.view_id || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64) || `${Date.now()}`;
-        await metaFunnel(mData, "AddToCart", { fb: fbIn, clientIp: ip, value: Math.max(0, Number(req.body.value) || 0), eventId: "rec_atc_" + viewId, tag: "checkout/view" });
+        await metaFunnel(mData, "AddToCart", { merchantId, fb: fbIn, clientIp: ip, value: Math.max(0, Number(req.body.value) || 0), eventId: "rec_atc_" + viewId, tag: "checkout/view" });
       }
     } catch (e) { console.warn("[checkout/init] view:", e.message); }
     return res.json({ ok: true });
@@ -491,7 +491,7 @@ export default async function handler(req, res) {
       // Flujos de email propios ("Checkout sin pagar"). No-op sin flujos activos.
       await emitFlowEvent(merchantId, merchant, "checkout_started", ref.id, data, { key: ref.id });
       // Meta "pago iniciado": dejó el mail. Mismo event_id que en Pagar → Meta deduplica.
-      await metaFunnel(merchant, "InitiateCheckout", { fb: fbIn, clientIp: ip, value: totalCapture, email, phone: data.customer_phone, firstName: splitName(data.customer_name).firstName, lastName: splitName(data.customer_name).lastName, eventId: "rec_ic_" + ref.id, tag: "checkout/lead" });
+      await metaFunnel(merchant, "InitiateCheckout", { merchantId, fb: fbIn, clientIp: ip, value: totalCapture, email, phone: data.customer_phone, firstName: splitName(data.customer_name).firstName, lastName: splitName(data.customer_name).lastName, eventId: "rec_ic_" + ref.id, tag: "checkout/lead" });
       return res.json(out);
     } catch (e) {
       console.error("[checkout/init] capture error:", e.message);
@@ -1074,7 +1074,7 @@ export default async function handler(req, res) {
   // Meta "pago iniciado" (InitiateCheckout): si el lead ya lo mandó al dejar el mail,
   // lleva el mismo event_id y Meta lo deduplica. El "Purchase" sale server-side
   // (sync/webhook) cuando MP confirma el cobro.
-  await metaFunnel(merchant, "InitiateCheckout", { fb: fbIn || existing?.fb_data || null, clientIp: ip, value: totalPerCharge, email, phone: subData.customer_phone, firstName: splitName(subData.customer_name).firstName, lastName: splitName(subData.customer_name).lastName, eventId: "rec_ic_" + subRef.id, tag: "checkout/pay" });
+  await metaFunnel(merchant, "InitiateCheckout", { merchantId, fb: fbIn || existing?.fb_data || null, clientIp: ip, value: totalPerCharge, email, phone: subData.customer_phone, firstName: splitName(subData.customer_name).firstName, lastName: splitName(subData.customer_name).lastName, eventId: "rec_ic_" + subRef.id, tag: "checkout/pay" });
 
   // Klaviyo "Checkout Started" (si no salió ya con el lead: completa el perfil).
   await trackCheckoutStarted(merchantId, merchant, subRef, { ...subData, portal_token: portalToken, mp_init_point: checkoutUrl }, existing, { stage: "checkout", plan, blocking: hasBlocking });
