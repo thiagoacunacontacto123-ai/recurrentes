@@ -65,7 +65,11 @@ function fbAttribution(p) {
   if (!fbc) { const id = p.get("fbclid"); if (id) fbc = "fb.1." + Date.now() + "." + id; }
   let src = p.get("src") || "";
   if (!src) { try { src = document.referrer || window.location.href; } catch (_) { src = ""; } }
-  return { fbp: p.get("fbp") || cookie("_fbp"), fbc, event_source_url: src, user_agent: (typeof navigator !== "undefined" && navigator.userAgent) || "" };
+  // Contexto para diagnosticar (6-oct-2026, Wellfresh): si el checkout corre dentro del iframe
+  // de la tienda y si el formulario de tarjeta de MP no llegó a montar. Sin esto no había forma
+  // de saber por qué una tanda entera de compradores tocaba Pagar y no pagaba.
+  let embed = false; try { embed = window.top !== window.self; } catch (_) { embed = true; }
+  return { fbp: p.get("fbp") || cookie("_fbp"), fbc, event_source_url: src, user_agent: (typeof navigator !== "undefined" && navigator.userAgent) || "", embed, card_form_failed: !!window.__recCardFormFailed };
 }
 const viewId = () => { try { return crypto.randomUUID().replace(/-/g, ""); } catch (_) { return String(Date.now()) + Math.random().toString(36).slice(2, 8); } };
 
@@ -348,7 +352,7 @@ export default function Checkout() {
       } catch (_) {
         // Si el SDK de MP no carga (bloqueador, red), no dejamos al comprador sin
         // pagar: se cae al botón de siempre.
-        if (vivo) { setCardReady(false); setPayWith("mp"); }
+        if (vivo) { setCardReady(false); setPayWith("mp"); window.__recCardFormFailed = true; }
       }
     })();
     return () => { vivo = false; setCardReady(false); for (const c of campos) { try { c.unmount(); } catch (_) {} } };

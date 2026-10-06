@@ -308,6 +308,9 @@ export default async function handler(req, res) {
     fbp: String(req.body.fb.fbp || "").slice(0, 255),
     event_source_url: String(req.body.fb.event_source_url || "").slice(0, 500),
     user_agent: String(req.body.fb.user_agent || "").slice(0, 500),
+    // Diagnóstico (6-oct-2026): dentro del iframe de la tienda / el formulario de tarjeta no montó.
+    embed: req.body.fb.embed === true,
+    card_form_failed: req.body.fb.card_form_failed === true,
   } : null;
 
   // ── "CARRITO" (Meta AddToCart): el checkout se abrió. Sin mail todavía. ──────────
@@ -475,7 +478,7 @@ export default async function handler(req, res) {
         },
         status: "pending",
         capture: true,
-        fb_data: (eventUrl || fbIn) ? { event_source_url: eventUrl || null, fbc: fbIn?.fbc || "", fbp: fbIn?.fbp || "", user_agent: fbIn?.user_agent || "", client_ip_address: ip || null } : null,
+        fb_data: (eventUrl || fbIn) ? { event_source_url: eventUrl || null, fbc: fbIn?.fbc || "", fbp: fbIn?.fbp || "", user_agent: fbIn?.user_agent || "", client_ip_address: ip || null, embed: fbIn?.embed === true, card_form_failed: fbIn?.card_form_failed === true } : null,
         recover_path: buildRecoverPath(merchant, plan, plan.id, finalQty, recoverExtra(pr)),
         updated_at: new Date().toISOString(),
       };
@@ -847,7 +850,7 @@ export default async function handler(req, res) {
     updated_at: nowIso,
     // Datos de atribución de Meta capturados en el navegador (fbc/fbp/UA/URL).
     // Se usan en el evento Purchase de CAPI para atribuir la venta al anuncio.
-    fb_data: fbIn ? { fbc: fbIn.fbc, fbp: fbIn.fbp, event_source_url: eventUrl, user_agent: fbIn.user_agent, client_ip_address: ip || null } : (existing?.fb_data || null),
+    fb_data: fbIn ? { fbc: fbIn.fbc, fbp: fbIn.fbp, event_source_url: eventUrl, user_agent: fbIn.user_agent, client_ip_address: ip || null, embed: fbIn.embed === true, card_form_failed: fbIn.card_form_failed === true } : (existing?.fb_data || null),
   };
   if (isNew) {
     await subRef.set({ ...subData, created_at: nowIso, shopify_orders: [] });

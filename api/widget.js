@@ -620,8 +620,14 @@ export default async function handler(req, res) {
   // A dónde va "Suscribirme". Por defecto, el checkout de Recurrentes. Si la
   // tienda armó su página con el embed pegado, va ahí: es el MISMO checkout,
   // servido en el dominio de la tienda (27-sept-2026, Wellfresh).
+  // Salvo en el navegador de Instagram / Facebook / Messenger (6-oct-2026, Wellfresh): ahí
+  // el checkout dentro del iframe de la tienda no cobra —los campos seguros de MP no montan
+  // en ese contexto de terceros y la salida a Mercado Pago desde el marco se pierde—: 9 de 9
+  // compradores in-app se quedaron sin pagar en 4 días, mientras en Safari/Chrome seguían
+  // pagando. En in-app se va directo al checkout de Recurrentes, que es el mismo.
+  var IN_APP = /Instagram|FBAN|FBAV|FB_IAB|Messenger/i.test((typeof navigator !== "undefined" && navigator.userAgent) || "");
   function ckUrl(qs) {
-    if (CHECKOUT_ON_STORE) return CHECKOUT_PAGE_PATH + (CHECKOUT_PAGE_PATH.indexOf("?") >= 0 ? "&" : "?") + qs;
+    if (CHECKOUT_ON_STORE && !IN_APP) return CHECKOUT_PAGE_PATH + (CHECKOUT_PAGE_PATH.indexOf("?") >= 0 ? "&" : "?") + qs;
     return API_BASE + "/#/checkout?" + qs;
   }
   var WIDGET_COLOR = ${JSON.stringify(widgetColor)};
