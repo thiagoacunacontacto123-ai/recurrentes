@@ -612,7 +612,7 @@ async function handlePlan(req, res) {
         frequency_scales_with_qty: data.frequency_scales_with_qty !== false,
         // "Armá tu pack" (7-oct-2026, G4U): los productos que pueden ir en los casilleros,
         // con el precio del SERVER (el checkout muestra con esto; init.js vuelve a validar).
-        mix: (() => { const items = mixCatalog(data); return items.length ? { items: items.map(i => ({ shopify_product_id: i.shopify_product_id, shopify_variant_id: i.shopify_variant_id, title: i.title, image: isDataImg(i.image) ? null : i.image, price_ars: i.price_ars, main: i.main === true })) } : null; })(),
+        mix: (() => { const items = mixCatalog(data); return items.length ? { enabled: true, items: items.map(i => ({ shopify_product_id: i.shopify_product_id, shopify_variant_id: i.shopify_variant_id, title: i.title, image: isDataImg(i.image) ? null : i.image, price_ars: i.price_ars, main: i.main === true })) } : null; })(),
         // Frecuencias que puede elegir el comprador en modo packs ([] = la del pack).
         frequency_options: planFrequencyOptions(data),
         // El checkout sólo respeta una frecuencia custom de la URL si el plan lo permite.

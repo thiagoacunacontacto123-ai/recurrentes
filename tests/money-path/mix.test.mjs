@@ -144,6 +144,9 @@ test("widget y carrito: el payload trae los productos del pack (la ficha primero
   const res = await invoke(pub, { method: "GET", query: { action: "plan", merchant: MID, plan: PLAN_ID, checkout: "1" } });
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   assert.equal(res.body.plan.mix.items.length, 3);
+  // El checkout (viewmodel.js en el navegador) tiene que poder resolver con lo que le llega: sin `enabled` lo descartaba (7-oct, visto en vivo).
+  assert.equal(res.body.plan.mix.enabled, true);
+  assert.equal(vmod.resolveMixSelection(res.body.plan, vmod.resolvePack(res.body.plan, 1), vmod.parseMixItemsParam("4001:2,4002:1,4003:1")).subTotal, 33150);
   assert.equal(res.body.plan.mix.items[0].main, true);
   assert.deepEqual(res.body.plan.frequency_options, [15, 30, 60]);
 });
