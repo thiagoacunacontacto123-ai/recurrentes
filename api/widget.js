@@ -1910,7 +1910,7 @@ export default async function handler(req, res) {
           st.id = "rc-bundle-hide-style";
           st.textContent =
             'body.rec-bundle-active form[action*="/cart/add"] quantity-input,body.rec-bundle-active form[action*="/cart/add"] .product-form__quantity,body.rec-bundle-active form[action*="/cart/add"] .quantity__rules{display:none !important}' +
-            'body.rec-bundle-active.rec-sub-active form[action*="/cart/add"] button[name="add"],body.rec-bundle-active.rec-sub-active form[action*="/cart/add"] [type="submit"]{display:none !important}' +
+            'body.rec-bundle-active.rec-sub-active form[action*="/cart/add"] button[name="add"],body.rec-bundle-active.rec-sub-active form[action*="/cart/add"] [type="submit"],body.rec-bundle-active.rec-mix-active form[action*="/cart/add"] button[name="add"],body.rec-bundle-active.rec-mix-active form[action*="/cart/add"] [type="submit"]{display:none !important}' +
             'body.rec-bundle-active:not(.rec-sub-active):not(.rec-mix-active) #recurrentes-widget [data-rc-action="cta"]{display:none !important}';
           if (IS_TN) {
             st.textContent +=
