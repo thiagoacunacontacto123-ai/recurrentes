@@ -1737,7 +1737,7 @@ export default async function handler(req, res) {
         var pe = root.querySelector(".rc-cta-price"), se = root.querySelector(".rc-cta-sub");
         if (MIX) {
           var tt = mixTotals(), sub = state.mode === "sub", total = sub ? tt.sub : tt.list;
-          if (pe) pe.textContent = pe.textContent.replace(/\$[\d.]+/, fmtArs(total));
+          if (pe) pe.textContent = pe.textContent.replace(/\\$[\\d.]+/, fmtArs(total));
           if (se) { var sv = tt.list - tt.sub; se.textContent = (sub && sv > 0) ? "Ahorrás " + fmtArs(sv) + " en cada envío" : ""; }
         }
         if (FREQS.length && pe && state.mode === "sub") pe.textContent = pe.textContent.replace(/cada .*$/, freqWord(state.freq));
@@ -1917,7 +1917,7 @@ export default async function handler(req, res) {
               // siempre en modo packs: precio y cantidad del tema
               withNotOurs(TN_THEME_PRICE) + "{display:none !important}" +
               // pack mixto: el botón del tema no sirve en ningún modo
-              withNotOurs(TN_THEME_BUY).replace(/body\.rec-bundle-active /g, "body.rec-bundle-active.rec-mix-active ") + "{display:none !important}" +
+              withNotOurs(TN_THEME_BUY).replace(/body\\.rec-bundle-active /g, "body.rec-bundle-active.rec-mix-active ") + "{display:none !important}" +
               withNotOurs(TN_THEME_QTY) + "{display:none !important}" +
               // en suscripción: el botón del tema; en compra única: el nuestro
               withNotOurs(TN_THEME_BUY).replace(/body\.rec-bundle-active /g, "body.rec-bundle-active.rec-sub-active ") + "{display:none !important}" +
