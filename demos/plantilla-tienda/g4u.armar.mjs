@@ -11,7 +11,9 @@ const dir = new URL("./", import.meta.url);
 const read = (f) => fs.readFileSync(new URL(f, dir), "utf8");
 const base = JSON.parse(read("g4u.assets.json"));
 const productos = JSON.parse(read("g4u.productos.json"));
-const tpl = read("template.html");
+// La ficha de cada producto arranca directo en el producto: el bloque de intro ("Tu pan proteico,
+// todos los meses…") queda solo en el catálogo, que es la landing de la suscripción (Thiago, 7-oct).
+const tpl = read("template.html").replace(/\n  <section class="intro">[\s\S]*?<\/section>\n/, "\n");
 const catTpl = read("g4u.catalogo.template.html");
 const OUT = new URL("../../public/demos/", dir);
 // `</script>` adentro de un texto de reseña rompería la página: se escapa el cierre.
