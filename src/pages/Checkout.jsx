@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { resolvePack } from "../../shared/bundle/viewmodel.js";
+import { resolvePack, resolveMixSelection, mixTitle, parseMixItemsParam, planFrequencyOptions } from "../../shared/bundle/viewmodel.js";
 import { AppLoader } from "../ui/components.jsx";
 import { discountAmountFor } from "../../shared/platform/discounts.js";
 import { resolveCheckoutTheme, ctaText } from "../../shared/platform/checkoutTheme.js";
@@ -159,6 +159,8 @@ export default function Checkout() {
   const baseParam = Math.max(0, Math.round(parseFloat(p.get("base")) || 0));
   const subOffParam = Math.max(0, Math.min(90, parseFloat(p.get("sub_off")) || 0));
   const packIdx = packParam == null || packParam === "" ? null : Math.max(0, parseInt(packParam, 10) || 0);
+  // "Armá tu pack" (7-oct-2026, G4U): los productos elegidos para los casilleros, ?items=vid:qty,vid:qty.
+  const itemsParam = p.get("items") || "";
   const img = p.get("img") || "";
   const titleOverride = p.get("title") || "";
   const colorParam = /^#[0-9a-fA-F]{6}$/.test(p.get("color") || "") ? p.get("color") : "";
@@ -222,6 +224,8 @@ export default function Checkout() {
       const body = {
         merchant_id: merchant, plan_id: plan.id, capture: true, quantity: qty,
         ...(pack ? { pack_index: pack.idx } : {}),
+        ...(mixSel ? { pack_items: mixSel.items.map(it => ({ variant_id: it.shopify_variant_id, qty: it.qty })) } : {}),
+        ...(packFreqChosen ? { frequency_days: packFreqChosen } : {}),
         ...(!pack && freqParam ? { frequency_days: freqParam } : {}),
         ...(!pack && baseParam > 0 ? { base_price: baseParam, sub_discount: subOffParam } : {}),
         customer: { email: em, name: name.trim(), phone: phone.trim() },
@@ -403,12 +407,16 @@ export default function Checkout() {
 
   // Cálculo de precios (mismo criterio que checkout/init).
   const pack = plan && plan.pricing_mode === "packs" && packIdx != null ? resolvePack(plan, packIdx) : null;
-  const qty = pack ? pack.qty : qtyParam;
+  // Pack mixto: el precio sale del PLAN (mixCatalog), nunca de la URL; el server lo vuelve a validar.
+  const mixSel = pack && itemsParam ? (() => { const r = resolveMixSelection(plan, pack, parseMixItemsParam(itemsParam)); return r.error ? null : r; })() : null;
+  // Frecuencias a elegir en modo packs: solo si el plan ofrece la que vino en la URL.
+  const packFreqChosen = pack && planFrequencyOptions(plan).includes(freqParam) ? freqParam : 0;
+  const qty = mixSel ? mixSel.qty : pack ? pack.qty : qtyParam;
   const unitPrice = plan?.subscription_price_ars || 0;
   const tiers = Array.isArray(plan?.qty_discount_tiers) ? plan.qty_discount_tiers : [];
   let qtyDiscountPct = 0;
   for (const t of tiers) if (qty >= (t.min_qty || 0)) qtyDiscountPct = t.discount_pct || 0;
-  const subtotal = pack ? pack.priceSub : baseParam > 0 ? Math.round(baseParam * (1 - subOffParam / 100)) : Math.round(unitPrice * qty * (1 - qtyDiscountPct / 100));
+  const subtotal = mixSel ? mixSel.subTotal : pack ? pack.priceSub : baseParam > 0 ? Math.round(baseParam * (1 - subOffParam / 100)) : Math.round(unitPrice * qty * (1 - qtyDiscountPct / 100));
 
   // Envío por defecto del plan (si no hay otros métodos).
   const planShippingFree = (plan?.free_shipping_from_ars || 0) > 0 && subtotal >= (plan?.free_shipping_from_ars || 0);
@@ -592,6 +600,8 @@ export default function Checkout() {
         plan_id: plan.id,
         quantity: qty,
         ...(pack ? { pack_index: pack.idx } : {}),
+        ...(mixSel ? { pack_items: mixSel.items.map(it => ({ variant_id: it.shopify_variant_id, qty: it.qty })) } : {}),
+        ...(packFreqChosen ? { frequency_days: packFreqChosen } : {}),
         ...(!pack && freqParam ? { frequency_days: freqParam } : {}),
         ...(!pack && baseParam > 0 ? { base_price: baseParam, sub_discount: subOffParam } : {}),
         ...(discount?.code ? { discount_code: discount.code } : {}),
@@ -687,9 +697,9 @@ export default function Checkout() {
   if (loading) return <div style={{ ...pageBase, display: "flex", alignItems: "center", justifyContent: "center", background: cachedColor || colorParam ? theme.bg : "#ffffff" }}><AppLoader T={{ textSm: "#777" }} text="Preparando tu suscripción…" minHeight="70vh" color={loaderColor}/></div>;
   if (loadErr) return <div style={{ ...pageBase, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}><div style={{ maxWidth: 420, textAlign: "center", border: `1px solid ${theme.border}`, borderRadius: R + 6, padding: 24, background: theme.input_bg }}><div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Ups</div><div style={{ fontSize: 14, color: theme.text_muted, lineHeight: 1.5 }}>{loadErr}</div></div></div>;
 
-  const freqTxt = freqText(pack ? pack.freqDays : (freqParam || plan.frequency_days), pack ? pack.freqUnit : plan.freq_unit);
+  const freqTxt = freqText(pack ? (packFreqChosen || pack.freqDays) : (freqParam || plan.frequency_days), pack && !packFreqChosen ? pack.freqUnit : plan.freq_unit);
   const kindLabel = isService ? "Membresía" : "Suscripción";
-  const title = titleOverride || plan.product_title;
+  const title = titleOverride || (mixSel ? `${pack.label || `Pack de ${qty}`} · armado por vos` : plan.product_title);
   const image = img || plan.product_image || "";
   const storeName = theme.header_text || cfg?.store_name || "";
   const logo = theme.show_logo ? (cfg?.store_logo || "") : "";
@@ -734,6 +744,14 @@ export default function Checkout() {
         </div>
         <div style={{ fontSize: 14, fontWeight: 500, whiteSpace: "nowrap" }}>{money(subtotal)}</div>
       </div>
+      {/* "Armá tu pack" (7-oct-2026): lo que eligió para cada casillero, a precio de lista; el descuento va en el total. */}
+      {mixSel ? mixSel.items.map((it, i) => (
+        <div key={i} style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 8, fontSize: 13, color: theme.text }}>
+          {it.image ? <img src={it.image} alt="" style={{ width: 34, height: 34, borderRadius: 8, objectFit: "cover", background: "#fff", border: `1px solid ${theme.border_soft}`, flexShrink: 0 }}/> : <div style={{ width: 34, height: 34, borderRadius: 8, background: theme.color_tint, flexShrink: 0 }}/>}
+          <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{it.qty} × {it.title}</span>
+          <span style={{ color: theme.text_muted, whiteSpace: "nowrap" }}>{money(it.price_ars * it.qty)}</span>
+        </div>
+      )) : null}
       {/* Regalos del pack (25-sept-2026, Wellfresh): se ven en el resumen como "Gratis". Los
           vinculados a un producto van a la orden a $0 ("solo en tu primer envío" si aplica). */}
       {((pack ? pack.gifts : plan?.gifts) || []).filter(g => g && g.title).map((g, i) => (

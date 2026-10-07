@@ -50,7 +50,7 @@ import { rateLimit, clientIp } from "./_lib/ratelimit.js";
 import { setUnsubscribed } from "./_lib/unsub.js";
 import { emailSubscriptionCancelled } from "./_lib/email.js";
 import { logEmail } from "./_lib/emaillog.js";
-import { planPacks, planPricingMode } from "./_lib/packs.js";
+import { planPacks, planPricingMode, mixCatalog, planFrequencyOptions } from "./_lib/packs.js";
 import { klaviyoEnabled, klaviyoLifecycle, KLAVIYO_METRICS } from "./_lib/klaviyo.js";
 import { emitFlowEvent } from "./_lib/flows.js";
 import { notifyMerchantStatusChange } from "./_lib/merchantAlerts.js";
@@ -610,6 +610,11 @@ async function handlePlan(req, res) {
           ? data.gifts.map(g => ({ ...g, image: isDataImg(g?.image) ? null : (g?.image ?? null) }))
           : [],
         frequency_scales_with_qty: data.frequency_scales_with_qty !== false,
+        // "Armá tu pack" (7-oct-2026, G4U): los productos que pueden ir en los casilleros,
+        // con el precio del SERVER (el checkout muestra con esto; init.js vuelve a validar).
+        mix: (() => { const items = mixCatalog(data); return items.length ? { items: items.map(i => ({ shopify_product_id: i.shopify_product_id, shopify_variant_id: i.shopify_variant_id, title: i.title, image: isDataImg(i.image) ? null : i.image, price_ars: i.price_ars, main: i.main === true })) } : null; })(),
+        // Frecuencias que puede elegir el comprador en modo packs ([] = la del pack).
+        frequency_options: planFrequencyOptions(data),
         // El checkout sólo respeta una frecuencia custom de la URL si el plan lo permite.
         allow_custom_frequency: data.allow_custom_frequency === true,
         discount_pct: data.discount_pct,

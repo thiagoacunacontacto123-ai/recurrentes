@@ -24,31 +24,31 @@ CÓMO QUEDA EN SU TIENDA (lo que muestra la demo)
 3. El rebrand no cambia nada de esto: color y logo del widget y del checkout se cambian en 2 minutos
    desde Configuración → Widget / Checkout.
 
-OJO ANTES DE LA REUNIÓN
-- La demo deja mezclar productos dentro del pack ("Suma otro producto", como su app Kaching).
-  El widget real hoy hace packs de 1 / 4 / 8 unidades DEL MISMO producto y, en el checkout,
-  "Sumá a tu suscripción" (hasta 4 productos extra con precio propio, que viajan en cada envío).
-  Es el mismo resultado para el cliente (pan de molde ×4 + tortillas), pero se arma en dos pasos.
-  Decirlo así si preguntan; mezclar dentro del pack es una mejora que se puede hacer después.
+ANTES DE LA REUNIÓN
+- El widget real ya hace lo mismo que la demo (7-oct-2026): "Armá tu pack" (cada casillero
+  del pack se cambia por otro producto de la tienda; el precio es la suma con el 15 %) y
+  "¿Cada cuánto lo querés?" (15 / 30 / 60 días). Se prende por plan, desde el editor de
+  packs del panel o con la receta del Admin.
 - Su tienda da envío gratis desde $95.000: el plan tiene que decir lo mismo.
+- Instalación de prueba una noche: el panel les muestra "Empezá tu plan mensual", pero
+  las suscripciones entran igual aunque no paguen (desde el 30-sept no hay corte
+  automático; lo único que corta es el botón del Admin). Se decide después si siguen.
 
-PARTE A · PANEL DE RECURRENTES (lo hago yo; Admin → Puesta en marcha tiene el mensaje para pedirles cada cosa)
+PARTE A · PANEL DE RECURRENTES (lo hago yo, casi todo con un botón)
 1. Cuenta + Shopify conectado por OAuth con permisos completos + Mercado Pago por OAuth
    (no token pegado: sin public key no hay tarjeta adentro del checkout).
-2. Planes: 9, uno por producto, en modo packs. Packs de 1 / 4 / 8 unidades, 15% de descuento en
-   TODOS los envíos, frecuencias 15 / 30 / 60 días. Envío: tarifas de Shopify en vivo (shipnow),
-   gratis desde $95.000 (Logística → Envíos). Sin regalos por ahora.
-   Precios de hoy: Pan de molde 12.390 · Tortilla 9.933 · Pan árabe 10.400 · Pan hamburguesa 9.009 ·
-   Pan ciabatta 9.933 · Grisin queso 6.530 · Marineras semillas 6.530 · Tostaditas semillas 8.030 ·
-   Tostaditas cebolla 8.030.
-3. Configuración → Widget: modo por defecto "Compra única" (su ficha sigue igual; a la suscripción
-   se entra con el botón, que es el link ?rec_modo=sub), carrito de la suscripción prendido,
-   color #500322. Textos del botón: "Suscribirme · $X cada mes" / "Ahorrás $Y en cada envío".
-4. Configuración → Checkout: color #500322, logo, "Pagar suscripción · {{total}}", tarjeta adentro
-   del checkout prendida. Upsells del checkout: los otros panes.
+2. Admin → Puesta en marcha → elegir G4U → "Configurador de la tienda": receta G4U
+   (ya trae los 9 productos por handle, packs x1/x4/x8 con "Más elegido" en el de 8,
+   15 % en cada envío, frecuencias a elegir 15/30/60, Armá tu pack prendido, color
+   #500322, la ficha arranca en Compra única, carrito y "Sumá a tu suscripción").
+   "Leer el catálogo" para ver precios reales → "Aplicar receta": crea los 9 planes
+   APAGADOS (plan plantilla en su MP incluido) y guarda los ajustes del widget y del checkout.
+3. Logística → Envíos: "Poner todos gratis" con gratis desde $95.000 (tarifas de shipnow en vivo).
+4. Configuración → Checkout: logo, "Pagar suscripción · {{total}}", tarjeta adentro del checkout prendida.
 5. Snippet del widget: Online Store → Temas → ⋯ → Editar código → layout/theme.liquid, pegar el
    <script> arriba de </body> (una sola vez). Después "Activar en mi tienda" y verificar que cargó.
-6. Flujos: carrito sin pagar (recupero), aviso de próximo cobro, pago rechazado. Mails con su marca.
+6. Planes → activar los 9 cuando el widget esté pegado.
+7. Flujos: carrito sin pagar (recupero), aviso de próximo cobro, pago rechazado. Mails con su marca.
 
 PARTE B · EN SU SHOPIFY (diseño · Online Store → Temas → Personalizar)
 1. Ficha de producto → sección "Información del producto" → agregar un bloque "Texto enriquecido"

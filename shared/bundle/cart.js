@@ -102,6 +102,7 @@ export function cartCss(T) {
     ".rc-cart-g{display:flex;align-items:center;gap:9px;margin-top:10px;padding:8px 10px;border-radius:" + RAD + ";background:" + TINT + ";font-size:12.5px;font-weight:600}" +
     ".rc-cart-g img{width:32px;height:32px;border-radius:6px;object-fit:cover;flex:none;background:#fff}.rc-cart-g em{font-style:normal;color:" + MU + ";display:block;font-size:11.5px;font-weight:600}" +
     ".rc-cart-rows{margin-top:14px;border-top:1px solid " + BD + ";padding-top:10px}" +
+    ".rc-cart-mx{margin-top:10px;padding-top:8px;border-top:1px dashed " + BD + "}" +
     ".rc-cart-row{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;color:" + MU + ";font-weight:600;padding:4px 0}" +
     ".rc-cart-row.is-tot{font-size:16.5px;font-weight:800;color:" + TX + ";margin-top:4px}.rc-cart-row .ok{color:" + A + ";font-weight:800}" +
     ".rc-cart-note{margin-top:12px;font-size:12px;color:" + MU + ";line-height:1.4}" +
@@ -126,12 +127,17 @@ export function cartShellHtml(TXT, esc) {
 // Cuerpo del carrito para un pack. p = pack del payload del bundle
 // { label, qty, sub_qty, price_sub, price_once, compare_at, freq_label, image, gifts[] }.
 // TXT = textos + toggles (show_*); fmt = formateador de $; esc = escape HTML; fallbackImg = og:image.
-export function cartBodyHtml(p, TXT, fmt, esc, fallbackImg) {
+// mix (opcional, 7-oct-2026 "Armá tu pack"): { rows:[{title, qty, price}], sub, list, freq_label } con lo
+// que eligió el comprador; el total, el tachado, la cantidad y la frecuencia salen de ahí.
+export function cartBodyHtml(p, TXT, fmt, esc, fallbackImg, mix) {
   var price = Number(p.price_sub) || 0, cmp = Number(p.compare_at) || 0;
-  var save = cmp > price ? cmp - price : (Number(p.price_once) > price ? Number(p.price_once) - price : 0);
-  var qty = p.sub_qty || p.qty || 1;
+  var hasMix = !!(mix && mix.rows && mix.rows.length);
+  if (hasMix) { price = Number(mix.sub) || 0; cmp = Number(mix.list) || 0; }
+  var save = cmp > price ? cmp - price : (Number(p.price_once) > price && !hasMix ? Number(p.price_once) - price : 0);
+  var qty = hasMix ? mix.rows.reduce(function (a, r) { return a + (Number(r.qty) || 1); }, 0) : (p.sub_qty || p.qty || 1);
   var qtyTxt = qty + (qty === 1 ? " unidad" : " unidades");
-  var freq = p.freq_label ? "cada " + p.freq_label : "";
+  var freqLabel = (mix && mix.freq_label) ? mix.freq_label : p.freq_label;
+  var freq = freqLabel ? "cada " + freqLabel : "";
   var img = p.image || fallbackImg || "";
   var sub = String(TXT.item_sub || "").replace(/\{\{qty\}\}/g, qtyTxt).replace(/\{\{freq\}\}/g, freq).replace(/\s*·\s*$/, "").trim();
   var gifts = "";
@@ -141,6 +147,7 @@ export function cartBodyHtml(p, TXT, fmt, esc, fallbackImg) {
       return '<div class="rc-cart-g">' + (g.image ? '<img src="' + esc(g.image) + '" alt="">' : "") + "<span>" + esc(g.title) + (extra ? "<em>" + esc(extra) + "</em>" : "") + "</span></div>";
     }).join("");
   }
+  var mixRows = hasMix ? '<div class="rc-cart-mx">' + mix.rows.map(function (r) { return '<div class="rc-cart-row"><span>' + (Number(r.qty) || 1) + " × " + esc(r.title) + "</span><span>" + esc(fmt((Number(r.price) || 0) * (Number(r.qty) || 1))) + "</span></div>"; }).join("") + "</div>" : "";
   var rows = '<div class="rc-cart-row"><span>' + esc(TXT.row_subtotal) + "</span><span>" + esc(fmt(price)) + "</span></div>";
   if (TXT.show_save !== false && save > 0) rows += '<div class="rc-cart-row"><span>' + esc(TXT.row_save) + '</span><span class="ok">' + esc(fmt(save)) + "</span></div>";
   if (TXT.show_ship !== false) rows += '<div class="rc-cart-row"><span>' + esc(TXT.row_ship) + "</span><span>" + esc(TXT.ship_value) + "</span></div>";
@@ -150,7 +157,7 @@ export function cartBodyHtml(p, TXT, fmt, esc, fallbackImg) {
   return '<div class="rc-cart-it">' + (img ? '<img src="' + esc(img) + '" alt="">' : '<div class="rc-cart-ph">📦</div>') +
       "<div><b>" + esc(p.label || qtyTxt) + "</b>" + (sub ? "<small>" + esc(sub) + "</small>" : "") +
       '<div class="rc-cart-pr">' + esc(fmt(price)) + (TXT.show_compare !== false && cmp > price ? "<s>" + esc(fmt(cmp)) + "</s>" : "") + "</div></div></div>" +
-    gifts + '<div class="rc-cart-rows">' + rows + "</div>" + note;
+    mixRows + gifts + '<div class="rc-cart-rows">' + rows + "</div>" + note;
 }
 export function cartCtaText(TXT, totalTxt) {
   var raw = TXT.cta || "Finalizar suscripción · {{total}}";

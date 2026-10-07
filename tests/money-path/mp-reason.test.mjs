@@ -48,7 +48,8 @@ test("(k) nunca supera el límite, por largo que sea todo", () => {
 
 test("(k) los dos endpoints que llaman a MP usan el helper", async () => {
   const fs = await import("node:fs");
-  for (const f of ["api/plans.js", "api/checkout/init.js"]) {
+  // El alta del plan vive en _lib/planCreate.js desde el 7-oct-2026 (la usan el panel y las recetas del Admin).
+  for (const f of ["api/_lib/planCreate.js", "api/checkout/init.js"]) {
     const src = fs.readFileSync(f, "utf8");
     assert.ok(/mpReason\(/.test(src), `${f} tiene que armar el reason con mpReason`);
     assert.ok(!/reason: `\$\{product_title\} —/.test(src), `${f} no puede volver al template suelto`);

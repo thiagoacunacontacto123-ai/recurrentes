@@ -350,13 +350,34 @@ export function buildTiendanubeOrderPayload(sub, params) {
     throw new Error(`Datos incoherentes: total=${totalNum}, shipping=${shippingNum}, qty=${qty}. Orden NO creada.`);
   }
   const vid = Number(variant_id) || variant_id;
-  const unit = Math.floor((subtotalItems / qty) * 100) / 100;
-  const residue = r2(subtotalItems - unit * qty);
-  const products = residue !== 0
-    ? (qty === 1
-      ? [{ variant_id: vid, quantity: 1, price: r2(unit + residue) }]
-      : [{ variant_id: vid, quantity: 1, price: r2(unit + residue) }, { variant_id: vid, quantity: qty - 1, price: unit }])
-    : [{ variant_id: vid, quantity: qty, price: unit }];
+  let products;
+  const packItems = (Array.isArray(sub?.pack_items) ? sub.pack_items : []).filter(x => x.shopify_variant_id && Number(x.price_ars) > 0);
+  if (packItems.length) {
+    // "Armá tu pack" (7-oct-2026): un renglón por producto, cada uno con la parte del
+    // cobro proporcional a su precio de lista; los centavos que sobran, al primero.
+    const W = packItems.reduce((a, x) => a + Number(x.price_ars) * Math.max(1, Number(x.qty) || 1), 0);
+    let acc = 0;
+    products = packItems.map(x => {
+      const q = Math.max(1, Number(x.qty) || 1);
+      const unit = Math.floor((subtotalItems * (Number(x.price_ars) * q) / W / q) * 100) / 100;
+      acc = r2(acc + unit * q);
+      return { variant_id: Number(x.shopify_variant_id) || x.shopify_variant_id, quantity: q, price: unit };
+    });
+    const resid = r2(subtotalItems - acc);
+    if (resid !== 0) {
+      const f = products[0];
+      if (f.quantity === 1) f.price = r2(f.price + resid);
+      else products.splice(0, 1, { variant_id: f.variant_id, quantity: 1, price: r2(f.price + resid) }, { variant_id: f.variant_id, quantity: f.quantity - 1, price: f.price });
+    }
+  } else {
+    const unit = Math.floor((subtotalItems / qty) * 100) / 100;
+    const residue = r2(subtotalItems - unit * qty);
+    products = residue !== 0
+      ? (qty === 1
+        ? [{ variant_id: vid, quantity: 1, price: r2(unit + residue) }]
+        : [{ variant_id: vid, quantity: 1, price: r2(unit + residue) }, { variant_id: vid, quantity: qty - 1, price: unit }])
+      : [{ variant_id: vid, quantity: qty, price: unit }];
+  }
   products.push(...extras);
   // Regalos vinculados a un producto: a $0 ("once" = solo en la primera orden).
   const firstOrder = Number(charge_number) <= 1 || !(sub?.shopify_orders || []).length;

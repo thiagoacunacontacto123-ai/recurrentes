@@ -125,6 +125,10 @@ export function buildBundlePayload(plan, merchant) {
     variant: vm.variant,
     modeDefault: vm.modeDefault,
     defaultIdx: vm.defaultIdx,
+    // "Armá tu pack" y frecuencias a elegir (7-oct-2026, G4U). Sin esto el widget queda igual.
+    mix: vm.mix && vm.mix.length ? { items: vm.mix.map((i) => ({ variant_id: i.shopify_variant_id, product_id: i.shopify_product_id || null, title: i.title, image: i.image || null, price: i.price_ars, main: i.main === true })) } : null,
+    freq_options: Array.isArray(vm.freqOptions) ? vm.freqOptions : [],
+    discount_pct: vm.discountPct || 0,
     // hideOnce/hideSub: el widget los usa para no dejar "elegido" un pack que no
     // se ve en el modo actual (Wellfresh, 25-sept: la suscripción mandaba el pack
     // de 3 de compra única). gifts: regalos vinculados a un producto → al carrito.
@@ -1578,7 +1582,7 @@ export default async function handler(req, res) {
       host.setAttribute("data-rec-root", "1");
       var styleEl = document.createElement("style");
       styleEl.setAttribute("data-rc-bundle-css", "");
-      styleEl.textContent = bundle.css || "";
+      styleEl.textContent = (bundle.css || "") + extraCss(bundle);
       var root = document.createElement("div");
       host.appendChild(styleEl);
       host.appendChild(root);
@@ -1610,6 +1614,134 @@ export default async function handler(req, res) {
         if (pick) state.idx = pick.idx;
       }
       fixIdx();
+      // ─── "Armá tu pack" (7-oct-2026, G4U): los casilleros del pack se llenan con
+      // productos DISTINTOS de la tienda. Cada casillero arranca con el producto de la
+      // ficha y se cambia con un toque; el botón, el carrito y el checkout siguen lo
+      // elegido (el server vuelve a validar precio y cantidades). Sin bundle.mix
+      // nada de esto existe. Y freq_options: el comprador elige cada cuánto.
+      var MIX = null, FREQS = [], MIX_DISC = 0;
+      function syncBundleVars() {
+        MIX = bundle.mix && bundle.mix.items && bundle.mix.items.length ? bundle.mix : null;
+        FREQS = Array.isArray(bundle.freq_options) ? bundle.freq_options : [];
+        MIX_DISC = Number(bundle.discount_pct) || 0;
+      }
+      syncBundleVars();
+      function extraCss(b) { return (b && (b.mix || (b.freq_options || []).length)) ? mixCss() : ""; }
+      function mixMain() { var l = MIX.items; for (var i = 0; i < l.length; i++) if (l[i].main) return l[i]; return l[0]; }
+      function mixItem(vid) { var l = MIX ? MIX.items : []; for (var i = 0; i < l.length; i++) if (String(l[i].variant_id) === String(vid)) return l[i]; return null; }
+      function slotsNeeded() { var p = packInfo(state.idx); if (!p) return 1; return Math.max(1, parseInt(state.mode === "sub" ? (p.sub_qty || p.qty) : p.qty, 10) || 1); }
+      function syncSlots() {
+        if (!MIX) return;
+        if (!state.slots) state.slots = [];
+        var n = slotsNeeded(), main = mixMain().variant_id;
+        while (state.slots.length < n) state.slots.push(main);
+        if (state.slots.length > n) state.slots = state.slots.slice(0, n);
+      }
+      function mixRows() {
+        var rows = [];
+        for (var i = 0; i < (state.slots || []).length; i++) {
+          var vid = state.slots[i], it = mixItem(vid); if (!it) continue;
+          var r = null; for (var k = 0; k < rows.length; k++) if (rows[k].variant_id === vid) r = rows[k];
+          if (r) r.qty++; else rows.push({ variant_id: vid, title: it.title, image: it.image, price: Number(it.price) || 0, qty: 1 });
+        }
+        return rows;
+      }
+      function mixTotals() {
+        var rows = mixRows(), list = 0;
+        for (var i = 0; i < rows.length; i++) list += rows[i].price * rows[i].qty;
+        return { list: list, sub: Math.round(list * (1 - MIX_DISC / 100)), rows: rows, qty: (state.slots || []).length };
+      }
+      function mixItemsParam() { return mixRows().map(function (r) { return r.variant_id + ":" + r.qty; }).join(","); }
+      function syncFreq() {
+        if (!FREQS.length) return;
+        var p = packInfo(state.idx), pf = p ? parseInt(p.freq_days, 10) : 0;
+        if (FREQS.indexOf(state.freq) === -1) state.freq = FREQS.indexOf(pf) !== -1 ? pf : FREQS[0];
+      }
+      function freqWord(d) { d = parseInt(d, 10) || 0; if (d === 1) return "cada día"; if (d === 7) return "cada semana"; if (d === 30) return "cada mes"; if (d > 0 && d % 30 === 0) return "cada " + (d / 30) + " meses"; return "cada " + d + " días"; }
+      function cartMix() {
+        if (!MIX && !FREQS.length) return null;
+        var tt = MIX ? mixTotals() : null;
+        return { rows: tt ? tt.rows : null, sub: tt ? tt.sub : null, list: tt ? tt.list : null, freq_label: FREQS.length ? freqWord(state.freq).replace(/^cada /, "") : null };
+      }
+      function mixCss() {
+        var A = WIDGET_COLOR, ON = onColor(A);
+        return ".rc-mix{margin:14px 0 4px;border:1.5px solid rgba(0,0,0,.1);border-radius:14px;padding:12px 14px;background:#fff;color:#111;font-family:inherit;text-align:left}" +
+          ".rc-mix-h{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-weight:800;font-size:14px;margin-bottom:6px}.rc-mix-h small{font-weight:600;font-size:12px;opacity:.65}" +
+          ".rc-mix-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid rgba(0,0,0,.06)}.rc-mix-row.first{border-top:0}" +
+          ".rc-mix-row img,.rc-mix-row .ph{width:40px;height:40px;border-radius:8px;object-fit:cover;background:#f4f4f4;flex:none}" +
+          ".rc-mix-row .t{flex:1;min-width:0;font-size:13.5px;line-height:1.25}.rc-mix-row .t b{display:block;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rc-mix-row .t small{display:block;font-size:12px;opacity:.7;margin-top:2px}" +
+          ".rc-mix-row button{flex:none;background:" + A + ";color:" + ON + ";border:0;border-radius:8px;padding:8px 12px;font:inherit;font-size:12px;font-weight:800;cursor:pointer;-webkit-tap-highlight-color:transparent}" +
+          ".rc-mix-tot{display:flex;justify-content:space-between;gap:10px;margin-top:10px;padding-top:10px;border-top:1px dashed rgba(0,0,0,.12);font-size:13.5px;font-weight:700}.rc-mix-tot s{opacity:.55;font-weight:500;margin-left:6px}" +
+          ".rc-freqs{margin:12px 0 4px;text-align:left}.rc-freqs .l{font-size:12.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;opacity:.75;margin-bottom:8px}.rc-freqs .g{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px}" +
+          ".rc-freqs button{border:1.5px solid rgba(0,0,0,.14);background:#fff;border-radius:10px;padding:10px 6px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;color:#111}.rc-freqs button.on{border-color:" + A + ";background:" + A + ";color:" + ON + "}" +
+          ".rc-pick-ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:2147483000;display:none;align-items:flex-end;justify-content:center;padding:0}.rc-pick-ov.is-open{display:flex}" +
+          ".rc-pick{background:#fff;color:#111;width:100%;max-width:560px;max-height:82vh;border-radius:18px 18px 0 0;display:flex;flex-direction:column;box-shadow:0 -20px 60px rgba(0,0,0,.3);font-family:inherit}@media(min-width:640px){.rc-pick-ov{align-items:center;padding:20px}.rc-pick{border-radius:18px}}" +
+          ".rc-pick-h{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid #eee;font-weight:800;font-size:16px}.rc-pick-h button{background:none;border:0;font-size:22px;cursor:pointer;color:#555;line-height:1}" +
+          ".rc-pick-l{overflow:auto;padding:6px 18px 18px}.rc-pick-it{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f0f0f0}.rc-pick-it img,.rc-pick-it .ph{width:56px;height:56px;border-radius:10px;object-fit:cover;background:#f4f4f4;flex:none}" +
+          ".rc-pick-it .t{flex:1;min-width:0;font-size:14px;line-height:1.3}.rc-pick-it .t b{display:block;font-weight:700}.rc-pick-it .t span{display:block;font-size:13px;font-weight:700;margin-top:2px}.rc-pick-it .t s{opacity:.5;font-weight:500;margin-left:6px}" +
+          ".rc-pick-it button{flex:none;background:" + A + ";color:" + ON + ";border:0;border-radius:8px;padding:10px 14px;font:inherit;font-size:13px;font-weight:800;cursor:pointer}";
+      }
+      var pickEl = null;
+      function ensurePick() {
+        if (pickEl) return pickEl;
+        var ov = document.createElement("div"); ov.className = "rc-pick-ov"; ov.setAttribute("data-rec-root", "1");
+        ov.innerHTML = '<div class="rc-pick" role="dialog" aria-label="Elegí un producto"><div class="rc-pick-h"><span>Elegí un producto</span><button type="button" aria-label="Cerrar">×</button></div><div class="rc-pick-l"></div></div>';
+        document.body.appendChild(ov);
+        ov.addEventListener("click", function (e) { if (e.target === ov) closePick(); });
+        ov.querySelector(".rc-pick-h button").addEventListener("click", closePick);
+        ov.querySelector(".rc-pick-l").addEventListener("click", function (e) {
+          var b = e.target && e.target.closest ? e.target.closest("[data-rc-pick]") : null; if (!b) return;
+          var i = parseInt(ov.getAttribute("data-slot"), 10);
+          if (i >= 0 && i < (state.slots || []).length) state.slots[i] = b.getAttribute("data-rc-pick");
+          closePick(); paint(); applyMode();
+        });
+        pickEl = ov; return ov;
+      }
+      function openPick(i) {
+        var ov = ensurePick(); ov.setAttribute("data-slot", String(i));
+        var sub = state.mode === "sub";
+        ov.querySelector(".rc-pick-l").innerHTML = MIX.items.map(function (it) {
+          var price = Number(it.price) || 0, shown = sub ? Math.round(price * (1 - MIX_DISC / 100)) : price;
+          return '<div class="rc-pick-it">' + (it.image ? '<img src="' + esc2(it.image) + '" alt="">' : '<div class="ph"></div>') + '<div class="t"><b>' + esc2(it.title) + '</b><span>' + fmtArs(shown) + (sub && shown < price ? "<s>" + fmtArs(price) + "</s>" : "") + '</span></div><button type="button" data-rc-pick="' + esc2(it.variant_id) + '">Elegir</button></div>';
+        }).join("");
+        ov.classList.add("is-open");
+      }
+      function closePick() { if (pickEl) pickEl.classList.remove("is-open"); }
+      // Se pinta debajo de los packs y arriba del botón, en cualquier variante del bundle.
+      function paintMix() {
+        if (!MIX && !FREQS.length) return;
+        var anchor = root.querySelector('[data-rc-action="cta"]');
+        if (MIX) {
+          syncSlots();
+          var tt = mixTotals(), sub = state.mode === "sub";
+          var box = document.createElement("div"); box.className = "rc-mix";
+          box.innerHTML = '<div class="rc-mix-h"><span>Armá tu pack</span><small>' + tt.qty + (tt.qty === 1 ? " producto" : " productos") + '</small></div>' +
+            state.slots.map(function (vid, i) {
+              var it = mixItem(vid) || mixMain(), price = Number(it.price) || 0, shown = sub ? Math.round(price * (1 - MIX_DISC / 100)) : price;
+              return '<div class="rc-mix-row' + (i === 0 ? " first" : "") + '">' + (it.image ? '<img src="' + esc2(it.image) + '" alt="">' : '<div class="ph"></div>') + '<div class="t"><b>' + esc2(it.title) + '</b><small>' + fmtArs(shown) + (sub && shown < price ? " · antes " + fmtArs(price) : "") + '</small></div><button type="button" data-rc-slot="' + i + '">Cambiar</button></div>';
+            }).join("") +
+            '<div class="rc-mix-tot"><span>Tu pack</span><span>' + fmtArs(sub ? tt.sub : tt.list) + (sub && tt.sub < tt.list ? "<s>" + fmtArs(tt.list) + "</s>" : "") + '</span></div>';
+          if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(box, anchor); else root.appendChild(box);
+        }
+        if (FREQS.length && state.mode === "sub") {
+          syncFreq();
+          var fb = document.createElement("div"); fb.className = "rc-freqs";
+          fb.innerHTML = '<div class="l">¿Cada cuánto lo querés?</div><div class="g">' + FREQS.map(function (d) { return '<button type="button" data-rc-freq="' + d + '" class="' + (d === state.freq ? "on" : "") + '">' + freqWord(d).replace(/^cada /, "Cada ") + '</button>'; }).join("") + '</div>';
+          if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(fb, anchor); else root.appendChild(fb);
+        }
+        syncCtaPrice();
+      }
+      // El botón trae el precio "de fábrica" (todos los casilleros con el producto de la
+      // ficha y la frecuencia del pack). Con otros productos u otra frecuencia, se corrige acá.
+      function syncCtaPrice() {
+        var pe = root.querySelector(".rc-cta-price"), se = root.querySelector(".rc-cta-sub");
+        if (MIX) {
+          var tt = mixTotals(), sub = state.mode === "sub", total = sub ? tt.sub : tt.list;
+          if (pe) pe.textContent = pe.textContent.replace(/\$[\d.]+/, fmtArs(total));
+          if (se) { var sv = tt.list - tt.sub; se.textContent = (sub && sv > 0) ? "Ahorrás " + fmtArs(sv) + " en cada envío" : ""; }
+        }
+        if (FREQS.length && pe && state.mode === "sub") pe.textContent = pe.textContent.replace(/cada .*$/, freqWord(state.freq));
+      }
       // Regalos del pack elegido que son productos de la tienda: en compra única
       // van al carrito junto con el pack (compra única = todos; el "solo en el
       // primero" es cosa de la suscripción).
@@ -1640,6 +1772,7 @@ export default async function handler(req, res) {
       function paint() {
         root.innerHTML = bundle.states[state.mode + ":" + state.idx] || "";
         host.setAttribute("data-rc-mode", state.mode);
+        try { paintMix(); } catch (e) { log("mix", e); }
         try { if (typeof paintSticky === "function") paintSticky(); } catch (e) {}
       }
       function packQty() {
@@ -1768,7 +1901,8 @@ export default async function handler(req, res) {
         // ya cargada en el input del tema. Así el carrito/mini-carrito es el de
         // siempre en cualquier tema. El selector de cantidad del tema queda oculto
         // en los dos modos: la cantidad la decide el pack.
-        hideExternalBuyButtons(state.mode === "sub");
+        // Pack mixto: el botón del tema agregaría solo el producto de la ficha, así que en los dos modos manda el nuestro.
+        hideExternalBuyButtons(state.mode === "sub" || !!MIX);
         hideCustomSelector(true);
         try { hideForeignBundles(true, form); } catch (e) {}
         if (!document.getElementById("rc-bundle-hide-style")) {
@@ -1777,11 +1911,13 @@ export default async function handler(req, res) {
           st.textContent =
             'body.rec-bundle-active form[action*="/cart/add"] quantity-input,body.rec-bundle-active form[action*="/cart/add"] .product-form__quantity,body.rec-bundle-active form[action*="/cart/add"] .quantity__rules{display:none !important}' +
             'body.rec-bundle-active.rec-sub-active form[action*="/cart/add"] button[name="add"],body.rec-bundle-active.rec-sub-active form[action*="/cart/add"] [type="submit"]{display:none !important}' +
-            'body.rec-bundle-active:not(.rec-sub-active) #recurrentes-widget [data-rc-action="cta"]{display:none !important}';
+            'body.rec-bundle-active:not(.rec-sub-active):not(.rec-mix-active) #recurrentes-widget [data-rc-action="cta"]{display:none !important}';
           if (IS_TN) {
             st.textContent +=
               // siempre en modo packs: precio y cantidad del tema
               withNotOurs(TN_THEME_PRICE) + "{display:none !important}" +
+              // pack mixto: el botón del tema no sirve en ningún modo
+              withNotOurs(TN_THEME_BUY).replace(/body\.rec-bundle-active /g, "body.rec-bundle-active.rec-mix-active ") + "{display:none !important}" +
               withNotOurs(TN_THEME_QTY) + "{display:none !important}" +
               // en suscripción: el botón del tema; en compra única: el nuestro
               withNotOurs(TN_THEME_BUY).replace(/body\.rec-bundle-active /g, "body.rec-bundle-active.rec-sub-active ") + "{display:none !important}" +
@@ -1795,6 +1931,7 @@ export default async function handler(req, res) {
         try {
           document.body.classList.add("rec-bundle-active");
           document.body.classList.toggle("rec-sub-active", state.mode === "sub");
+          document.body.classList.toggle("rec-mix-active", !!MIX);
         } catch(e){}
         syncThemeQty();
         try {
@@ -1840,8 +1977,9 @@ export default async function handler(req, res) {
         var ov = ensureCart();
         var TXT = (typeof CART_TEXTS === "object" && CART_TEXTS) || {};
         var og = (document.querySelector('meta[property="og:image"]') || {}).content || "";
-        ov.querySelector(".rc-cart-b").innerHTML = cartBodyHtml(p, TXT, fmtArs, esc2, og);
-        var go = ov.querySelector(".rc-cart-go"); go.disabled = false; go.textContent = cartCtaText(TXT, fmtArs(Number(p.price_sub) || 0));
+        var mx = cartMix();
+        ov.querySelector(".rc-cart-b").innerHTML = cartBodyHtml(p, TXT, fmtArs, esc2, og, mx);
+        var go = ov.querySelector(".rc-cart-go"); go.disabled = false; go.textContent = cartCtaText(TXT, fmtArs(mx && mx.sub != null ? mx.sub : (Number(p.price_sub) || 0)));
         document.body.style.overflow = "hidden";
         ov.classList.add("is-open");
         requestAnimationFrame(function () { ov.classList.add("is-vis"); });
@@ -1920,7 +2058,10 @@ export default async function handler(req, res) {
         setBusy(true, "Abriendo el checkout…");
         window.location.href = ckUrl("merchant=" + encodeURIComponent(MERCHANT_ID) +
           "&plan=" + encodeURIComponent(plan.id) + "&pack=" + encodeURIComponent(state.idx) +
-          (variantId ? "&variant=" + encodeURIComponent(variantId) : "") + fbCheckoutQs());
+          (variantId ? "&variant=" + encodeURIComponent(variantId) : "") +
+          // "Armá tu pack" y frecuencia elegida: el checkout muestra lo mismo y el server lo valida.
+          (MIX ? "&items=" + encodeURIComponent(mixItemsParam()) : "") +
+          (FREQS.length ? "&freq_days=" + encodeURIComponent(state.freq) : "") + fbCheckoutQs());
       }
       function addToCart() {
         // La del selector primero: si el cliente cambió de sabor, va ese.
@@ -1943,10 +2084,13 @@ export default async function handler(req, res) {
         }
         var rootPath = (window.Shopify && Shopify.routes && Shopify.routes.root) || "/";
         setBusy(true, "Agregando al carrito…");
+        // Pack mixto: un renglón por producto elegido. __rec evita que el interceptor
+        // de /cart/add (el de la cantidad del tema) pise estas cantidades.
+        var mainItems = MIX ? mixRows().map(function (r) { return { id: parseInt(r.variant_id, 10) || r.variant_id, quantity: r.qty }; }) : [{ id: parseInt(vid, 10) || vid, quantity: packQty() }];
         fetch(rootPath + "cart/add.js", {
-          method: "POST",
+          method: "POST", __rec: true,
           headers: { "Content-Type": "application/json", "Accept": "application/json" },
-          body: JSON.stringify({ items: [{ id: parseInt(vid, 10) || vid, quantity: packQty() }].concat(giftCartItems()) }),
+          body: JSON.stringify({ items: mainItems.concat(giftCartItems()) }),
         }).then(function(r){
           if (!r.ok) throw new Error("cart/add " + r.status);
           return applyGiftCodes();
@@ -1988,6 +2132,11 @@ export default async function handler(req, res) {
         if (cta) { if (state.mode === "sub") { if (CART_DRAWER) openCart(); else goCheckout(); } else addToCart(); }
       }
       root.addEventListener("click", function(e){
+        // "Armá tu pack": cambiar un casillero / elegir la frecuencia.
+        var sl = e.target && e.target.closest ? e.target.closest("[data-rc-slot]") : null;
+        if (sl && root.contains(sl)) { openPick(parseInt(sl.getAttribute("data-rc-slot"), 10)); return; }
+        var fq = e.target && e.target.closest ? e.target.closest("[data-rc-freq]") : null;
+        if (fq && root.contains(fq)) { state.freq = parseInt(fq.getAttribute("data-rc-freq"), 10); paint(); applyMode(); return; }
         var el = e.target && e.target.closest ? e.target.closest("[data-rc-action]") : null;
         if (!el || !root.contains(el)) return;
         viaKeyboard = false;
@@ -2022,8 +2171,9 @@ export default async function handler(req, res) {
             fetchBundle(plan.id).then(function(b2){
               if (!b2 || !b2.bundle) { restoreTheme("variante sin bundle"); return; }
               bundle = b2.bundle;
-              styleEl.textContent = bundle.css || "";
-              state = { mode: state.mode, idx: parseInt(bundle.defaultIdx, 10) || 0 };
+              styleEl.textContent = (bundle.css || "") + extraCss(bundle);
+              state = { mode: state.mode, idx: parseInt(bundle.defaultIdx, 10) || 0, slots: [], freq: 0 };
+              syncBundleVars();
               host.style.display = "";
               paint();
               applyMode();

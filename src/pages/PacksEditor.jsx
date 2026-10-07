@@ -591,3 +591,67 @@ export default function PacksEditor({ mode, onModeChange, packs, onPacksChange, 
     </div>
   );
 }
+
+// ─── "Armá tu pack" + frecuencias a elegir (7-oct-2026, G4U) ───────────────
+// El pack se puede llenar con productos DISTINTOS de la tienda (como la app de
+// bundles de G4U) y el comprador puede elegir cada cuánto le llega. Los dos son
+// opcionales: sin tocarlos, el plan queda como siempre.
+//   mix = { enabled, items: [{ shopify_product_id, shopify_variant_id, title, image, price_ars }] }
+//   freqOptions = "15, 30, 60" (texto; el backend lo normaliza)
+export function PackMixEditor({ mix, onMixChange, freqOptions, onFreqOptionsChange, products = [], planProductId = null, discountPct = 0 }) {
+  const T = useT();
+  const inp = { ...InputStyle(T), padding: "7px 9px", fontSize: DS.font.md };
+  const m = mix && typeof mix === "object" ? mix : { enabled: false, items: [] };
+  const items = Array.isArray(m.items) ? m.items : [];
+  const set = (patch) => onMixChange({ ...m, items, ...patch });
+  // Opciones: cada variante de cada producto de la tienda, menos el producto del plan (ya es el primer casillero).
+  const opciones = [];
+  for (const p of products) {
+    if (!p || String(p.id) === String(planProductId || "")) continue;
+    const vs = Array.isArray(p.variants) && p.variants.length ? p.variants : [];
+    for (const v of vs) opciones.push({ key: `${p.id}|${v.id}`, label: vs.length > 1 ? `${p.title} — ${v.title}` : p.title, p, v });
+  }
+  const agregar = (key) => {
+    const o = opciones.find(x => x.key === key); if (!o) return;
+    if (items.some(i => String(i.shopify_variant_id) === String(o.v.id))) return;
+    set({ items: [...items, { shopify_product_id: String(o.p.id), shopify_variant_id: String(o.v.id), title: o.label.slice(0, 120), image: o.p.image || null, price_ars: Math.round(Number(o.v.price) || 0) }] });
+  };
+  const disc = Math.max(0, Math.min(90, parseInt(discountPct, 10) || 0));
+  const label = { fontSize: 11, fontWeight: 700, color: T.textSm, textTransform: "uppercase", letterSpacing: 0.6, margin: "0 0 6px" };
+  return (
+    <div style={{ display: "grid", gap: 14, marginTop: 14 }}>
+      <div style={{ border: `1px solid ${T.border}`, borderRadius: 12, padding: "12px 14px", background: T.bg }}>
+        <label style={{ display: "flex", gap: 10, alignItems: "flex-start", cursor: "pointer" }}>
+          <input type="checkbox" checked={m.enabled === true} onChange={e => set({ enabled: e.target.checked })} style={{ width: 18, height: 18, marginTop: 2, accentColor: T.accentSolid }}/>
+          <span style={{ fontSize: DS.font.md, lineHeight: 1.45 }}><strong>Armá tu pack con varios productos</strong><br/>
+            <span style={{ color: T.textSm, fontSize: DS.font.sm }}>Cada casillero del pack arranca con este producto y el cliente lo cambia por otro de la lista. El precio es la suma de lo que eligió, con el descuento de suscripción.</span></span>
+        </label>
+        {m.enabled && (
+          <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
+            {items.map((it, i) => (
+              <div key={it.shopify_variant_id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                {it.image ? <img src={it.image} alt="" style={{ width: 34, height: 34, borderRadius: 8, objectFit: "cover", background: "#fff", border: `1px solid ${T.border}` }}/> : <div style={{ width: 34, height: 34, borderRadius: 8, background: T.surface }}/>}
+                <div style={{ flex: 1, minWidth: 0, fontSize: DS.font.sm, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.title}</div>
+                <input type="number" min="1" value={it.price_ars} onChange={e => set({ items: items.map((x, j) => j === i ? { ...x, price_ars: e.target.value } : x) })} style={{ ...inp, width: 110 }} title="Precio de lista"/>
+                <span style={{ fontSize: DS.font.xs, color: T.textSm, whiteSpace: "nowrap" }}>{disc ? `→ ${fmt(Math.round((Number(it.price_ars) || 0) * (1 - disc / 100)))} sub` : ""}</span>
+                <button type="button" onClick={() => set({ items: items.filter((_, j) => j !== i) })} aria-label="Sacar" style={{ background: "none", border: "none", color: T.textSm, cursor: "pointer", fontSize: 16 }}>✕</button>
+              </div>
+            ))}
+            {opciones.length ? (
+              <select value="" onChange={e => agregar(e.target.value)} style={inp}>
+                <option value="">{items.length ? "Agregar otro producto de mi tienda…" : "Elegir productos de mi tienda…"}</option>
+                {opciones.filter(o => !items.some(i => String(i.shopify_variant_id) === String(o.v.id))).map(o => <option key={o.key} value={o.key}>{o.label} · {fmt(Math.round(Number(o.v.price) || 0))}</option>)}
+              </select>
+            ) : <div style={{ fontSize: DS.font.xs, color: T.textSm }}>No veo productos de tu tienda. Conectala y volvé a abrir el plan.</div>}
+            {m.enabled && !items.length && <div style={{ fontSize: DS.font.xs, color: T.yellow }}>Elegí al menos un producto para que haya qué mezclar.</div>}
+          </div>
+        )}
+      </div>
+      <div style={{ border: `1px solid ${T.border}`, borderRadius: 12, padding: "12px 14px", background: T.bg }}>
+        <div style={label}>Frecuencias que puede elegir el cliente (días, separadas por coma)</div>
+        <input value={freqOptions || ""} onChange={e => onFreqOptionsChange(e.target.value)} placeholder="Vacío = la frecuencia de cada pack · ej.: 15, 30, 60" style={inp}/>
+        <div style={{ fontSize: DS.font.xs, color: T.textSm, marginTop: 6, lineHeight: 1.5 }}>Con esto el widget muestra "¿Cada cuánto lo querés?" debajo de los packs y el cliente elige. Vacío: cada pack manda su frecuencia, como siempre.</div>
+      </div>
+    </div>
+  );
+}

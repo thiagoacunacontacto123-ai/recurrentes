@@ -861,6 +861,96 @@ async function demoLeadDelete(admin, req, res) {
   return res.json({ ok: true, id: t.id });
 }
 
+// ─── Configurador de la tienda (7-oct-2026, Thiago: "un configurador de G4U en el admin,
+// las variables, los productos, todo lo más automatizado posible") ──────────────────
+// El catálogo REAL de la tienda, para marcar qué productos van por suscripción.
+async function storeProducts(admin, req, res) {
+  const t = await existingMerchant(req, res);
+  if (!t) return;
+  const { m } = t;
+  if (!m.shopify_shop || !m.shopify_token) return res.status(400).json({ error: "Esa tienda todavía no conectó Shopify." });
+  try {
+    const { shListProducts } = await import("./shopify.js");
+    const raw = await shListProducts(m.shopify_shop, m.shopify_token);
+    const products = raw.map(p => ({
+      id: String(p.id), title: p.title, handle: p.handle, status: p.status, image: p.image?.src || null,
+      variants: (p.variants || []).map(v => ({ id: String(v.id), title: v.title, price: Math.round(Number(v.price) || 0), available: v.available !== false })),
+    }));
+    return res.json({ ok: true, products });
+  } catch (e) {
+    return res.status(502).json({ error: `Shopify: ${e.message}` });
+  }
+}
+
+// Aplica una receta: crea los planes que falten (por el MISMO camino que el panel:
+// validaciones + plan plantilla en MP, nacen apagados), actualiza los que ya existan
+// para esos productos y guarda los ajustes del widget y del checkout. Nunca prende un
+// plan ni toca suscripciones: eso sigue siendo a mano.
+async function applyRecipe(admin, req, res) {
+  const t = await existingMerchant(req, res);
+  if (!t) return;
+  const { id, ref, m } = t;
+  const { normalizeReceta, planesDeReceta } = await import("../../shared/platform/recetas.js");
+  const nr = normalizeReceta(req.body?.receta);
+  if (nr.error) return res.status(400).json({ error: nr.error });
+  const receta = nr.receta;
+  if (!m.shopify_shop || !m.shopify_token) return res.status(400).json({ error: "Esa tienda todavía no conectó Shopify." });
+  if (!m.mp_access_token) return res.status(400).json({ error: "Esa tienda todavía no conectó Mercado Pago: los planes necesitan su cuenta." });
+  let products;
+  try {
+    const { shListProducts } = await import("./shopify.js");
+    products = (await shListProducts(m.shopify_shop, m.shopify_token)).map(p => ({ id: String(p.id), title: p.title, handle: p.handle, image: p.image?.src || null, variants: (p.variants || []).map(v => ({ id: String(v.id), title: v.title, price: Number(v.price) || 0 })) }));
+  } catch (e) {
+    return res.status(502).json({ error: `Shopify: ${e.message}` });
+  }
+  const { planes, faltan, sinPrecio } = planesDeReceta(receta, products);
+  if (!planes.length) return res.status(400).json({ error: "Ningún producto de la receta está en la tienda (o no tienen precio).", faltan, sinPrecio });
+
+  const { createPlanForMerchant } = await import("./planCreate.js");
+  const { normalizePacks, normalizeMix, normalizeFrequencyOptions } = await import("./packs.js");
+  const existentes = (await ref.collection("plans").get()).docs.map(d => ({ id: d.id, ...d.data() }));
+  const creados = [], actualizados = [], errores = [];
+  const now = new Date().toISOString();
+  for (const body of planes) {
+    const prev = existentes.find(p => String(p.shopify_product_id) === body.shopify_product_id);
+    if (prev) {
+      // Ya tiene plan para ese producto: se le ponen los packs, el descuento, la mezcla y
+      // las frecuencias de la receta. Lo demás (activo, envío, regalos) no se toca.
+      const pk = normalizePacks(body.packs); const mx = normalizeMix(body.mix); const fo = normalizeFrequencyOptions(body.frequency_options);
+      const err = pk.error || mx.error || fo.error;
+      if (err) { errores.push({ producto: body.product_title, error: err }); continue; }
+      const disc = body.discount_pct;
+      await ref.collection("plans").doc(prev.id).update({
+        pricing_mode: "packs", packs: pk.packs, mix: mx.mix, frequency_options: fo.options,
+        frequency_days: body.frequency_days, frequency_scales_with_qty: body.frequency_scales_with_qty,
+        discount_pct: disc, base_price_ars: body.base_price_ars, subscription_price_ars: Math.round(body.base_price_ars * (1 - disc / 100)),
+        updated_at: now,
+      });
+      actualizados.push({ id: prev.id, producto: body.product_title, active: prev.active === true });
+    } else {
+      const r = await createPlanForMerchant({ merchantId: id, merchant: m, body });
+      if (r.status !== 200) errores.push({ producto: body.product_title, error: r.json?.error || `HTTP ${r.status}` });
+      else creados.push({ id: r.json.plan.id, producto: body.product_title, active: false });
+    }
+  }
+  // Ajustes de la tienda: widget, checkout y "Sumá a tu suscripción" con los otros planes.
+  const settings = {};
+  if (receta.widget.color) settings.widget_color = receta.widget.color;
+  settings.widget_mode_default = receta.widget.mode_default;
+  settings.widget_cart_drawer = receta.widget.cart_drawer !== false;
+  if (receta.checkout.color) settings.checkout_theme = { ...(m.checkout_theme && typeof m.checkout_theme === "object" ? m.checkout_theme : {}), color: receta.checkout.color };
+  if (receta.upsells) {
+    const ids = [...creados, ...actualizados].map(p => p.id);
+    if (ids.length > 1) settings.checkout_upsells = ids.slice(0, 4);
+  }
+  settings.updated_at = now;
+  await ref.set(settings, { merge: true });
+  try { const { clearMerchantCache } = await import("./firebase.js"); clearMerchantCache(id); } catch (_) {}
+  await audit(admin, "apply_recipe", id, { receta: receta.id || "a-medida", creados: creados.length, actualizados: actualizados.length, errores: errores.length });
+  _cache = null;
+  return res.json({ ok: true, creados, actualizados, errores, faltan, sinPrecio, settings: Object.keys(settings).filter(k => k !== "updated_at") });
+}
+
 async function viewAsStart(admin, req, res) {
   const t = await existingMerchant(req, res);
   if (!t) return;
@@ -998,6 +1088,9 @@ export async function adminHandler(req, res) {
         await audit(admin, "app_link", t.id, { reset: req.body?.reset === true });
         return res.json({ ok: true, ...r });
       }
+      // Configurador de la tienda (7-oct-2026, G4U): el catálogo real y aplicar una receta.
+      if (action === "admin-store-products") return await storeProducts(admin, req, res);
+      if (action === "admin-apply-recipe") return await applyRecipe(admin, req, res);
       if (action === "admin-demo-lead-status") return await demoLeadStatus(admin, req, res);
       if (action === "admin-demo-lead-delete") return await demoLeadDelete(admin, req, res);
       if (action === "admin-setup-step") return await setupStep(admin, req, res);

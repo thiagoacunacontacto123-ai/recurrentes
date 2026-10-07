@@ -42,7 +42,7 @@ import { rateLimit, clientIp } from "../_lib/ratelimit.js";
 // Si todavía no existen, el módulo carga igual y caemos al precio del plan.
 import * as shopifyLib from "../_lib/shopify.js";
 import { resolveCheckoutShippingRates, PLAN_SHIPPING_CODE } from "../widget.js";
-import { isPacksPlan, resolvePack, parsePackIndex, defaultPackIndex } from "../_lib/packs.js";
+import { isPacksPlan, resolvePack, parsePackIndex, defaultPackIndex, planMix, resolveMixSelection, mixTitle, mixItemsParam, pickFrequency, planFrequencyOptions } from "../_lib/packs.js";
 import { klaviyoEnabled, klaviyoCheckoutStarted, klaviyoUpsertProfile, checkoutKeyFor, splitName } from "../_lib/klaviyo.js";
 import { emitFlowEvent } from "../_lib/flows.js";
 import { metaFunnel } from "../_lib/meta.js";
@@ -236,6 +236,9 @@ function buildRecoverPath(merchant, plan, planId, qty, extra = {}) {
     sp.set("variant", String(plan.shopify_variant_id || ""));
     sp.set("plan", String(planId));
     sp.set("pack", String(extra.pack_index));
+    // "Armá tu pack" y frecuencia elegida (7-oct-2026): vuelven al checkout con lo mismo.
+    if (extra.items) sp.set("items", String(extra.items));
+    if (extra.freq_days) sp.set("freq_days", String(extra.freq_days));
     return `${base}?${sp.toString()}`;
   }
   sp.set("plan", String(planId));
@@ -386,28 +389,47 @@ export default async function handler(req, res) {
     if (quantity != null && quantity !== "" && (parseInt(quantity) || 0) !== pack.subQty) ignored.quantity = quantity;
     if (base_price != null && base_price !== "" && Math.round(parseFloat(base_price) || 0) !== pack.price) ignored.base_price = base_price;
     if (sub_discount != null && sub_discount !== "") ignored.sub_discount = sub_discount;
-    if (frequency_days != null && frequency_days !== "" && (parseInt(frequency_days) || 0) !== pack.freq) ignored.frequency_days = frequency_days;
+    if (frequency_days != null && frequency_days !== "" && (parseInt(frequency_days) || 0) !== pickFrequency(plan, pack, frequency_days)) ignored.frequency_days = frequency_days;
     if (Object.keys(ignored).length) console.warn("[checkout/init] modo packs: campos del body ignorados", { merchantId, planId: plan.id, pack_index: pack.idx, ignored });
+  }
+  // ── "Armá tu pack" (7-oct-2026, G4U): los productos que eligió para los casilleros ──
+  // Precio y variantes salen del PLAN (mixCatalog), nunca del body; la suma de
+  // cantidades tiene que ser la del pack. Sin `pack_items` (un widget viejo en la
+  // caché de la CDN) el pack se llena con el producto de la ficha, que es lo que
+  // siempre se cobró.
+  let mixSel = null;
+  if (pack && planMix(plan)) {
+    const rawItems = Array.isArray(req.body.pack_items) && req.body.pack_items.length
+      ? req.body.pack_items
+      : [{ variant_id: plan.shopify_variant_id, qty: pack.subQty }];
+    const r = resolveMixSelection(plan, pack, rawItems);
+    if (r.error) {
+      if (req.body.capture !== true) return res.status(400).json({ error: r.error });
+    } else mixSel = r;
   }
   // Precio del pack (server-side): subtotal = sub_price del pack; qtyDiscountPct
   // = ahorro efectivo vs precio tachado (informativo). Misma forma que computeSubtotal.
-  const packPricing = () => ({
-    subtotal: pack.subPrice,
-    qtyDiscountPct: pack.savingsPct,
-    basePrice: pack.price,
-    subOff: Math.max(0, Math.min(90, parseFloat(plan.discount_pct) || 0)),
-  });
+  // Con pack mixto: Σ(precio de lista × cantidad) con el descuento del plan.
+  const packPricing = () => mixSel
+    ? { subtotal: mixSel.subTotal, qtyDiscountPct: mixSel.savingsPct, basePrice: mixSel.listTotal, subOff: Math.max(0, Math.min(90, parseFloat(plan.discount_pct) || 0)) }
+    : ({
+      subtotal: pack.subPrice,
+      qtyDiscountPct: pack.savingsPct,
+      basePrice: pack.price,
+      subOff: Math.max(0, Math.min(90, parseFloat(plan.discount_pct) || 0)),
+    });
   // merchant_id SIEMPRE: el checkout de Recurrentes lo exige y sin él el link de
   // "carrito sin pagar" (mail/WhatsApp) caía en "Faltan datos" (bug 18-sept, modo clásico).
   const recoverExtra = (pr) => pack
-    ? { pack_index: pack.idx, merchant_id: merchantId }
+    ? { pack_index: pack.idx, merchant_id: merchantId, ...(mixSel ? { items: mixItemsParam(mixSel.items) } : {}), ...(planFrequencyOptions(plan).length ? { freq_days: freqDays } : {}) }
     : { merchant_id: merchantId, freq_days: freqDays, base: pr.basePrice, sub_off: pr.subOff };
-  const packSnapshot = pack ? { pricing_mode: "packs", pack_index: pack.idx, pack_label: pack.label || null } : {};
+  const packSnapshot = pack ? { pricing_mode: "packs", pack_index: pack.idx, pack_label: pack.label || null, ...(mixSel ? { mix: true } : {}) } : {};
 
   // pack.subQty = la cantidad de suscripcion (por defecto, la misma que la de
   // compra unica). Como acá solo se crean suscripciones, es la que manda.
   const finalQty = pack ? pack.subQty : (qtyReq || parseInt(plan.units_per_shipment) || 1);
-  const freqDays = pack ? pack.freq : resolveFrequency(plan, frequency_days);
+  // Frecuencias a elegir (7-oct-2026): si el plan las ofrece y el comprador eligió una, esa; si no, la del pack.
+  const freqDays = pack ? pickFrequency(plan, pack, frequency_days) : resolveFrequency(plan, frequency_days);
   // La variante que se factura es la que ELIGIÓ el cliente en la página del
   // producto (22-sept-2026, Thiago: "no tenemos ningún plan si tiene muchos
   // sabores"). Un plan cubre todas las variantes del producto: el widget manda
@@ -806,13 +828,14 @@ export default async function handler(req, res) {
     plan_snapshot: {
       shopify_variant_id: variantId || plan.shopify_variant_id || null,
       shopify_product_id: plan.shopify_product_id || null,
-      product_title: plan.product_title || "Suscripción",
+      // Pack mixto: "Pack ×4 · Pan De Molde ×2, Tortilla ×2" (panel, mails, portal, MP).
+      product_title: mixSel ? mixTitle(mixSel.items, mixSel.qty) : (plan.product_title || "Suscripción"),
       // Perfil del negocio al momento de suscribirse (para reportes y soporte).
       business_type: profile.businessType,
       channel: profile.channel,
       item_source: plan.item_source || (plan.shopify_variant_id ? "shopify" : "manual"),
       frequency_days: freqDays,
-      subscription_price_ars: pack ? pack.subPrice : unitPrice,
+      subscription_price_ars: pack ? (mixSel ? mixSel.subTotal : pack.subPrice) : unitPrice,
       units_per_shipment: finalQty,
       ...packSnapshot,
       // Desglose snapshot — se usa para mostrar al cliente y para crear la orden
@@ -835,6 +858,8 @@ export default async function handler(req, res) {
     },
     // Extras sumados en el checkout: van a cada orden (sync.js) con su precio.
     ...(extraItems.length ? { extra_items: extraItems } : {}),
+    // "Armá tu pack": un renglón por producto elegido; sync.js los manda a cada orden.
+    ...(mixSel ? { pack_items: mixSel.items } : {}),
     // Regalos del pack vinculados a un producto de la tienda: van a la orden a $0
     // (sync.js); "once" = solo en la primera orden.
     ...(giftItems.length ? { gift_items: giftItems } : {}),

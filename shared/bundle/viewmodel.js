@@ -110,6 +110,62 @@ export function planHasPacks(plan) {
   return Array.isArray(plan.packs) && plan.packs.length > 0;
 }
 
+// ─── "Armá tu pack" (7-oct-2026, G4U) ───────────────────────────────────
+// Misma fórmula que api/_lib/packs.js (mixCatalog / resolveMixSelection /
+// mixTitle) — mantener en sincronía. Corre en el navegador: el checkout muestra
+// con esto y el server vuelve a validar en checkout/init.
+export function mixCatalog(plan) {
+  var m = plan && plan.mix;
+  if (!m || m.enabled !== true || !Array.isArray(m.items) || !m.items.length) return [];
+  var packs = Array.isArray(plan.packs) ? plan.packs : [];
+  var unit = null;
+  for (var i = 0; i < packs.length; i++) if (packs[i] && Number(packs[i].qty) === 1) { unit = packs[i]; break; }
+  var basePrice = Math.round(Number(plan.base_price_ars) || 0) || (unit ? Math.round(Number(unit.price_ars) || 0) : 0);
+  var main = plan.shopify_variant_id ? String(plan.shopify_variant_id) : null;
+  var out = [];
+  if (main && basePrice > 0) out.push({ shopify_product_id: plan.shopify_product_id ? String(plan.shopify_product_id) : null, shopify_variant_id: main, title: String(plan.product_title || "Producto").slice(0, 120), image: typeof plan.product_image === "string" && /^https:\/\//i.test(plan.product_image) ? plan.product_image : null, price_ars: basePrice, main: true });
+  for (var j = 0; j < m.items.length; j++) {
+    var it = m.items[j]; if (!it) continue;
+    var vid = String(it.shopify_variant_id);
+    var dup = false; for (var k = 0; k < out.length; k++) if (out[k].shopify_variant_id === vid) dup = true;
+    if (!dup) out.push({ shopify_product_id: it.shopify_product_id || null, shopify_variant_id: vid, title: String(it.title || "").slice(0, 120), image: typeof it.image === "string" && /^https:\/\//i.test(it.image) ? it.image : null, price_ars: Math.round(Number(it.price_ars) || 0), main: it.main === true });
+  }
+  return out;
+}
+// rawItems: [{ variant_id, qty }] (de la URL ?items=vid:qty,vid:qty). pack = resolvePack() de este módulo.
+export function resolveMixSelection(plan, pack, rawItems) {
+  var cat = mixCatalog(plan);
+  if (!cat.length) return { error: "Este plan no mezcla productos" };
+  if (!Array.isArray(rawItems) || !rawItems.length) return { error: "Elegí los productos de tu pack" };
+  var need = Math.max(1, Number(pack && (pack.subQty || pack.qty)) || 1);
+  var items = [];
+  for (var i = 0; i < rawItems.length && i < 50; i++) {
+    var r = rawItems[i] || {}; var vid = String(r.variant_id != null ? r.variant_id : r.shopify_variant_id || "").trim(); var q = Math.round(Number(r.qty) || 1);
+    if (!/^\d{1,20}$/.test(vid) || q < 1 || q > 50) return { error: "Hay un producto inválido en el pack" };
+    var it = null; for (var k = 0; k < cat.length; k++) if (cat[k].shopify_variant_id === vid) it = cat[k];
+    if (!it) return { error: "Uno de los productos no está disponible para este pack" };
+    var row = null; for (var n = 0; n < items.length; n++) if (items[n].shopify_variant_id === vid) row = items[n];
+    if (row) row.qty += q; else items.push({ shopify_variant_id: vid, shopify_product_id: it.shopify_product_id || null, title: it.title, image: it.image || null, qty: q, price_ars: it.price_ars });
+  }
+  var qty = 0, listTotal = 0;
+  for (var x = 0; x < items.length; x++) { qty += items[x].qty; listTotal += items[x].price_ars * items[x].qty; }
+  if (qty !== need) return { error: "El pack es de " + need + " unidad" + (need === 1 ? "" : "es") + " y elegiste " + qty };
+  var disc = Math.max(0, Math.min(90, Number(plan.discount_pct) || 0));
+  var subTotal = Math.round(listTotal * (1 - disc / 100));
+  return { items: items, qty: qty, listTotal: listTotal, subTotal: subTotal, savingsPct: listTotal > 0 ? Math.round((1 - subTotal / listTotal) * 100) : 0 };
+}
+export function mixTitle(items, qty) {
+  var parts = (items || []).map(function (i) { return i.title + " ×" + i.qty; });
+  return ("Pack ×" + qty + " · " + parts.join(", ")).slice(0, 120);
+}
+export function parseMixItemsParam(s) {
+  return String(s || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean).map(function (x) { var p = x.split(":"); return { variant_id: p[0], qty: parseInt(p[1], 10) || 1 }; });
+}
+// Frecuencias que puede elegir el comprador en modo packs ([] = la del pack).
+export function planFrequencyOptions(plan) {
+  return Array.isArray(plan && plan.frequency_options) ? plan.frequency_options.filter(function (n) { return Number.isInteger(n) && n >= 1 && n <= 365; }) : [];
+}
+
 // Resuelve UN pack del plan aplicando los defaults del SPEC:
 //   sub_price_ars   null → round(price_ars × (1 − discount_pct/100))
 //   compare_at_ars  null → base_price_ars × qty  (o price del pack de qty 1 × qty)
@@ -325,6 +381,9 @@ export function buildBundleVM({ plan, merchant } = {}) {
     packs,
     defaultIdx,
     currency: "ARS",
+    // "Armá tu pack" y frecuencias a elegir (7-oct-2026, G4U). [] = como siempre.
+    mix: mixCatalog(plan),
+    freqOptions: planFrequencyOptions(plan),
   };
 }
 

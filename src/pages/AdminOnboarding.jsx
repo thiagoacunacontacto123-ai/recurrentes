@@ -15,6 +15,7 @@ import { pedidoDeAccesos, mensajePaso, SETUP_STEP_LINK } from "../../shared/plat
 import { CopyRow } from "./ShopifyConnect.jsx";
 import { MONO } from "./_shared.jsx";
 import { themeSnippet, pageCheckoutLiquid } from "../../shared/platform/storeCheckout.js";
+import { RECETAS, RECETA_VACIA, recetaPorId, normalizeReceta, resumenReceta } from "../../shared/platform/recetas.js";
 
 const F = "'Inter',system-ui,sans-serif";
 const BASE = "https://www.recurrentesapp.com";
@@ -207,6 +208,130 @@ export default function AdminOnboarding({ rows = [], initialId = "", onOpenMerch
         </Panel>
       )}
 
+      {m && <Configurador T={T} m={m} onDone={load}/>}
+
     </div>
+  );
+}
+
+// ─── Configurador de la tienda (7-oct-2026, Thiago: "un configurador de G4U en el admin,
+// las variables, los productos, todo lo más automatizado posible") ─────────────────
+// Elegís la receta (o armás una), marcás los productos del catálogo real y aplicás: se
+// crean los planes que falten (apagados), se actualizan los que ya estaban y quedan los
+// ajustes del widget y del checkout. Lo que sigue siendo a mano queda listado abajo.
+function Configurador({ T, m, onDone }) {
+  const iS = InputStyle(T);
+  const label = { fontSize:10, fontWeight:700, color:T.textSm, textTransform:"uppercase", letterSpacing:0.6, margin:"0 0 6px" };
+  const guess = useMemo(() => RECETAS.find(r => (m.shop || "").includes(r.tienda) || (m.name || "").toLowerCase().includes(r.id)) || null, [m]);
+  const [recetaId, setRecetaId] = useState(guess ? guess.id : "");
+  const [r, setR] = useState(() => ({ ...(guess || RECETA_VACIA), packsTxt: (guess || RECETA_VACIA).packs.map(k => k.qty).join(", "), foTxt: (guess || RECETA_VACIA).frequency_options.join(", ") }));
+  const [prods, setProds] = useState(null);
+  const [busy, setBusy] = useState("");
+  const [res, setRes] = useState(null);
+  const [err, setErr] = useState("");
+  useEffect(() => { setRes(null); setErr(""); setProds(null); }, [m.id]);
+  function elegirReceta(id) {
+    setRecetaId(id);
+    const base = recetaPorId(id) || RECETA_VACIA;
+    setR({ ...base, packsTxt: base.packs.map(k => k.qty).join(", "), foTxt: base.frequency_options.join(", ") });
+  }
+  const recetaActual = () => {
+    const qtys = String(r.packsTxt || "").split(/[,\s]+/).map(x => parseInt(x, 10)).filter(n => n >= 1);
+    const packs = qtys.map((q, i) => ({ qty: q, badge: i === qtys.length - 1 && qtys.length > 1 ? (r.badge_ultimo ?? "Más elegido") : "", default: i === qtys.length - 1 }));
+    return { ...r, packs, frequency_options: r.foTxt };
+  };
+  async function cargarProductos() {
+    setBusy("prods"); setErr("");
+    const d = await apiPost("stats", { merchant_id: m.id }, { action: "admin-store-products" });
+    setBusy("");
+    if (!d || d.error) return setErr(d?.error || "No pude leer el catálogo.");
+    setProds(d.products || []);
+    // Sin receta: arrancan marcados los productos con precio (menos los packs/combos por nombre).
+    if (!r.productos.length) setR(x => ({ ...x, productos: (d.products || []).filter(p => !/pack|combo/i.test(p.title || "") && Number(p.variants?.[0]?.price) > 0).map(p => p.handle) }));
+  }
+  function toggleProd(handle) { setR(x => ({ ...x, productos: x.productos.includes(handle) ? x.productos.filter(h => h !== handle) : [...x.productos, handle] })); }
+  async function aplicar() {
+    const nr = normalizeReceta(recetaActual());
+    if (nr.error) return toast(nr.error, "error");
+    setBusy("apply"); setErr(""); setRes(null);
+    const d = await apiPost("stats", { merchant_id: m.id, receta: nr.receta }, { action: "admin-apply-recipe" });
+    setBusy("");
+    if (!d || d.error) return setErr(d?.error || "No se pudo aplicar.");
+    setRes(d); onDone?.();
+    toast(`${d.creados.length} plan${d.creados.length === 1 ? "" : "es"} creado${d.creados.length === 1 ? "" : "s"} · ${d.actualizados.length} actualizado${d.actualizados.length === 1 ? "" : "s"}`, d.errores.length ? "warning" : "success", 8000);
+  }
+  const resumen = (() => { const nr = normalizeReceta(recetaActual()); return nr.error ? [nr.error] : resumenReceta(nr.receta, prods || []); })();
+  // Lo que devuelve admin-merchant: fechas de conexión (los tokens nunca viajan al panel).
+  const listo = !!(m.shopify_connected_at || m.shop) && !!m.mp_connected_at;
+  return (
+    <Panel T={T} title="Configurador de la tienda" sub="Receta → productos → aplicar. Crea los planes (apagados) y deja el widget y el checkout configurados; lo que sigue a mano queda listado abajo.">
+      <div style={{ padding:"0 16px 16px", display:"grid", gap:14 }}>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:10 }}>
+          <div><div style={label}>Receta</div>
+            <select value={recetaId} onChange={e => elegirReceta(e.target.value)} style={iS}>
+              <option value="">A medida</option>
+              {RECETAS.map(x => <option key={x.id} value={x.id}>{x.nombre}</option>)}
+            </select></div>
+          <div><div style={label}>Packs (unidades, separadas por coma)</div><input value={r.packsTxt} onChange={e => setR(x => ({ ...x, packsTxt: e.target.value }))} style={iS} placeholder="1, 4, 8"/></div>
+          <div><div style={label}>Descuento en cada envío (%)</div><input type="number" min="0" max="80" value={r.discount_pct} onChange={e => setR(x => ({ ...x, discount_pct: e.target.value }))} style={iS}/></div>
+          <div><div style={label}>Frecuencia base (días)</div><input type="number" min="1" max="365" value={r.frequency_days} onChange={e => setR(x => ({ ...x, frequency_days: e.target.value }))} style={iS}/></div>
+          <div><div style={label}>Frecuencias que elige el cliente (días)</div><input value={r.foTxt} onChange={e => setR(x => ({ ...x, foTxt: e.target.value }))} style={iS} placeholder="Vacío = la del pack · ej.: 15, 30, 60"/></div>
+          <div><div style={label}>Color del widget y del checkout</div><input value={r.widget?.color || ""} onChange={e => setR(x => ({ ...x, widget: { ...x.widget, color: e.target.value }, checkout: { ...x.checkout, color: e.target.value } }))} style={iS} placeholder="#500322"/></div>
+          <div><div style={label}>La ficha arranca en</div>
+            <select value={r.widget?.mode_default || "sub"} onChange={e => setR(x => ({ ...x, widget: { ...x.widget, mode_default: e.target.value } }))} style={iS}>
+              <option value="sub">Suscripción</option><option value="once">Compra única (la suscripción se abre con el botón / ?rec_modo=sub)</option>
+            </select></div>
+        </div>
+        <div style={{ display:"flex", gap:16, flexWrap:"wrap", fontSize:DS.font.sm }}>
+          <label style={{ display:"flex", gap:8, alignItems:"center", cursor:"pointer" }}><input type="checkbox" checked={r.mix === true} onChange={e => setR(x => ({ ...x, mix: e.target.checked }))}/> Armá tu pack: mezclar los productos elegidos</label>
+          <label style={{ display:"flex", gap:8, alignItems:"center", cursor:"pointer" }}><input type="checkbox" checked={r.widget?.cart_drawer !== false} onChange={e => setR(x => ({ ...x, widget: { ...x.widget, cart_drawer: e.target.checked } }))}/> Carrito de la suscripción</label>
+          <label style={{ display:"flex", gap:8, alignItems:"center", cursor:"pointer" }}><input type="checkbox" checked={r.upsells !== false} onChange={e => setR(x => ({ ...x, upsells: e.target.checked }))}/> "Sumá a tu suscripción" con los otros planes</label>
+        </div>
+        <div>
+          <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", marginBottom:8 }}>
+            <div style={{ ...label, margin:0 }}>Productos ({r.productos.length} elegidos)</div>
+            <Btn T={T} size="sm" variant="secondary" disabled={busy === "prods"} onClick={cargarProductos}>{busy === "prods" ? "Leyendo…" : prods ? "Volver a leer el catálogo" : "Leer el catálogo de la tienda"}</Btn>
+          </div>
+          {prods ? (
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))", gap:6 }}>
+              {prods.map(p => (
+                <label key={p.id} style={{ display:"flex", gap:8, alignItems:"center", padding:"6px 8px", border:`1px solid ${r.productos.includes(p.handle) ? T.accentSolid + "88" : T.borderL}`, borderRadius:10, background:T.bg, cursor:"pointer", fontSize:DS.font.sm }}>
+                  <input type="checkbox" checked={r.productos.includes(p.handle)} onChange={() => toggleProd(p.handle)}/>
+                  {p.image ? <img src={p.image} alt="" style={{ width:28, height:28, borderRadius:6, objectFit:"cover" }}/> : null}
+                  <span style={{ flex:1, minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }} title={p.title}>{p.title}</span>
+                  <span style={{ color:T.textSm, whiteSpace:"nowrap" }}>{Number(p.variants?.[0]?.price) ? `$${Number(p.variants[0].price).toLocaleString("es-AR")}` : "sin precio"}</span>
+                </label>
+              ))}
+            </div>
+          ) : <div style={{ fontSize:DS.font.sm, color:T.textSm }}>{r.productos.length ? `La receta trae ${r.productos.length} productos (por handle). Leé el catálogo para verlos con precio y marcar o desmarcar.` : "Leé el catálogo para elegir los productos."}</div>}
+        </div>
+        <div style={{ background:T.bg, border:`1px solid ${T.borderL}`, borderRadius:12, padding:"10px 12px", fontSize:DS.font.sm, lineHeight:1.6 }}>
+          <div style={label}>Lo que va a hacer</div>
+          {resumen.map((s, i) => <div key={i}>· {s}</div>)}
+        </div>
+        {!listo && <Callout T={T} tone="warning">Para aplicar hacen falta Shopify y Mercado Pago conectados (los planes se crean en la cuenta de MP de la tienda).</Callout>}
+        {err && <Callout T={T} tone="danger">{err}</Callout>}
+        <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap" }}>
+          <Btn T={T} variant="solid" disabled={busy === "apply" || !listo} onClick={aplicar}>{busy === "apply" ? "Aplicando…" : "Aplicar receta"}</Btn>
+          <span style={{ fontSize:DS.font.xs, color:T.textSm }}>Los planes nacen apagados: se activan desde Planes cuando el widget esté pegado. No toca suscripciones.</span>
+        </div>
+        {res && (
+          <div style={{ background:T.bg, border:`1px solid ${T.green}55`, borderRadius:12, padding:"10px 12px", fontSize:DS.font.sm, lineHeight:1.6 }}>
+            <div style={label}>Resultado</div>
+            {res.creados.map(p => <div key={p.id}>✓ Creado: {p.producto}</div>)}
+            {res.actualizados.map(p => <div key={p.id}>↻ Actualizado: {p.producto}{p.active ? " (activo)" : ""}</div>)}
+            {res.errores.map((e, i) => <div key={i} style={{ color:T.red }}>✕ {e.producto}: {e.error}</div>)}
+            {res.faltan?.length ? <div style={{ color:T.yellow }}>No están en la tienda: {res.faltan.join(", ")}</div> : null}
+            {res.settings?.length ? <div>Ajustes guardados: {res.settings.join(", ")}</div> : null}
+          </div>
+        )}
+        {(recetaPorId(recetaId)?.pendientes || []).length ? (
+          <div style={{ fontSize:DS.font.sm, color:T.textMd, lineHeight:1.6 }}>
+            <div style={label}>Queda a mano</div>
+            {recetaPorId(recetaId).pendientes.map((s, i) => <div key={i}>· {s}</div>)}
+          </div>
+        ) : null}
+      </div>
+    </Panel>
   );
 }

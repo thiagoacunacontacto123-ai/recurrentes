@@ -584,7 +584,11 @@ export async function shCreatePaidOrder(shop, token, params) {
   const subtotalItems = r2(subtotalItemsAll - pricedTotal);
   // Regalos (li.gift): renglón a $0.00, fuera del reparto del cobro y del modo cupón.
   const giftItems = (line_items || []).filter(li => li.gift === true).map(li => ({ variant_id: li.variant_id, quantity: Number(li.quantity) || 1, price: "0.00" }));
-  const items = (line_items || []).filter(li => !(li.extra === true && Number(li.price) > 0) && li.gift !== true).map(li => ({ variant_id: li.variant_id, quantity: Number(li.quantity) || 1 }));
+  const items = (line_items || []).filter(li => !(li.extra === true && Number(li.price) > 0) && li.gift !== true).map(li => ({ variant_id: li.variant_id, quantity: Number(li.quantity) || 1, ...(Number(li.list_price) > 0 ? { list_price: r2(li.list_price) } : {}) }));
+  // Pack mixto (7-oct-2026): varios productos distintos en el mismo cobro. Cada renglón
+  // se lleva la parte proporcional a su precio de lista (si no, el pan de molde y el
+  // grisín saldrían al mismo precio y el comerciante no entendería la orden).
+  const proportional = items.length > 1 && items.every(li => Number(li.list_price) > 0);
   const totalQty = items.reduce((acc, li) => acc + li.quantity, 0) || 1;
 
   // GUARD: si los datos son incoherentes (subtotal <= 0), ABORTAMOS la creación
@@ -597,20 +601,38 @@ export async function shCreatePaidOrder(shop, token, params) {
   // precio de lista (si no, no cierra la cuenta y seguimos con precio neto).
   const listUnit = r2(list_price_per_unit);
   const discAmt = r2(discount_amount);
-  const useDiscountCode = !!(discount_code && discAmt > 0 && listUnit > 0 && r2(listUnit * totalQty) > subtotalItems && !pricedItems.length);
+  const useDiscountCode = !!(discount_code && discAmt > 0 && listUnit > 0 && r2(listUnit * totalQty) > subtotalItems && !pricedItems.length && !proportional);
 
   let adjustedLineItems;
   let discountCodes;
   if (useDiscountCode) {
-    adjustedLineItems = items.map(li => ({ ...li, price: listUnit.toFixed(2) }));
+    adjustedLineItems = items.map(li => ({ variant_id: li.variant_id, quantity: li.quantity, price: listUnit.toFixed(2) }));
     // El descuento cierra EXACTO contra lo cobrado (absorbe centavos).
     const exactDisc = r2(listUnit * totalQty - subtotalItems);
     discountCodes = [{ code: String(discount_code).slice(0, 40), amount: exactDisc.toFixed(2), type: "fixed_amount" }];
+  } else if (proportional) {
+    const W = items.reduce((a, li) => a + li.list_price * li.quantity, 0);
+    let acc = 0;
+    adjustedLineItems = items.map(li => {
+      const unit = Math.floor((subtotalItems * (li.list_price * li.quantity) / W / li.quantity) * 100) / 100;
+      acc = r2(acc + unit * li.quantity);
+      return { variant_id: li.variant_id, quantity: li.quantity, price: unit.toFixed(2) };
+    });
+    // Los centavos que sobran van al primer renglón (una unidad aparte si tiene más de una).
+    const resid = r2(subtotalItems - acc);
+    if (resid !== 0 && adjustedLineItems.length) {
+      const first = adjustedLineItems[0];
+      if (first.quantity === 1) first.price = r2(Number(first.price) + resid).toFixed(2);
+      else adjustedLineItems.splice(0, 1,
+        { variant_id: first.variant_id, quantity: 1, price: r2(Number(first.price) + resid).toFixed(2) },
+        { variant_id: first.variant_id, quantity: first.quantity - 1, price: first.price },
+      );
+    }
   } else {
     // Centavos: unidad truncada a 2 decimales; el residuo va al primer item.
     const unit = Math.floor((subtotalItems / totalQty) * 100) / 100;
     const residue = r2(subtotalItems - unit * totalQty);
-    adjustedLineItems = items.map(li => ({ ...li, price: unit.toFixed(2) }));
+    adjustedLineItems = items.map(li => ({ variant_id: li.variant_id, quantity: li.quantity, price: unit.toFixed(2) }));
     if (residue !== 0 && adjustedLineItems.length) {
       const first = adjustedLineItems[0];
       if (first.quantity === 1) {

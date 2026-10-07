@@ -2,7 +2,7 @@ import React, { useState, useMemo } from "react";
 import { apiPost, apiPatch } from "../lib/api.js";
 import { DS, useT } from "../ui/theme.js";
 import { Card, Btn, Field, InputStyle, Spinner, PageHeader, Callout, Hint, CheckLine, appAlert, toast } from "../ui/components.jsx";
-import PacksEditor, { packsFromPlan, serializePacks, validatePacks, pricingModeOf } from "./PacksEditor.jsx";
+import PacksEditor, { packsFromPlan, serializePacks, validatePacks, pricingModeOf, PackMixEditor } from "./PacksEditor.jsx";
 import { BundlePreview, SAMPLE_PLAN } from "./WidgetDesigner.jsx";
 import { fmtARS, fmtFreq, SurfaceBox, MONO, copyText } from "./_shared.jsx";
 import { merchantProfile, hostedCheckoutUrl } from "../../shared/platform/profile.js";
@@ -156,6 +156,9 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
   const [pricingMode, setPricingMode] = useState(isEdit ? pricingModeOf(plan) : (showPacks ? "packs" : "theme"));
   const [packs, setPacks] = useState(() => packsFromPlan(plan));
   const [freqScales, setFreqScales] = useState(plan ? plan.frequency_scales_with_qty !== false : true);
+  // "Armá tu pack" y frecuencias a elegir (7-oct-2026, G4U). Sin tocarlos, el plan queda como siempre.
+  const [mix, setMix] = useState(() => plan?.mix ? { enabled: plan.mix.enabled === true, items: Array.isArray(plan.mix.items) ? plan.mix.items : [] } : { enabled: false, items: [] });
+  const [freqOptions, setFreqOptions] = useState(() => (Array.isArray(plan?.frequency_options) ? plan.frequency_options : []).join(", "));
   const [saving, setSaving] = useState(false);
   // Entrega digital (solo negocios sin envío): link + mensaje que mandamos por mail al cobrar.
   const showDelivery = deliveryApplies(profile);
@@ -220,6 +223,8 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
       pricing_mode: effectiveMode,
       packs: showPacks ? serializePacks(packs) : [],
       frequency_scales_with_qty: freqScales !== false,
+      mix: showPacks && effectiveMode === "packs" && mix.enabled ? { enabled: true, items: (mix.items || []).map(i => ({ ...i, price_ars: Math.round(Number(i.price_ars) || 0) })) } : null,
+      frequency_options: showPacks && effectiveMode === "packs" ? freqOptions : [],
       frequency_days: freqNum,
       discount_pct: discountNum,
       units_per_shipment: Math.max(1, parseInt(units, 10) || 1),
@@ -419,6 +424,10 @@ export default function PlanEditor({ plan, products = [], merchant, onBack, onSa
               basePrice={basePrice} discountPct={discount} frequencyDays={frequency}
               freqScales={freqScales} onFreqScalesChange={setFreqScales}
             />
+          )}
+          {showPacks && pricingMode === "packs" && (
+            <PackMixEditor mix={mix} onMixChange={setMix} freqOptions={freqOptions} onFreqOptionsChange={setFreqOptions}
+              products={products} planProductId={product?.id || plan?.shopify_product_id || null} discountPct={discount}/>
           )}
 
           {/* ─── Envío (solo negocios con envío) ─────────────────────── */}

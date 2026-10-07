@@ -19,16 +19,23 @@ import { mpUpdatePreapproval } from "./mp.js";
 async function disponible(merchant, sub) {
   const snap = sub?.plan_snapshot || {};
   try {
-    if (merchant.shopify_shop && merchant.shopify_token && snap.shopify_variant_id) {
-      const r = await fetch(`https://${merchant.shopify_shop}/admin/api/2024-10/variants/${encodeURIComponent(snap.shopify_variant_id)}.json?fields=id,inventory_quantity,inventory_management`, {
-        headers: { "X-Shopify-Access-Token": merchant.shopify_token },
-      });
-      if (!r.ok) return null;
-      const v = (await r.json())?.variant || {};
-      // Sin seguimiento de inventario en Shopify = stock infinito.
-      if (!v.inventory_management) return null;
-      const n = Number(v.inventory_quantity);
-      return Number.isFinite(n) ? n : null;
+    const packVids = Array.isArray(sub?.pack_items) ? [...new Set(sub.pack_items.map(x => String(x?.shopify_variant_id || "")).filter(Boolean))] : [];
+    if (merchant.shopify_shop && merchant.shopify_token && (snap.shopify_variant_id || packVids.length)) {
+      // "Armá tu pack" (7-oct-2026): se mira cada producto del pack y manda el que menos tiene.
+      const vids = packVids.length ? packVids : [String(snap.shopify_variant_id)];
+      let min = null;
+      for (const vid of vids) {
+        const r = await fetch(`https://${merchant.shopify_shop}/admin/api/2024-10/variants/${encodeURIComponent(vid)}.json?fields=id,inventory_quantity,inventory_management`, {
+          headers: { "X-Shopify-Access-Token": merchant.shopify_token },
+        });
+        if (!r.ok) return null;
+        const v = (await r.json())?.variant || {};
+        // Sin seguimiento de inventario en Shopify = stock infinito (ese no cuenta).
+        if (!v.inventory_management) continue;
+        const n = Number(v.inventory_quantity);
+        if (Number.isFinite(n)) min = min == null ? n : Math.min(min, n);
+      }
+      return min;
     }
     if (merchant.tiendanube_store_id && merchant.tiendanube_token) {
       const variantId = snap.tiendanube_variant_id || snap.shopify_variant_id;

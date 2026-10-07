@@ -145,10 +145,15 @@ export async function createShopifyOrderForSub(merchant, subscriberId, sub, { pa
         tax_id_kind: sub.customer_tax_id_kind || "DNI",
       });
       const itemQty = sub.quantity || sub.plan_snapshot?.units_per_shipment || 1;
+      // "Armá tu pack" (7-oct-2026): un renglón por producto elegido, con su precio de
+      // lista para que shopify.js reparta el cobro en proporción. Sin pack_items, el de siempre.
+      const mainLines = Array.isArray(sub.pack_items) && sub.pack_items.length
+        ? sub.pack_items.filter(x => x.shopify_variant_id).map(x => ({ variant_id: x.shopify_variant_id, quantity: Math.max(1, Number(x.qty) || 1), list_price: Number(x.price_ars) || 0 }))
+        : [{ variant_id: sub.plan_snapshot.shopify_variant_id, quantity: itemQty }];
       const order = await shCreatePaidOrder(merchant.shopify_shop, merchant.shopify_token, {
         customer_id: customer.id,
         line_items: [
-          { variant_id: sub.plan_snapshot.shopify_variant_id, quantity: itemQty },
+          ...mainLines,
           // Extras ("Sumá a tu suscripción"): con precio propio; shopify.js reparte el resto al ítem principal.
           ...(Array.isArray(sub.extra_items) ? sub.extra_items.filter(x => x.shopify_variant_id).map(x => ({ variant_id: x.shopify_variant_id, quantity: Math.max(1, Number(x.qty) || 1), price: Number(x.price_ars) || 0, extra: true })) : []),
           // Regalos del pack que son productos de la tienda: renglón a $0. "once" = solo en la primera orden.

@@ -291,5 +291,153 @@ export function withPackDefaults(plan) {
     packs,
     pricing_mode: planPricingMode(plan),
     frequency_scales_with_qty: plan?.frequency_scales_with_qty !== false,
+    mix: plan?.mix || null,
+    frequency_options: planFrequencyOptions(plan),
   };
+}
+
+// ─── "Armá tu pack" (7-oct-2026, G4U) ───────────────────────────────────────
+// El pack se llena con productos DISTINTOS de la tienda, como la app de bundles
+// de G4U: 4 unidades = 2 panes de molde + 1 tortilla + 1 pan árabe. El plan
+// sigue siendo de UN producto (el de la ficha); `mix.items` son los otros que
+// pueden ir en los casilleros, con su precio de lista. Cuando se mezcla, el
+// precio del pack es Σ(precio × cantidad) con el descuento del plan: los
+// precios fijos de cada pack (price_ars / sub_price_ars) no aplican.
+//   plan.mix = { enabled: bool, items: [{ shopify_product_id, shopify_variant_id, title, image, price_ars }] }
+export const MAX_MIX_ITEMS = 12;
+
+export function normalizeMix(input) {
+  if (input == null || input === false) return { mix: null };
+  if (typeof input !== "object" || Array.isArray(input)) return { error: "mix debe ser un objeto" };
+  const enabled = input.enabled === true;
+  const raw = Array.isArray(input.items) ? input.items : [];
+  if (raw.length > MAX_MIX_ITEMS) return { error: `Máximo ${MAX_MIX_ITEMS} productos para mezclar` };
+  const seen = new Set(); const items = [];
+  for (let n = 0; n < raw.length; n++) {
+    const it = raw[n]; const at = `producto #${n + 1} del pack mixto`;
+    if (!it || typeof it !== "object") return { error: `${at}: inválido` };
+    const vid = String(it.shopify_variant_id ?? "").trim();
+    if (!/^\d{1,20}$/.test(vid)) return { error: `${at}: falta la variante` };
+    if (seen.has(vid)) continue;
+    seen.add(vid);
+    const pidRaw = String(it.shopify_product_id ?? "").trim();
+    const pid = /^\d{1,20}$/.test(pidRaw) ? pidRaw : null;
+    const title = String(it.title ?? "").replace(/\s+/g, " ").trim().slice(0, 120);
+    if (!title) return { error: `${at}: falta el nombre` };
+    const price = toInt(it.price_ars);
+    if (price == null || price < 1) return { error: `${at}: el precio tiene que ser un entero ≥ 1` };
+    let image = null;
+    if (it.image != null && String(it.image).trim()) {
+      const r = cleanImage(it.image, at, "la foto");
+      if (r.error) return { error: r.error };
+      image = r.value;
+    }
+    items.push({ shopify_product_id: pid, shopify_variant_id: vid, title, image, price_ars: price });
+  }
+  if (enabled && !items.length) return { error: "Para mezclar productos elegí al menos uno" };
+  return { mix: { enabled, items } };
+}
+
+// El mix del plan si está prendido y tiene productos; si no, null.
+export function planMix(plan) {
+  const m = plan?.mix;
+  return m && m.enabled === true && Array.isArray(m.items) && m.items.length ? m : null;
+}
+
+// El catálogo del pack: el producto de la ficha PRIMERO, a su precio de lista, y
+// después los demás. Es lo que el widget ofrece en "Cambiar" y lo que el server
+// acepta en el checkout.
+export function mixCatalog(plan) {
+  const m = planMix(plan);
+  if (!m) return [];
+  const main = plan.shopify_variant_id ? String(plan.shopify_variant_id) : null;
+  const unit = planPacks(plan).find(p => toInt(p?.qty) === 1);
+  const basePrice = Math.round(Number(plan.base_price_ars) || 0) || (unit ? Math.round(Number(unit.price_ars) || 0) : 0);
+  const out = [];
+  if (main && basePrice > 0) {
+    out.push({
+      shopify_product_id: plan.shopify_product_id ? String(plan.shopify_product_id) : null,
+      shopify_variant_id: main,
+      title: String(plan.product_title || "Producto").slice(0, 120),
+      image: typeof plan.product_image === "string" && /^https:\/\//i.test(plan.product_image) ? plan.product_image : null,
+      price_ars: basePrice, main: true,
+    });
+  }
+  for (const it of m.items) {
+    const vid = String(it.shopify_variant_id);
+    if (!out.some(o => o.shopify_variant_id === vid)) out.push({ ...it, shopify_variant_id: vid, main: false });
+  }
+  return out;
+}
+
+// Lo que eligió el comprador ([{ variant_id, qty }]) → ítems con el precio del
+// SERVER, total de lista y de suscripción. La suma de cantidades tiene que ser
+// exactamente la del pack (en suscripción, sub_qty).
+export function resolveMixSelection(plan, pack, rawItems) {
+  const cat = mixCatalog(plan);
+  if (!cat.length) return { error: "Este plan no mezcla productos" };
+  if (!Array.isArray(rawItems) || !rawItems.length) return { error: "Elegí los productos de tu pack" };
+  const need = Math.max(1, Number(pack?.subQty) || Number(pack?.qty) || 1);
+  const byVid = new Map();
+  for (const r of rawItems.slice(0, 50)) {
+    const vid = String(r?.variant_id ?? r?.shopify_variant_id ?? "").trim();
+    const q = toInt(typeof r?.qty === "string" ? Number(r.qty) : r?.qty) ?? 1;
+    if (!/^\d{1,20}$/.test(vid) || q < 1 || q > 50) return { error: "Hay un producto inválido en el pack" };
+    if (!cat.some(c => c.shopify_variant_id === vid)) return { error: "Uno de los productos no está disponible para este pack" };
+    byVid.set(vid, (byVid.get(vid) || 0) + q);
+  }
+  const items = [...byVid.entries()].map(([vid, q]) => {
+    const it = cat.find(c => c.shopify_variant_id === vid);
+    return { shopify_variant_id: vid, shopify_product_id: it.shopify_product_id || null, title: it.title, image: it.image || null, qty: q, price_ars: it.price_ars };
+  });
+  const qty = items.reduce((a, i) => a + i.qty, 0);
+  if (qty !== need) return { error: `El pack es de ${need} unidad${need === 1 ? "" : "es"} y elegiste ${qty}` };
+  const listTotal = items.reduce((a, i) => a + i.price_ars * i.qty, 0);
+  const disc = Math.max(0, Math.min(90, Number(plan?.discount_pct) || 0));
+  const subTotal = Math.round(listTotal * (1 - disc / 100));
+  return { items, qty, listTotal, subTotal, savingsPct: listTotal > 0 ? Math.round((1 - subTotal / listTotal) * 100) : 0 };
+}
+
+// "Pack ×4 · Pan De Molde ×2, Tortilla ×1, Pan Arabe ×1": el título de la
+// suscripción, para el panel, los mails y el portal.
+export function mixTitle(items, qty) {
+  const parts = (items || []).map(i => `${i.title} ×${i.qty}`);
+  return `Pack ×${qty} · ${parts.join(", ")}`.slice(0, 120);
+}
+
+// Las ítems del pack como van a la URL del checkout y al recover_path: "vid:qty,vid:qty".
+export function mixItemsParam(items) {
+  return (items || []).map(i => `${i.shopify_variant_id}:${i.qty}`).join(",");
+}
+export function parseMixItemsParam(s) {
+  return String(s || "").split(",").map(x => x.trim()).filter(Boolean).map(x => { const [v, q] = x.split(":"); return { variant_id: v, qty: parseInt(q, 10) || 1 }; });
+}
+
+// ─── Frecuencias a elegir (7-oct-2026, G4U: "cada 15 días / cada mes / cada 2 meses") ──
+// En modo packs la frecuencia la fijaba el pack. Con `frequency_options` el
+// comprador elige entre esas (el widget muestra las fichas, el checkout valida).
+// Sin el campo, todo sigue como siempre.
+export const MAX_FREQ_OPTIONS = 6;
+export function normalizeFrequencyOptions(input) {
+  if (input == null || input === "") return { options: [] };
+  const arr = Array.isArray(input) ? input : String(input).split(/[,\s]+/);
+  const out = [];
+  for (const v of arr) {
+    if (v === "" || v == null) continue;
+    const n = toInt(typeof v === "string" ? Number(v) : v);
+    if (n == null || n < 1 || n > 365) return { error: "Las frecuencias tienen que ser días entre 1 y 365" };
+    if (!out.includes(n)) out.push(n);
+  }
+  if (out.length > MAX_FREQ_OPTIONS) return { error: `Máximo ${MAX_FREQ_OPTIONS} frecuencias` };
+  return { options: out.sort((a, b) => a - b) };
+}
+export function planFrequencyOptions(plan) {
+  return Array.isArray(plan?.frequency_options) ? plan.frequency_options.filter(n => Number.isInteger(n) && n >= 1 && n <= 365) : [];
+}
+// La frecuencia que se cobra: la pedida si el plan la ofrece; si no, la del pack.
+export function pickFrequency(plan, pack, requested) {
+  const opts = planFrequencyOptions(plan);
+  const f = toInt(typeof requested === "string" ? Number(requested) : requested);
+  if (opts.length && f != null && opts.includes(f)) return f;
+  return pack ? pack.freq : null;
 }
