@@ -1,6 +1,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>G4U Suscripción</title>
+<title>Suscripción G4U · Productos</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap">
 <style>
 :root{--wine:#500322;--wine-d:#3b0218;--cream:#f0ebe2;--cream-2:#f7f3ec;--brown:#453326;--rose:#e9b7c4;--rose-2:#f3d9e0;--ink:#1d1416;--muted:#7a6a6e;--ok:#1f7a3e;--r:12px}
@@ -379,100 +379,83 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
   .g3{grid-template-columns:1fr 1fr}.g3>:last-child{grid-column:1/-1}
 }
 @media(max-width:420px){.g2{grid-template-columns:1fr}}
+.demo-toast{position:fixed;left:50%;bottom:64px;z-index:95;transform:translate(-50%,20px);opacity:0;pointer-events:none;transition:.25s;background:linear-gradient(135deg,#10b981,#059669);color:#04140d;font-size:12.5px;font-weight:700;line-height:1.35;text-align:center;padding:10px 16px;border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.18);width:max-content;max-width:calc(100vw - 32px)}
+.demo-toast.on{opacity:1;transform:translate(-50%,0)}
+.badge-cart,.hdr .burger,.hdr .ic > svg{cursor:pointer}
+.badge-cart b[hidden]{display:none}
+</style>
+<style>
+/* ═══ El catálogo de G4U en versión suscripción: como /collections/all de su tienda (7-oct-2026) ═══
+   Mismas tarjetas (foto cuadrada, nombre completo, precio en bordó, botón marrón ancho), con el
+   precio de suscripción (−15%) y el de lista tachado; cada tarjeta lleva a ese producto en
+   versión suscripción. 1 columna en celular y 5 en computadora, igual que su grilla. */
+.col{padding:30px 28px 48px}
+.col-k{text-align:center;font-size:12.5px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-weight:600}
+.col h1{text-align:center;font-size:25px;font-weight:700;letter-spacing:.6px;margin:4px 0 24px;color:#000}
+.col h1 em{font-style:normal;color:var(--wine)}
+.col-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:0 0 22px;font-size:15.4px;color:var(--brown);letter-spacing:.04em}
+.col-bar button{display:inline-flex;align-items:center;gap:10px;background:none;border:0;font:inherit;font-size:17.6px;color:#2f3d1f;cursor:pointer;padding:0;letter-spacing:.06em}
+.col-bar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round}
+.pgrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.pcard{display:flex;flex-direction:column;text-decoration:none;color:inherit;background:var(--cream);border-radius:4.4px}
+.pcard .im{position:relative;aspect-ratio:1;overflow:hidden;border-radius:4.4px 4.4px 0 0;background:#fff}
+.pcard img{width:100%;height:100%;object-fit:cover;display:block}
+.pcard .tag{position:absolute;left:10px;bottom:10px;background:var(--wine);color:#fff;font-size:11.5px;font-weight:700;letter-spacing:.06em;padding:5px 10px;border-radius:44px}
+.pcard .ct{padding:11px 0 0;display:flex;flex-direction:column;flex:1}
+.pcard h3{margin:0;font-size:12.5px;font-weight:700;letter-spacing:.6px;color:var(--brown);line-height:1.35}
+.pcard .pr{margin-top:8px;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px}
+.pcard .pr b{font-size:17.6px;font-weight:700;color:var(--wine);letter-spacing:1.1px}
+.pcard .pr s{font-size:13px;color:#8a6c72;font-weight:400}
+.pcard .pr small{flex-basis:100%;font-size:12px;color:var(--ok);font-weight:600}
+.pcard .bt{margin:14px auto 18px;width:85%;min-height:56px;border-radius:16px;background:var(--brown);color:#f3f3f3;font-size:17px;font-weight:700;letter-spacing:1px;display:grid;place-items:center;text-align:center;padding:0 8px}
+.pcard:hover .bt{background:#2f2219}
+.badge-cart b[hidden]{display:none}
+@media(max-width:989px){.col{padding:24px 20px 40px}.pgrid{grid-template-columns:1fr;gap:30px}.pcard h3{font-size:14px}.pcard .bt{min-height:66px;font-size:17.6px}}
+@media(min-width:990px){.col h1{font-size:40px;margin-bottom:30px}}
 </style>
 
-<div id="ld"><svg width="56" height="56" viewBox="0 0 32 32"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8a2d4d"/><stop offset="1" stop-color="#3b0218"/></linearGradient></defs><circle cx="16" cy="16" r="16" fill="url(#lg)"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><div>Abriendo el checkout seguro…</div></div>
+<div class="demo-toast" id="demoToast" role="status"></div>
 <div class="demo-tag"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#04140d" opacity=".18"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#04140d" stroke-width="2.8" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#04140d" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>demo.recurrentes para</span><img id="logoTag" alt="G4U"></div>
 
-<!-- ════════ VISTA PRODUCTO ════════ -->
 <div id="v-prod">
   <div class="mq" aria-hidden="true"><div id="mq"></div></div>
   <header class="hdr"><div class="wrap">
     <svg class="burger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
     <img id="logo" alt="G4U">
-    <nav><a href="#">Inicio</a><a href="#">Productos</a><a href="#" class="on">Suscripción</a><a href="#">Nuestra Harina</a><a href="#">Embajadores</a><a href="#">Contacto</a></nav>
+    <nav><a href="#">Inicio</a><a href="#">Productos</a><a href="g4u.html" class="on">Suscripción</a><a href="#">Nuestra Harina</a><a href="#">Embajadores</a><a href="#">Contacto</a></nav>
     <span class="sp"></span>
     <div class="ic">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg>
-      <span class="badge-cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h2l2.4 11.2a2 2 0 002 1.6h8.6a2 2 0 002-1.6L21 8H6"/><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/></svg><b>1</b></span>
+      <span class="badge-cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h2l2.4 11.2a2 2 0 002 1.6h8.6a2 2 0 002-1.6L21 8H6"/><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/></svg><b hidden>0</b></span>
     </div>
   </div></header>
 
   <section class="intro"><div class="wrap">
     <span class="eyebrow">✦ Nuevo · Suscripción G4U</span>
     <h1>Tu pan proteico, todos los meses. Sin volver a pedir.</h1>
-    <p class="lead">Armá tu pack una vez, elegí cada cuánto lo querés y G4U te lo manda solo. Con descuento en cada envío, y lo pausás o cancelás cuando quieras desde tu panel de suscripción.</p>
+    <p class="lead">Elegí tu producto, armá tu pack una vez y decidí cada cuánto lo querés: G4U te lo manda solo. Con descuento en cada envío, y lo pausás o cancelás cuando quieras desde tu panel de suscripción.</p>
     <div class="benef">
       <div><b>15% OFF</b><span>en cada envío, siempre. No solo en el primero.</span></div>
       <div><b>Vos elegís</b><span>cada 15 días, cada mes o cada 2 meses. Lo cambiás cuando quieras.</span></div>
       <div><b>Sin ataduras</b><span>pausá o cancelá desde tu portal. Un clic.</span></div>
     </div>
-    <div class="steps"><span><i>1</i> Armá tu pack</span><span><i>2</i> Elegí la frecuencia</span><span><i>3</i> Pagás con Mercado Pago y listo: llega solo</span></div>
+    <div class="steps"><span><i>1</i> Elegí tu producto</span><span><i>2</i> Armá tu pack y la frecuencia</span><span><i>3</i> Pagás con Mercado Pago y listo: llega solo</span></div>
   </div></section>
 
-  <main class="wrap prod">
-    <div class="gal">
-      <img class="main" id="galMain" alt="">
-      <div class="thumbs" id="thumbs"></div>
+  <main class="wrap col">
+    <div class="col-k">Colección:</div>
+    <h1>Productos <em>· Suscripción</em></h1>
+    <div class="col-bar">
+      <button type="button" id="filtBtn"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg> Filtrar y ordenar</button>
+      <span id="cnt"></span>
     </div>
-    <div>
-      <div class="stars"><span id="starRow"></span> 4.8/5 (1890+ clientes contentos)</div>
-      <h2 class="ttl">PAN DE MOLDE | Proteico ; Low-Carb ; sin azúcar ; Apto Keto <span class="ttl-sub">· Suscripción</span></h2>
-      <p class="sub">Versión suscripción · el mismo pan, con 15% OFF y entrega automática</p>
-      <ul class="bul">
-        <li>🍞 <b>Ideal si seguís planes</b> keto, low-carb o de control glucémico.</li>
-        <li>🍞 <b>Controlá el apetito</b> y evitá picos de hambre gracias al alto contenido de proteína y fibra funcional.</li>
-        <li>🍞 <b>Textura y sabor de un panificado artesanal</b>, pero con beneficios reales.</li>
-        <li>🍞 <b>Envíos GRATIS</b> a partir de 85 mil pesos.</li>
-        <li>❄️ 25 días frescos / 45 días refrigerados / 3 meses congelados</li>
-      </ul>
-
-      <div class="sep">¡Ahorrá suscribiéndote y llevando más!</div>
-      <div class="packs" id="packs"></div>
-
-
-      <div class="sep" style="margin-top:22px">¿Cada cuánto lo querés?</div>
-      <div class="freq" id="freq"></div>
-
-      <button class="cta" id="goCk" disabled>Suscribirme<small id="ctaSub">Elegí los productos de tu pack</small></button>
-      <div class="trust"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> Pago seguro con Mercado Pago · Pausás o cancelás cuando quieras</div>
-
-  <div class="strip">
-    <div><svg viewBox="0 0 24 24"><path d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19"/></svg>Se pueden congelar</div>
-    <div><svg viewBox="0 0 24 24"><path d="M3 12h13l5-5v10l-5-5M3 6v12"/></svg>Entregas BUENOS AIRES · CÓRDOBA · SANTA FE</div>
-    <div><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Entrega directa en 24/48h en AMBA</div>
-  </div>
-      <div class="testi" style="padding:0"><div class="tcar"><div class="tq" id="tq"></div><div class="tmeta"><span id="ta"></span><span class="tst">★★★★★</span></div>
-      <div class="tnav"><button type="button" data-t="-1" aria-label="Anterior">‹</button><span id="tdots"></span><button type="button" data-t="1" aria-label="Siguiente">›</button></div></div>
-    </div>
-      <div class="acc">
-        <details><summary>🍞 ¿Qué son los panificados G4U?</summary><p>G4U es un <b>panificado alto en proteína, bajo en carbohidratos y alto en fibra</b>, creado para quienes quieren cuidarse sin renunciar al sabor de siempre. Elaborado por <b>chefs y técnicos en alimentos</b>, combina <b>proteínas de calidad, fibra funcional y almidón resistente</b> que aportan saciedad, energía estable y bienestar digestivo. Tiene la <b>textura, aroma y sabor del pan artesanal</b>, pero con una formulación inteligente que se adapta a estilos de vida <b>keto, low-carb y saludables</b>.</p></details>
-        <details><summary>🔬 Ingredientes y tecnología G4U</summary><p><b>INGREDIENTES:</b> Almidón resistente de trigo, gluten de trigo, concentrado de suero de leche, huevo en polvo, aceite de girasol, eritritol, levadura, inulina, lecitina de soja, psyllium, harina de malta, goma xántica, goma guar, mejoradores (INS 300, INS 1101).</p><p>Somos <b>G4U</b>, y reinventamos el pan combinando <b>ciencia, nutrición y sabor</b>. Desarrollamos una fórmula única con <b>almidones resistentes tipo RS4</b>, que reducen los carbohidratos netos, mejoran la digestión y aumentan la saciedad. Usamos <b>proteínas funcionales de alta calidad</b>, como aislado proteico y gluten vital, para lograr la estructura, suavidad y elasticidad de un pan artesanal. Sumamos <b>fibras solubles y gomas vegetales</b> que retienen la humedad y conservan la frescura sin conservantes.</p></details>
-        <details><summary>🚚 Envío</summary><p>Entrega en 24/48 h en AMBA. Entregas en Buenos Aires, Córdoba y Santa Fe. En cada envío de tu suscripción te llega el seguimiento por mail y WhatsApp.</p><p><b>Durabilidad:</b> 25 días frescos / 45 días refrigerados / 3 meses congelados.</p></details>
-        <details><summary>⏸ ¿Cómo pauso o cancelo?</summary><p>Desde tu portal de suscripción (el link te llega por mail y WhatsApp con cada cobro): pausar, cambiar la dirección o cancelar. Sin llamadas ni formularios. <a href="#portal" style="color:var(--wine);font-weight:600">Ver cómo es el portal →</a></p></details>
-      </div>
-    </div>
+    <div class="pgrid" id="grid"></div>
   </main>
-<section class="wrap rvsec"><div class="rev">★★★★★ <b>121 reseñas</b></div><div class="testi" style="padding:10px 0 0"><div class="rv" id="rv">
-      <div class="rv-head"><div><h3>RESEÑAS</h3><span>121 OPINIONES</span></div><div class="rv-score"><b>4.97</b><i class="rv-stars" style="--r:4.97"></i></div></div>
-      <hr><div class="rv-by">&nbsp;Reviews por Whatsapp by <a href="https://revie.lat/" target="_blank" rel="noopener"><img src="https://revie-wwwstatic.b-cdn.net/image/revie.png" width="85" height="24" alt="Revie"></a></div>
-      <div id="rvList"></div>
-      <div class="rv-pag" id="rvPag"></div>
-    </div>
-  </div></section>
-
-
-
-  <section class="iwt"><div class="wrap">
-    <img id="iwtImg" alt="">
-    <div><h3>El pan de siempre, con beneficios reales.</h3><p>Pan de molde proteico, low-carb y sin azúcar. Con la suscripción te llega recién hecho cada vez que lo necesitás, con 15% de descuento en cada envío y sin volver a hacer el pedido.</p><button class="btn-rose" id="iwtCta">Suscribirme</button></div>
-  </div></section>
-  <section class="wrap ibar"><h3>Alimentación Low-Carb</h3><div class="g" id="ibar"></div></section>
 
   <footer class="foot2"><div class="wrap">
     <div class="g">
       <div><img id="logoFt" alt="G4U" style="height:48px;width:auto;margin-bottom:12px"><div>Pan proteico, low-carb y sin azúcar. El pan de siempre, con beneficios reales.</div></div>
-      <div><h4>Tienda</h4><a href="#">Inicio</a><a href="#">Productos</a><a href="#">Packs</a><a href="#">Suscripción</a></div>
+      <div><h4>Tienda</h4><a href="#">Inicio</a><a href="#">Productos</a><a href="#">Packs</a><a href="g4u.html">Suscripción</a></div>
       <div><h4>Info</h4><a href="#">Nuestra Harina</a><a href="#">Embajadores</a><a href="#">Envíos y entregas</a><a href="#">Preguntas frecuentes</a></div>
       <div><h4>Contacto</h4><a href="#">WhatsApp</a><a href="#">Instagram</a><a href="#">hola@g4u-ar.com</a></div>
     </div>
@@ -480,379 +463,27 @@ h2.ttl{font-size:26px;line-height:1.2;margin:8px 0 6px;font-weight:700;letter-sp
   </div></footer>
 </div>
 
-<!-- ════════ VISTA PORTAL DEL SUSCRIPTOR ════════ -->
-<div id="v-portal" hidden>
-  <header class="hdr"><div class="wrap" style="height:auto;padding:14px 28px"><img id="logoPt" alt="G4U"><span class="sp"></span><span class="pt-lbl" style="font-size:12.5px;color:#f3d9e0">Portal de suscripción</span></div></header>
-  <div class="pt-wrap">
-    <div class="pt-hello"><div><div class="pt-eyebrow">Hola, Ana</div><h1>Tu suscripción G4U</h1></div><span class="pt-status">Activa</span></div>
-    <div class="pt-card">
-      <div class="pt-row3">
-        <div><small>Próximo cobro</small><b id="ptNext"></b></div>
-        <div><small>Cada</small><b id="ptFreq"></b></div>
-        <div><small>Total por cobro</small><b id="ptTotal"></b></div>
-      </div>
-      <div class="pt-sec">Tu pack</div>
-      <div id="ptItems" class="pt-items"></div>
-      <div id="ptExtrasWrap"><div class="pt-sec">Extras que sumaste</div><div id="ptExtras" class="pt-items"></div></div>
-      <div class="pt-sec">Dirección de envío</div>
-      <div class="pt-addr"><span id="ptAddr">Av. Corrientes 1234, CABA (1043)</span><button type="button" class="pt-lnk" id="ptAddrBtn">Cambiar</button></div>
-      <div class="pt-sec">Medio de pago</div>
-      <div class="pt-addr"><span style="display:inline-flex;align-items:center;gap:8px"><img src="https://www.recurrentesapp.com/brand/mercadopago.png" alt="" style="width:22px;height:22px;object-fit:contain"> Mercado Pago · Visa terminada en 4421</span><span style="color:var(--muted);font-size:12px">Se cobra solo</span></div>
-      <div class="pt-actions">
-        <button type="button" class="pt-btn" id="ptPause">⏸ Pausar</button>
-        <button type="button" class="pt-btn danger" id="ptCancel">✕ Cancelar</button>
-      </div>
-    </div>
-    <div class="pt-card">
-      <div class="pt-sec" style="margin-top:0">Historial de cobros</div>
-      <div id="ptHist" class="pt-hist"></div>
-    </div>
-    <div class="pt-foot"><a href="#" id="ptBack">← Volver a la tienda</a><a class="rec" href="https://www.recurrentesapp.com" target="_blank" rel="noopener">Con tecnología de <svg width="16" height="16" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#10b981"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><b>Recurrentes</b></a></div>
-  </div>
-  <div id="ptToast" class="pt-toast" hidden></div>
-</div>
-
-<!-- ════════ MODAL DEL PORTAL ════════ -->
-<div id="mdBg" class="md-bg"><div class="md" role="dialog" aria-modal="true"><div class="md-t" id="mdT"></div><div class="md-b" id="mdB"></div><div class="md-a" id="mdA"></div></div></div>
-
-<!-- ════════ ELEGÍ UN PRODUCTO ════════ -->
-<div id="pkBg"><div id="pk" role="dialog" aria-label="Elegí un producto"><div class="h"><span>Elegí un producto</span><button type="button" id="pkX" aria-label="Cerrar">✕</button></div><div class="list" id="pkList"></div></div></div>
-
-<!-- ════════ CARRITO ════════ -->
-<div id="cartBg"></div>
-<aside id="cart" aria-label="Tu carrito">
-  <div class="ch"><span>Tu carrito</span><button type="button" id="cartX" aria-label="Cerrar">✕</button></div>
-  <div class="cb" id="cartBody"></div>
-  <div class="cf"><div class="tot"><span>Subtotal</span><b id="cartTot"></b></div><div class="sv" id="cartSv"></div><button class="cta" id="cartGo">Finalizar suscripción</button><a href="#" class="lnk" id="cartMore">Seguir viendo</a></div>
-</aside>
-
-<!-- ════════ VISTA CHECKOUT ════════ -->
-<div id="v-ck" class="ck" hidden>
-  <div class="ck-shell">
-    <div class="ck-main"><div>
-      <div style="display:flex;align-items:center;gap:12px;padding:22px 0 6px;min-height:56px"><img id="logoCk" alt="G4U" style="height:44px;width:auto;background:var(--wine);border-radius:10px;padding:6px 10px"></div>
-      <div class="mob-sum"><button type="button" id="msBtn"><span>Mostrar resumen del pedido ▾</span><b id="msTot"></b></button><div id="msBody" hidden style="padding-bottom:18px"></div></div>
-
-      <section class="sec" style="margin-top:22px"><h2>Contacto</h2>
-        <div class="f"><input id="ckEmail" type="email" placeholder=" " autocomplete="email"><label>Correo electrónico</label></div>
-        <label style="display:flex;gap:10px;align-items:flex-start;font-size:14px;cursor:pointer"><input type="checkbox" checked style="width:18px;height:18px;accent-color:var(--wine);margin:1px 0 0"> Quiero recibir novedades de mi pedido por email y WhatsApp</label>
-      </section>
-      <section class="sec"><h2>Entrega</h2>
-        <div class="f"><input id="ckName" placeholder=" " autocomplete="name"><label>Nombre y apellido</label></div>
-        <div class="g2"><div class="f"><input type="tel" placeholder=" "><label>Teléfono</label></div><div class="f"><input inputmode="numeric" placeholder=" "><label>DNI o CUIT (opcional)</label></div></div>
-        <div class="f"><input id="ckAddr" placeholder=" " autocomplete="address-line1"><label>Calle y número</label></div>
-        <div class="f"><input placeholder=" "><label>Piso, depto o referencia (opcional)</label></div>
-        <div class="g3"><div class="f"><input id="ckZip" placeholder=" " inputmode="numeric"><label>C.P.</label></div><div class="f"><input placeholder=" "><label>Localidad</label></div>
-          <div class="f"><select id="ckProv"><option value=""></option><option>Buenos Aires</option><option>Ciudad Autónoma de Buenos Aires</option><option>Córdoba</option><option>Santa Fe</option><option>Mendoza</option><option>Otra provincia</option></select><label>Provincia</label><span style="position:absolute;right:14px;top:20px;width:8px;height:8px;border-right:1.5px solid #6b6b6b;border-bottom:1.5px solid #6b6b6b;transform:rotate(45deg);pointer-events:none"></span></div></div>
-      </section>
-      <section class="sec"><h2>Envío</h2>
-        <div id="shipHint" style="display:flex;align-items:center;gap:10px;font-size:14px;color:#6b6b6b;padding:14px 16px;background:#f5f5f5;border-radius:var(--r)">ⓘ Completá tu dirección para ver las opciones de envío.</div>
-        <div class="opts" id="ship" hidden></div>
-        <div style="font-size:13px;color:#6b6b6b;margin-top:10px">Recibís un mail con los detalles de tu envío al confirmar la compra.</div>
-      </section>
-      <section class="sec"><h2>Pago</h2>
-        <div class="pay-methods">
-          <div class="pay-box sel" id="boxCard">
-            <label class="opt on"><input type="radio" name="pay" checked><img src="https://www.recurrentesapp.com/brand/mercadopago.png" alt="" style="width:30px;height:30px;border-radius:7px;object-fit:contain;flex:none"><span class="n"><b>Tarjeta de crédito o débito</b><small id="payFreq"></small></span></label>
-            <div class="card-body" id="cardBody">
-              <div class="f"><input id="ckHolder" placeholder=" " autocomplete="cc-name"><label>Titular, como figura en la tarjeta</label></div>
-              <div class="card-doc">
-                <div class="f" style="margin-bottom:0"><select id="ckDocType"><option>DNI</option><option>CUIL</option><option>CUIT</option></select><label>Documento</label></div>
-                <div class="f" style="margin-bottom:0"><input id="ckDoc" placeholder=" " inputmode="numeric"><label>Número de documento</label></div>
-              </div>
-              <div class="f" style="margin-top:12px"><input id="ckCard" placeholder=" " inputmode="numeric" autocomplete="cc-number"><label>Número de tarjeta</label></div>
-              <div class="card-g2">
-                <div class="f" style="margin-bottom:0"><input id="ckExp" placeholder=" " inputmode="numeric" autocomplete="cc-exp"><label>Vencimiento (MM/AA)</label></div>
-                <div class="f" style="margin-bottom:0"><input id="ckCvv" placeholder=" " inputmode="numeric" autocomplete="cc-csc"><label>Código de seguridad</label></div>
-              </div>
-            </div>
-          </div>
-          <div class="pay-box" id="boxMp">
-            <label class="opt"><input type="radio" name="pay"><img src="https://www.recurrentesapp.com/brand/mercadopago.png" alt="" style="width:30px;height:30px;border-radius:7px;object-fit:contain;flex:none"><span class="n"><b>Con tu cuenta de Mercado Pago</b><small>Te redirigiremos a la aplicación de Mercado Pago para que pagues desde ahí.</small></span></label>
-          </div>
-        </div>
-        <div class="err" id="ckErr" hidden></div>
-        <button class="pay" id="payBtn"></button>
-        <div class="tr"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg> <span id="trFreq"></span></div>
-      </section>
-      <div class="ck-foot"><a href="#" id="backProd">← Volver a la tienda</a><a class="rec" href="https://www.recurrentesapp.com" target="_blank" rel="noopener">Con tecnología de <svg width="16" height="16" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#10b981"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><b>Recurrentes</b></a></div>
-    </div></div>
-    <aside class="ck-side"><div id="sumSide"></div></aside>
-  </div>
-</div>
-
-<!-- ════════ VISTA GRACIAS ════════ -->
-<div id="v-ok" hidden>
-  <header class="hdr"><div class="wrap"><img id="logoOk" alt="G4U"></div></header>
-  <div class="ok-wrap">
-    <div class="chk"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
-    <h1>¡Listo! Tu suscripción está activa</h1>
-    <p>Desde tu portal pausás, cambiás la dirección o cancelás cuando quieras.</p>
-    <div class="ok-card" id="okCard"></div>
-    <p style="margin-top:22px"><a href="#portal" class="btn-rose" style="display:inline-block">Ir a mi portal de suscripción</a></p>
-  </div>
-</div>
-
 <script>
-const A = {"gallery": ["https://cdn.shopify.com/s/files/1/0988/5404/3729/files/ELPANDESIEMPREBENEFICIOSREALES_f9cf125f-3748-4db6-8228-d8822d2e66b6.png?width=900", "https://cdn.shopify.com/s/files/1/0988/5404/3729/files/Molde_infoN.png?width=900", "https://cdn.shopify.com/s/files/1/0988/5404/3729/files/Imagen4_19c3e795-1edc-412a-b6e6-d23ecaeb1689.png?width=900", "https://cdn.shopify.com/s/files/1/0988/5404/3729/files/Imagen2_440c0c7d-4fac-4107-8164-2678f57e5e95.png?width=900", "https://cdn.shopify.com/s/files/1/0988/5404/3729/files/Imagen5_b82a99b9-53c0-476d-b1dd-29e99f54ca61.png?width=900", "https://cdn.shopify.com/s/files/1/0988/5404/3729/files/Imagen6_b6b68992-577f-464b-af52-5d7d9f8a0bb2.png?width=900"], "items": [{"h": "pan-hamburguesa-proteico", "title": "Pan Hamburguesa", "sub": "Proteico ; Low-Carb ; Sin Azúcar ; Apto Keto (4 unidades)", "price": 8580.0, "img": "https://cdn.shopify.com/s/files/1/0988/5404/3729/files/Hambur.png?width=240"}, {"h": "pan-arabe-proteico-low-carb-sin-azucar-apto-keto-4-unidades", "title": "Pan Arabe", "sub": "Proteico ; Low-Carb ; Sin Azúcar ; Apto Keto (4 unidades)", "price": 9900.0, "img": "https://cdn.shopify.com/s/files/1/0988/5404/3729/files/Arabe1.jpg?width=240"}, {"h": "pan-ciabatta-proteico-low-carb-sin-azucar-apto-keto-4-unidades-copia", "title": "Pan Ciabatta", "sub": "Proteico ; Low-Carb ; Sin Azúcar ; Apto Keto (4 unidades)", "price": 9460.0, "img": "https://cdn.shopify.com/s/files/1/0988/5404/3729/files/Captura_de_pantalla_2026-04-30_a_la_s_23.36.15.png?width=240"}, {"h": "tostaditas-semillas-proteico-low-carb-sin-azucar-apto-keto", "title": "Tostaditas Semillas", "sub": "Proteico ; Low-Carb ; sin azúcar ; Apto Keto", "price": 7645.0, "img": "https://cdn.shopify.com/s/files/1/0988/5404/3729/files/WhatsApp_Image_2026-03-13_at_16.03.20.jpg?width=240"}, {"h": "tostaditas-cebolla-proteico-low-carb-sin-azucar-apto-keto", "title": "Tostaditas Cebolla", "sub": "Proteico ; Low-Carb ; sin azúcar ; Apto Keto", "price": 7645.0, "img": "https://cdn.shopify.com/s/files/1/0988/5404/3729/files/WhatsApp_Image_2026-03-13_at_15.48.11.jpg?width=240"}, {"h": "marineras-semillas-proteico-low-carb-sin-azucar-apto-keto", "title": "Marineras Semillas", "sub": "Proteico ; Low-Carb ; sin azúcar ; Apto Keto", "price": 6215.0, "img": "https://cdn.shopify.com/s/files/1/0988/5404/3729/files/WhatsApp_Image_2026-03-13_at_15.54.02.jpg?width=240"}, {"h": "grisin-queso-proteico-low-carb-sin-azucar-apto-keto", "title": "Grisin Queso", "sub": "Proteico ; Low-Carb ; sin azúcar ; Apto Keto", "price": 6215.0, "img": "https://cdn.shopify.com/s/files/1/0988/5404/3729/files/WhatsApp_Image_2026-03-13_at_16.00.41.jpg?width=240"}, {"h": "tortilla-proteica-low-carb-sin-azucar-apto-keto-10-unidades", "title": "Tortilla", "sub": "Proteica ; Low-Carb ; Sin Azúcar ; Apto Keto (10 unidades)", "price": 9460.0, "img": "https://cdn.shopify.com/s/files/1/0988/5404/3729/files/TORTILLA1.png?width=240"}, {"h": "pan-de-molde-proteico", "title": "Pan De Molde", "sub": "Proteico ; Low-Carb ; sin azúcar ; Apto Keto", "price": 11800.0, "img": "https://cdn.shopify.com/s/files/1/0988/5404/3729/files/ELPANDESIEMPREBENEFICIOSREALES_f9cf125f-3748-4db6-8228-d8822d2e66b6.png?width=240"}], "logo": "https://g4u-ar.com/cdn/shop/files/Captura_de_pantalla_2025-11-06_a_la_s_16.02.58.png?v=1762455807&width=300", "icons": ["https://g4u-ar.com/cdn/shop/files/Captura_de_pantalla_2025-11-07_a_la_s_20.58.50.png?v=1762559962&width=160", "https://g4u-ar.com/cdn/shop/files/Captura_de_pantalla_2025-11-07_a_la_s_20.58.46.png?v=1762559962&width=160", "https://g4u-ar.com/cdn/shop/files/Captura_de_pantalla_2025-11-07_a_la_s_20.58.54.png?v=1762559962&width=160", "https://g4u-ar.com/cdn/shop/files/Captura_de_pantalla_2025-11-07_a_la_s_20.58.42.png?v=1762559962&width=160"], "reviews": [["Silvia", 5, "Mi esposo es diabético y era difícil conseguir un pan que no le elevara la glucosa \nEste lo logró y además es riquísimo!!! \nEs la segunda vez que te compro \n100% recomendable !!!!", "2025-11-20", "https://media.revie.lat/98854043729/ME63e7ceb2bee19e27b3837b2e76d8dae0.jpg"], ["Ivana", 5, "Estoy emparazada y tengo diabetes gestacional y lo que más me aumenta la glucemia es el pan. Probe de todo y la mayoría tenía un olor o gusto espantoso. Los encontré con Instagram huele a pan, tien muy buen gusto y mi sensor de glucosa casi no lo detecta 🩷", "2025-11-20", "https://media.revie.lat/98854043729/ME65e65f0d167c87ab85e817a0c4b57e85.jpg"], ["Maria Teresa", 5, "Literal. Excelente producto me encanto y lo estoy recomendando mucho. Voy a seguir comprando.. 🤗", "2025-11-20", "https://media.revie.lat/98854043729/ME01717d27e4dffe25031024efdd460363.jpg"], ["Mariana", 5, "Muy bueno! increíble poder comer pan que es igual a un pan común y con 3 hrs de carbos", "2025-11-26", "https://media.revie.lat/98854043729/ME8829ab4e03548eea130ed59d51e8d2c2.jpg"], ["Edgardo Martin", 5, "Es un producto excelente, muy rico sabor y una calidad artesanal barbara. Las tostadas salen estupendas!!!", "2025-11-26", "https://media.revie.lat/98854043729/ME25616270549bd4865c3ae9d90963f2af.jpg"], ["nadia", 5, "Me pareció espectacular! súper rico y liviano. Por fin un pan q hace bien y puedo comer sin culpa y q me ayuda a llegar a las proteínas q me faltaban en el desayuno. Excelente!", "2025-12-04", "https://media.revie.lat/98854043729/MEcc4335d1d1c55cd8a4d813193b88e29e.jpg"], ["Veronica", 5, "Es el producto estrella, no dejen nunca de hacerlo… 1000 de 10", "2026-07-20", null], ["Alejandra", 5, "Excelente, muy muy rico !!!!", "2026-07-21", null], ["Marisa", 5, "100% recomendable, muy rico y fresco", "2026-07-21", null], ["Lucas", 5, "Excelente calidad. Exquisito", "2026-07-21", null], ["Patricia", 5, "Excelente. Ágil la compra . Elegí opción de retiro y llegó antes de lo anunciado. El pan de molde es exquisito. Compré para compartir con un familiar. Altamente recomendable", "2026-07-21", null], ["Andrea", 5, "Excelente el pan de molde proteico, lo recomiendo y seguiré probando los demás productos 👌", "2026-07-21", null], ["Nicole", 5, "Desde que lo compre por primera vez no dejamos de consumirlo. Ya seran 2-3 meses. Todos los panes y galletas riquisimos!!", "2026-07-21", null], ["Sol", 5, "Excelente producto, lo amo", "2026-07-21", null], ["patricia", 5, "Muy bueno!", "2026-07-21", null], ["Gabriela", 5, "Excelente", "2026-07-21", null], ["Carlos", 5, "El mejor pan low carb que existe", "2026-07-21", null], ["FLORENCIA", 5, "Excelente", "2026-07-21", null], ["Micaela", 5, "Muy buen producto. Compré pan de molde y tortillas. El gusto es buenisimo, muy rico. La info nutricional clara y buena también", "2026-07-21", null], ["Laura Beltina", 5, "Excelente! Lo super recomiendo", "2026-07-21", null], ["María Teresa", 5, "Me encantó el pan. Muy esponjoso, soft, suave al gusto, aireado.... \nSolo faltaría que venga ya en rebanadas.", "2026-07-20", null], ["Miguel", 5, "Excelente producto, sabor inigualable!!", "2026-07-20", null], ["Sonia", 5, "Riquísimo!\nExcelente producto!\nMuy recomendable!!!!\n💯 Puntos", "2026-07-21", null], ["Trinidad", 5, "Excelente producto, muy rico. Lo recomiendo 100% y además buena atención en el proceso de compra", "2026-07-21", null], ["Gabriel", 5, "El pan es riquísimo y super recomendado para complementar hábitos saludables de alimentación. Un gran allazgo!!", "2026-01-05", null], ["LAURA", 5, "Está muy bueno! Lo súper recominendo!", "2026-01-05", null], ["Juan", 5, "Excelente producto, muy bien logradas las propiedades nutricionales", "2026-01-06", null], ["Lara", 5, "Muy buen producto, sorprendida con la cantidad de proteína que tiene y lo rico que es. Lo super recomiendo", "2026-01-06", null], ["Mariela", 5, "Muy rico. Ni se nota que no es un pan \"normal\"", "2026-01-06", null], ["Micaela", 5, "Como licenciada en nutrición me parecieron productos excelentes", "2026-01-06", null], ["Alejandra", 5, "Excelente producto! Es muy rico!", "2026-01-06", null], ["Patricia", 5, "Espectacular, sin lugar a dudas. Por fin algo sano y rico!!!!", "2026-01-06", null], ["Susana Nevoran", 4, "En un muy buen producto q recomiendo, de hecho he vuelto a encargar", "2026-01-07", null], ["Martín", 5, "Muy práctico.  Y muy versátil. Recomendable !!!!!", "2026-01-07", null], ["Marta", 5, "Muy buen producto, excelente sabor", "2026-01-07", null], ["Yanina", 5, "Muy saciados", "2026-01-07", null], ["Coca", 5, "Lo volveria a comprar", "2026-01-07", null], ["paulina", 5, "Excelente producto! y rapidez al enviar , solo sugerencia que venga cortado en rodajas !", "2026-01-09", null], ["Melanie", 5, "Muy buena textura y sabor! Me sorprendió mucho. Se lo siente super liviano y aunque no tengo para medir el impacto en el cuerpo, yo lo swnti mucho menos pesado que el pan “normal”", "2026-01-09", null], ["maria", 5, "El mejor pan de molde proteico!", "2026-01-09", null], ["juan pablo", 5, "Sabor espectacular!!! Y muchísima saciedad, mi nuevo pan favorito", "2026-01-09", null], ["Estela", 5, "Primera vez, me encantó!\nLo recomiendo.", "2026-01-09", null], ["Carla", 5, "Las tostadas quedan buenísimas 🙌🏼", "2025-12-28", null], ["Clarisa", 5, "Conozco hace poco el producto, lo elegí por los ingredientes, rico en proteínas y bajo en calorías. Es muy rico y saciante. Recomiendo que lo prueben!", "2025-12-29", null], ["Fabiana Mónica", 5, "Excelente producto 👌", "2025-12-30", null], ["Daiana", 5, "excelente", "2025-12-30", null], ["Jennifer", 5, "Muy rico!", "2025-12-30", null], ["Gabriela", 5, "Producto super recomendable , 👌", "2025-12-30", null], ["Luis", 4, "Buen producto, buena atención y entrega", "2025-11-20", null], ["Paola", 5, "Me encanto el producto. Tengo q ver como.me resulta en el tiempo. Pero es muy rico!", "2025-12-10", null], ["Laura", 5, "Excelente producto.  Muy bien hecho", "2025-12-15", null], ["Mónica", 5, "Excelente producto, 100% lo recomiendo.", "2025-12-15", null], ["Noelia Tamara", 5, "Super rico, superó mis expectativas", "2025-12-15", null], ["Diego", 5, "Excelente producto", "2025-12-15", null], ["Adriana", 5, "Súper recomendable !", "2025-12-15", null], ["Julia", 5, "Riquísimo y fresco", "2025-12-15", null], ["Rosana Paula", 5, "Excelentes productos, riquísimos, el sabor, la textura todo de primera no parecen sin carbohidratos, soy diabetica y probé de distintas marcas, estos son geniales", "2025-12-15", null], ["Laura", 5, "Excelente producto, 100% lo recomiendo", "2025-12-15", null], ["Maricel", 5, "El pan de hamburguesa es realmente como el\nComún y es apto keto estoy maravillada", "2025-12-15", null], ["HILDA", 5, "Lo recomiendo", "2025-12-15", null], ["HILDA", 5, "El producto es excelente y súper rico", "2025-12-15", null], ["Guadalupe", 5, "Exquisito. Volveré a comprar", "2025-12-16", null], ["Elias", 5, "Buensiimo el producto!!", "2025-12-16", null], ["telma lorena", 5, "Excelente producto lo recomiendo 100 % muy rico y es increíble que sea bajo en carbohidratos", "2025-12-18", null], ["Maria", 5, "Excelente proxucto y muy bien logrado", "2025-12-18", null], ["Carla", 5, "Excélente la calidad y el sabor . La entrega al interior perfecta", "2025-12-19", null], ["Maria Rosa", 5, "Excelente producto! Lo super recomiendo.  Son riquísimos", "2025-12-19", null], ["Natalia", 5, "Son exquisitos y los recomendaría a cualquier persona. Muy buenos", "2025-12-19", null], ["Gustavo", 5, "Esponjoso, muy buen sabor..", "2025-12-19", null], ["Fernando", 5, "Es célebre producto. Recomendable 100%. Lo volveremos a comprar!!", "2025-12-19", null], ["Verónica", 5, "Es Excelente!!!!!\nLo súper recomendable lo voy a seguir comprando", "2025-11-20", null], ["Florencia", 5, "Muy buen producto, linda calidad, esponjoso, voy a comprar nuevamente y lo recomiendo 100%", "2025-11-20", null], ["ximena", 5, "Riquísimo !", "2025-11-20", null], ["Cynthia", 5, "Excelente, el pan de molde y la miga es espectacular", "2025-11-20", null], ["CLAUDIO", 5, "La primera vez que lo compre. Me parece un producto exelente", "2025-11-20", null], ["Kevin", 5, "Excelente producto, mejor que los panes que te venden en el súper, me sorprendió muchísimo lo bueno que está", "2025-11-20", null], ["Melina", 5, "Espectaculares productos! 100% recomiendo", "2025-11-20", null], ["Carla", 4, "Es un muy buen producto tostado. Sin tostar baja un poco. Igual lo recomiendo (de hecho ya lo hice)", "2025-11-20", null], ["Leopoldo Federico", 5, "Excelente producto 👍", "2025-11-20", null], ["Miriam Graciela", 5, "Excelente el sabor del pan, se lo mostré a mi nutricionista y corroboró que es una opción súper saludable", "2025-11-20", null], ["Mariana", 5, "Es un producto para recomendar al 100%! Te da saciedad y no te genera  esa ansiedad por comer descontrolada mente ! Y desde ya muy muy sabroso ! Vuelvo de viaje y voy a volver a comprar 💕🙏", "2025-11-20", null], ["Susana", 5, "Es excelente el producto, lo recomiendo!!", "2025-11-20", null], ["Florencia", 5, "Es muy rico! Da saciedad real, como cualquier pan de molde, pero bajo en carbohidratos. Grande, rendidor. Sin dudas lo recomiendo y volveré a elegirlo", "2025-11-20", null], ["Patricia", 5, "Excelente!! Súper recomendable!!!", "2025-11-25", null], ["Carolina", 5, "Muy buena experiencia de compra, el producto llegó en tiempo y forma, y es riquísimo!!! Es genial comer algo rico que además sabes que hace bien", "2025-11-25", null], ["Carla", 5, "Excelente! Nos encanta a todos en casa", "2025-11-25", null], ["Ana", 5, "Encontré un pan que mi hijo con Dbt 1 puede consumir sin decir que es feo!! Puede comer su hamburguesa completa como comía antes.💕", "2025-11-25", null], ["Leyla Natalia", 5, "Nos encantó el pan!  Lo recomiendo totalmente", "2025-11-25", null], ["cristian", 5, "El producto es excelente, realmente muy rico!!!", "2025-11-25", null], ["Mariana", 5, "me encanto! es muy saciante!", "2025-11-25", null], ["Gabriela", 5, "Muyyy rico! Lo más parecido al pan tradicional que probé!", "2025-11-25", null], ["Marcela", 5, "Excelente producto, lo voy a volver a comprar!!", "2025-11-26", null], ["Gabriela", 4, "Excelente producto. La última vez tardó bastante en llegar pero estimó que fue algo de una sola vez.", "2025-11-26", null], ["Maria", 5, "Excelente producto, muy rico ideal para darse un gustito sin culpa. Es una fuente de proteína y eso lo convierte en un 100", "2025-11-27", null], ["Marianela", 5, "Excelente. Aprobado por miedica", "2025-11-27", null], ["Carlos", 5, "Gratamente sorprendido por el producto. Riquísimo!!! Y con una tabla nutricional única. No conozco otro igual", "2025-11-27", null], ["MAURO", 5, "Los panes son excelentes...ya dos veces los compré ..y lo voy a seguír comprando... satisfecho", "2025-11-27", null], ["Mariano", 5, "Mejor de lo que esperaba", "2025-11-27", null], ["Lorena", 5, "El mejor pan proteico que he probado...El sabor es increíble y es super esponjoso!", "2025-11-28", null], ["Jorge", 5, "El producto es excelente y muy sabroso..!!", "2025-11-28", null], ["Vero", 5, "La verdad q el producto es excelente!!! Se sumaron varios de la familia", "2025-12-04", null], ["Mariela", 5, "Muy rico, nada que envidiarle a un pan común", "2025-12-04", null], ["Luciana", 5, "Súper rico! Parece pan real. Nada que ver con otras opciones aptas Keto q encuentro en el mercado", "2025-12-04", null], ["Betina", 5, "Espectacular, tan rico como el pan comun pero lleno de proteinas", "2025-12-04", null], ["Paola", 5, "Comprar", "2025-12-04", null], ["noelia", 5, "Muy rico!", "2025-12-04", null], ["Camila", 5, "Muy rico, buena tabla nutricional!", "2025-12-04", null], ["Damián", 5, "Ya no extraño más comer tostadas. Ahora puedo hacerlo incorporando proteína y fibra. Son lo más ❤️", "2025-12-04", null], ["MARIA CECILIA", 5, "El pan me parecio genial,rico esponjoso y super saciante! voy a seguir comprando", "2025-12-04", null], ["Laura", 5, "Es excelente, lo comemos en el desayuno toda la familia 👩‍🦳🙍‍♂️👦👧🏾 es riquisimo❤️ muchas gracias", "2025-12-04", null], ["JuanCarlos", 5, "Muy bueno!", "2025-12-04", null], ["Natalia Lorena", 5, "Excelente! Muy buen  sabor, textura e información nutricional!", "2025-12-04", null], ["Estefania", 5, "Super practico,de buen sabor", "2025-12-10", null], ["Veronica", 5, "volví a comprar", "2025-12-10", null], ["Gisella Lucia Cabrera", 5, "Muy rico el pan! Excelente producto. Nos encantó.", "2025-12-10", null], ["Stella", 5, "Impresionante", "2025-12-10", null], ["Sonia", 5, "Buen producto ,rico lo volvería a comprar", "2025-12-10", null], ["Jorge", 5, "He probado solo 2 porciones por ahora y me parece un pan muy liviano q no deja sensación de pesadez", "2025-12-10", null], ["Miria.", 5, "Me encanó", "2025-12-10", null], ["Geraldina", 5, "Excelente!!", "2025-12-10", null]], "review_summary": {"count": 121, "avg": 4.97}, "testimonials": [["“No puedo creer que sea bajo en carbohidratos. Tiene sabor a pan de verdad y me deja satisfecha toda la mañana.”", "— Florencia M., 31 años"], ["“Probé muchos panes ‘fit’ y este es el primero que realmente disfruto. Lo tuesto todos los días, no me infla y me siento liviana.”", "— Lucas R., 37 años"], ["“Me encanta porque puedo desayunar o cenar con pan sin salirme de mi plan keto. Además, llena muchísimo.”", "— Camila G., 29 años"]]};
+const D = {"logo":"https://g4u-ar.com/cdn/shop/files/Captura_de_pantalla_2025-11-06_a_la_s_16.02.58.png?v=1762455807&width=300","productos":[{"slug":"pan-de-molde","title":"PAN DE MOLDE | Proteico ; Low-Carb ; sin azúcar ; Apto Keto","price":12390,"img":"https://cdn.shopify.com/s/files/1/0988/5404/3729/files/ELPANDESIEMPREBENEFICIOSREALES_f9cf125f-3748-4db6-8228-d8822d2e66b6.png?width=600","available":true},{"slug":"tortilla","title":"TORTILLA | Proteica ; Low-Carb ; Sin Azúcar ; Apto Keto (10 unidades)","price":9933,"img":"https://cdn.shopify.com/s/files/1/0988/5404/3729/files/TORTILLA1.png?width=600","available":true},{"slug":"pan-arabe","title":"PAN ARABE | Proteico ; Low-Carb ; Sin Azúcar ; Apto Keto (4 unidades)","price":10400,"img":"https://cdn.shopify.com/s/files/1/0988/5404/3729/files/Arabe1.jpg?width=600","available":true},{"slug":"pan-hamburguesa","title":"PAN HAMBURGUESA | Proteico ; Low-Carb ; Sin Azúcar ; Apto Keto (4 unidades)","price":9009,"img":"https://cdn.shopify.com/s/files/1/0988/5404/3729/files/Hambur.png?width=600","available":false},{"slug":"pan-ciabatta","title":"PAN CIABATTA | Proteico ; Low-Carb ; Sin Azúcar ; Apto Keto (4 unidades)","price":9933,"img":"https://cdn.shopify.com/s/files/1/0988/5404/3729/files/Captura_de_pantalla_2026-04-30_a_la_s_23.36.15.png?width=600","available":true},{"slug":"grisin-queso","title":"Grisin Queso | Proteico ; Low-Carb ; sin azúcar ; Apto Keto","price":6530,"img":"https://cdn.shopify.com/s/files/1/0988/5404/3729/files/WhatsApp_Image_2026-03-13_at_16.00.41.jpg?width=600","available":true},{"slug":"marineras-semillas","title":"Marineras Semillas | Proteico ; Low-Carb ; sin azúcar ; Apto Keto","price":6530,"img":"https://cdn.shopify.com/s/files/1/0988/5404/3729/files/WhatsApp_Image_2026-03-13_at_15.54.02.jpg?width=600","available":true},{"slug":"tostaditas-semillas","title":"Tostaditas Semillas | Proteico ; Low-Carb ; sin azúcar ; Apto Keto","price":8030,"img":"https://cdn.shopify.com/s/files/1/0988/5404/3729/files/WhatsApp_Image_2026-03-13_at_16.03.20.jpg?width=600","available":false},{"slug":"tostaditas-cebolla","title":"Tostaditas Cebolla | Proteico ; Low-Carb ; sin azúcar ; Apto Keto","price":8030,"img":"https://cdn.shopify.com/s/files/1/0988/5404/3729/files/WhatsApp_Image_2026-03-13_at_15.48.11.jpg?width=600","available":true}]};
 const $ = (s) => document.querySelector(s);
 const money = (n) => "$" + Math.round(n).toLocaleString("es-AR");
 const SUB_OFF = 0.15;
-const PACKS = [{ n: 1, label: "1 pack" }, { n: 4, label: "4 pack", badge: "" }, { n: 8, label: "8 pack", badge: "Más elegido" }];
-const FREQS = [{ id: 15, l: "Cada 15 días", s: "" }, { id: 30, l: "Cada mes", s: "" }, { id: 60, l: "Cada 2 meses", s: "" }];
-const BASE_UNIT = 11800; // pan de molde
-// El producto de la página (pan de molde) va PRIMERO en el modal de armá-tu-pack, como en la
-// app de bundles de G4U (Thiago, 25-sept-2026). `A.main` lo define el assets.json; si falta, pan de molde.
-const MAIN_H = A.main || "pan-de-molde-proteico";
-const ITEMS = A.items.filter(i => i.h !== "semana-keto" && !/^pack|-pack$/.test(i.h)).sort((a, b) => (a.h === MAIN_H ? -1 : 0) - (b.h === MAIN_H ? -1 : 0));
-const S = { pack: 1, freq: 30, slots: [], view: "prod", ship: null, pickSlot: null, packQty: 1, extras: {} }; // slots: handle por casillero (null = vacío)
-// Como en su tienda: el primer casillero ya trae el pan de molde (el producto de esta página).
-function initSlots() { S.slots = Array.from({ length: S.pack }, (_, i) => S.slots[i] || null); if (!S.slots[0]) S.slots[0] = "pan-de-molde-proteico"; }
-initSlots();
-
-// logos / galería
-["logo", "logoCk", "logoOk", "logoFt", "logoTag"].forEach(id => { $("#" + id).src = A.logo; });
-const MQ = ["Envío GRATIS a partir de 85 mil", "ENVÍOS BUENOS AIRES · CÓRDOBA · SANTA FE", "Entrega directa en 24/48 h en AMBA", "Suscribite y ahorrá 15% en cada envío"];
+["logo", "logoFt", "logoTag"].forEach(id => { $("#" + id).src = D.logo; });
+const MQ = ["Envío GRATIS a partir de 95 mil", "ENVÍOS BUENOS AIRES · CÓRDOBA · SANTA FE", "Entrega directa en 24/48 h en AMBA", "Suscribite y ahorrá 15% en cada envío"];
 $("#mq").innerHTML = (MQ.concat(MQ).concat(MQ).concat(MQ)).map(x => `<span>${x}</span>`).join("");
-$("#iwtImg").src = A.gallery[2];
-const IBAR = [["Activamos la quema de grasa", "Cuando reducimos los carbs, también bajamos el azúcar en sangre y la insulina."], ["Energía más estable", "Dejamos atrás la montaña rusa del azúcar."], ["Foco y claridad mental", "Más foco, más lucidez, más presencia."], ["Menos inflamación, más bienestar", "Al estabilizar el azúcar en sangre, disminuye la inflamación y mejora cómo nos sentimos."]];
-$("#ibar").innerHTML = IBAR.map((x, i) => `<div><img src="${A.icons[i]}" alt=""><b>${x[0]}</b><span>${x[1]}</span></div>`).join("");
-$("#iwtCta").addEventListener("click", () => { $("#packs").scrollIntoView({ behavior: "smooth", block: "center" }); });
-$("#starRow").innerHTML = "★★★★★".split("").map(() => '<svg viewBox="0 0 24 24"><path d="M12 2l3 6.6 7 .8-5.2 4.9 1.4 7.1L12 18l-6.2 3.4 1.4-7.1L2 9.4l7-.8z"/></svg>').join("");
-let gi = 0;
-function renderGal() { $("#galMain").src = A.gallery[gi]; $("#thumbs").innerHTML = A.gallery.map((g, i) => `<img src="${g}" class="${i === gi ? "on" : ""}" data-i="${i}">`).join(""); }
-$("#thumbs").addEventListener("click", e => { const t = e.target.closest("img"); if (t) { gi = +t.dataset.i; renderGal(); } });
-renderGal();
-
-const selCount = () => S.slots.filter(Boolean).length;
-const freqTxt = () => ({ 15: "cada 15 días", 30: "cada mes", 60: "cada 2 meses" })[S.freq];
-function chosen() { const q = {}; S.slots.forEach(h => { if (h) q[h] = (q[h] || 0) + 1; }); return ITEMS.filter(i => q[i.h]).map(i => ({ ...i, q: q[i.h] })); }
-function extrasList() { return ITEMS.filter(i => S.extras[i.h] > 0).map(i => ({ ...i, q: S.extras[i.h] })); }
-function totals() {
-  const list = chosen(); const listTotal = list.reduce((a, i) => a + i.price * i.q, 0);
-  // Estimación mientras el pack no está completo: los que faltan al precio del pan de molde.
-  const missing = S.pack - selCount(); const packList = (listTotal + Math.max(0, missing) * BASE_UNIT) * S.packQty;
-  const extrasTotal = extrasList().reduce((a, i) => a + i.price * i.q, 0);
-  const est = packList + extrasTotal;
-  return { list: est, sub: Math.round(est * (1 - SUB_OFF)), saving: Math.round(est * SUB_OFF), packSub: Math.round(packList * (1 - SUB_OFF)), packList };
-}
-function renderPacks() {
-  $("#packs").innerHTML = PACKS.map(p => {
-    const list = p.n * BASE_UNIT, sub = Math.round(list * (1 - SUB_OFF));
-    const on = S.pack === p.n;
-    const slots = on ? `<div class="slots">${S.slots.map((h, i) => { const it = h && ITEMS.find(x => x.h === h); return it
-      ? `<div class="slot"><span class="ic"><img src="${it.img}" alt=""></span><span class="nm">${it.title}<small>${money(it.price)} · ${it.sub.split(";")[0]}</small></span><button type="button" class="rm" data-slot="${i}" title="Sacar">✕</button></div>`
-      : `<div class="slot"><span class="ic">🍞</span><button type="button" class="add" data-slot="${i}">Suma otro producto</button></div>`; }).join("")}</div>` : "";
-    return `<div class="pack ${on ? "on" : ""}" data-n="${p.n}">${p.badge ? `<span class="bd rose">${p.badge}</span>` : ""}<span class="rad"></span><span class="nm">${p.label}</span><span class="pr"><b>${money(sub)}</b><s>${money(list)}</s><small>−15% · desde ${money(sub / p.n)} c/u</small></span>${slots}</div>`;
-  }).join("");
-}
-$("#packs").addEventListener("click", e => {
-  const add = e.target.closest(".add"), rm = e.target.closest(".rm");
-  if (add) { S.pickSlot = +add.dataset.slot; openPick(); return; }
-  if (rm) { S.slots[+rm.dataset.slot] = null; renderAll(); return; }
-  const t = e.target.closest(".pack"); if (!t) return;
-  S.pack = +t.dataset.n; S.slots = S.slots.slice(0, S.pack); initSlots(); renderAll();
+$("#cnt").textContent = `${D.productos.length} productos`;
+$("#grid").innerHTML = D.productos.map(p => `<a class="pcard" href="g4u-${p.slug}.html">
+  <div class="im"><img src="${p.img}" alt="${p.title.replace(/"/g, "&quot;")}" loading="lazy"><span class="tag">Suscripción</span></div>
+  <div class="ct">
+    <h3>${p.title}</h3>
+    <div class="pr"><b>${money(p.price * (1 - SUB_OFF))}</b><s>${money(p.price)}</s><small>−15% en cada envío</small></div>
+    <span class="bt">Suscribirme</span>
+  </div>
+</a>`).join("");
+// Lo que en la demo no lleva a ningún lado avisa con un cartelito (regla de todas las demos, 4-oct-2026).
+function demoToast(m) { const e = $("#demoToast"); e.textContent = m; e.classList.add("on"); clearTimeout(demoToast.t); demoToast.t = setTimeout(() => e.classList.remove("on"), 3200); }
+document.addEventListener("click", e => {
+  if (e.target.closest(".badge-cart")) { demoToast("Tu carrito está vacío. Elegí un producto y armá tu pack."); return; }
+  if (e.target.closest('a[href="#"], .hdr .burger, .hdr .ic > svg, #filtBtn')) { e.preventDefault(); demoToast("Esto es una demo. Cuando lo adaptemos a tu tienda, desde acá vas a esa sección."); }
 });
-// Modal "Elegí un producto" (misma lista que su tienda: foto, nombre, precio con el tachado)
-function openPick() {
-  $("#pkList").innerHTML = ITEMS.map(i => `<div class="pr-row"><img src="${i.img}" alt=""><div class="t"><b>${i.title} | ${i.sub}</b><div class="p">${money(i.price * (1 - SUB_OFF))}<s>${money(i.price)}</s></div></div><button type="button" class="sel" data-h="${i.h}">Selecciona</button></div>`).join("");
-  $("#pkBg").style.display = "flex";
-}
-function closePick() { $("#pkBg").style.display = "none"; }
-$("#pkX").addEventListener("click", closePick); $("#pkBg").addEventListener("click", e => { if (e.target === $("#pkBg")) closePick(); });
-$("#pkList").addEventListener("click", e => { const b = e.target.closest(".sel"); if (!b) return; if (S.pickSlot != null) S.slots[S.pickSlot] = b.dataset.h; closePick(); renderAll(); });
-function renderFreq() { $("#freq").innerHTML = FREQS.map(f => `<button class="${S.freq === f.id ? "on" : ""}" data-f="${f.id}">${f.l}${f.s ? `<small>${f.s}</small>` : ""}</button>`).join(""); }
-$("#freq").addEventListener("click", e => { const b = e.target.closest("button"); if (b) { S.freq = +b.dataset.f; renderAll(); } });
-function renderCta() {
-  const t = totals(), left = S.pack - selCount(), ok = left === 0;
-  $("#goCk").disabled = !ok;
-  $("#goCk").innerHTML = ok ? `<span class="l1">Suscribirme · ${money(t.sub)} ${freqTxt()}</span><small>Ahorrás ${money(t.saving)} en cada envío · envío ${t.sub >= 85000 ? "gratis" : "a cotizar"}</small>` : `Suscribirme<small>Sumá ${left} producto${left === 1 ? "" : "s"} más para completar tu pack de ${S.pack}</small>`;
-}
-function renderAll() { renderPacks(); renderFreq(); renderCta(); }
-renderAll();
-
-// ── testimonios (carrusel) + reseñas de Revie tal cual ──
-let ti = 0; const TESTI = A.testimonials || [];
-function renderTesti() { if (!TESTI.length) return; $("#tq").textContent = TESTI[ti][0]; $("#ta").textContent = TESTI[ti][1]; $("#tdots").innerHTML = TESTI.map((_, i) => `<i class="${i === ti ? "on" : ""}"></i>`).join(""); }
-$(".tnav").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; ti = (ti + (+b.dataset.t) + TESTI.length) % TESTI.length; renderTesti(); });
-setInterval(() => { ti = (ti + 1) % Math.max(1, TESTI.length); renderTesti(); }, 6000); renderTesti();
-const RV = A.reviews || [], RV_PER = 3; let rvPage = 0;
-const CHECK = '<svg viewBox="0 0 90 90" aria-hidden="true"><circle cx="45" cy="45" r="45" fill="rgb(40,201,55)"/><path d="M38.478 64.5c-1.3-.009-2.533-.579-3.381-1.563L21.59 47.284c-1.622-1.883-1.41-4.725.474-6.347 1.884-1.621 4.725-1.409 6.347.474l10.112 11.744L61.629 27.02c1.645-1.862 4.489-2.037 6.352-.391 1.862 1.646 2.037 4.49.391 6.352l-26.521 30c-.856.966-2.084 1.519-3.373 1.519z" fill="#fff"/></svg>';
-function renderRv() {
-  const pages = Math.ceil(RV.length / RV_PER), items = RV.slice(rvPage * RV_PER, rvPage * RV_PER + RV_PER);
-  $("#rvList").innerHTML = items.map(r => `<div class="rv-item"><div style="flex:1;min-width:0"><i class="rv-stars" style="--r:${r[1]}"></i><label>${r[3]}</label><div class="rv-name">${r[0]} ${CHECK}</div><div class="rv-txt">${r[2].replace(/</g, "&lt;")}</div></div>${r[4] ? `<img class="rv-img" src="${r[4].replace("media.revie.lat", "revie-media.b-cdn.net")}?height=200&quality=90" alt="" loading="lazy">` : ""}</div>`).join("");
-  const around = [rvPage - 1, rvPage, rvPage + 1].filter(p => p >= 0 && p < pages);
-  $("#rvPag").innerHTML = `<a href="#rv" data-p="${rvPage - 1}" class="${rvPage === 0 ? "dis" : ""}">◄</a>${around.map(p => `<a href="#rv" data-p="${p}" class="${p === rvPage ? "on" : ""}">${p + 1}</a>`).join("")}<a href="#rv" data-p="${rvPage + 1}" class="${rvPage >= pages - 1 ? "dis" : ""}">►</a>`;
-}
-$("#rvPag").addEventListener("click", e => { const a = e.target.closest("a[data-p]"); if (!a) return; e.preventDefault(); rvPage = Math.max(0, Math.min(Math.ceil(RV.length / RV_PER) - 1, +a.dataset.p)); renderRv(); $("#rv").scrollIntoView({ block: "start", behavior: "smooth" }); });
-renderRv();
-
-// ── checkout ──
-function show(v) { S.view = v; $("#v-prod").hidden = v !== "prod"; $("#v-ck").hidden = v !== "ck"; $("#v-ok").hidden = v !== "ok"; $("#v-portal").hidden = v !== "portal"; if (v === "portal") renderPortal(); window.scrollTo(0, 0); }
-// ── Portal del suscriptor (demo): lo que ve el cliente después de suscribirse ──
-$("#logoPt").src = A.logo;
-const P = { paused: false, cancelled: false, extras: null, items: null };
-function ptToast(t) { const e = $("#ptToast"); e.textContent = t; e.hidden = false; clearTimeout(ptToast.t); ptToast.t = setTimeout(() => { e.hidden = true; }, 2600); }
-function renderPortal() {
-  // Si entró directo a #portal sin armar nada, mostramos una suscripción de ejemplo.
-  if (!P.items) { const ch = chosen(); P.items = ch.length ? ch : [{ ...ITEMS.find(i => i.h === "pan-de-molde-proteico"), q: 2 }, { ...ITEMS.find(i => /hamburguesa/.test(i.h)), q: 1 }, { ...ITEMS.find(i => /grisin/.test(i.h)), q: 1 }]; }
-  if (!P.extras) { const ex = extrasList(); P.extras = ex.length ? ex : [{ ...ITEMS.find(i => /tostaditas-semillas/.test(i.h)), q: 1 }]; }
-  const list = P.items.reduce((a, i) => a + i.price * i.q, 0) * S.packQty, exT = P.extras.reduce((a, i) => a + i.price * i.q, 0);
-  const total = Math.round((list + exT) * (1 - SUB_OFF));
-  const days = S.freq;
-  $("#ptNext").textContent = P.paused ? "En pausa" : new Date(Date.now() + days * 864e5).toLocaleDateString("es-AR", { day: "numeric", month: "long" });
-  $("#ptFreq").textContent = freqTxt().replace("cada ", "");
-  $("#ptTotal").textContent = money(total);
-  const st = P.cancelled ? ["Cancelada", "#fde8e8", "#b42318"] : P.paused ? ["Pausada", "#fdf0d5", "#8a5a00"] : ["Activa", "#dff5e7", "#1f7a3e"];
-  $(".pt-status").textContent = st[0]; $(".pt-status").style.background = st[1]; $(".pt-status").style.color = st[2];
-  if (P.cancelled) $("#ptNext").textContent = "—";
-  $(".pt-actions").innerHTML = P.cancelled ? `<div style="font-size:13px;color:var(--muted);line-height:1.5">Tu suscripción fue cancelada. Si querés volver a suscribirte, andá al producto en la tienda y elegí Suscripción de nuevo.</div>` : `<button type="button" class="pt-btn" id="ptPause">${P.paused ? "▶ Reactivar" : "⏸ Pausar"}</button><button type="button" class="pt-btn danger" id="ptCancel">✕ Cancelar</button>`;
-  bindPortalActions();
-  $("#ptItems").innerHTML = P.items.map(i => `<div class="pt-it"><img src="${i.img}" alt=""><span class="n">${i.q * S.packQty} × ${i.title}<small>${money(i.price * i.q * S.packQty)} · −15% en suscripción</small></span></div>`).join("");
-  $("#ptExtrasWrap").hidden = !P.extras.length;
-  $("#ptExtras").innerHTML = P.extras.map(i => `<div class="pt-it"><img src="${i.img}" alt=""><span class="n">${i.q} × ${i.title}<small>${money(i.price * i.q)} por cobro</small></span></div>`).join("");
-  const hist = [[0, total], [S.freq, total], [S.freq * 2, total]].map(([d, m], k) => `<div><span>${new Date(Date.now() - d * 864e5).toLocaleDateString("es-AR", { day: "numeric", month: "short" })} · Pack ${S.pack}${k ? "" : " · hoy"}</span><span class="ok">${money(m)} · pagado</span></div>`);
-  $("#ptHist").innerHTML = hist.join("");
-}
-// Modales como los del portal real (nada de prompt/confirm del navegador).
-function modal({ title, body, actions }) {
-  $("#mdT").textContent = title; $("#mdB").innerHTML = body;
-  $("#mdA").innerHTML = actions.map((a, i) => `<button type="button" data-i="${i}" class="${a.cls || ""}">${a.label}</button>`).join("");
-  $("#mdA").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; const a = actions[+b.dataset.i]; if (a.keep !== true) closeModal(); if (a.run) a.run(); };
-  $("#mdBg").style.display = "flex";
-}
-function closeModal() { $("#mdBg").style.display = "none"; }
-$("#mdBg").addEventListener("click", e => { if (e.target === $("#mdBg")) closeModal(); });
-const REASONS = [["precio", "Me resulta caro"], ["stock", "Todavía tengo producto"], ["no_uso", "Ya no lo uso"], ["calidad", "No me convenció"], ["otro", "Otro motivo"]];
-// Los botones se re-crean en cada render del portal → se enganchan acá.
-function bindPortalActions() {
-  const pp = $("#ptPause"), pc = $("#ptCancel");
-  if (pp) pp.onclick = () => {
-    if (P.paused) return modal({ title: "Reactivar suscripción", body: "Reactivamos tu suscripción y volvés a recibir tus envíos. ¿Confirmás?", actions: [{ label: "Cancelar" }, { label: "Sí, reactivar", cls: "pri", run: () => { P.paused = false; renderPortal(); ptToast("Suscripción reactivada."); } }] });
-    modal({ title: "Pausar suscripción", body: "Pausamos tu suscripción. No se hacen más cobros ni envíos hasta que la reactives. ¿Confirmás?", actions: [{ label: "Cancelar" }, { label: "Sí, pausar", cls: "pri", run: () => { P.paused = true; renderPortal(); ptToast("Suscripción pausada. No se cobra hasta que la reactives."); } }] });
-  };
-  if (pc) pc.onclick = () => {
-    modal({ title: "¿Por qué querés cancelar?", body: `<div style="color:#666;font-size:13px">Nos ayuda a mejorar. Elegí un motivo:</div>${REASONS.map((r, i) => `<label class="rz ${i === 0 ? "on" : ""}"><input type="radio" name="rz" value="${r[0]}" ${i === 0 ? "checked" : ""}> ${r[1]}</label>`).join("")}<div class="note">💡 Si todavía tenés producto, podés <b>pausar</b> en vez de cancelar: no se cobra nada y lo retomás cuando quieras.</div>`,
-      actions: [{ label: "Volver" }, { label: "Prefiero pausar", run: () => { P.paused = true; renderPortal(); ptToast("Suscripción pausada. La reactivás cuando quieras."); } }, { label: "Cancelar suscripción", cls: "dng", run: () => { P.cancelled = true; renderPortal(); ptToast("Suscripción cancelada. No se hacen más cobros."); } }] });
-    $("#mdB").onchange = () => { [...$("#mdB").querySelectorAll(".rz")].forEach(l => l.classList.toggle("on", l.querySelector("input").checked)); };
-  };
-}
-$("#ptAddrBtn").addEventListener("click", () => {
-  modal({ title: "Cambiar la dirección de envío", body: `<div class="f"><input id="mAddr" value="Av. Corrientes 1234" placeholder=" "><label>Calle y número</label></div><div class="f"><input id="mApt" value="" placeholder=" "><label>Piso, depto o referencia (opcional)</label></div><div class="g2"><div class="f"><input id="mZip" value="1043" placeholder=" "><label>C.P.</label></div><div class="f"><input id="mCity" value="CABA" placeholder=" "><label>Localidad</label></div></div><div class="f"><input id="mPhone" value="11 4444 0000" placeholder=" "><label>Teléfono</label></div><div class="note">Se usa desde tu próximo envío. Los que ya salieron no cambian.</div>`,
-    actions: [{ label: "Cancelar" }, { label: "Guardar dirección", cls: "pri", run: () => { const a = $("#mAddr").value.trim(), c = $("#mCity").value.trim(), z = $("#mZip").value.trim(), ap = $("#mApt").value.trim(); if (a && c) $("#ptAddr").textContent = `${a}${ap ? ", " + ap : ""}, ${c} (${z})`; ptToast("Dirección actualizada para el próximo envío."); } }] });
-});
-$("#ptBack").addEventListener("click", e => { e.preventDefault(); location.hash = ""; show("prod"); });
-function route() { if (location.hash === "#portal") show("portal"); }
-window.addEventListener("hashchange", route); route();
-// Suscribirme → carrito (como en su tienda) → Finalizar compra → checkout de Recurrentes.
-function renderCart() {
-  const t = totals();
-  // Upsells: lo que no está en el pack, 3 sugerencias (como los "Sumá a tu pedido" de las tiendas).
-  const inPack = new Set(S.slots.filter(Boolean));
-  const ups = ITEMS.filter(i => !inPack.has(i.h) || S.extras[i.h]).slice(0, 3);
-  $("#cartBody").innerHTML = `<div class="cl"><img src="${A.gallery[0]}" alt=""><div class="t"><b>Pack G4U · ${S.pack} ítem${S.pack > 1 ? "s" : ""}</b><span class="pill">Suscripción</span></div><div class="p">${money(t.packSub)}<s>${money(t.packList)}</s><em>−15% cada envío</em></div></div>
-    <div class="cfreq">${FREQS.map(f => `<button type="button" data-cf="${f.id}" class="${S.freq === f.id ? "on" : ""}">${f.l}</button>`).join("")}</div>
-
-    <div class="cart-items">${chosen().map(i => `<div><span>${i.q * S.packQty} × ${i.title}</span><span>${money(i.price * i.q * S.packQty)}</span></div>`).join("")}</div>
-    ${extrasList().length ? `<div class="cart-items" style="border-top-style:solid"><div style="font-weight:700;color:var(--ink)"><span>Extras en tu suscripción</span><span></span></div>${extrasList().map(i => `<div><span>${i.q} × ${i.title}</span><span>${money(i.price * i.q)}</span></div>`).join("")}</div>` : ""}
-    <div class="ups"><h4>Sumá a tu suscripción</h4>
-      ${ups.map(i => { const q = S.extras[i.h] || 0; return `<div class="up ${q ? "on" : ""}"><img src="${i.img}" alt=""><div class="t"><b>${i.title}</b><span>${money(i.price * (1 - SUB_OFF))}<s>${money(i.price)}</s></span></div>${q ? `<div class="stp"><button type="button" data-ex="${i.h}" data-d="-1">−</button><b>${q}</b><button type="button" data-ex="${i.h}" data-d="1">+</button></div>` : `<button type="button" class="ab" data-ex="${i.h}" data-d="1">+ Agregar</button>`}</div>`; }).join("")}
-    </div>`;
-  $("#cartTot").textContent = money(t.sub); $("#cartSv").textContent = `Estás ahorrando ${money(t.saving)} en cada envío` + (t.sub >= 85000 ? " · envío gratis" : "");
-  $(".badge-cart b").textContent = String(S.packQty + extrasList().reduce((a, i) => a + i.q, 0));
-}
-function openCart() { renderCart(); $("#cartBg").style.display = "block"; $("#cart").classList.add("open"); }
-$("#cartBody").addEventListener("click", e => {
-  const cf = e.target.closest("[data-cf]"), pq = e.target.closest("[data-pq]"), ex = e.target.closest("[data-ex]");
-  if (cf) { S.freq = +cf.dataset.cf; renderAll(); renderCart(); }
-  else if (pq) { S.packQty = Math.max(1, Math.min(3, S.packQty + (+pq.dataset.pq))); renderCart(); }
-  else if (ex) { S.extras[ex.dataset.ex] = Math.max(0, (S.extras[ex.dataset.ex] || 0) + (+ex.dataset.d)); renderCart(); }
-});
-function closeCart() { $("#cartBg").style.display = "none"; $("#cart").classList.remove("open"); }
-$("#goCk").addEventListener("click", openCart);
-$("#cartX").addEventListener("click", closeCart); $("#cartBg").addEventListener("click", closeCart); $("#cartMore").addEventListener("click", e => { e.preventDefault(); closeCart(); });
-$("#cartGo").addEventListener("click", () => { closeCart(); $("#ld").style.display = "flex"; setTimeout(() => { $("#ld").style.display = "none"; S.ship = null; renderCk(); show("ck"); }, 900); });
-$("#backProd").addEventListener("click", e => { e.preventDefault(); show("prod"); });
-// Como en su tienda hoy (shipnow): dos tarifas a domicilio. Gratis desde $85.000.
-const SHIP = () => { const t = totals(); const free = t.sub >= 85000; const d = (n) => new Date(Date.now() + n * 864e5).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
-  // Tal cual los de su checkout de Shopify (CP 1754, San Justo): shipnow a domicilio + retiro en sucursal. Gratis desde $85.000.
-  return [
-    { n: "A domicilio - shipnow Estándar", s: `Llega el ${d(3)}, de 08 a 18 h`, p: free ? 0 : 7239.43 },
-    { n: "A domicilio - shipnow Express 🚀", s: "Llega hoy, de 08 a 21 h", p: free ? 0 : 8864.45 },
-    { n: "Retiro en sucursal - Gestiona shipnow - Diego Armando Maradona 3457. San Justo. Buenos Aires. 1754", s: `Llega entre el ${d(3)} y el ${d(6)}`, p: free ? 0 : 9393.23 },
-    { n: "Retiro en sucursal - Gestiona shipnow - Monseñor Marcón 3635. San Justo. Buenos Aires. 1754", s: `Llega entre el ${d(3)} y el ${d(6)}`, p: free ? 0 : 9393.23 },
-    { n: "Retiro en sucursal - Gestiona shipnow - Pres. Juan Domingo Perón 3687. San Justo. Buenos Aires. 1754", s: `Llega entre el ${d(3)} y el ${d(6)}`, p: free ? 0 : 9393.23 },
-  ]; };
-function shipPrice() { return S.ship == null ? 0 : SHIP()[S.ship].p; }
-function summaryHtml() {
-  const t = totals(); const total = t.sub + shipPrice();
-  return `<div style="display:flex;gap:14px;align-items:flex-start"><div style="position:relative"><img src="${A.gallery[0]}" style="width:64px;height:64px;border-radius:10px;object-fit:cover;border:1px solid #eee;background:#fff"><span style="position:absolute;top:-8px;right:-8px;min-width:22px;height:22px;padding:0 6px;border-radius:99px;background:#6b6b6b;color:#fff;font-size:12px;font-weight:600;display:grid;place-items:center">${S.pack}</span></div><div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600">${S.packQty > 1 ? S.packQty + " × " : ""}Pack G4U × ${S.pack} · armado por vos</div><span class="pill" style="margin-top:6px">Suscripción</span><div style="font-size:13px;color:#6b6b6b;margin-top:6px">Frecuencia: ${freqTxt()}</div></div><div style="font-size:14px;font-weight:500">${money(t.packSub)}</div></div>
-    <div style="margin-top:6px">${chosen().map(i => `<div class="sum-item"><span class="qb"><img src="${i.img}"><b>${i.q * S.packQty}</b></span><span style="flex:1;min-width:0">${i.title}</span><span style="color:#6b6b6b">${money(i.price * i.q * S.packQty)}</span></div>`).join("")}</div>
-    ${extrasList().length ? `<div style="margin-top:14px;font-size:12px;font-weight:700;color:#6b6b6b;text-transform:uppercase;letter-spacing:.06em">Extras en tu suscripción</div>${extrasList().map(i => `<div class="sum-item"><span class="qb"><img src="${i.img}"><b>${i.q}</b></span><span style="flex:1;min-width:0">${i.title}</span><span style="color:#6b6b6b">${money(i.price * i.q)}</span></div>`).join("")}` : ""}
-    <div style="border-top:1px solid #e8e8e8;margin:18px 0 4px"></div>
-    <div class="line"><span>Productos</span><span>${money(t.list)}</span></div>
-    <div class="line" style="color:#1f7a3e"><span style="color:#1f7a3e">Descuento suscripción · 15%</span><span>−${money(t.saving)}</span></div>
-    <div class="line"><span>Envío</span><span>${S.ship == null ? '<span style="color:#6b6b6b;font-weight:400">Completá tu dirección</span>' : (shipPrice() === 0 ? "Gratis" : money(shipPrice()))}</span></div>
-    <div style="border-top:1px solid #e8e8e8;margin:14px 0"></div>
-    <div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-size:17px;font-weight:600">Total</span><span><span style="font-size:12px;color:#6b6b6b;margin-right:8px">ARS</span><span style="font-size:22px;font-weight:700">${money(total)}</span></span></div>
-    <div style="font-size:12px;color:#6b6b6b;line-height:1.5;margin-top:10px">Se cobra ${money(total)} ahora y se renueva automáticamente ${freqTxt()}. Podés pausar o cancelar cuando quieras.</div>`;
-}
-function renderCk() {
-  $("#sumSide").innerHTML = summaryHtml(); $("#msBody").innerHTML = summaryHtml();
-  const t = totals(); $("#msTot").textContent = money(t.sub + shipPrice());
-  $("#payBtn").textContent = `Pagar suscripción · ${money(t.sub + shipPrice())}`;
-  $("#payFreq").textContent = `Se cobra ${freqTxt()}, sin que hagas nada.`;
-  $("#trFreq").textContent = `Envío automático ${freqTxt()} · Pago seguro con Mercado Pago`;
-  const has = $("#ckZip").value.trim() || $("#ckProv").value;
-  $("#shipHint").style.display = has ? "none" : "flex"; $("#ship").hidden = !has; // el hint tiene display:flex inline: `hidden` solo no alcanza
-  if (has) { if (S.ship == null) S.ship = 0; $("#ship").innerHTML = SHIP().map((s, i) => `<label class="opt ${S.ship === i ? "on" : ""}"><input type="radio" name="sh" ${S.ship === i ? "checked" : ""} data-i="${i}"><span class="n"><b>${s.n}</b><small>${s.s}</small></span><b>${s.p === 0 ? "Gratis" : "$ " + s.p.toLocaleString("es-AR", { minimumFractionDigits: 2 })}</b></label>`).join(""); }
-}
-["#ckZip", "#ckProv"].forEach(s => $(s).addEventListener("input", renderCk));
-document.querySelectorAll("#v-ck .f").forEach(f => f.addEventListener("input", () => { f.classList.remove("is-err"); f.querySelector(".fe")?.remove(); }));
-$("#ship").addEventListener("change", e => { const r = e.target.closest("input"); if (r) { S.ship = +r.dataset.i; renderCk(); } });
-$("#msBtn").addEventListener("click", () => { $("#msBody").hidden = !$("#msBody").hidden; });
-// Los campos de la tarjeta, prolijos: cada uno toma solo lo que corresponde. En
-// el checkout real esto lo hace Mercado Pago con sus campos seguros; acá, que es
-// una maqueta, lo hacemos a mano para que se vea igual (27-sept-2026, Thiago).
-(function () {
-  const num = (v, max) => v.replace(/\D/g, "").slice(0, max);
-  const mask = (sel, fn) => {
-    const e = $(sel); if (!e) return;
-    e.addEventListener("input", () => { const antes = e.value, ahora = fn(antes); if (ahora !== antes) { e.value = ahora; try { e.setSelectionRange(ahora.length, ahora.length); } catch (_) {} } });
-  };
-  mask("#ckDoc", v => num(v, 11));
-  mask("#ckCvv", v => num(v, 4));
-  mask("#ckCard", v => num(v, 16).replace(/(\d{4})(?=\d)/g, "$1 "));
-  mask("#ckHolder", v => v.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ .'-]/g, "").slice(0, 40));
-  mask("#ckExp", v => {
-    let d = num(v, 4);
-    if (d.length === 1 && +d > 1) d = "0" + d;                    // "5" → "05"
-    if (d.length >= 2 && (+d.slice(0, 2) < 1 || +d.slice(0, 2) > 12)) d = "12" + d.slice(2);
-    return d.length > 2 ? d.slice(0, 2) + "/" + d.slice(2) : d;   // MM/AA y nada más
-  });
-})();
-$("#payBtn").addEventListener("click", () => {
-  // Error por campo (borde rojo + texto debajo) y deslizamiento al primero que falta, como
-  // el checkout real de Recurrentes.
-  // Sin validar nada: esto es una demo. El que la mira quiere ver cómo se ve el
-  // checkout, no que le pidan el código postal (27-sept-2026, Thiago).
-  const b = $("#payBtn"); b.disabled = true; b.textContent = $("#boxCard")?.classList.contains("sel") ? "Procesando el pago…" : "Redirigiendo a Mercado Pago…";
-  setTimeout(() => { b.disabled = false; const t = totals(); const next = new Date(Date.now() + S.freq * 864e5).toLocaleDateString("es-AR", { day: "numeric", month: "long" });
-    $("#okCard").innerHTML = `<div><span>Pack</span><b>${S.packQty > 1 ? S.packQty + " × " : ""}${S.pack} producto${S.pack === 1 ? "" : "s"} · armado por vos${extrasList().length ? " + " + extrasList().reduce((a, i) => a + i.q, 0) + " extra" : ""}</b></div><div><span>Cobrado hoy</span><b>${money(t.sub + shipPrice())}</b></div><div><span>Frecuencia</span><b>${freqTxt()}</b></div><div><span>Próximo cobro</span><b>${next}</b></div><div><span>Ahorro por envío</span><b style="color:#1f7a3e">${money(t.saving)}</b></div>`;
-    show("ok"); }, 1400);
-});
-// Tarjeta / Mercado Pago: el desglose se abre y se cierra, igual que en el checkout real.
-(function () {
-  const bc = $("#boxCard"), bm = $("#boxMp"), body = $("#cardBody");
-  if (!bc || !bm) return;
-  const pick = (card) => {
-    bc.classList.toggle("sel", card); bm.classList.toggle("sel", !card);
-    bc.querySelector(".opt").classList.toggle("on", card);
-    bm.querySelector(".opt").classList.toggle("on", !card);
-    bc.querySelector("input").checked = card; bm.querySelector("input").checked = !card;
-    body.hidden = !card;
-  };
-  bc.querySelector(".opt").addEventListener("click", () => pick(true));
-  bm.querySelector(".opt").addEventListener("click", () => pick(false));
-})();
 </script>

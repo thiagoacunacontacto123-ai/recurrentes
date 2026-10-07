@@ -83,3 +83,16 @@ comercio: el 6x3 y el 3x2 de compra única dejan de verse en esa página.
 mismas secciones, orden, textos, colores y fotos (clases `e-*` en `emily.template.html`); lo único
 distinto es el bundle (planes 1 crema / 2 cremas con el formato de sus tarjetas, sérum como casillero
 a $23.730, regalos en renglones a $0) y los textos que lo nombran. Carrito, checkout y portal no cambian.
+
+## G4U (7-oct-2026) — catálogo + 9 fichas en versión suscripción
+Thiago: "el link madre del catálogo de productos versión suscripción, y de ahí cada producto".
+- `g4u.relevar.mjs` baja de g4u-ar.com (sin login) los 9 productos sueltos en orden de más vendidos
+  (precio de hoy, galería, reseñas de Revie tal cual) → `g4u.productos.json`. Los packs/combos no entran.
+- `g4u.armar.mjs` genera `public/demos/g4u.html` (catálogo, clon de su /collections/all con precio de
+  suscripción y botón "Suscribirme" por tarjeta) y `public/demos/g4u-<producto>.html` con `template.html`,
+  que ahora toma lo del producto de `A.*` (title, price, main, gallery, reviews, review_summary, mismo,
+  iwt_text, catalog_url, page_title); sin esos campos sigue siendo el pan de molde.
+- `g4u.assets.json` quedó solo con lo de la marca (logo, íconos, testimonios).
+- Envío gratis desde $95.000 (su tienda lo subió de 85 a 95). Regla de todas las demos: ícono del
+  carrito que reabre el carrito y cartelito verde en los links sin destino.
+- Pasos de instalación/diseño para Thiago: `docs/g4u-suscripcion-pasos.txt`.

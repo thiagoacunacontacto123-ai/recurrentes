@@ -1,0 +1,108 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Suscripción G4U · Productos</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap">
+__STYLE__
+<style>
+/* ═══ El catálogo de G4U en versión suscripción: como /collections/all de su tienda (7-oct-2026) ═══
+   Mismas tarjetas (foto cuadrada, nombre completo, precio en bordó, botón marrón ancho), con el
+   precio de suscripción (−15%) y el de lista tachado; cada tarjeta lleva a ese producto en
+   versión suscripción. 1 columna en celular y 5 en computadora, igual que su grilla. */
+.col{padding:30px 28px 48px}
+.col-k{text-align:center;font-size:12.5px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-weight:600}
+.col h1{text-align:center;font-size:25px;font-weight:700;letter-spacing:.6px;margin:4px 0 24px;color:#000}
+.col h1 em{font-style:normal;color:var(--wine)}
+.col-bar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:0 0 22px;font-size:15.4px;color:var(--brown);letter-spacing:.04em}
+.col-bar button{display:inline-flex;align-items:center;gap:10px;background:none;border:0;font:inherit;font-size:17.6px;color:#2f3d1f;cursor:pointer;padding:0;letter-spacing:.06em}
+.col-bar svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round}
+.pgrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.pcard{display:flex;flex-direction:column;text-decoration:none;color:inherit;background:var(--cream);border-radius:4.4px}
+.pcard .im{position:relative;aspect-ratio:1;overflow:hidden;border-radius:4.4px 4.4px 0 0;background:#fff}
+.pcard img{width:100%;height:100%;object-fit:cover;display:block}
+.pcard .tag{position:absolute;left:10px;bottom:10px;background:var(--wine);color:#fff;font-size:11.5px;font-weight:700;letter-spacing:.06em;padding:5px 10px;border-radius:44px}
+.pcard .ct{padding:11px 0 0;display:flex;flex-direction:column;flex:1}
+.pcard h3{margin:0;font-size:12.5px;font-weight:700;letter-spacing:.6px;color:var(--brown);line-height:1.35}
+.pcard .pr{margin-top:8px;display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px}
+.pcard .pr b{font-size:17.6px;font-weight:700;color:var(--wine);letter-spacing:1.1px}
+.pcard .pr s{font-size:13px;color:#8a6c72;font-weight:400}
+.pcard .pr small{flex-basis:100%;font-size:12px;color:var(--ok);font-weight:600}
+.pcard .bt{margin:14px auto 18px;width:85%;min-height:56px;border-radius:16px;background:var(--brown);color:#f3f3f3;font-size:17px;font-weight:700;letter-spacing:1px;display:grid;place-items:center;text-align:center;padding:0 8px}
+.pcard:hover .bt{background:#2f2219}
+.badge-cart b[hidden]{display:none}
+@media(max-width:989px){.col{padding:24px 20px 40px}.pgrid{grid-template-columns:1fr;gap:30px}.pcard h3{font-size:14px}.pcard .bt{min-height:66px;font-size:17.6px}}
+@media(min-width:990px){.col h1{font-size:40px;margin-bottom:30px}}
+</style>
+
+<div class="demo-toast" id="demoToast" role="status"></div>
+<div class="demo-tag"><svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#04140d" opacity=".18"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#04140d" stroke-width="2.8" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#04140d" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>demo.recurrentes para</span><img id="logoTag" alt="G4U"></div>
+
+<div id="v-prod">
+  <div class="mq" aria-hidden="true"><div id="mq"></div></div>
+  <header class="hdr"><div class="wrap">
+    <svg class="burger" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    <img id="logo" alt="G4U">
+    <nav><a href="#">Inicio</a><a href="#">Productos</a><a href="g4u.html" class="on">Suscripción</a><a href="#">Nuestra Harina</a><a href="#">Embajadores</a><a href="#">Contacto</a></nav>
+    <span class="sp"></span>
+    <div class="ic">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg>
+      <span class="badge-cart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h2l2.4 11.2a2 2 0 002 1.6h8.6a2 2 0 002-1.6L21 8H6"/><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/></svg><b hidden>0</b></span>
+    </div>
+  </div></header>
+
+  <section class="intro"><div class="wrap">
+    <span class="eyebrow">✦ Nuevo · Suscripción G4U</span>
+    <h1>Tu pan proteico, todos los meses. Sin volver a pedir.</h1>
+    <p class="lead">Elegí tu producto, armá tu pack una vez y decidí cada cuánto lo querés: G4U te lo manda solo. Con descuento en cada envío, y lo pausás o cancelás cuando quieras desde tu panel de suscripción.</p>
+    <div class="benef">
+      <div><b>15% OFF</b><span>en cada envío, siempre. No solo en el primero.</span></div>
+      <div><b>Vos elegís</b><span>cada 15 días, cada mes o cada 2 meses. Lo cambiás cuando quieras.</span></div>
+      <div><b>Sin ataduras</b><span>pausá o cancelá desde tu portal. Un clic.</span></div>
+    </div>
+    <div class="steps"><span><i>1</i> Elegí tu producto</span><span><i>2</i> Armá tu pack y la frecuencia</span><span><i>3</i> Pagás con Mercado Pago y listo: llega solo</span></div>
+  </div></section>
+
+  <main class="wrap col">
+    <div class="col-k">Colección:</div>
+    <h1>Productos <em>· Suscripción</em></h1>
+    <div class="col-bar">
+      <button type="button" id="filtBtn"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg> Filtrar y ordenar</button>
+      <span id="cnt"></span>
+    </div>
+    <div class="pgrid" id="grid"></div>
+  </main>
+
+  <footer class="foot2"><div class="wrap">
+    <div class="g">
+      <div><img id="logoFt" alt="G4U" style="height:48px;width:auto;margin-bottom:12px"><div>Pan proteico, low-carb y sin azúcar. El pan de siempre, con beneficios reales.</div></div>
+      <div><h4>Tienda</h4><a href="#">Inicio</a><a href="#">Productos</a><a href="#">Packs</a><a href="g4u.html">Suscripción</a></div>
+      <div><h4>Info</h4><a href="#">Nuestra Harina</a><a href="#">Embajadores</a><a href="#">Envíos y entregas</a><a href="#">Preguntas frecuentes</a></div>
+      <div><h4>Contacto</h4><a href="#">WhatsApp</a><a href="#">Instagram</a><a href="#">hola@g4u-ar.com</a></div>
+    </div>
+    <div class="b"><span>© G4U · Buenos Aires, Argentina</span><a class="rec" href="https://www.recurrentesapp.com" target="_blank" rel="noopener">Suscripciones con <svg width="16" height="16" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="#10b981"/><path d="M22.5 13.2A7.2 7.2 0 1 0 23.2 18" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><path d="M22.9 8.6v5.1h-5.1" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><b>Recurrentes</b></a></div>
+  </div></footer>
+</div>
+
+<script>
+const D = __DATA__;
+const $ = (s) => document.querySelector(s);
+const money = (n) => "$" + Math.round(n).toLocaleString("es-AR");
+const SUB_OFF = 0.15;
+["logo", "logoFt", "logoTag"].forEach(id => { $("#" + id).src = D.logo; });
+const MQ = ["Envío GRATIS a partir de 95 mil", "ENVÍOS BUENOS AIRES · CÓRDOBA · SANTA FE", "Entrega directa en 24/48 h en AMBA", "Suscribite y ahorrá 15% en cada envío"];
+$("#mq").innerHTML = (MQ.concat(MQ).concat(MQ).concat(MQ)).map(x => `<span>${x}</span>`).join("");
+$("#cnt").textContent = `${D.productos.length} productos`;
+$("#grid").innerHTML = D.productos.map(p => `<a class="pcard" href="g4u-${p.slug}.html">
+  <div class="im"><img src="${p.img}" alt="${p.title.replace(/"/g, "&quot;")}" loading="lazy"><span class="tag">Suscripción</span></div>
+  <div class="ct">
+    <h3>${p.title}</h3>
+    <div class="pr"><b>${money(p.price * (1 - SUB_OFF))}</b><s>${money(p.price)}</s><small>−15% en cada envío</small></div>
+    <span class="bt">Suscribirme</span>
+  </div>
+</a>`).join("");
+// Lo que en la demo no lleva a ningún lado avisa con un cartelito (regla de todas las demos, 4-oct-2026).
+function demoToast(m) { const e = $("#demoToast"); e.textContent = m; e.classList.add("on"); clearTimeout(demoToast.t); demoToast.t = setTimeout(() => e.classList.remove("on"), 3200); }
+document.addEventListener("click", e => {
+  if (e.target.closest(".badge-cart")) { demoToast("Tu carrito está vacío. Elegí un producto y armá tu pack."); return; }
+  if (e.target.closest('a[href="#"], .hdr .burger, .hdr .ic > svg, #filtBtn')) { e.preventDefault(); demoToast("Esto es una demo. Cuando lo adaptemos a tu tienda, desde acá vas a esa sección."); }
+});
+</script>

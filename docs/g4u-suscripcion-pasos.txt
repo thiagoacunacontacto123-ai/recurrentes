@@ -1,0 +1,89 @@
+G4U · SUSCRIPCIÓN — QUÉ HAY QUE HACER (resumen para Thiago · 7-oct-2026)
+======================================================================
+
+LINKS DE LA DEMO (para mandarles)
+- Catálogo en versión suscripción (el link madre):  https://www.recurrentesapp.com/demos/g4u
+- Cada producto en versión suscripción:
+    https://www.recurrentesapp.com/demos/g4u-pan-de-molde
+    https://www.recurrentesapp.com/demos/g4u-tortilla
+    https://www.recurrentesapp.com/demos/g4u-pan-arabe
+    https://www.recurrentesapp.com/demos/g4u-pan-hamburguesa
+    https://www.recurrentesapp.com/demos/g4u-pan-ciabatta
+    https://www.recurrentesapp.com/demos/g4u-grisin-queso
+    https://www.recurrentesapp.com/demos/g4u-marineras-semillas
+    https://www.recurrentesapp.com/demos/g4u-tostaditas-semillas
+    https://www.recurrentesapp.com/demos/g4u-tostaditas-cebolla
+- Portal del suscriptor: cualquiera de esas + #portal (ej. .../g4u-pan-de-molde#portal)
+- Si cambian precios o fotos:  node demos/plantilla-tienda/g4u.relevar.mjs && node demos/plantilla-tienda/g4u.armar.mjs
+
+CÓMO QUEDA EN SU TIENDA (lo que muestra la demo)
+1. En cada ficha de producto, debajo de "Agregar al carrito": un botón "Suscribite y ahorrá 15%"
+   que abre ESE producto en modo suscripción.
+2. En el home y en el menú: "Suscripción" → página con el catálogo en versión suscripción
+   (los 9 productos sueltos; cada tarjeta lleva a su producto en modo suscripción). Los packs/combos no van.
+3. El rebrand no cambia nada de esto: color y logo del widget y del checkout se cambian en 2 minutos
+   desde Configuración → Widget / Checkout.
+
+OJO ANTES DE LA REUNIÓN
+- La demo deja mezclar productos dentro del pack ("Suma otro producto", como su app Kaching).
+  El widget real hoy hace packs de 1 / 4 / 8 unidades DEL MISMO producto y, en el checkout,
+  "Sumá a tu suscripción" (hasta 4 productos extra con precio propio, que viajan en cada envío).
+  Es el mismo resultado para el cliente (pan de molde ×4 + tortillas), pero se arma en dos pasos.
+  Decirlo así si preguntan; mezclar dentro del pack es una mejora que se puede hacer después.
+- Su tienda da envío gratis desde $95.000: el plan tiene que decir lo mismo.
+
+PARTE A · PANEL DE RECURRENTES (lo hago yo; Admin → Puesta en marcha tiene el mensaje para pedirles cada cosa)
+1. Cuenta + Shopify conectado por OAuth con permisos completos + Mercado Pago por OAuth
+   (no token pegado: sin public key no hay tarjeta adentro del checkout).
+2. Planes: 9, uno por producto, en modo packs. Packs de 1 / 4 / 8 unidades, 15% de descuento en
+   TODOS los envíos, frecuencias 15 / 30 / 60 días. Envío: tarifas de Shopify en vivo (shipnow),
+   gratis desde $95.000 (Logística → Envíos). Sin regalos por ahora.
+   Precios de hoy: Pan de molde 12.390 · Tortilla 9.933 · Pan árabe 10.400 · Pan hamburguesa 9.009 ·
+   Pan ciabatta 9.933 · Grisin queso 6.530 · Marineras semillas 6.530 · Tostaditas semillas 8.030 ·
+   Tostaditas cebolla 8.030.
+3. Configuración → Widget: modo por defecto "Compra única" (su ficha sigue igual; a la suscripción
+   se entra con el botón, que es el link ?rec_modo=sub), carrito de la suscripción prendido,
+   color #500322. Textos del botón: "Suscribirme · $X cada mes" / "Ahorrás $Y en cada envío".
+4. Configuración → Checkout: color #500322, logo, "Pagar suscripción · {{total}}", tarjeta adentro
+   del checkout prendida. Upsells del checkout: los otros panes.
+5. Snippet del widget: Online Store → Temas → ⋯ → Editar código → layout/theme.liquid, pegar el
+   <script> arriba de </body> (una sola vez). Después "Activar en mi tienda" y verificar que cargó.
+6. Flujos: carrito sin pagar (recupero), aviso de próximo cobro, pago rechazado. Mails con su marca.
+
+PARTE B · EN SU SHOPIFY (diseño · Online Store → Temas → Personalizar)
+1. Ficha de producto → sección "Información del producto" → agregar un bloque "Texto enriquecido"
+   (o "Liquid personalizado") DEBAJO del botón de compra, con:
+     <a class="button button--secondary" href="?rec_modo=sub">Suscribite y ahorrá 15%</a>
+   El link con ?rec_modo=sub abre esa misma ficha con el widget ya en "Suscripción" (el cliente puede
+   volver a Compra única). Se hace una vez en la plantilla de producto y sale en los 9.
+   Alternativa sin botón: que el widget muestre el selector Compra única / Suscripción debajo del
+   precio. Lo deciden ellos; con la demo elegimos el botón.
+2. Página "Suscripción" (el link madre): Online Store → Páginas → nueva página "Suscripción"
+   (queda en /pages/suscripcion). Contenido: la grilla de los 9 con foto, nombre, precio de
+   suscripción (−15%) y botón "Suscribirme" → /products/<handle>?rec_modo=sub.
+     a) Rápido: colección "Suscripción" con los 9 productos + sección "Colección destacada" del tema
+        (los botones llevan a la ficha; ahí el cliente toca Suscripción en el widget).
+     b) Igual a la demo: bloque Liquid que lista la colección con {{ product.url }}?rec_modo=sub y el
+        precio con −15% (lo escribo yo cuando llegue el momento).
+3. Menú principal: Online Store → Navegación → Menú principal → "Suscripción" → /pages/suscripcion,
+   después de "Productos". Lo mismo en el menú del pie.
+4. Home: sección "Imagen con texto" o banner "Suscribite y ahorrá 15% en cada envío" con botón →
+   /pages/suscripcion, debajo de "Nuestros packs".
+5. Barra de anuncios (opcional): sumar "Suscribite y ahorrá 15% en cada envío" a la marquesina.
+
+PARTE C · PRUEBA DE PUNTA A PUNTA (antes de avisarles que está)
+- Ficha → Suscribite → pack → carrito → checkout: que cotice el envío de verdad; pagar con tarjeta
+  Y con cuenta de Mercado Pago, desde el celular y desde Instagram (el link de un posteo).
+- Ver la orden en Shopify con el tag RECURRENTE; abrir el portal (pausar, cambiar dirección, cancelar).
+- Recién ahí avisar y mandarles /pages/suscripcion.
+
+HANDLES (para armar los links ?rec_modo=sub)
+pan-de-molde-proteico
+tortilla-proteica-low-carb-sin-azucar-apto-keto-10-unidades
+pan-arabe-proteico-low-carb-sin-azucar-apto-keto-4-unidades
+pan-hamburguesa-proteico
+pan-ciabatta-proteico-low-carb-sin-azucar-apto-keto-4-unidades-copia
+grisin-queso-proteico-low-carb-sin-azucar-apto-keto
+marineras-semillas-proteico-low-carb-sin-azucar-apto-keto
+tostaditas-semillas-proteico-low-carb-sin-azucar-apto-keto
+tostaditas-cebolla-proteico-low-carb-sin-azucar-apto-keto
