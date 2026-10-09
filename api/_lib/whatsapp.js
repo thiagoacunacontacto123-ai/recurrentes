@@ -34,6 +34,7 @@
 import crypto from "node:crypto";
 import { FieldValue } from "firebase-admin/firestore";
 import { db } from "./firebase.js";
+import { logError } from "./errlog.js";
 import { sha256hex, timingSafeEqualStr } from "./token.js";
 import {
   normalizePhoneAR, maskPhone, templateParams, WA_DEFAULT_LANG, WA_TEMPLATE_NAME_RE, WA_LANG_RE,
@@ -235,6 +236,9 @@ export async function sendTemplate({ merchant, sender, to, template, lang = WA_D
   }
   const err = mapWaError(r.status, r.data);
   console.warn(`[whatsapp] envío ${name} (${s.mode}) → ${maskPhone(e164)}: ${err.code} ${err.detail || err.error}`);
+  // Solo lo que es NUESTRO problema (token, permisos, plantilla, cuota, Meta caído); un
+  // número inexistente o fuera de WhatsApp (131026/131030) es del dato, no de la plataforma.
+  if (s.mode === "platform" && !/^13102[0-9]$|^131030$|^131047$/.test(String(err.code))) await logError("whatsapp", new Error(`${err.code}: ${err.detail || err.error}`), { kind: "whatsapp", merchantId: merchant?.id || null, detail: name });
   return { ...err, to: e164, mode: s.mode };
 }
 

@@ -14,6 +14,7 @@
 // También lo puede usar el webhook handler como fallback si llega un evento
 // sin contexto suficiente.
 import { db } from "./firebase.js";
+import { logError } from "./errlog.js";
 import { FieldValue } from "firebase-admin/firestore";
 import {
   mpGetPayment, mpGetPreapproval, mpUpdatePreapproval,
@@ -664,6 +665,7 @@ export async function syncSubscriber(merchantId, subscriberId) {
       error: shopifyError,
       created_at: nowIso(),
     });
+    if (shopifyError) await logError("orden tras cobro (sync)", new Error(String(shopifyError)), { kind: "order", merchantId, detail: `pago ${payment.id}` });
     if (shopifyOrderId) {
       newOrderIds.push(shopifyOrderId);
       newOrderPayments.push({ payment, orderId: shopifyOrderId });
@@ -881,6 +883,7 @@ export async function linkPaymentToSubscriber(merchantId, subscriberId, paymentI
     error: shopifyError,
     created_at: nowIso(),
   });
+  if (shopifyError) await logError("orden tras cobro (link)", new Error(String(shopifyError)), { kind: "order", merchantId: merchantRef.id, detail: `pago ${payment.id}` });
 
   // Descuento solo primer cobro → repreciar el preapproval (no bloquea).
   await repriceAfterFirstCharge(token, subRef, sub, pre?.id || sub.mp_preapproval_id || null, "link");

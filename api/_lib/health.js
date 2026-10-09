@@ -38,6 +38,8 @@ export const EXPECTED_CRONS = {
   "stock-watch": { every_min: 30, stale_after_min: 90, soft: true },
   "sync-saas-tiers": { every_min: 1440, stale_after_min: 1560, soft: true },
   "bill-wa-usage": { every_min: 1440, stale_after_min: 1560, soft: true },
+  "bill-commission": { every_min: 1440, stale_after_min: 1560, soft: true },
+  "daily-summary": { every_min: 1440, stale_after_min: 1560, soft: true },
 };
 
 // Resumen de la última conciliación con MP (system/reconcile_last, _lib/reconcile.js).

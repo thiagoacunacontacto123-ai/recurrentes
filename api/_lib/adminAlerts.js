@@ -40,6 +40,17 @@ export const ADMIN_EVENT_LABEL = {
   mp_plan_error: "Mercado Pago le rechazó el plan a un comprador",
   // 9-oct-2026: Google frenó Firestore en la cuota gratis (facturación en mora) y la plataforma quedó caída sin aviso.
   firestore_quota: "Firestore sin cuota: la plataforma no puede leer la base",
+  // Vigilante (api/_lib/watchdog.js, 9-oct-2026): un aviso cuando se rompe, otro cuando vuelve.
+  checkout_failing: "Checkout fallando: compradores que no pueden suscribirse",
+  email_failing: "Los mails están rebotando",
+  whatsapp_failing: "Los WhatsApps están rebotando",
+  cron_stale: "Un proceso automático dejó de correr",
+  webhook_silent: "Mercado Pago no manda webhooks hace más de un día",
+  mp_token_invalid: "Token de Mercado Pago vencido: la tienda no cobra",
+  widget_down: "El widget no se ve en la tienda hace más de un día",
+  order_failed: "Cobró y la orden no se creó en la tienda",
+  recovered: "Volvió a andar",
+  daily_summary: "Resumen de ayer",
 };
 export const ADMIN_EVENTS = Object.keys(ADMIN_EVENT_LABEL);
 

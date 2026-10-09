@@ -33,6 +33,7 @@
 // distintos). Sin pack_index → 400 "Elegí un pack". Planes "theme" (Lumina, el
 // tema manda base/sub_off/freq_days por URL) siguen el flujo de computeSubtotal.
 import { db } from "../_lib/firebase.js";
+import { withErrorLog, logError } from "../_lib/errlog.js";
 import { mpCreatePreapprovalPlan, mpCreatePreapproval, mpCardErrorText, mpReason, mpReasonAscii, isMpContentError } from "../_lib/mp.js";
 import { generatePortalToken, verifyPortalToken, merchantStoreUrl } from "../public.js";
 import { syncSubscriber } from "../_lib/sync.js";
@@ -248,7 +249,7 @@ function buildRecoverPath(merchant, plan, planId, qty, extra = {}) {
   return `${base}?${sp.toString()}`;
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   if (req.method === "OPTIONS") return res.status(200).end();
 
@@ -1066,6 +1067,7 @@ export default async function handler(req, res) {
     // en el merchant para que lo vea en el dashboard.
     const detail = lastPlanErr?.message || "MP no devolvió el plan";
     console.error("[checkout/init] MP preapproval_plan falló:", { merchantId, subscriberId, detail });
+    await logError("checkout/init plan MP", new Error(String(detail)), { kind: "checkout", merchantId });
     await subRef.update({ status: "error", error: detail }).catch(() => {});
     await merchantRef.set({ mp_last_error: String(detail).slice(0, 500), mp_last_error_at: new Date().toISOString() }, { merge: true }).catch(() => {});
     // Que NO nos enteremos por un cliente (Thiago, 5-oct-2026). Best-effort y
@@ -1122,3 +1124,6 @@ export default async function handler(req, res) {
     ...(cardDeclined ? { card_declined: true, card_error: cardDeclined } : {}),
   });
 }
+
+// Un throw sin atrapar queda registrado (system_errors) y el comprador recibe un JSON, no un 500 pelado.
+export default withErrorLog(handler, { where: "checkout/init", kind: "checkout" });

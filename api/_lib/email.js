@@ -7,6 +7,7 @@
 //
 // Doc: https://resend.com/docs/api-reference/emails/send-email
 import { fetchWithTimeout } from "./http.js";
+import { logError } from "./errlog.js";
 import { appBaseUrl } from "./config.js";
 import { signToken } from "./token.js";
 
@@ -105,11 +106,14 @@ async function sendEmail({ from, to, subject, html, text, replyTo, headers, tags
     if (!r.ok) {
       const error = `Resend ${r.status}: ${data.message || data.name || raw.slice(0, 300) || "error"}`;
       console.error(`[email] error to=${to} subject="${subject}" status=${r.status} body=${raw.slice(0, 500)}`);
+      // 422 = destinatario/dirección inválidos (cosa del dato, no de Resend): no cuenta como caída.
+      if (r.status !== 422) await logError("email", new Error(error), { kind: "email", detail: subject });
       return { ok: false, error, status: r.status };
     }
     return { ok: true, id: data.id };
   } catch (e) {
     console.error(`[email] network error to=${to} subject="${subject}":`, e.message);
+    await logError("email", e, { kind: "email", detail: subject });
     return { ok: false, error: `network: ${e.message}` };
   }
 }

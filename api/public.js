@@ -40,6 +40,7 @@
 // de config.signingSecret(), sin fallback hardcodeado). Se mantiene la verificación
 // de tokens legacy firmados con MP_WEBHOOK_SECRET (compare timing-safe).
 import crypto from "node:crypto";
+import { withErrorLog, logError } from "./_lib/errlog.js";
 import { FieldValue } from "firebase-admin/firestore";
 import { db } from "./_lib/firebase.js";
 import { retentionFor, RETENTION_REASON_CODES, RETENTION_MAX_PAUSE_CYCLES } from "./_lib/retention.js";
@@ -127,7 +128,7 @@ export function merchantStoreUrl(merchant) {
   return primary ? `https://${normHost(primary)}` : null;
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   if (req.method === "OPTIONS") return res.status(200).end();
 
@@ -631,6 +632,8 @@ async function handlePlan(req, res) {
     });
   } catch (e) {
     console.error("[public/plan] error:", e.message);
+    await logError("public/plan", e, { kind: "public", merchantId: req.query?.merchant || null });
+    try { const { reportQuotaExhausted } = await import("./_lib/quotaGuard.js"); await reportQuotaExhausted("public/plan", e); } catch (_) {}
     return res.status(500).json({ error: "No se pudo cargar el plan" });
   }
 }
@@ -1061,3 +1064,5 @@ async function handleWidgetSeen(req, res) {
   } catch (e) { console.warn("[public/widget-seen]", e.message); }
   return res.status(204).end();
 }
+
+export default withErrorLog(handler, { where: "public", kind: "public" });

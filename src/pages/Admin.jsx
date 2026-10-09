@@ -465,6 +465,7 @@ function EstadoPanel({ T }) {
           </div>
         </Panel>
       ))}
+      <VigilantePanel T={T}/>
       {h && h.summary && (h.summary.required_failed.length > 0 || h.summary.warnings.length > 0) && (
         <Panel T={T} title="Resumen en palabras">
           <div style={{ padding:"0 16px 14px" }}>
@@ -477,6 +478,90 @@ function EstadoPanel({ T }) {
         </Panel>
       )}
     </div>
+  );
+}
+
+// ─── Vigilante: lo que sigue roto, errores de 24 h y avisos mandados ──────────
+// GET stats?action=admin-watch (api/_lib/watchdog.js + errlog.js). 9-oct-2026.
+const KIND_LABEL = { checkout: "Checkout", order: "Orden tras cobro", webhook: "Webhook", cron: "Proceso automático", email: "Mail", whatsapp: "WhatsApp", mp: "Mercado Pago", store: "Tienda", public: "Plan/widget", other: "Otro" };
+function VigilantePanel({ T }) {
+  const [d, setD] = useState(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+  const load = useCallback(async () => {
+    try {
+      const r = await apiGet("stats", { action: "admin-watch" });
+      if (!r || r.error) { setErr(r?.error || "No pudimos leer el vigilante."); return; }
+      setErr(""); setD(r);
+    } catch (e) { setErr(e.message || "No pudimos leer el vigilante."); }
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  async function runNow() {
+    setBusy(true);
+    try { const r = await apiGet("stats", { action: "admin-watch-run" }); toast(r?.ok ? `Revisado: ${r.open || 0} abierto${r.open === 1 ? "" : "s"}, ${(r.alerted || []).length} aviso${(r.alerted || []).length === 1 ? "" : "s"} nuevo${(r.alerted || []).length === 1 ? "" : "s"}` : `No se pudo correr (${r?.error || "error"})`, r?.ok ? "success" : "error"); await load(); }
+    finally { setBusy(false); }
+  }
+  async function preview() {
+    setBusy(true);
+    try { const r = await apiGet("stats", { action: "admin-daily-summary-preview" }); if (r?.text) { await copyText(r.text); toast("Resumen copiado: " + r.text.slice(0, 80) + "…", "success"); } else toast(r?.error || "No se pudo armar", "error"); }
+    finally { setBusy(false); }
+  }
+  const errors = d?.errors || [];
+  const open = d?.open || [];
+  const alerts = d?.alerts || [];
+  const shown = showAll ? errors : errors.slice(0, 15);
+  const tone = !d ? T.textSm : open.length ? T.red : errors.length ? T.yellow : T.green;
+  return (
+    <Panel T={T} title="Vigilante" sub="Avisa por WhatsApp cuando algo se rompe y cuando vuelve · resumen de ayer a las 9:00"
+      right={<div style={{ display:"flex", gap:8, alignItems:"center" }}>
+        <DSBadge T={T} color={tone}>{!d ? "…" : open.length ? `${open.length} roto${open.length === 1 ? "" : "s"}` : errors.length ? `${errors.length} error${errors.length === 1 ? "" : "es"} en 24 h` : "Sin novedades"}</DSBadge>
+        <Btn T={T} variant="secondary" size="sm" onClick={preview} disabled={busy}>Ver resumen de ayer</Btn>
+        <Btn T={T} variant="secondary" size="sm" onClick={runNow} disabled={busy}>{busy ? "Revisando…" : "Revisar ahora"}</Btn>
+      </div>}>
+      <div style={{ padding:"0 16px 14px", display:"flex", flexDirection:"column", gap:14 }}>
+        {err && <div style={{ color:T.red, fontSize:DS.font.sm }}>{err}</div>}
+        {open.length > 0 && (
+          <div>
+            <div style={{ fontSize:DS.font.xs, color:T.textSm, textTransform:"uppercase", letterSpacing:0.5, fontWeight:700, marginBottom:6 }}>Sigue roto</div>
+            {open.map(o => (
+              <div key={o.key} style={{ display:"flex", gap:10, alignItems:"flex-start", background:T.bg, border:`1px solid ${T.red}66`, borderRadius:10, padding:"9px 12px", marginBottom:6 }}>
+                <span style={{ width:9, height:9, borderRadius:99, marginTop:6, flexShrink:0, background:T.red, boxShadow:`0 0 6px ${T.red}` }}/>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:DS.font.sm, fontWeight:700, color:T.text }}>{o.label}{o.merchant_id ? <span style={{ color:T.textSm, fontWeight:400 }}> · {o.merchant_id}</span> : null}</div>
+                  <div style={{ fontSize:DS.font.xs, color:T.textSm, marginTop:2, lineHeight:1.4 }}>{o.detail} · desde {fmtDateTime(o.since)}{o.alerted_at ? ` · avisado ${fmtAgo(o.alerted_at)}` : " · sin avisar todavía"}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <div>
+          <div style={{ fontSize:DS.font.xs, color:T.textSm, textTransform:"uppercase", letterSpacing:0.5, fontWeight:700, marginBottom:6 }}>
+            Errores de las últimas 24 h{d ? ` · ${errors.length}${errors.length ? ` (${Object.entries(d.by_kind || {}).map(([k, n]) => `${KIND_LABEL[k] || k} ${n}`).join(", ")})` : ""}` : ""}
+          </div>
+          {d && !errors.length && <div style={{ fontSize:DS.font.sm, color:T.textSm }}>Ninguno. Todo lo que falla (checkout, órdenes, webhooks, mails, WhatsApp, procesos) queda acá.</div>}
+          {shown.map(e => (
+            <div key={e.id} style={{ display:"grid", gridTemplateColumns:"150px 110px 1fr", gap:10, fontSize:DS.font.xs, padding:"5px 0", borderBottom:`1px solid ${T.borderL}`, alignItems:"baseline" }}>
+              <span style={{ color:T.textSm, fontFamily:MONO }}>{fmtDateTime(e.at)}</span>
+              <span style={{ color:T.text, fontWeight:700 }}>{KIND_LABEL[e.kind] || e.kind}</span>
+              <span style={{ color:T.text, wordBreak:"break-word" }}>{e.where}{e.merchant_id ? ` · ${e.merchant_id}` : ""}: {e.message}{e.detail ? ` (${e.detail})` : ""}</span>
+            </div>
+          ))}
+          {errors.length > 15 && <Btn T={T} variant="ghost" size="sm" onClick={() => setShowAll(v => !v)}>{showAll ? "Ver menos" : `Ver los ${errors.length}`}</Btn>}
+        </div>
+        <div>
+          <div style={{ fontSize:DS.font.xs, color:T.textSm, textTransform:"uppercase", letterSpacing:0.5, fontWeight:700, marginBottom:6 }}>Últimos avisos que te mandamos</div>
+          {d && !alerts.length && <div style={{ fontSize:DS.font.sm, color:T.textSm }}>Todavía ninguno.</div>}
+          {alerts.slice(0, 12).map(a => (
+            <div key={a.id} style={{ display:"grid", gridTemplateColumns:"150px 1fr 90px", gap:10, fontSize:DS.font.xs, padding:"5px 0", borderBottom:`1px solid ${T.borderL}`, alignItems:"baseline" }}>
+              <span style={{ color:T.textSm, fontFamily:MONO }}>{fmtDateTime(a.created_at)}</span>
+              <span style={{ color:T.text }}>{a.label}{a.merchant_id && a.merchant_id !== "system" ? ` · ${a.merchant_id}` : ""}</span>
+              <span style={{ color: a.status === "sent" ? T.green : a.status === "error" ? T.red : T.textSm, fontWeight:700, textAlign:"right" }}>{a.status === "sent" ? (a.whatsapp_ok ? "WhatsApp" : a.email_ok ? "Mail" : "Enviado") : a.status === "error" ? "No salió" : a.status || "—"}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Panel>
   );
 }
 

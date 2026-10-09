@@ -292,7 +292,7 @@ function StockCard({ T, m, isOwner, onChange }) {
 
   return (
     <Panel T={T} title="Si no hay stock en la renovación"
-      sub="Hoy se cobra igual. Cambialo si preferís no cobrar algo que no podés mandar."
+      sub={source !== "store" ? "No miramos stock: se cobra y se despacha siempre." : onMissing === "charge" ? "Hoy se cobra igual aunque no haya stock. Cambialo si preferís no cobrar algo que no podés mandar." : "Hoy, si no hay stock, esa renovación no se cobra: se pausa antes y vuelve sola cuando reponés."}
       right={sucio ? <DSBadge T={T} color={T.yellow} size="sm">Sin guardar</DSBadge> : null}>
       {source === "store" ? (
         <>

@@ -308,6 +308,15 @@ export async function maybeAlert(mid, merchant, issueRef, issue, c, { now = Date
       else upd.alert_merchant_error = String(r?.error || "error").slice(0, 300);
     }
   }
+  // Al admin por WhatsApp también (9-oct-2026): un aviso por pago, deduplicado por notifyAdmin.
+  if (!claimed.alert_admin_at) {
+    try {
+      const { notifyAdmin } = await import("./adminAlerts.js");
+      await notifyAdmin("order_failed", { merchantId: mid, store: merchant?.store_name || merchant?.shopify_shop || mid, key: String(issueRef.id),
+        detail: `Pago ${issueRef.id} de ${common.customerName || "un cliente"} (${common.productTitle || "producto"}, $${common.amount}) aprobado y la orden no se creó: ${String(common.error).slice(0, 200)}. ${retrying ? "Se reintenta solo." : "Hay que reintentar a mano desde Cobros."}` });
+      upd.alert_admin_at = iso(now);
+    } catch (_) {}
+  }
   const platformTo = String(process.env.PLATFORM_ALERT_EMAIL || "").trim();
   let platformDone = !!claimed.alert_platform_at || !platformTo;
   if (!platformDone) {

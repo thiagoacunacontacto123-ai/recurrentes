@@ -174,6 +174,7 @@ export default async function handler(req, res) {
     }
   } catch (e) {
     console.error("[mp-webhook] error procesando:", e.message);
+    try { const { logError } = await import("../_lib/errlog.js"); await logError("webhook MP", e, { kind: "webhook" }); } catch (_) {}
     try { const { reportQuotaExhausted } = await import("../_lib/quotaGuard.js"); await reportQuotaExhausted("webhook de MP", e); } catch (_) {}
     // Igual ACK — si devolvemos error MP reintenta y duplicamos órdenes.
   }

@@ -36,6 +36,8 @@ import { mpCancelPreapprovalPlan, mpUpdatePreapproval, mpGetPreapproval, isMpAut
 import { refreshMpTokenIfNeeded } from "./_lib/mpOauth.js";
 // ?action=health (auth propia: CRON_SECRET o admin de ADMIN_EMAILS) + heartbeat de cada cron.
 import { healthHandler, cronHeartbeat } from "./_lib/health.js";
+import { runWatchdog, dailySummary } from "./_lib/watchdog.js";
+import { logError } from "./_lib/errlog.js";
 // ?action=retry-fulfillment (cada 10 min): aviso + reintento de cobros sin orden.
 import { fulfillmentCron } from "./_lib/fulfillretry.js";
 // ?action=reconcile-mp (cada hora, minuto 17): conciliación con MP (_lib/reconcile.js).
@@ -83,6 +85,13 @@ export default async function handler(req, res) {
 
   const action = String(req.query.action || "sync-all-pending");
   if (action === "run-flows") return runFlowsCron(res);
+  // Resumen de ayer al admin por WhatsApp (9:00 AR) + limpieza del registro de errores.
+  if (action === "daily-summary") {
+    const r = await dailySummary();
+    await cronHeartbeat("daily-summary", { ok: r.ok !== false });
+    return res.json(r);
+  }
+  if (action === "watchdog") return res.json(await runWatchdog({ hourly: req.query.hourly === "1" }));
   // Recordatorio de la demo, 2 h antes (_lib/demoReminder.js). Va pegado a
   // run-flows: misma frecuencia y una sola consulta, así no suma un cron nuevo.
   if (action === "demo-reminders") {
@@ -511,12 +520,15 @@ export default async function handler(req, res) {
     console.log(`[cron] sync-all-pending (${mode}): ${merchantsProcessed}/${merchantsTotal} merchants, ${subsProcessed} subs, ${activated} activadas, ${errors} errores${partial ? " (PARCIAL: presupuesto agotado)" : ""} (${elapsed}ms)`);
     await db().collection("system").doc("cron_last").set({ ...summary, at: nowIso() }, { merge: true }).catch(() => {});
     await cronHeartbeat("sync-all-pending", summary);
+    // Vigilante: mira errores, crons y (cada hora) webhooks, tokens y widgets. Nunca lanza.
+    summary.watchdog = await runWatchdog({ minute });
     return res.json(summary);
   } catch (e) {
     // NUNCA devolver 500: cron-job.org desactiva el job tras varios fallos. Si algo
     // rompe a nivel global (ej. la query inicial de merchants), respondemos 200 con
     // el error adentro para que el cron siga vivo y reintente el próximo tick.
     console.error("[cron] error global:", e.message);
+    await logError("cron sync-all-pending", e, { kind: "cron" });
     const out = {
       ok: false, error: e.message, partial, mode,
       merchants_processed: merchantsProcessed, merchants_total: merchantsTotal || null,
@@ -593,10 +605,12 @@ async function runFlowsCron(res) {
     const out = { ok: true, mode, ...tot, elapsed_ms: Date.now() - start };
     if (tot.processed || tot.entered || tot.errors) console.log("[cron] run-flows:", JSON.stringify(out));
     await cronHeartbeat("run-flows", out);
+    out.watchdog = await runWatchdog({});   // el segundo ojo: vigila también a sync-all-pending
     return res.json(out);
   } catch (e) {
     // Igual que sync-all-pending: nunca 500 (el cron sigue vivo y reintenta).
     console.error("[cron] run-flows error global:", e.message);
+    await logError("cron run-flows", e, { kind: "cron" });
     const out = { ok: false, error: e.message, mode, ...tot, elapsed_ms: Date.now() - start };
     await cronHeartbeat("run-flows", out);
     return res.status(200).json(out);

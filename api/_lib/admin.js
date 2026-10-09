@@ -969,6 +969,10 @@ export async function adminHandler(req, res) {
       if (action === "admin-merchants") return res.json(await merchantsList(req.query || {}));
       if (action === "admin-merchant") return await merchantDetail(req, res);
       if (action === "admin-demo-leads") return res.json(await demoLeads(req.query || {}));
+      // Vigilante (9-oct-2026): errores de 24 h, avisos mandados al admin y lo que sigue roto.
+      if (action === "admin-watch") return res.json(await watchReport());
+      if (action === "admin-watch-run") return res.json(await (await import("./watchdog.js")).runWatchdog({ hourly: true }));
+      if (action === "admin-daily-summary-preview") return res.json(await (await import("./watchdog.js")).buildDailySummary());
       // Plantillas de WhatsApp de Recurrentes en Meta (estado por plantilla).
       if (action === "admin-wa-templates") return res.json(await (await import("./waTemplates.js")).listPlatformTemplates());
       // Costos de operar la app (fijos editables + crons + WhatsApp del mes) → Admin → Costos.
@@ -1104,4 +1108,20 @@ export async function adminHandler(req, res) {
     console.error("[admin]", action, e);
     return res.status(500).json({ error: e.message });
   }
+}
+
+// ─── Vigilante: errores, avisos y lo que sigue roto (Admin → Estado) ──────────
+async function watchReport() {
+  const { recentErrors, countByKind } = await import("./errlog.js");
+  const { WATCH_LABEL } = await import("./watchdog.js");
+  const [errors, alertsSnap, stateSnap] = await Promise.all([
+    recentErrors({ sinceMs: 24 * 3600e3, limit: 100 }).catch(() => []),
+    db().collection("system").doc("admin_alerts").collection("log").orderBy("created_at", "desc").limit(30).get().catch(() => null),
+    db().collection("system").doc("watchdog").get().catch(() => null),
+  ]);
+  const { ADMIN_EVENT_LABEL } = await import("./adminAlerts.js");
+  const alerts = (alertsSnap?.docs || []).map(d => { const a = d.data() || {}; return { id: d.id, event: a.event, label: ADMIN_EVENT_LABEL[a.event] || a.event, merchant_id: a.merchant_id, status: a.status, created_at: a.created_at, whatsapp_ok: Array.isArray(a.whatsapp) && a.whatsapp.some(w => w.ok), email_ok: a.email?.ok === true }; });
+  const state = stateSnap?.exists ? (stateSnap.data() || {}) : {};
+  const open = Object.entries(state).map(([key, v]) => ({ key, label: WATCH_LABEL[v?.event] || v?.event || key, since: v?.since || null, alerted_at: v?.alerted_at || null, detail: v?.detail || "", merchant_id: v?.merchant_id || null }));
+  return { errors, by_kind: countByKind(errors), alerts, open };
 }

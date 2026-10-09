@@ -129,6 +129,10 @@
     {
       "path": "/api/cron?action=bill-commission",
       "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron?action=daily-summary",
+      "schedule": "0 12 * * *"
     }
   ]
 }
