@@ -17,7 +17,7 @@
 // era por Wellfresh): G4U lo pide y Thiago lo aprobó el 9-oct.
 import { FieldValue } from "firebase-admin/firestore";
 import { mixCatalog, resolveMixSelection, mixTitle } from "./packs.js";
-import { mpUpdatePreapproval } from "./mp.js";
+import { mpUpdatePreapproval, mpReason } from "./mp.js";
 
 export const MAX_PACK_UNITS = 50;
 export const MAX_PACK_CHANGES_KEPT = 30;
@@ -78,9 +78,12 @@ export async function applyPackChange({ db, merchantId, merchant, subscriberId, 
   const same = before.total === after.total && JSON.stringify(before.items) === JSON.stringify(after.items);
   if (same) return { ok: true, unchanged: true, total: p.total, before, after };
 
-  if (after.total !== before.total) {
+  // Monto nuevo + la descripción que el cliente ve en su Mercado Pago ("Pack ×2 · …"):
+  // si solo cambiara el monto, MP seguiría diciendo "3 panes (×3)" (visto el 9-oct).
+  const reason = mpReason(mixTitle(p.sel.items, p.units), ` — cada ${Number(sub.plan_snapshot?.frequency_days) || 30} días`);
+  if (after.total !== before.total || JSON.stringify(before.items) !== JSON.stringify(after.items)) {
     try {
-      await mpUpdatePreapproval(merchant.mp_access_token, sub.mp_preapproval_id, { auto_recurring: { transaction_amount: after.total, currency_id: "ARS" } });
+      await mpUpdatePreapproval(merchant.mp_access_token, sub.mp_preapproval_id, { reason, ...(after.total !== before.total ? { auto_recurring: { transaction_amount: after.total, currency_id: "ARS" } } : {}) });
     } catch (e) {
       return { error: "Mercado Pago no aceptó el cambio de monto. Probá de nuevo en unos minutos.", code: "mp", detail: String(e?.message || e).slice(0, 300) };
     }

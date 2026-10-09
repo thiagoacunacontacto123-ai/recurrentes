@@ -81,7 +81,7 @@ test("portal: el GET trae el pack editable; el POST cambia el monto en MP primer
   assert.equal(r.body.ok, true);
   assert.equal(r.body.total, 25500 + 1500, "30.000 de lista → 25.500 + envío");
   assert.equal(r.body.product_title, "Pack ×3 · Cápsulas LuminaLabs ×2, Grisines ×1");
-  assert.deepEqual(W.mp.preapprovalUpdates.map(u => [u.id, u.body]), [["pre_ana", { auto_recurring: { transaction_amount: 27000, currency_id: "ARS" } }]]);
+  assert.deepEqual(W.mp.preapprovalUpdates.map(u => [u.id, u.body]), [["pre_ana", { reason: "Pack ×3 · Cápsulas LuminaLabs ×2, Grisines ×1 — cada 30 días", auto_recurring: { transaction_amount: 27000, currency_id: "ARS" } }]]);
   const s = W.sub("sub_mica");
   assert.equal(s.quantity, 3);
   assert.deepEqual(s.pack_items.map(i => [i.shopify_variant_id, i.qty, i.price_ars]), [[VARIANT_ID, 2, 12000], ["4003", 1, 6000]]);
