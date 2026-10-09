@@ -563,6 +563,26 @@ export function SubscriberDetailModal({ sub, onClose, devMode = false, shop = nu
                 <div style={{ fontSize:DS.font.xs, color:T.textSm }}>{fmtFreq(plan.frequency_days)}</div>
               </div>
             </div>
+            {Array.isArray(s?.pack_items) && s.pack_items.length > 0 && (
+              <div style={{ marginTop:10, display:"grid", gap:4 }}>
+                {s.pack_items.map(i => (
+                  <div key={i.shopify_variant_id} style={{ display:"flex", justifyContent:"space-between", gap:8, fontSize:DS.font.sm, color:T.textMd }}>
+                    <span style={{ minWidth:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{i.qty} × {i.title}</span>
+                    <span style={{ color:T.textSm, fontVariantNumeric:"tabular-nums", flexShrink:0 }}>{fmtARS((Number(i.price_ars) || 0) * (Number(i.qty) || 1))}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {Array.isArray(s?.pack_changes) && s.pack_changes.length > 0 && (
+              <div style={{ marginTop:10, paddingTop:8, borderTop:`1px solid ${T.borderL}` }}>
+                <div style={{ fontSize:DS.font.xs, color:T.textSm, textTransform:"uppercase", letterSpacing:0.5, fontWeight:700, marginBottom:4 }}>Cambios de pedido · {s.pack_changes.length}</div>
+                {s.pack_changes.slice(-5).reverse().map((c, i) => (
+                  <div key={i} style={{ fontSize:DS.font.xs, color:T.textMd, padding:"3px 0", lineHeight:1.45 }}>
+                    <span style={{ color:T.textSm }}>{fmtDateTime(c.at)}</span> · {c.by === "customer" ? "el cliente" : c.by === "stock" ? "sin stock" : "la tienda"}: {(c.from?.items || []).map(x => `${x.qty}× ${x.title}`).join(", ") || "—"} ({fmtARS(c.from?.total)}) → <strong style={{ color:T.text }}>{(c.to?.items || []).map(x => `${x.qty}× ${x.title}`).join(", ")} ({fmtARS(c.to?.total)})</strong>
+                  </div>
+                ))}
+              </div>
+            )}
           </SurfaceBox>
 
           <div>

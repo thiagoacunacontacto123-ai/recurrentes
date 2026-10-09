@@ -35,6 +35,9 @@ export const FLOW_TRIGGERS = [
   // vuelve, no mandarlo al portal a arreglar algo.
   { id:"out_of_stock", label:"Sin stock", icon:"📦", desc:"La renovación se salteó porque el producto se quedó sin unidades.",
     exit:"Sale cuando la suscripción vuelve a estar activa.", keep:["paused"], cta:"portal" },
+  // 9-oct-2026 (G4U): el cliente cambió los productos de su pack desde el portal.
+  { id:"pack_changed", label:"Pedido modificado", icon:"🧺", desc:"Cambió los productos de su pack desde el portal; el próximo cobro ya tiene el monto nuevo.",
+    exit:"Sale si cancela.", avoid:["cancelled"], cta:"portal" },
   { id:"resumed", label:"Suscripción reactivada", icon:"▶", desc:"Volvió a activar una suscripción pausada.",
     exit:"Sale si vuelve a pausar o cancela.", keep:["active"], cta:"portal" },
   { id:"cancelled", label:"Suscripción cancelada", icon:"👋", desc:"Para intentar recuperarlo más adelante (win-back).",
@@ -100,6 +103,15 @@ export const AUTO_EMAILS = [
     cta_label: "Ver mi suscripción",
   },
   {
+    // 9-oct-2026 (G4U): comprobante del cambio de pedido hecho desde el portal.
+    id: "pack_changed", icon: "🧺", name: "Pedido modificado",
+    when: "Cuando el cliente cambia los productos de su pack desde el portal.",
+    says: "Le confirma el pedido nuevo, el monto y que aplica desde el próximo cobro.",
+    subject: "Tu pedido quedó actualizado — {{producto}}",
+    body: "Hola {{nombre}},\n\nListo, cambiamos tu pedido. Tu suscripción ahora es **{{producto}}** ({{cantidad}} por envío).\n\nSe cobra {{monto}} {{frecuencia}}, desde tu próximo cobro.\n\nSi querés volver a cambiarlo, lo hacés desde tu portal.",
+    cta_label: "Ver mi pedido",
+  },
+  {
     id: "cancellation", icon: "👋", name: "Suscripción cancelada",
     when: "Cuando se da de baja, la cancele el cliente desde su portal o vos desde el panel.",
     says: "Le confirma que no se le cobra más.",
@@ -117,7 +129,7 @@ export const AUTO_EMAIL_BY_ID = Object.fromEntries(AUTO_EMAILS.map(m => [m.id, m
 //
 // Viven en merchants/{mid}/flows/auto_<id> marcados con `system`, así no
 // aparecen sueltos en "Tus flujos": se editan desde el mismo mail automático.
-export const AUTO_EMAIL_TRIGGER = { activation: "activated", payment_failed: "payment_failed", out_of_stock: "out_of_stock", cancellation: "cancelled" };
+export const AUTO_EMAIL_TRIGGER = { activation: "activated", payment_failed: "payment_failed", out_of_stock: "out_of_stock", cancellation: "cancelled", pack_changed: "pack_changed" };
 export const autoFlowId = (id) => `auto_${id}`;
 export const autoFlowSystem = (id) => `auto:${id}`;
 
@@ -241,6 +253,10 @@ export function defaultFlow(triggerId) {
     ],
     resumed: [
       E("¡Qué bueno tenerte de vuelta!", "Hola {{nombre}}, reactivamos tu suscripción a {{producto}}. Tu próximo cobro es el {{proximo_cobro}}.", "Ver mi suscripción", "portal"),
+    ],
+    pack_changed: [
+      W(1, "days"),
+      E("¿Querés agregar algo más a tu pedido?", "Hola {{nombre}}, ayer actualizaste tu pedido: ahora es {{producto}} por {{monto}}.\n\nSi querés sumar o cambiar algo antes del próximo cobro ({{proximo_cobro}}), lo hacés desde tu portal en un minuto.", "Ver mi pedido", "portal"),
     ],
     cancelled: [
       W(14, "days"),

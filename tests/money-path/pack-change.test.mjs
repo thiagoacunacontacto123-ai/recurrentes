@@ -99,11 +99,25 @@ test("portal: el GET trae el pack editable; el POST cambia el monto en MP primer
   assert.equal(s.pack_changes[0].from.total, 34650); assert.equal(s.pack_changes[0].to.total, 27000);
   assert.equal(s.status, "active");
 
+  // Comprobante al cliente ("Pedido modificado") y aviso al comercio (mail; el WhatsApp
+  // va cuando la tienda lo prende y Meta aprueba la plantilla aviso_comercio_pedido).
+  const alCliente = W.resend.byType("pack_changed");
+  assert.equal(alCliente.length, 1);
+  assert.match(alCliente[0].subject, /Tu pedido quedó actualizado/);
+  assert.match(alCliente[0].text || alCliente[0].html, /Pack ×3/);
+  assert.match(alCliente[0].text || alCliente[0].html, /\$27\.000/);
+  const alComercio = W.resend.byType("merchant_alert");
+  assert.equal(alComercio.length, 1);
+  assert.match(alComercio[0].subject, /Cambio de pedido/);
+  assert.match(alComercio[0].text || alComercio[0].html, /ahora lleva Pack ×3/);
+  assert.equal(W.emailLog().filter(e => e.type === "pack_changed").length, 1);
+
   // Mismo pedido otra vez: no toca MP ni suma rastro.
   const r2 = await change([{ variant_id: VARIANT_ID, qty: 2 }, { variant_id: "4003", qty: 1 }]);
   assert.equal(r2.body.unchanged, true);
   assert.equal(W.mp.preapprovalUpdates.length, 1);
   assert.equal(W.sub("sub_mica").pack_changes.length, 1);
+  assert.equal(W.resend.byType("pack_changed").length, 1, "sin cambio no hay segundo mail");
 });
 
 test("si Mercado Pago rechaza el monto nuevo, NADA cambia (ni pack ni total)", async () => {

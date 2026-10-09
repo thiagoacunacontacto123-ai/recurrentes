@@ -246,6 +246,8 @@ export const ALERT_EVENTS = [
   // que el aviso de cada cobro lo damos nosotros. Llega en segundos (medido: 3 a 5
   // desde que Mercado Pago aprueba) y funciona igual en las tres plataformas.
   { id: "renewed",        label: "Se cobra una renovación",            template: "aviso_comercio_cobro" },
+  // 9-oct-2026 (G4U, Thiago: "que al comercio le llegue quién cambia la suscripción").
+  { id: "pack_changed",   label: "Alguien cambia su pedido",           template: "aviso_comercio_pedido" },
 ];
 export const ALERT_EVENT_IDS = ALERT_EVENTS.map(e => e.id);
 // vars: qué dato va en cada {{n}}. Claves: marca, nombre (solo el nombre de pila), producto, monto, link_panel.
@@ -289,6 +291,14 @@ export const WA_MERCHANT_TEMPLATES = [
     footer: WA_MERCHANT_FOOTER,
     vars: { "1": "marca", "2": "nombre", "3": "monto", "4": "producto", "5": "link_panel" },
     samples: ["Tostado Café", "Ana", "$9.480", "Café de especialidad 250 g", ALERTS_PANEL_URL],
+  },
+  {
+    name: "aviso_comercio_pedido", event: "pack_changed", category: "UTILITY", lang: "es_AR",
+    title: "Cambio de pedido (aviso al comercio)",
+    body: "🧺 Cambio de pedido en {{1}}: {{2}} ahora lleva {{3}} por {{4}}. Aplica desde su próximo cobro.\n\nMiralo en tu panel: {{5}}\n\nEs un aviso automático de Recurrentes.",
+    footer: WA_MERCHANT_FOOTER,
+    vars: { "1": "marca", "2": "nombre", "3": "producto", "4": "monto", "5": "link_panel" },
+    samples: ["Tostado Café", "Ana", "Pack x2 - Café 250 g x1, Filtros x1", "$9.480", ALERTS_PANEL_URL],
   },
 ];
 

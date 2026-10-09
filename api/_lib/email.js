@@ -241,6 +241,16 @@ export async function emailSubscriptionActivated({ to, customerName, productTitl
   return sendEmail({ from: snd.from, replyTo: snd.replyTo, to, subject: `¡Suscripción activa — ${prodTxt}!`, html, tags: { type: "activation" } });
 }
 
+// Cambio de pedido desde el portal (9-oct-2026, G4U). Siempre con el texto del mail
+// automático "Pedido modificado" (el de fábrica o el que editó la tienda).
+export async function emailPackChanged({ to, customerName, productTitle, frequencyDays, amount, quantity, portalUrl, merchant }) {
+  const snd = resolveSender({ merchant });
+  const freq = parseInt(frequencyDays, 10) || 30;
+  return sendAutoEmailCustom("pack_changed", { merchant, to, ctaUrl: portalUrl,
+    vars: { nombre: plain(customerName) || "", producto: plain(productTitle) || "tu suscripción", monto: fmtArs(amount), frecuencia: `cada ${freq} días`, marca: snd.brand,
+            cantidad: String(Math.max(1, parseInt(quantity, 10) || 1)), regalos: "" } });
+}
+
 // Lista para llamarse desde public.js (portal) y subscribers.js (dashboard).
 export async function emailSubscriptionCancelled({ to, customerName, productTitle, merchant, from, brand, accent, replyTo }) {
   const snd = resolveSender({ merchant, from, brand, accent, replyTo });
@@ -560,7 +570,7 @@ export async function emailStoreTransferResult({ to, kind, storeName, toEmail, k
 // ─── Aviso al COMERCIANTE por mail (Configuración → Avisos para vos, _lib/merchantAlerts.js):
 // alta / pausa / baja / renovación rechazada. Mismo texto que la plantilla de WhatsApp; es el
 // respaldo mientras no hay WhatsApp (o si falla) y la casilla "también por mail".
-const ALERT_SUBJECT = { wa_paused: "WhatsApp en pausa: llegaste al tope del plan gratis", subscribed: "Nueva suscripción", paused: "Suscripción pausada", cancelled: "Suscripción cancelada", payment_failed: "Pago rechazado de una renovación" };
+const ALERT_SUBJECT = { wa_paused: "WhatsApp en pausa: llegaste al tope del plan gratis", subscribed: "Nueva suscripción", paused: "Suscripción pausada", cancelled: "Suscripción cancelada", payment_failed: "Pago rechazado de una renovación", renewed: "Cobro de una renovación", pack_changed: "Cambio de pedido" };
 export async function emailMerchantAlert({ to, event, text, storeName, customerName, panelUrl, test = false }) {
   const store = plain(storeName, 60) || "tu tienda";
   const who = plain(customerName, 40);

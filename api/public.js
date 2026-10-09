@@ -49,7 +49,8 @@ import { signToken, verifyToken, timingSafeEqualStr } from "./_lib/token.js";
 import { signingSecret } from "./_lib/config.js";
 import { rateLimit, clientIp } from "./_lib/ratelimit.js";
 import { setUnsubscribed } from "./_lib/unsub.js";
-import { emailSubscriptionCancelled } from "./_lib/email.js";
+import { emailSubscriptionCancelled, emailPackChanged } from "./_lib/email.js";
+import { portalUrlFor } from "./_lib/sync.js";
 import { logEmail } from "./_lib/emaillog.js";
 import { planPacks, planPricingMode, mixCatalog, planFrequencyOptions } from "./_lib/packs.js";
 import { packEditState, applyPackChange } from "./_lib/packChange.js";
@@ -1097,5 +1098,19 @@ async function handleUpdatePack(req, res, { merchantId, subscriberId, subRef }) 
     return res.status(400).json({ error: r.error });
   }
   const fresh = (await subRef.get()).data() || sub;
+  if (!r.unchanged) {
+    // Comprobante al cliente, flujo "Pedido modificado" y aviso al comercio. Best-effort:
+    // el cambio ya está hecho en MP y en la base; un aviso que falla no lo deshace.
+    const at = fresh.pack_changed_at || new Date().toISOString();
+    const ps = fresh.plan_snapshot || {};
+    try {
+      if (EMAIL_RE.test(String(fresh.customer_email || ""))) {
+        const er = await emailPackChanged({ to: fresh.customer_email, customerName: fresh.customer_name, productTitle: ps.product_title, frequencyDays: ps.frequency_days, amount: ps.total_per_charge_ars, quantity: fresh.quantity, portalUrl: portalUrlFor(fresh), merchant });
+        await logEmail(merchantId, { type: "pack_changed", to: fresh.customer_email, subscriber_id: subscriberId, status: er?.ok ? "sent" : "error", error: er?.error || null }).catch(() => {});
+      }
+    } catch (e) { console.warn("[public/update-pack] mail:", e.message); }
+    try { await emitFlowEvent(merchantId, merchant, "pack_changed", subscriberId, fresh, { key: at }); } catch (_) {}
+    try { const { notifyMerchantWhatsApp } = await import("./_lib/merchantAlerts.js"); await notifyMerchantWhatsApp("pack_changed", merchantId, merchant, subscriberId, fresh, { key: at }); } catch (_) {}
+  }
   return res.json({ ok: true, unchanged: r.unchanged === true, total: r.total, pack: packEditState(fresh, plan, { allowed: true }), product_title: fresh.plan_snapshot?.product_title || null });
 }
