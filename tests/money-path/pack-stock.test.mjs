@@ -8,6 +8,7 @@ import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { createWorld, loadApi, subscriber, snapshot, mpPreapproval, MID, PLAN_ID, MP_TOKEN, VARIANT_ID, capsulasPlan, luminaMerchant } from "../helpers/world.mjs";
 import { invoke } from "../helpers/http.mjs";
+import { mpPayment, mpWebhookReq } from "../helpers/world.mjs";
 import { rawGet } from "../helpers/fake-firestore.mjs";
 import { planPackStock } from "../../api/_lib/packStock.js";
 
@@ -15,6 +16,7 @@ const { stockWatchForMerchant, applyStockPolicy } = await loadApi("api/_lib/stoc
 const { db } = await loadApi("api/_lib/firebase.js");
 const { fulfillCharge } = await loadApi("api/_lib/sync.js");
 const pub = await loadApi("api/public.js");
+const { default: webhook } = await loadApi("api/mp/webhook.js");
 
 const MIX_PLAN = () => capsulasPlan({
   pricing_mode: "packs", discount_pct: 15, base_price_ars: 12000, frequency_days: 7, frequency_scales_with_qty: false,
@@ -179,4 +181,17 @@ test("si MP no acepta el monto, no se toca nada local (ni espera, ni mail)", asy
   const s = W.sub(SID);
   assert.equal(s.pack_items.length, 3); assert.equal(s.pack_held_items, undefined);
   assert.equal(W.resend.byType("stock_hold").length, 0);
+});
+
+test("con un producto en espera, la renovación que cobra MP arma la orden SIN ese producto y por el monto nuevo", async () => {
+  W.shopify.stock[VARIANT_ID] = 10; W.shopify.stock["4002"] = 0; W.shopify.stock["4003"] = 10;
+  await vigilar([{ id: SID, ...W.sub(SID) }]);           // tortilla en espera, MP en 27.000
+  const pay = W.mp.addPayment(mpPayment({ id: 1410000051, amount: 27000, preapprovalId: "pre_ana" }), MP_TOKEN);
+  const res = await invoke(webhook, mpWebhookReq(pay.id));
+  assert.equal(res.statusCode, 200);
+  const o = W.shopify.orderPosts.at(-1).order;
+  // 25.500 de productos repartidos: 24.000/30.000 → 20.400 (2 × 10.200), 6.000/30.000 → 5.100.
+  assert.deepEqual(o.line_items, [{ variant_id: VARIANT_ID, quantity: 2, price: "10200.00" }, { variant_id: "4003", quantity: 1, price: "5100.00" }]);
+  assert.equal(o.shipping_lines[0].price, "1500.00");
+  assert.equal(W.sub(SID).pack_held_items.length, 1, "la tortilla sigue esperando");
 });

@@ -161,3 +161,61 @@ test("la tienda puede apagar 'Cambiar el pedido' en el portal; una sub cancelada
   assert.equal(r.statusCode, 400);
   assert.equal(W.mp.preapprovalUpdates.length, 0);
 });
+
+// El caso de la tienda de prueba de Thiago (9-oct-2026): 3 productos a $100 sin descuento ni
+// envío, cada 1 día. Saca uno desde el portal → MP cobra $200 → la orden de Shopify tiene
+// que llegar con 2 renglones a $100 y total $200. Y si vuelve a agregar, al revés.
+test("PRUEBAS G4U: 3 × $100 → saca uno → MP cobra $200 → orden con 2 productos a $100; agrega uno → $300 y 3 renglones", async () => {
+  const PLAN = capsulasPlan({
+    pricing_mode: "packs", discount_pct: 0, base_price_ars: 100, frequency_days: 1, frequency_scales_with_qty: false,
+    shipping_price_ars: 0, free_shipping_from_ars: 0,
+    packs: [{ qty: 1, price_ars: 100 }, { qty: 3, price_ars: 300, default: true }],
+    mix: { enabled: true, items: [
+      { shopify_product_id: "7002", shopify_variant_id: "4002", title: "Pan de prueba · Videographer", price_ars: 100 },
+      { shopify_product_id: "7003", shopify_variant_id: "4003", title: "Pan de prueba · Multi-location", price_ars: 100 },
+    ] },
+    product_title: "Pan de prueba · Minimal",
+  });
+  W = createWorld({ plan: PLAN });
+  W.shopify.variants[VARIANT_ID] = 100; W.shopify.variants["4002"] = 100; W.shopify.variants["4003"] = 100;
+  const items = [
+    { shopify_variant_id: VARIANT_ID, shopify_product_id: "7001", title: "Pan de prueba · Minimal", image: null, qty: 1, price_ars: 100 },
+    { shopify_variant_id: "4002", shopify_product_id: "7002", title: "Pan de prueba · Videographer", image: null, qty: 1, price_ars: 100 },
+    { shopify_variant_id: "4003", shopify_product_id: "7003", title: "Pan de prueba · Multi-location", image: null, qty: 1, price_ars: 100 },
+  ];
+  W.seedSub("sub_thiago", subscriber({
+    quantity: 3, pack_items: items, mp_preapproval_id: "pre_thiago", shopify_orders: [],
+    plan_snapshot: { ...snapshot({ qty: 3, shipping: 0 }), subtotal_ars: 300, subscription_price_ars: 300, total_per_charge_ars: 300, shipping_price_ars: 0, mix: true, frequency_days: 1, product_title: "Pack ×3 · …" },
+  }));
+  W.mp.addPreapproval(mpPreapproval({ id: "pre_thiago", planId: "plan_adhoc_thiago", amount: 300, frequency: 1 }), MP_TOKEN);
+  const tok = pub.generatePortalToken(MID, "sub_thiago", 180);
+  // 1) Saca el Multi-location desde el portal.
+  let r = await invoke(pub.default, { method: "POST", query: { action: "sub", token: tok }, body: { action: "update-pack", items: [{ variant_id: VARIANT_ID, qty: 1 }, { variant_id: "4002", qty: 1 }] } });
+  assert.equal(r.statusCode, 200); assert.equal(r.body.total, 200);
+  assert.equal(W.mp.preapprovalUpdates.at(-1).body.auto_recurring.transaction_amount, 200);
+  assert.equal(W.sub("sub_thiago").plan_snapshot.product_title, "Pack ×2 · Pan de prueba · Minimal ×1, Pan de prueba · Videographer ×1");
+  // 2) Al día siguiente MP cobra $200 (renovación) → webhook → orden en Shopify.
+  let pay = W.mp.addPayment(mpPayment({ id: 1410000041, amount: 200, preapprovalId: "pre_thiago" }), MP_TOKEN);
+  let res = await invoke(webhook, mpWebhookReq(pay.id));
+  assert.equal(res.statusCode, 200);
+  let o = W.shopify.orderPosts.at(-1).order;
+  assert.deepEqual(o.line_items, [{ variant_id: VARIANT_ID, quantity: 1, price: "100.00" }, { variant_id: "4002", quantity: 1, price: "100.00" }]);
+  assert.equal(o.financial_status, "paid");
+  assert.equal(o.shipping_lines?.[0]?.price ?? "0.00", "0.00");
+  const totalOrden = o.line_items.reduce((a, li) => a + Number(li.price) * li.quantity, 0);
+  assert.equal(totalOrden, 200, "la orden vale exactamente lo que cobró MP");
+  const sub = W.sub("sub_thiago");
+  assert.equal(sub.shopify_orders.length, 1);
+  assert.equal(W.charge(String(pay.id)).amount_ars, 200);
+  // 3) Vuelve a agregar el Multi-location: $300, y la próxima orden trae 3 renglones.
+  r = await invoke(pub.default, { method: "POST", query: { action: "sub", token: tok }, body: { action: "update-pack", items: [{ variant_id: VARIANT_ID, qty: 1 }, { variant_id: "4002", qty: 1 }, { variant_id: "4003", qty: 1 }] } });
+  assert.equal(r.body.total, 300);
+  assert.equal(W.mp.preapprovalUpdates.at(-1).body.auto_recurring.transaction_amount, 300);
+  pay = W.mp.addPayment(mpPayment({ id: 1410000042, amount: 300, preapprovalId: "pre_thiago" }), MP_TOKEN);
+  res = await invoke(webhook, mpWebhookReq(pay.id));
+  assert.equal(res.statusCode, 200);
+  o = W.shopify.orderPosts.at(-1).order;
+  assert.deepEqual(o.line_items.map(li => [li.variant_id, li.quantity, li.price]), [[VARIANT_ID, 1, "100.00"], ["4002", 1, "100.00"], ["4003", 1, "100.00"]]);
+  assert.equal(W.sub("sub_thiago").shopify_orders.length, 2);
+  assert.equal(W.resend.byType("pack_changed").length, 2, "un comprobante por cada cambio");
+});
