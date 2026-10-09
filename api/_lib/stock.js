@@ -11,6 +11,9 @@
 //     por una consulta que falló.
 import { resolveStockPolicy, stockCheckNeeded } from "../../shared/platform/logistics.js";
 import { mpUpdatePreapproval } from "./mp.js";
+import { applyPackStock, inventarioPorVariante, planPackStock } from "./packStock.js";
+
+const esPack = (sub) => Array.isArray(sub?.pack_items) && sub.pack_items.length > 0;
 
 /**
  * Unidades disponibles del producto de la suscripción, o null si no se puede
@@ -67,8 +70,15 @@ async function disponible(merchant, sub) {
 export async function applyStockPolicy({ db, merchant, merchantId, subscriberId, sub, tag = "sync" }) {
   try {
     if (!merchantId || !stockCheckNeeded(merchant)) return null;
+    // Pack armado (9-oct-2026, G4U): se saca solo lo que falta y el monto baja; se pausa
+    // únicamente si no queda nada.
+    if (esPack(sub)) {
+      const r = await applyPackStock({ db, merchant, merchantId, subscriberId, sub, tag });
+      if (!r) return null;
+      if (!r.allOut) return r.changed ? { missing: true, paused: false, pack: r } : null;
+    }
     const pedidas = Number(sub?.quantity || sub?.plan_snapshot?.units_per_shipment || 1) || 1;
-    const hay = await disponible(merchant, sub);
+    const hay = esPack(sub) ? 0 : await disponible(merchant, sub);
     if (hay === null || hay >= pedidas) return null;
 
     // Pausada en Mercado Pago = no se intenta el próximo cobro. Si MP no
@@ -181,6 +191,15 @@ export async function stockWatchForMerchant({ db, merchant, merchantId, subs, no
     try {
       if (sub.status === "paused" && sub.paused_reason === PAUSA_STOCK) {
         out.revisadas++;
+        if (esPack(sub)) {
+          // Pack: vuelve apenas haya stock de ALGO; lo que siga faltando queda en espera.
+          const inv = await inventarioPorVariante(merchant, [...sub.pack_items, ...(sub.pack_held_items || [])].map(i => String(i.shopify_variant_id)));
+          if (planPackStock(sub, inv).allOut) continue;
+          await reactivar(db, merchant, merchantId, sub.id, sub, tag);
+          await applyPackStock({ db, merchant, merchantId, subscriberId: sub.id, sub: { ...sub, status: "active" }, inventory: inv, tag });
+          out.reactivadas++;
+          continue;
+        }
         const hay = await disponible(merchant, sub);
         if (hay !== null && hay < pedidas) continue;      // sigue sin stock
         await reactivar(db, merchant, merchantId, sub.id, sub, tag);
@@ -188,8 +207,19 @@ export async function stockWatchForMerchant({ db, merchant, merchantId, subs, no
         continue;
       }
       if (sub.status !== "active") continue;
+      // Pack con algo en espera: se mira SIEMPRE (no solo cerca del cobro) para devolverlo
+      // apenas repongan; lo que lleva se mira cerca del cobro como el resto.
       const t = Date.parse(sub.next_charge_at || "");
-      if (!Number.isFinite(t) || t > limite) continue;    // todavía falta
+      const cerca = Number.isFinite(t) && t <= limite;
+      if (esPack(sub)) {
+        if (!cerca && !(sub.pack_held_items || []).length) continue;
+        out.revisadas++;
+        const r = await applyPackStock({ db, merchant, merchantId, subscriberId: sub.id, sub, tag });
+        if (r?.allOut && cerca) { await pausar(db, merchant, merchantId, sub.id, sub, tag); out.pausadas++; }
+        else if (r?.changed) out.ajustadas = (out.ajustadas || 0) + 1;
+        continue;
+      }
+      if (!cerca) continue;    // todavía falta
       out.revisadas++;
       const hay = await disponible(merchant, sub);
       if (hay === null || hay >= pedidas) continue;

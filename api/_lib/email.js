@@ -251,6 +251,17 @@ export async function emailPackChanged({ to, customerName, productTitle, frequen
             cantidad: String(Math.max(1, parseInt(quantity, 10) || 1)), regalos: "" } });
 }
 
+// Stock por producto en packs (9-oct-2026): "stock_hold" (se sacó algo de este envío) y
+// "stock_restored" (volvió). Texto del mail automático correspondiente.
+export async function emailPackStock(kind, { to, customerName, productTitle, amount, frequencyDays, quantity, faltantes, portalUrl, merchant }) {
+  const id = kind === "stock_restored" ? "stock_restored" : "stock_hold";
+  const snd = resolveSender({ merchant });
+  const freq = parseInt(frequencyDays, 10) || 30;
+  return sendAutoEmailCustom(id, { merchant, to, ctaUrl: portalUrl,
+    vars: { nombre: plain(customerName) || "", producto: plain(productTitle) || "tu suscripción", monto: fmtArs(amount), frecuencia: `cada ${freq} días`, marca: snd.brand,
+            cantidad: String(Math.max(1, parseInt(quantity, 10) || 1)), regalos: "", faltantes: plain(faltantes, 300) || "" } });
+}
+
 // Lista para llamarse desde public.js (portal) y subscribers.js (dashboard).
 export async function emailSubscriptionCancelled({ to, customerName, productTitle, merchant, from, brand, accent, replyTo }) {
   const snd = resolveSender({ merchant, from, brand, accent, replyTo });

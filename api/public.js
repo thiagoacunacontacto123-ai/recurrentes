@@ -1092,7 +1092,7 @@ async function handleUpdatePack(req, res, { merchantId, subscriberId, subRef }) 
   if (sub.status === "cancelled") return res.status(409).json({ error: "Esta suscripción está cancelada.", code: "sub_cancelled" });
   const plan = sub.plan_id ? (await db().collection("merchants").doc(merchantId).collection("plans").doc(String(sub.plan_id)).get()).data() : null;
   if (!plan) return res.status(400).json({ error: "No encontramos el plan de esta suscripción." });
-  const r = await applyPackChange({ db, merchantId, merchant, subscriberId, sub, plan, items: req.body?.items, by: "customer" });
+  const r = await applyPackChange({ db, merchantId, merchant, subscriberId, sub, plan, items: req.body?.items, by: "customer", dropHeld: req.body?.drop_held === true });
   if (r.error) {
     if (r.code === "mp") { console.error("[public/update-pack] MP:", r.detail); await logError("portal update-pack MP", new Error(r.detail), { kind: "mp", merchantId }); return res.status(502).json({ error: r.error }); }
     return res.status(400).json({ error: r.error });

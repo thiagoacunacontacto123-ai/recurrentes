@@ -48,6 +48,8 @@ export function packEditState(sub, plan, { allowed = true } = {}) {
     max_units: MAX_PACK_UNITS,
     editable: allowed && catalog.length > 0 && ["active", "paused"].includes(sub.status),
     changes: Array.isArray(sub.pack_changes) ? sub.pack_changes.slice(-5) : [],
+    // Lo que falta por stock y vuelve solo cuando reponen (el cliente puede reemplazarlo).
+    held: (Array.isArray(sub.pack_held_items) ? sub.pack_held_items : []).map(i => ({ shopify_variant_id: String(i.shopify_variant_id), title: i.title, qty: Math.max(1, r0(i.qty) || 1), price_ars: r0(i.price_ars) })),
   };
 }
 
@@ -77,14 +79,22 @@ export function planPackChange(sub, plan, rawItems) {
 
 // Aplica el cambio: MP primero, después Firestore. `by`: "customer" | "merchant" | "stock".
 // Devuelve { ok, total, before, after } o { error, code }.
-export async function applyPackChange({ db, merchantId, merchant, subscriberId, sub, plan, items, by = "customer", note = null, now = new Date() }) {
+export async function applyPackChange({ db, merchantId, merchant, subscriberId, sub, plan, items, by = "customer", note = null, now = new Date(), dropHeld = false }) {
   const p = planPackChange(sub, plan, items);
   if (p.error) return { error: p.error, code: "invalid" };
   if (!merchant?.mp_access_token || !sub.mp_preapproval_id) return { error: "Faltan credenciales para actualizar la suscripción.", code: "no_mp" };
   const before = { items: sub.pack_items.map(i => ({ shopify_variant_id: String(i.shopify_variant_id), title: i.title, qty: r0(i.qty) || 1 })), total: r0(sub.plan_snapshot?.total_per_charge_ars) };
   const after = { items: p.sel.items.map(i => ({ shopify_variant_id: i.shopify_variant_id, title: i.title, qty: i.qty })), total: p.total };
   const same = before.total === after.total && JSON.stringify(before.items) === JSON.stringify(after.items);
-  if (same) return { ok: true, unchanged: true, total: p.total, before, after };
+  const heldNow = Array.isArray(sub.pack_held_items) ? sub.pack_held_items : [];
+  // Lo que el cliente vuelve a elegir deja de "esperar" stock; con dropHeld, todo lo que esperaba se suelta.
+  const heldNext = dropHeld ? [] : heldNow.filter(h => !after.items.some(i => i.shopify_variant_id === String(h.shopify_variant_id)));
+  const heldChanged = heldNext.length !== heldNow.length;
+  if (same && !heldChanged) return { ok: true, unchanged: true, total: p.total, before, after };
+  if (same && heldChanged) {
+    await db().collection("merchants").doc(merchantId).collection("subscribers").doc(subscriberId).update({ pack_held_items: heldNext, stock_hold_at: heldNext.length ? sub.stock_hold_at || null : null, updated_at: now.toISOString() });
+    return { ok: true, unchanged: true, held_dropped: true, total: p.total, before, after };
+  }
 
   // Monto nuevo + la descripción que el cliente ve en su Mercado Pago ("Pack ×2 · …"):
   // si solo cambiara el monto, MP seguiría diciendo "3 panes (×3)" (visto el 9-oct).
@@ -113,6 +123,8 @@ export async function applyPackChange({ db, merchantId, merchant, subscriberId, 
     "plan_snapshot.qty_discount_pct": p.sel.savingsPct,
     pack_changes: [...kept, change],
     pack_changed_at: at,
+    pack_held_items: heldNext,
+    stock_hold_at: heldNext.length ? sub.stock_hold_at || null : null,
     updated_at: at,
     reprice_error: FieldValue.delete(),
   });

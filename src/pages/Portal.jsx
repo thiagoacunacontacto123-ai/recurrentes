@@ -233,6 +233,13 @@ export default function Portal() {
                   <button onClick={()=>setEditingPack(v=>!v)} style={{...btnSecondary,padding:"4px 10px",fontSize:11}}>{editingPack ? "Cerrar" : "✏️ Cambiar mi pedido"}</button>
                 )}
               </div>
+              {data.pack.held?.length > 0 && (
+                <div style={{margin:"4px 0 8px",padding:"8px 10px",background:"rgba(245,158,11,0.12)",border:"1px solid rgba(245,158,11,0.4)",borderRadius:8,fontSize:12,lineHeight:1.5}}>
+                  <div style={{fontWeight:700,color:"var(--text)"}}>Sin stock por ahora: {data.pack.held.map(h => `${h.title} ×${h.qty}`).join(", ")}</div>
+                  <div style={{color:"var(--text-md)"}}>Tu pedido va sin eso y se cobra menos. Apenas repongan vuelve solo y te avisamos. Si no querés esperar, cambialo por otro producto.</div>
+                  {data.pack.editable && status !== "cancelled" && !editingPack && <button onClick={()=>setEditingPack("drop")} style={{...btnPrimary,padding:"6px 12px",fontSize:12,marginTop:6}}>Cambiarlo por otro</button>}
+                </div>
+              )}
               {!editingPack && data.pack.items.map(i => (
                 <div key={i.shopify_variant_id} style={{display:"flex",alignItems:"center",gap:10,padding:"5px 0"}}>
                   {i.image ? <img src={i.image} alt="" style={{width:34,height:34,borderRadius:7,objectFit:"cover",background:"var(--card)"}}/> : <div style={{width:34,height:34,borderRadius:7,background:"var(--card)"}}/>}
@@ -243,7 +250,7 @@ export default function Portal() {
                 </div>
               ))}
               {editingPack && (
-                <PackEditor pack={data.pack} token={token} isDemo={isDemo} onDemo={demoStop} onSaved={async()=>{ setEditingPack(false); await load(token, true); }}/>
+                <PackEditor pack={data.pack} token={token} isDemo={isDemo} onDemo={demoStop} dropHeld={editingPack === "drop"} onSaved={async()=>{ setEditingPack(false); await load(token, true); }}/>
               )}
             </div>
           )}
@@ -329,7 +336,7 @@ export default function Portal() {
 
 // Cambiar el pedido de un pack armado — POST public?action=sub { action:"update-pack", items }.
 // El total se calcula acá solo para mostrarlo; el que vale es el del servidor.
-function PackEditor({ pack, token, isDemo, onDemo, onSaved }) {
+function PackEditor({ pack, token, isDemo, onDemo, onSaved, dropHeld = false }) {
   const [items, setItems] = useState(() => pack.items.map(i => ({ ...i })));
   const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -339,7 +346,7 @@ function PackEditor({ pack, token, isDemo, onDemo, onSaved }) {
   const sub = Math.round(list * (1 - pack.discount_pct / 100));
   const total = sub + pack.shipping_price_ars + pack.extras_total_ars;
   const before = pack.items.reduce((a, i) => a + i.qty * i.price_ars, 0);
-  const changed = JSON.stringify(items.map(i => [i.shopify_variant_id, i.qty])) !== JSON.stringify(pack.items.map(i => [i.shopify_variant_id, i.qty]));
+  const changed = dropHeld || JSON.stringify(items.map(i => [i.shopify_variant_id, i.qty])) !== JSON.stringify(pack.items.map(i => [i.shopify_variant_id, i.qty]));
   const setQty = (vid, q) => setItems(list => list.map(i => i.shopify_variant_id === vid ? { ...i, qty: q } : i).filter(i => i.qty > 0));
   const add = (c) => { setItems(list => list.some(i => i.shopify_variant_id === c.shopify_variant_id) ? list.map(i => i.shopify_variant_id === c.shopify_variant_id ? { ...i, qty: i.qty + 1 } : i) : [...list, { shopify_variant_id: c.shopify_variant_id, title: c.title, image: c.image, price_ars: c.price_ars, qty: 1 }]); setAdding(false); };
   const others = pack.catalog.filter(c => !items.some(i => i.shopify_variant_id === c.shopify_variant_id));
@@ -351,10 +358,10 @@ function PackEditor({ pack, token, isDemo, onDemo, onSaved }) {
     if (!ok) return;
     setBusy(true);
     try {
-      const r = await fetch(`/api/public?action=sub&token=${encodeURIComponent(token)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update-pack", items: items.map(i => ({ variant_id: i.shopify_variant_id, qty: i.qty })) }) });
+      const r = await fetch(`/api/public?action=sub&token=${encodeURIComponent(token)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update-pack", items: items.map(i => ({ variant_id: i.shopify_variant_id, qty: i.qty })), ...(dropHeld ? { drop_held: true } : {}) }) });
       const d = await r.json();
       if (d.error) { toast("Error: " + d.error, "error", 6000); return; }
-      toast(d.unchanged ? "Tu pedido ya estaba así." : `Listo. Desde el próximo cobro: ${fmt(d.total)}.`, "success", 6000);
+      toast(d.unchanged ? (d.held_dropped ? "Listo, ya no esperamos ese producto." : "Tu pedido ya estaba así.") : `Listo. Desde el próximo cobro: ${fmt(d.total)}.`, "success", 6000);
       await onSaved();
     } catch (e) { toast("Error: " + e.message, "error", 6000); }
     finally { setBusy(false); }

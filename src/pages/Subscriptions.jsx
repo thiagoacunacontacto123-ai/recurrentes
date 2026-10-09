@@ -573,6 +573,9 @@ export function SubscriberDetailModal({ sub, onClose, devMode = false, shop = nu
                 ))}
               </div>
             )}
+            {Array.isArray(s?.pack_held_items) && s.pack_held_items.length > 0 && (
+              <div style={{ marginTop:8, fontSize:DS.font.sm, color:T.yellow }}>📦 Sin stock por ahora (vuelve solo al reponer): {s.pack_held_items.map(i => `${i.qty} × ${i.title}`).join(", ")}</div>
+            )}
             {Array.isArray(s?.pack_changes) && s.pack_changes.length > 0 && (
               <div style={{ marginTop:10, paddingTop:8, borderTop:`1px solid ${T.borderL}` }}>
                 <div style={{ fontSize:DS.font.xs, color:T.textSm, textTransform:"uppercase", letterSpacing:0.5, fontWeight:700, marginBottom:4 }}>Cambios de pedido · {s.pack_changes.length}</div>

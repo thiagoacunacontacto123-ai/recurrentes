@@ -38,6 +38,11 @@ export const FLOW_TRIGGERS = [
   // 9-oct-2026 (G4U): el cliente cambió los productos de su pack desde el portal.
   { id:"pack_changed", label:"Pedido modificado", icon:"🧺", desc:"Cambió los productos de su pack desde el portal; el próximo cobro ya tiene el monto nuevo.",
     exit:"Sale si cancela.", avoid:["cancelled"], cta:"portal" },
+  // 9-oct-2026 (G4U): en un pack, lo que falta se saca solo de ese cobro y vuelve cuando hay.
+  { id:"stock_hold", label:"Producto sin stock en el pack", icon:"📦", desc:"Un producto del pack se quedó sin stock: ese cobro va sin él y el monto baja.",
+    exit:"Sale si cancela.", avoid:["cancelled"], cta:"portal" },
+  { id:"stock_restored", label:"Volvió un producto al pack", icon:"✅", desc:"Repusieron un producto que faltaba: vuelve al pack y el monto vuelve.",
+    exit:"Sale si cancela.", avoid:["cancelled"], cta:"portal" },
   { id:"resumed", label:"Suscripción reactivada", icon:"▶", desc:"Volvió a activar una suscripción pausada.",
     exit:"Sale si vuelve a pausar o cancela.", keep:["active"], cta:"portal" },
   { id:"cancelled", label:"Suscripción cancelada", icon:"👋", desc:"Para intentar recuperarlo más adelante (win-back).",
@@ -112,6 +117,22 @@ export const AUTO_EMAILS = [
     cta_label: "Ver mi pedido",
   },
   {
+    id: "stock_hold", icon: "📦", name: "Producto sin stock en el pack",
+    when: "Cuando un producto del pack se queda sin stock: ese cobro va sin él y el monto baja. Vuelve solo cuando reponen.",
+    says: "Qué se sacó, qué se cobra ahora, y que puede cambiarlo por otro desde el portal.",
+    subject: "Un producto de tu pedido quedó sin stock",
+    body: "Hola {{nombre}},\n\nNos quedamos sin stock de **{{faltantes}}**, así que esta vez tu pedido va sin eso y te cobramos {{monto}} en vez del total de siempre.\n\nTu pedido por ahora: {{producto}}.\n\nApenas repongamos, lo volvemos a sumar solo y te avisamos. Si preferís cambiarlo por otro producto o agregar algo, lo hacés desde tu portal.",
+    cta_label: "Cambiar mi pedido",
+  },
+  {
+    id: "stock_restored", icon: "✅", name: "Volvió un producto al pack",
+    when: "Cuando repusieron un producto que faltaba y vuelve a tu pedido.",
+    says: "Qué volvió y cuánto se cobra desde el próximo cobro.",
+    subject: "Volvió {{faltantes}} a tu pedido",
+    body: "Hola {{nombre}},\n\nYa repusimos **{{faltantes}}** y lo volvimos a sumar a tu pedido: {{producto}}.\n\nDesde tu próximo cobro vuelve a ser {{monto}} {{frecuencia}}. No tenés que hacer nada.",
+    cta_label: "Ver mi pedido",
+  },
+  {
     id: "cancellation", icon: "👋", name: "Suscripción cancelada",
     when: "Cuando se da de baja, la cancele el cliente desde su portal o vos desde el panel.",
     says: "Le confirma que no se le cobra más.",
@@ -129,7 +150,7 @@ export const AUTO_EMAIL_BY_ID = Object.fromEntries(AUTO_EMAILS.map(m => [m.id, m
 //
 // Viven en merchants/{mid}/flows/auto_<id> marcados con `system`, así no
 // aparecen sueltos en "Tus flujos": se editan desde el mismo mail automático.
-export const AUTO_EMAIL_TRIGGER = { activation: "activated", payment_failed: "payment_failed", out_of_stock: "out_of_stock", cancellation: "cancelled", pack_changed: "pack_changed" };
+export const AUTO_EMAIL_TRIGGER = { activation: "activated", payment_failed: "payment_failed", out_of_stock: "out_of_stock", cancellation: "cancelled", pack_changed: "pack_changed", stock_hold: "stock_hold", stock_restored: "stock_restored" };
 export const autoFlowId = (id) => `auto_${id}`;
 export const autoFlowSystem = (id) => `auto:${id}`;
 
@@ -143,6 +164,7 @@ export const AUTO_EMAIL_VARIABLES = [
   { key: "cantidad",   label: "Cuántas unidades", sample: "3" },
   { key: "regalos",    label: "Regalos (frase entera)", sample: "De regalo: Raspador (solo en tu primer envío)." },
   { key: "marca",      label: "Tu marca",      sample: "Tu marca" },
+  { key: "faltantes",  label: "Productos sin stock (packs)", sample: "Pan de molde ×1" },
 ];
 
 // Lo que el comerciante guardó para un mail automático, o el texto de fábrica.
