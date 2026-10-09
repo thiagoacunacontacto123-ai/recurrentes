@@ -17,9 +17,17 @@
 // era por Wellfresh): G4U lo pide y Thiago lo aprobó el 9-oct.
 import { FieldValue } from "firebase-admin/firestore";
 import { mixCatalog, resolveMixSelection, mixTitle } from "./packs.js";
-import { mpUpdatePreapproval, mpReason } from "./mp.js";
+import { mpUpdatePreapproval, mpReasonAscii } from "./mp.js";
 
 export const MAX_PACK_UNITS = 50;
+export const MP_PUT_REASON_MAX = 60;
+export function packReason(items, units, freqDays) {
+  const names = (items || []).map(i => `${String(i.title || "").trim()} x${i.qty}`).join(", ");
+  const tail = ` - cada ${freqDays} dias`;
+  let head = `Pack x${units} - ${names}`;
+  if (head.length + tail.length > MP_PUT_REASON_MAX) head = `Pack x${units}`;
+  return mpReasonAscii(head + tail).slice(0, MP_PUT_REASON_MAX);
+}
 export const MAX_PACK_CHANGES_KEPT = 30;
 
 const r0 = (n) => Math.round(Number(n) || 0);
@@ -80,7 +88,9 @@ export async function applyPackChange({ db, merchantId, merchant, subscriberId, 
 
   // Monto nuevo + la descripción que el cliente ve en su Mercado Pago ("Pack ×2 · …"):
   // si solo cambiara el monto, MP seguiría diciendo "3 panes (×3)" (visto el 9-oct).
-  const reason = mpReason(mixTitle(p.sel.items, p.units), ` — cada ${Number(sub.plan_snapshot?.frequency_days) || 30} días`);
+  // El PUT de MP acepta como mucho 60 caracteres ASCII en `reason` (probado el 9-oct: con
+  // más, o con "×"/"·", responde 400 y no cambia nada). Se arma corto: "Pack x2 - cada 1 dias".
+  const reason = packReason(p.sel.items, p.units, Number(sub.plan_snapshot?.frequency_days) || 30);
   if (after.total !== before.total || JSON.stringify(before.items) !== JSON.stringify(after.items)) {
     try {
       await mpUpdatePreapproval(merchant.mp_access_token, sub.mp_preapproval_id, { reason, ...(after.total !== before.total ? { auto_recurring: { transaction_amount: after.total, currency_id: "ARS" } } : {}) });

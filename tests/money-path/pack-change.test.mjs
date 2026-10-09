@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { createWorld, loadApi, subscriber, snapshot, mpPayment, mpPreapproval, mpWebhookReq, MID, PLAN_ID, MP_TOKEN, VARIANT_ID, capsulasPlan } from "../helpers/world.mjs";
 import { invoke } from "../helpers/http.mjs";
 import { seedDoc } from "../helpers/fake-firestore.mjs";
-import { planPackChange, packEditState, newTotal } from "../../api/_lib/packChange.js";
+import { planPackChange, packEditState, newTotal, packReason } from "../../api/_lib/packChange.js";
 
 const { default: webhook } = await loadApi("api/mp/webhook.js");
 const pub = await loadApi("api/public.js");
@@ -47,6 +47,12 @@ afterEach(() => { W.router.assertClean(); });
 const portalGet = () => invoke(pub.default, { method: "GET", query: { action: "sub", token: TOKEN } });
 const change = (items, token = TOKEN) => invoke(pub.default, { method: "POST", query: { action: "sub", token }, body: { action: "update-pack", items } });
 
+test("la descripción para MP es ASCII y de 60 como mucho (si no, MP responde 400)", () => {
+  const r = packReason([{ title: "Pan de prueba · Minimal", qty: 1 }, { title: "Pan de prueba · Videographer", qty: 1 }, { title: "Tortilla", qty: 3 }], 5, 7);
+  assert.ok(r.length <= 60, r); assert.ok(/^[\x20-\x7E]+$/.test(r), r); assert.match(r, /^Pack x5/); assert.match(r, /cada 7 dias$/);
+  assert.equal(packReason([{ title: "Tortilla", qty: 2 }], 2, 30), "Pack x2 - Tortilla x2 - cada 30 dias");
+});
+
 test("modelo: el precio sale del plan, mínimo 1 unidad, el envío y los extras quedan como estaban", () => {
   const plan = MIX_PLAN(), sub = SUB();
   // Saca una tortilla y un grisín: 2 cápsulas = 24.000 → 20.400 + 1.500 = 21.900.
@@ -81,7 +87,7 @@ test("portal: el GET trae el pack editable; el POST cambia el monto en MP primer
   assert.equal(r.body.ok, true);
   assert.equal(r.body.total, 25500 + 1500, "30.000 de lista → 25.500 + envío");
   assert.equal(r.body.product_title, "Pack ×3 · Cápsulas LuminaLabs ×2, Grisines ×1");
-  assert.deepEqual(W.mp.preapprovalUpdates.map(u => [u.id, u.body]), [["pre_ana", { reason: "Pack ×3 · Cápsulas LuminaLabs ×2, Grisines ×1 — cada 30 días", auto_recurring: { transaction_amount: 27000, currency_id: "ARS" } }]]);
+  assert.deepEqual(W.mp.preapprovalUpdates.map(u => [u.id, u.body]), [["pre_ana", { reason: "Pack x3 - Capsulas LuminaLabs x2, Grisines x1 - cada 30 dias", auto_recurring: { transaction_amount: 27000, currency_id: "ARS" } }]]);
   const s = W.sub("sub_mica");
   assert.equal(s.quantity, 3);
   assert.deepEqual(s.pack_items.map(i => [i.shopify_variant_id, i.qty, i.price_ars]), [[VARIANT_ID, 2, 12000], ["4003", 1, 6000]]);
