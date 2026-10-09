@@ -313,6 +313,7 @@ export default async function handler(req, res) {
           allow_pause: merchant.portal?.allow_pause !== false,
           allow_cancel: merchant.portal?.allow_cancel !== false,
           allow_address: merchant.portal?.allow_address !== false,
+          allow_pack_edit: merchant.portal?.allow_pack_edit !== false,
         },
         portal_welcome: merchant.portal_welcome || "",
         dev_mode: merchant.dev_mode === true,
@@ -1065,6 +1066,7 @@ async function saveSettings(merchantId, req, res) {
       allow_pause: "allow_pause" in pIn ? pIn.allow_pause !== false : curP.allow_pause !== false,
       allow_cancel: "allow_cancel" in pIn ? pIn.allow_cancel !== false : curP.allow_cancel !== false,
       allow_address: "allow_address" in pIn ? pIn.allow_address !== false : curP.allow_address !== false,
+      allow_pack_edit: "allow_pack_edit" in pIn ? pIn.allow_pack_edit !== false : curP.allow_pack_edit !== false,
     };
   }
   if ("portal_welcome" in b) out.portal_welcome = String(b.portal_welcome || "").slice(0, 300);

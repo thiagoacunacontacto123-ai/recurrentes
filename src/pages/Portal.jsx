@@ -16,6 +16,7 @@ export default function Portal() {
   const [busyAction, setBusyAction] = useState(null);
   const [editingAddr, setEditingAddr] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [editingPack, setEditingPack] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.split("?")[1] || window.location.search.slice(1));
@@ -223,6 +224,30 @@ export default function Portal() {
             )}
           </div>}
 
+          {/* Tu pedido (packs armados, G4U 9-oct-2026): saca, agrega o cambia productos; el próximo cobro se ajusta solo. */}
+          {data.pack && (
+            <div style={{padding:"12px 14px",background:"var(--surface)",borderRadius:10,fontSize:12,color:"var(--text-md)",lineHeight:1.55,marginBottom:18}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,gap:8,flexWrap:"wrap"}}>
+                <div style={{fontSize:10,color:"var(--text-sm)",textTransform:"uppercase",fontWeight:700,letterSpacing:0.5}}>Tu pedido · {shipping ? "cada envío" : "cada cobro"}</div>
+                {data.pack.editable && status !== "cancelled" && (
+                  <button onClick={()=>setEditingPack(v=>!v)} style={{...btnSecondary,padding:"4px 10px",fontSize:11}}>{editingPack ? "Cerrar" : "✏️ Cambiar mi pedido"}</button>
+                )}
+              </div>
+              {!editingPack && data.pack.items.map(i => (
+                <div key={i.shopify_variant_id} style={{display:"flex",alignItems:"center",gap:10,padding:"5px 0"}}>
+                  {i.image ? <img src={i.image} alt="" style={{width:34,height:34,borderRadius:7,objectFit:"cover",background:"var(--card)"}}/> : <div style={{width:34,height:34,borderRadius:7,background:"var(--card)"}}/>}
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:600,color:"var(--text)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{i.title}</div>
+                    <div style={{fontSize:11,color:"var(--text-sm)"}}>{i.qty} × ${i.price_ars.toLocaleString("es-AR")}</div>
+                  </div>
+                </div>
+              ))}
+              {editingPack && (
+                <PackEditor pack={data.pack} token={token} isDemo={isDemo} onDemo={demoStop} onSaved={async()=>{ setEditingPack(false); await load(token, true); }}/>
+              )}
+            </div>
+          )}
+
           {/* Medio de pago: la tarjeta de una suscripción de Mercado Pago se cambia en la cuenta
               de MP del cliente ("Mis suscripciones"). Sin esto, el aviso de pago rechazado
               mandaba al portal y acá no había nada que tocar. */}
@@ -298,6 +323,83 @@ export default function Portal() {
       )}
       <ToastContainer T={DARK}/>
       <AppPromptHost T={DARK}/>
+    </div>
+  );
+}
+
+// Cambiar el pedido de un pack armado — POST public?action=sub { action:"update-pack", items }.
+// El total se calcula acá solo para mostrarlo; el que vale es el del servidor.
+function PackEditor({ pack, token, isDemo, onDemo, onSaved }) {
+  const [items, setItems] = useState(() => pack.items.map(i => ({ ...i })));
+  const [adding, setAdding] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const fmt = (n) => "$" + Math.round(n).toLocaleString("es-AR");
+  const units = items.reduce((a, i) => a + i.qty, 0);
+  const list = items.reduce((a, i) => a + i.qty * i.price_ars, 0);
+  const sub = Math.round(list * (1 - pack.discount_pct / 100));
+  const total = sub + pack.shipping_price_ars + pack.extras_total_ars;
+  const before = pack.items.reduce((a, i) => a + i.qty * i.price_ars, 0);
+  const changed = JSON.stringify(items.map(i => [i.shopify_variant_id, i.qty])) !== JSON.stringify(pack.items.map(i => [i.shopify_variant_id, i.qty]));
+  const setQty = (vid, q) => setItems(list => list.map(i => i.shopify_variant_id === vid ? { ...i, qty: q } : i).filter(i => i.qty > 0));
+  const add = (c) => { setItems(list => list.some(i => i.shopify_variant_id === c.shopify_variant_id) ? list.map(i => i.shopify_variant_id === c.shopify_variant_id ? { ...i, qty: i.qty + 1 } : i) : [...list, { shopify_variant_id: c.shopify_variant_id, title: c.title, image: c.image, price_ars: c.price_ars, qty: 1 }]); setAdding(false); };
+  const others = pack.catalog.filter(c => !items.some(i => i.shopify_variant_id === c.shopify_variant_id));
+  const stepBtn = { width:28,height:28,borderRadius:7,border:"1px solid var(--border)",background:"var(--card)",color:"var(--text)",fontSize:15,fontWeight:700,cursor:"pointer",lineHeight:1 };
+  async function save() {
+    if (isDemo) return onDemo();
+    if (units < 1) { toast("Tu pedido tiene que tener al menos un producto.", "error"); return; }
+    const ok = await appConfirm(`Tu pedido pasa a ${units} unidad${units === 1 ? "" : "es"} y el próximo cobro a ${fmt(total)}. ¿Confirmás?`, { title: "Cambiar mi pedido", okLabel: "Sí, cambiar" });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/public?action=sub&token=${encodeURIComponent(token)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "update-pack", items: items.map(i => ({ variant_id: i.shopify_variant_id, qty: i.qty })) }) });
+      const d = await r.json();
+      if (d.error) { toast("Error: " + d.error, "error", 6000); return; }
+      toast(d.unchanged ? "Tu pedido ya estaba así." : `Listo. Desde el próximo cobro: ${fmt(d.total)}.`, "success", 6000);
+      await onSaved();
+    } catch (e) { toast("Error: " + e.message, "error", 6000); }
+    finally { setBusy(false); }
+  }
+  return (
+    <div style={{marginTop:8}}>
+      {items.map(i => (
+        <div key={i.shopify_variant_id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 0",borderBottom:"1px solid var(--border)"}}>
+          {i.image ? <img src={i.image} alt="" style={{width:34,height:34,borderRadius:7,objectFit:"cover",background:"var(--card)"}}/> : <div style={{width:34,height:34,borderRadius:7,background:"var(--card)"}}/>}
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontWeight:600,color:"var(--text)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{i.title}</div>
+            <div style={{fontSize:11,color:"var(--text-sm)"}}>{fmt(i.price_ars)} c/u</div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:6}}>
+            <button type="button" aria-label="Sacar uno" onClick={()=>setQty(i.shopify_variant_id, i.qty - 1)} style={stepBtn}>−</button>
+            <span style={{minWidth:18,textAlign:"center",fontWeight:700,color:"var(--text)"}}>{i.qty}</span>
+            <button type="button" aria-label="Agregar uno" onClick={()=>setQty(i.shopify_variant_id, Math.min(pack.max_units, i.qty + 1))} style={stepBtn}>+</button>
+          </div>
+        </div>
+      ))}
+      {items.length === 0 && <div style={{color:"var(--yellow)",padding:"6px 0"}}>Sin productos: agregá al menos uno o cancelá la suscripción.</div>}
+      {others.length > 0 && !adding && <button type="button" onClick={()=>setAdding(true)} style={{...btnSecondary,padding:"6px 12px",fontSize:12,marginTop:8}}>+ Agregar otro producto</button>}
+      {adding && (
+        <div style={{marginTop:8,display:"grid",gap:6}}>
+          {others.map(c => (
+            <button key={c.shopify_variant_id} type="button" onClick={()=>add(c)} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 8px",borderRadius:8,border:"1px solid var(--border)",background:"var(--card)",color:"var(--text)",cursor:"pointer",textAlign:"left"}}>
+              {c.image ? <img src={c.image} alt="" style={{width:30,height:30,borderRadius:6,objectFit:"cover"}}/> : <div style={{width:30,height:30,borderRadius:6,background:"var(--surface)"}}/>}
+              <span style={{flex:1,fontSize:12,fontWeight:600}}>{c.title}</span>
+              <span style={{fontSize:11,color:"var(--text-sm)"}}>{fmt(c.price_ars)}</span>
+            </button>
+          ))}
+          <button type="button" onClick={()=>setAdding(false)} style={{...btnSecondary,padding:"4px 10px",fontSize:11,justifySelf:"start"}}>Cerrar</button>
+        </div>
+      )}
+      <div style={{marginTop:12,padding:"10px 12px",background:"var(--card)",borderRadius:8,display:"grid",gap:3,fontSize:12}}>
+        <div style={{display:"flex",justifyContent:"space-between"}}><span>{units} unidad{units === 1 ? "" : "es"} · precio de lista</span><span>{fmt(list)}</span></div>
+        {pack.discount_pct > 0 && <div style={{display:"flex",justifyContent:"space-between",color:"var(--accent)"}}><span>Descuento de suscripción {pack.discount_pct}%</span><span>−{fmt(list - sub)}</span></div>}
+        {pack.shipping_price_ars > 0 && <div style={{display:"flex",justifyContent:"space-between"}}><span>Envío</span><span>{fmt(pack.shipping_price_ars)}</span></div>}
+        {pack.extras_total_ars > 0 && <div style={{display:"flex",justifyContent:"space-between"}}><span>Extras</span><span>{fmt(pack.extras_total_ars)}</span></div>}
+        <div style={{display:"flex",justifyContent:"space-between",fontWeight:800,color:"var(--text)",fontSize:14,marginTop:4}}><span>Próximo cobro</span><span>{fmt(total)}</span></div>
+        {changed && <div style={{fontSize:11,color:"var(--text-sm)"}}>Hoy pagás {fmt(Math.round(before * (1 - pack.discount_pct / 100)) + pack.shipping_price_ars + pack.extras_total_ars)}. El cambio aplica desde el próximo cobro.</div>}
+      </div>
+      <div style={{display:"flex",gap:8,marginTop:10}}>
+        <button type="button" onClick={save} disabled={busy || !changed || units < 1} style={{...btnPrimary,opacity:(busy || !changed || units < 1) ? 0.6 : 1}}>{busy ? "Guardando…" : "Guardar cambios"}</button>
+      </div>
     </div>
   );
 }

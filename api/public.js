@@ -52,6 +52,7 @@ import { setUnsubscribed } from "./_lib/unsub.js";
 import { emailSubscriptionCancelled } from "./_lib/email.js";
 import { logEmail } from "./_lib/emaillog.js";
 import { planPacks, planPricingMode, mixCatalog, planFrequencyOptions } from "./_lib/packs.js";
+import { packEditState, applyPackChange } from "./_lib/packChange.js";
 import { klaviyoEnabled, klaviyoLifecycle, KLAVIYO_METRICS } from "./_lib/klaviyo.js";
 import { emitFlowEvent } from "./_lib/flows.js";
 import { notifyMerchantStatusChange } from "./_lib/merchantAlerts.js";
@@ -753,7 +754,17 @@ async function handleSub(req, res) {
       .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
     let storeUrl = null, merchant = null;
     try { const m = await db().collection("merchants").doc(merchantId).get(); merchant = m.exists ? m.data() : null; storeUrl = merchantStoreUrl(merchant); } catch (_) {}
+    // Pack armado (G4U, 9-oct-2026): el catálogo del plan para "Cambiar mi pedido". Solo
+    // lee el plan si la sub tiene pack_items; el resto de las subs no paga esa lectura.
+    let pack = null;
+    if (Array.isArray(sub.pack_items) && sub.pack_items.length && sub.plan_id) {
+      try {
+        const ps = await db().collection("merchants").doc(merchantId).collection("plans").doc(String(sub.plan_id)).get();
+        pack = packEditState(sub, ps.exists ? ps.data() : null, { allowed: merchant?.portal?.allow_pack_edit !== false && !!merchant?.mp_access_token });
+      } catch (e) { console.warn("[public/sub] pack:", e.message); }
+    }
     return res.json({
+      pack,
       sub: {
         id: subscriberId,
         status: sub.status,
@@ -786,6 +797,7 @@ async function handleSub(req, res) {
         allow_pause: merchant?.portal?.allow_pause !== false,
         allow_cancel: merchant?.portal?.allow_cancel !== false,
         allow_address: merchant?.portal?.allow_address !== false,
+        allow_pack_edit: merchant?.portal?.allow_pack_edit !== false,
       },
       portal_welcome: merchant?.portal_welcome || "",
       // Colores del portal = los del checkout (acento = widget_color salvo que la tienda lo cambie en Configuración → Checkout).
@@ -802,6 +814,7 @@ async function handleSub(req, res) {
   if (req.method === "POST") {
     if (await portalRateLimited(res, payload)) return;
     const { action: subAction } = req.body || {};
+    if (subAction === "update-pack") return handleUpdatePack(req, res, { merchantId, subscriberId, subRef });
     if (!["pause", "resume", "cancel"].includes(subAction)) {
       return res.status(400).json({ error: "action debe ser pause | resume | cancel" });
     }
@@ -1066,3 +1079,23 @@ async function handleWidgetSeen(req, res) {
 }
 
 export default withErrorLog(handler, { where: "public", kind: "public" });
+
+// ─── Cambiar el pedido de un pack armado (portal) ─────────────────────────────
+// POST ?action=sub { action:"update-pack", items:[{ variant_id, qty }] }. 9-oct-2026 (G4U).
+async function handleUpdatePack(req, res, { merchantId, subscriberId, subRef }) {
+  const subSnap = await subRef.get();
+  if (!subSnap.exists) return res.status(404).json({ error: "Suscripción no encontrada" });
+  const sub = subSnap.data();
+  const merchant = (await db().collection("merchants").doc(merchantId).get()).data() || {};
+  if (merchant.portal?.allow_pack_edit === false) return res.status(403).json({ error: "Esta tienda no permite cambiar el pedido desde el portal. Escribile a la tienda." });
+  if (sub.status === "cancelled") return res.status(409).json({ error: "Esta suscripción está cancelada.", code: "sub_cancelled" });
+  const plan = sub.plan_id ? (await db().collection("merchants").doc(merchantId).collection("plans").doc(String(sub.plan_id)).get()).data() : null;
+  if (!plan) return res.status(400).json({ error: "No encontramos el plan de esta suscripción." });
+  const r = await applyPackChange({ db, merchantId, merchant, subscriberId, sub, plan, items: req.body?.items, by: "customer" });
+  if (r.error) {
+    if (r.code === "mp") { console.error("[public/update-pack] MP:", r.detail); await logError("portal update-pack MP", new Error(r.detail), { kind: "mp", merchantId }); return res.status(502).json({ error: r.error }); }
+    return res.status(400).json({ error: r.error });
+  }
+  const fresh = (await subRef.get()).data() || sub;
+  return res.json({ ok: true, unchanged: r.unchanged === true, total: r.total, pack: packEditState(fresh, plan, { allowed: true }), product_title: fresh.plan_snapshot?.product_title || null });
+}
