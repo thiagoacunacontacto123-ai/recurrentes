@@ -282,6 +282,25 @@ function Configurador({ T, m, onDone }) {
               <option value="sub">Suscripción</option><option value="once">Compra única (la suscripción se abre con el botón / ?rec_modo=sub)</option>
             </select></div>
         </div>
+        <div style={{ background:T.bg, border:`1px solid ${T.borderL}`, borderRadius:12, padding:"10px 12px", display:"grid", gap:10 }}>
+          <div style={label}>Comunicación con sus clientes (queda lista al aplicar)</div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:10 }}>
+            <div><div style={label}>Mail de atención (responder a)</div><input value={r.comunicacion?.reply_to || ""} onChange={e => setR(x => ({ ...x, comunicacion: { ...x.comunicacion, reply_to: e.target.value } }))} style={iS} placeholder="hola@latienda.com"/></div>
+            <div><div style={label}>Marca en los mails</div><input value={r.comunicacion?.brand || ""} onChange={e => setR(x => ({ ...x, comunicacion: { ...x.comunicacion, brand: e.target.value } }))} style={iS} placeholder="G4U"/></div>
+            <div><div style={label}>"Próximo cobro": días antes</div><input type="number" min="1" max="14" value={r.comunicacion?.upcoming_days_before ?? 3} onChange={e => setR(x => ({ ...x, comunicacion: { ...x.comunicacion, upcoming_days_before: e.target.value } }))} style={iS}/></div>
+          </div>
+          <div style={{ display:"flex", gap:14, flexWrap:"wrap", fontSize:DS.font.sm }}>
+            {[["upcoming_charge","Mail de próximo cobro"],["checkout_started","Recupero de carrito"],["activated","Bienvenida a los 3 días"],["payment_failed","Pago rechazado (seguimiento)"],["cancelled","Win-back"]].map(([id, lbl]) => (
+              <label key={id} style={{ display:"flex", gap:6, alignItems:"center", cursor:"pointer" }}><input type="checkbox" checked={(r.comunicacion?.flujos || []).includes(id)} onChange={e => setR(x => { const f = new Set(x.comunicacion?.flujos || []); e.target.checked ? f.add(id) : f.delete(id); return { ...x, comunicacion: { ...x.comunicacion, flujos: [...f] } }; })}/> {lbl}</label>
+            ))}
+          </div>
+          <div style={{ display:"flex", gap:14, flexWrap:"wrap", fontSize:DS.font.sm, alignItems:"center" }}>
+            <label style={{ display:"flex", gap:6, alignItems:"center", cursor:"pointer", fontWeight:700 }}><input type="checkbox" checked={r.comunicacion?.whatsapp === true} onChange={e => setR(x => ({ ...x, comunicacion: { ...x.comunicacion, whatsapp: e.target.checked } }))}/> WhatsApp desde el número de Recurrentes (la tienda confirmó que sus clientes aceptan avisos)</label>
+            {r.comunicacion?.whatsapp && [["aviso_proximo_cobro","Próximo cobro"],["carrito_sin_pagar","Carrito sin pagar"],["sin_stock","Sin stock"],["pago_rechazado","Pago rechazado"],["suscripcion_activa","Suscripción activa"],["renovacion_cobrada","Renovación cobrada"]].map(([id, lbl]) => (
+              <label key={id} style={{ display:"flex", gap:6, alignItems:"center", cursor:"pointer" }}><input type="checkbox" checked={(r.comunicacion?.wa_templates || []).includes(id)} onChange={e => setR(x => { const f = new Set(x.comunicacion?.wa_templates || []); e.target.checked ? f.add(id) : f.delete(id); return { ...x, comunicacion: { ...x.comunicacion, wa_templates: [...f] } }; })}/> {lbl}</label>
+            ))}
+          </div>
+        </div>
         <div style={{ display:"flex", gap:16, flexWrap:"wrap", fontSize:DS.font.sm }}>
           <label style={{ display:"flex", gap:8, alignItems:"center", cursor:"pointer" }}><input type="checkbox" checked={r.mix === true} onChange={e => setR(x => ({ ...x, mix: e.target.checked }))}/> Armá tu pack: mezclar los productos elegidos</label>
           <label style={{ display:"flex", gap:8, alignItems:"center", cursor:"pointer" }}><input type="checkbox" checked={r.widget?.cart_drawer !== false} onChange={e => setR(x => ({ ...x, widget: { ...x.widget, cart_drawer: e.target.checked } }))}/> Carrito de la suscripción</label>
@@ -323,6 +342,8 @@ function Configurador({ T, m, onDone }) {
             {res.errores.map((e, i) => <div key={i} style={{ color:T.red }}>✕ {e.producto}: {e.error}</div>)}
             {res.faltan?.length ? <div style={{ color:T.yellow }}>No están en la tienda: {res.faltan.join(", ")}</div> : null}
             {res.settings?.length ? <div>Ajustes guardados: {res.settings.join(", ")}</div> : null}
+            {res.comunicacion?.flujos?.map(f => <div key={f.trigger}>{f.error ? "✕" : "✓"} Flujo {f.trigger}{f.ya ? " (ya estaba)" : f.active === false ? " (creado APAGADO: falta el mail de atención)" : ""}{f.error ? `: ${f.error}` : ""}</div>)}
+            {res.comunicacion?.whatsapp ? <div>{res.comunicacion.whatsapp === "prendido" ? "✓ WhatsApp prendido" : "✕ WhatsApp no disponible"}{res.comunicacion.wa?.length ? ` · plantillas: ${res.comunicacion.wa.map(w => w.name + (w.ya ? " (ya)" : w.error ? " ✕" : "")).join(", ")}` : ""}</div> : null}
           </div>
         )}
         {(recetaPorId(recetaId)?.pendientes || []).length ? (

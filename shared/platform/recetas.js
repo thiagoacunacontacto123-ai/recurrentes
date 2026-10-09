@@ -34,6 +34,9 @@ export const RECETAS = [
     widget: { color: "#500322", mode_default: "once", cart_drawer: true },
     checkout: { color: "#500322" },
     upsells: true,                     // "Sumá a tu suscripción" con los otros planes
+    // 9-oct-2026 (Thiago: "que cuando configure G4U ya estén los mails"): mail de atención,
+    // marca, flujos de mail prendidos y plantillas de WhatsApp. El mail lo da la tienda.
+    comunicacion: { reply_to: "", brand: "G4U", flujos: ["upcoming_charge", "checkout_started"], upcoming_days_before: 2, whatsapp: true, wa_templates: ["aviso_proximo_cobro", "carrito_sin_pagar", "sin_stock", "pago_rechazado"] },
     pendientes: [
       "Logística → Envíos: \"Poner todos gratis\" con gratis desde $95.000 (como su tienda).",
       "Activar los planes cuando el widget esté pegado (nacen apagados).",
@@ -53,8 +56,13 @@ export const RECETA_VACIA = {
   widget: { color: "", mode_default: "sub", cart_drawer: true },
   checkout: { color: "" },
   upsells: true,
+  comunicacion: { reply_to: "", brand: "", flujos: ["upcoming_charge", "checkout_started"], upcoming_days_before: 3, whatsapp: false, wa_templates: ["aviso_proximo_cobro", "carrito_sin_pagar"] },
   pendientes: [],
 };
+
+export const RECETA_FLUJOS = ["upcoming_charge", "checkout_started", "activated", "payment_failed", "cancelled"];
+export const RECETA_WA = ["aviso_proximo_cobro", "carrito_sin_pagar", "sin_stock", "pago_rechazado", "suscripcion_activa", "renovacion_cobrada"];
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 export function recetaPorId(id) {
   return RECETAS.find(r => r.id === id) || null;
@@ -83,10 +91,22 @@ export function normalizeReceta(input) {
   const frequency_days = int(r.frequency_days, 1, 365, 30);
   const foRaw = Array.isArray(r.frequency_options) ? r.frequency_options : String(r.frequency_options || "").split(/[,\s]+/);
   const frequency_options = [...new Set(foRaw.map(v => int(v, 1, 365, null)).filter(v => v != null))].sort((a, b) => a - b).slice(0, 6);
+  const c = r.comunicacion && typeof r.comunicacion === "object" ? r.comunicacion : {};
+  const reply_to = String(c.reply_to || "").trim().toLowerCase();
+  if (reply_to && !EMAIL_RE.test(reply_to)) return { error: "El mail de atención al cliente no es válido." };
+  const comunicacion = {
+    reply_to,
+    brand: String(c.brand || "").trim().slice(0, 40),
+    flujos: [...new Set((Array.isArray(c.flujos) ? c.flujos : []).map(String).filter(f => RECETA_FLUJOS.includes(f)))],
+    upcoming_days_before: int(c.upcoming_days_before, 1, 14, 3),
+    whatsapp: c.whatsapp === true,
+    wa_templates: [...new Set((Array.isArray(c.wa_templates) ? c.wa_templates : []).map(String).filter(t => RECETA_WA.includes(t)))],
+  };
   return {
     receta: {
       id: String(r.id || "").slice(0, 40),
       productos, packs, discount_pct, frequency_days, frequency_options,
+      comunicacion,
       frequency_scales_with_qty: r.frequency_scales_with_qty === true,
       mix: r.mix === true,
       widget: { color: hex(r.widget?.color), mode_default: r.widget?.mode_default === "once" ? "once" : "sub", cart_drawer: r.widget?.cart_drawer !== false },
@@ -140,6 +160,9 @@ export function resumenReceta(receta, productos = []) {
     `Packs ${packs} · ${receta.discount_pct}% en cada envío · ${freq}`,
     receta.mix ? "Armá tu pack: cada plan mezcla con los otros productos" : "Sin mezcla de productos",
     `Widget ${receta.widget.color || "color actual"} · arranca en ${receta.widget.mode_default === "once" ? "Compra única" : "Suscripción"} · carrito ${receta.widget.cart_drawer ? "prendido" : "apagado"}`,
+    receta.comunicacion ? (receta.comunicacion.reply_to
+      ? `Mails desde "${receta.comunicacion.brand || "la tienda"}", responder a ${receta.comunicacion.reply_to} · flujos: ${receta.comunicacion.flujos.join(", ") || "ninguno"}${receta.comunicacion.whatsapp ? ` · WhatsApp: ${receta.comunicacion.wa_templates.join(", ") || "sin plantillas"}` : " · sin WhatsApp"}`
+      : "Sin mail de atención: los flujos de mail quedan creados pero APAGADOS (no pueden salir sin a quién responder)") : null,
     faltan.length ? `No encontré en la tienda: ${faltan.join(", ")}` : null,
   ].filter(Boolean);
 }

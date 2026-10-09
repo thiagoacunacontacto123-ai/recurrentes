@@ -943,12 +943,52 @@ async function applyRecipe(admin, req, res) {
     const ids = [...creados, ...actualizados].map(p => p.id);
     if (ids.length > 1) settings.checkout_upsells = ids.slice(0, 4);
   }
+  // Comunicación (9-oct-2026): mail de atención + marca, flujos de mail y WhatsApp.
+  const com = receta.comunicacion || null;
+  const comunicacion = { flujos: [], wa: [], whatsapp: null };
+  if (com) {
+    if (com.reply_to) settings.email_reply_to = com.reply_to;
+    if (com.brand) settings.email_brand = com.brand;
+    const puedeMandar = !!(com.reply_to || m.email_reply_to);
+    const { sanitizeFlow, defaultFlow, defaultWhatsappFlow } = await import("../../shared/platform/flows.js");
+    const flowsCol = ref.collection("flows");
+    const actuales = (await flowsCol.get()).docs.map(d => ({ id: d.id, ...d.data() }));
+    for (const trigger of com.flujos) {
+      if (actuales.some(f => f.trigger === trigger && !f.wa_template && !String(f.system || "").startsWith("wa_template:"))) { comunicacion.flujos.push({ trigger, ya: true }); continue; }
+      const base = defaultFlow(trigger);
+      if (trigger === "upcoming_charge") base.days_before = com.upcoming_days_before;
+      const { flow, error } = sanitizeFlow({ ...base, active: puedeMandar });
+      if (error || !flow) { comunicacion.flujos.push({ trigger, error: error || "inválido" }); continue; }
+      await flowsCol.add({ ...flow, created_at: now, updated_at: now, seeded: true, created_from: "receta" });
+      comunicacion.flujos.push({ trigger, active: puedeMandar });
+    }
+    if (com.whatsapp) {
+      const { platformWaAvailable } = await import("./whatsapp.js");
+      if (!platformWaAvailable()) comunicacion.whatsapp = "no_disponible";
+      else {
+        settings.whatsapp_platform_enabled = true;
+        settings.whatsapp_platform_optin_at = settings.whatsapp_platform_optin_at || now;
+        settings.whatsapp_platform_enabled_at = now;
+        comunicacion.whatsapp = "prendido";
+        for (const name of com.wa_templates) {
+          const prev = actuales.find(f => f.wa_template === name);
+          if (prev) { if (!prev.active) await flowsCol.doc(prev.id).set({ active: true, updated_at: now }, { merge: true }); comunicacion.wa.push({ name, ya: true }); continue; }
+          const { flow, error } = sanitizeFlow({ ...defaultWhatsappFlow(name), active: true });
+          if (error || !flow) { comunicacion.wa.push({ name, error: error || "inválido" }); continue; }
+          await flowsCol.add({ ...flow, wa_template: name, stats: { entered: 0, sent: 0, completed: 0, exited: 0, converted: 0 }, created_at: now, updated_at: now, created_by: admin?.uid || null, created_from: "receta" });
+          comunicacion.wa.push({ name, active: true });
+        }
+      }
+    }
+    settings.flows_seeded_at = m.flows_seeded_at || now;
+  }
   settings.updated_at = now;
   await ref.set(settings, { merge: true });
+  if (com) { try { const { syncFlowsIndex } = await import("./flows.js"); await syncFlowsIndex(id); } catch (e) { console.warn("[recipe] syncFlowsIndex:", e.message); } }
   try { const { clearMerchantCache } = await import("./firebase.js"); clearMerchantCache(id); } catch (_) {}
   await audit(admin, "apply_recipe", id, { receta: receta.id || "a-medida", creados: creados.length, actualizados: actualizados.length, errores: errores.length });
   _cache = null;
-  return res.json({ ok: true, creados, actualizados, errores, faltan, sinPrecio, settings: Object.keys(settings).filter(k => k !== "updated_at") });
+  return res.json({ ok: true, creados, actualizados, errores, faltan, sinPrecio, comunicacion, settings: Object.keys(settings).filter(k => k !== "updated_at") });
 }
 
 async function viewAsStart(admin, req, res) {
