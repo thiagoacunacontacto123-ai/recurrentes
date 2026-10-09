@@ -153,10 +153,11 @@ export default async function handler(req, res) {
     const docs = soloUna
       ? [await col.doc(soloUna).get()].filter(d => d.exists)
       : (await col.where("stock_policy.on_missing", "==", "pause").get()).docs;
-    const out = { comercios: 0, revisadas: 0, pausadas: 0, reactivadas: 0 };
+    const out = { comercios: 0, revisadas: 0, pausadas: 0, reactivadas: 0, errors: 0 };
     for (const d of docs) {
       const m = d.data() || {};
       if (m.archived_at || !stockCheckNeeded(m)) continue;
+      try {
       // Las que están por cobrarse y las que YA pausamos por stock (para
       // devolverlas solas cuando el comercio repone).
       const subsSnap = await d.ref.collection("subscribers")
@@ -165,7 +166,10 @@ export default async function handler(req, res) {
       const r = await stockWatchForMerchant({ db, merchant: m, merchantId: d.id, subs });
       out.comercios++;
       out.revisadas += r.revisadas; out.pausadas += r.pausadas; out.reactivadas += r.reactivadas;
+      } catch (e) { out.errors++; await logError("cron stock-watch", e, { kind: "cron", merchantId: d.id }); }
     }
+    // Latido (9-oct-2026): hasta hoy este cron no lo dejaba y el tablero decía "todavía no corrió".
+    await cronHeartbeat("stock-watch", { ok: out.errors === 0, errors: out.errors });
     return res.json({ ok: true, ...out });
   }
   if (action === "import-shipping") {
