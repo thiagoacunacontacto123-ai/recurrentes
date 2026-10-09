@@ -60,6 +60,11 @@ export default function CheckoutSuccess() {
             });
             const hasOrder = !!d.sub.shopify_order_status_url || (d.sub.shopify_orders_count || 0) > 0;
             if (hasOrder && (d.sub.status === "active" || d.sub.shopify_order_status_url)) { setPhase("active"); return; }
+            // 9-oct-2026: el pago YA está confirmado (la sub quedó activa) pero la orden en la
+            // tienda tarda o falló (la tienda la reintenta sola). Antes la rueda giraba hasta
+            // el final y parecía que el pago no había salido. Unos segundos de espera por si
+            // la orden entra, y después "Listo": la suscripción está activa igual.
+            if (d.sub.status === "active" && i >= 4) { setPhase("active"); return; }
           }
         } catch (_) {}
         await new Promise((res) => setTimeout(res, POLL_MS));
