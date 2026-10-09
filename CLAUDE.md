@@ -156,6 +156,12 @@ Recurrentes deja de ser solo "Shopify + MP". Cada merchant tiene un **perfil** e
 - Se elige en Configuración → Negocio (`save-settings` con `business_type/channel/payment_provider`, solo dueño; dejar Shopify con token pide `confirm_channel_change`).
 - Pendiente: adapters Tiendanube / Impultienda / Stripe, moneda por merchant (todo asume ARS), renombrar `shopify_orders`/`shopify_order_id` a genéricos.
 
+## Incidente Firestore 2026-10-09 (cuota agotada)
+- **Qué pasó**: el panel mostró "8 RESOURCE_EXHAUSTED: Quota exceeded". El proyecto es Blaze pero la **cuenta de facturación de Google Cloud estaba past due / sin tarjeta válida**, así que Google lo frenó en la franja gratis (50k lecturas/día) con 49k consumidas. Lecturas caídas, escrituras andaban. Lo arregla Thiago en Google Cloud → Billing → Payment overview / Payment method; Google reactiva en minutos. MP sigue cobrando y la conciliación horaria recupera las órdenes; lo que se pierde son checkouts nuevos mientras dura.
+- **Dieta de lecturas** (`collectDueGlobal`): rechazadas cada 15 min, carritos pendientes cada 10 (eran cada 2); `stock-watch` cada 30 min. En tests el minuto se fija con `CRON_FORCE_MINUTE` (ignorado en Vercel).
+- **Aviso**: `api/_lib/quotaGuard.js` → `reportQuotaExhausted()` desde el heartbeat del cron y el webhook de MP manda `aviso_admin` (evento `firestore_quota`, 1 por día) y Admin → Estado muestra el check de Firestore con el detalle. El panel traduce el error 8 a un texto humano (`src/lib/api.js`).
+- **Regla**: nunca hacer lecturas de más a Firestore mientras la cuota está agotada (castiga más); con una marca grande, mirar Firebase → Usage antes de cada tanda. Pendiente: lecturas/día en Admin → Estado vía Cloud Monitoring (hace falta rol Monitoring Viewer a la service account) con aviso al 70 %.
+
 ## Decisiones del 2026-09-15 (Thiago)
 - **Klaviyo retirado**: `klaviyoEnabled()` devuelve siempre false (todo envío es no-op) y no aparece en ningún lado del panel. Recupero, avisos y "pagos completados" van por **Flujos de email** propios (Resend). No se crean carritos ni borradores en Shopify/Tiendanube/Impultienda: todo queda en Recurrentes.
 - **Mails**: salen de `Recurrentes <hola@recurrentesapp.com>` (dominio verificado en Resend; ese dominio NO recibe mails). Todos llevan al pie "mail automático, no lo respondas · escribí a <email_reply_to de la tienda>"; los flujos no se activan sin ese mail.
