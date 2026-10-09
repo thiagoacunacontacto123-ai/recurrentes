@@ -80,8 +80,8 @@ export const SETUP_STEPS = [
   {
     id: "permisos",
     title: "Permisos completos de la app",
-    pide: () => `Nada del cliente: los revisás vos. La app tiene que quedar con ${SHOPIFY_REQUIRED_SCOPE_IDS.join(", ")}; read_discounts y write_discounts solo si quiere traer sus cupones y dejar regalos gratis.`,
-    hace: "Si falta alguno, Shopify responde 403 en la mitad de las cosas. Se arregla reconectando con la lista completa.",
+    pide: () => `Nada del cliente: los revisás vos. La app tiene que quedar con ${SHOPIFY_REQUIRED_SCOPE_IDS.join(", ")}; read_discounts y write_discounts solo si quiere traer sus cupones y dejar regalos gratis. Y en la app, Configuración → "Acceso a datos protegidos de clientes" (Protected customer data access): solicitar nombre, dirección, mail y teléfono. Sin eso Shopify rechaza cada pedido con "not approved to access protected customer data" (pasó el 9-oct-2026 con la tienda de prueba).`,
+    hace: "Si falta alguno, Shopify responde 403 en la mitad de las cosas. Se arregla reconectando con la lista completa. El acceso a datos protegidos se pide una vez en la app y se aprueba al instante; los scopes no lo cubren.",
     done: (m) => (tiene(m.shopify_token) || tiene(m.tiendanube_token)) && scopesFaltantes(m).length === 0,
   },
   {

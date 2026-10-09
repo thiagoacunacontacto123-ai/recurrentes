@@ -132,6 +132,7 @@ export function ShopifyConnectSteps({ T, origin, where = "modal" }) {
         </li>
         <li><B T={T}>Lanzá la versión:</B> tocá <B T={T}>"Publicar" / "Lanzar"</B> (arriba a la derecha). Aparece un cartel pidiendo el <B T={T}>nombre de la versión</B> → dejalo <B T={T}>en blanco</B> y tocá de nuevo <B T={T}>"Lanzar" / "Avanzar"</B>. Con eso la versión interna de tu app queda lista. Si más adelante cambiás algo (un alcance, la URL), hay que volver a tocar <B T={T}>"Publicar" / "Relanzar"</B>: en Shopify los cambios no valen hasta que publicás la versión.</li>
         <li>Ahora sí, en <B T={T}>Configuración → Credenciales</B> copiá el <B T={T}>Client ID</B> y el <B T={T}>Client Secret</B> (tocá el ojito para verlo) → {pasteWhere}.</li>
+        <li><B T={T}>Datos de clientes</B> (sin esto Shopify rechaza los pedidos que creamos): en la app, <B T={T}>Configuración → Acceso a datos protegidos de clientes</B> (<En T={T} en="Protected customer data access"/>) → <B T={T}>Solicitar acceso</B>, marcá <B T={T}>nombre, dirección, mail y teléfono</B>, en el motivo poné "crear los pedidos de las suscripciones" y guardá. Se aprueba al instante.</li>
       </ol>
     </div>
   );
