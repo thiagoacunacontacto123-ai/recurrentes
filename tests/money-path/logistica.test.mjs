@@ -242,6 +242,30 @@ test("(e) sin stock y con el cobro cerca: se pausa ANTES, así ese cobro no sale
   assert.equal(guardada.paused_reason, "sin_stock");
 });
 
+test("(e) el CRON real mira a la tienda que nunca tocó la configuración (el default no se guarda)", async () => {
+  // 9-oct-2026: el cron buscaba `stock_policy.on_missing == "pause"` y como el default no
+  // se escribe, no vigilaba a nadie: Wellfresh y Lumina nunca tuvieron la pausa previa.
+  process.env.CRON_SECRET = "cs_test";
+  const merchant = luminaMerchant();           // sin stock_policy
+  assert.equal(merchant.stock_policy, undefined);
+  seedDoc(`merchants/${MID}`, merchant);
+  const now = Date.now();
+  seedDoc(`merchants/${MID}/subscribers/${SID}`, subConPlan({ next_charge_at: new Date(now + 2 * 3600e3).toISOString() }));
+  // Otra tienda que eligió cobrar igual: ni se le leen las suscripciones.
+  seedDoc("merchants/cobra_igual", luminaMerchant({ stock_policy: { on_missing: "charge" } }));
+  W.shopify.stock[String(VARIANT_ID)] = 0;
+  const { default: cron } = await loadApi("api/cron.js");
+  const r = await new Promise((resolve) => {
+    const res = { _s: 200, status(c) { this._s = c; return this; }, setHeader() {}, json(o) { resolve({ status: this._s, body: o }); } };
+    cron({ method: "GET", headers: { authorization: "Bearer cs_test" }, query: { action: "stock-watch" } }, res);
+  });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.comercios, 1, "solo la tienda con el default (la que cobra igual se saltea)");
+  assert.equal(r.body.pausadas, 1);
+  assert.equal(rawGet(`merchants/${MID}/subscribers/${SID}`).status, "paused");
+  assert.equal(W.mp.preapprovalUpdates.at(-1).body.status, "paused");
+});
+
 test("(e) el cobro todavía lejos: no se toca (el comercio tiene tiempo de reponer)", async () => {
   const merchant = luminaMerchant(PAUSAR);
   const sub = { id: SID, ...subConPlan({ next_charge_at: "2026-09-25T14:00:00.000Z" }) };

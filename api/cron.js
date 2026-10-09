@@ -150,13 +150,19 @@ export default async function handler(req, res) {
     const { stockCheckNeeded } = await import("../shared/platform/logistics.js");
     const col = db().collection("merchants");
     const soloUna = String(req.query.merchant || "").trim();
+    // 9-oct-2026: "No cobrar" es el DEFAULT y el default no se guarda (sanitizeStockPolicy
+    // lo deja vacío), así que buscar `on_missing == "pause"` no traía a NADIE y la pausa
+    // previa al cobro nunca corrió. Ahora se leen todas las tiendas y decide
+    // stockCheckNeeded() con el default; las que eligieron "cobrar igual" o "no miramos
+    // stock" se saltean sin leer sus suscripciones.
     const docs = soloUna
       ? [await col.doc(soloUna).get()].filter(d => d.exists)
-      : (await col.where("stock_policy.on_missing", "==", "pause").get()).docs;
+      : (await col.limit(500).get()).docs;
     const out = { comercios: 0, revisadas: 0, pausadas: 0, reactivadas: 0, errors: 0 };
     for (const d of docs) {
       const m = d.data() || {};
       if (m.archived_at || !stockCheckNeeded(m)) continue;
+      if (!(m.shopify_shop && m.shopify_token) && !(m.tiendanube_store_id && m.tiendanube_token)) continue;   // sin tienda no hay inventario que mirar
       try {
       // Las que están por cobrarse y las que YA pausamos por stock (para
       // devolverlas solas cuando el comercio repone).
