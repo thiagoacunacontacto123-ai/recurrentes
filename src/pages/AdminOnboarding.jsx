@@ -296,7 +296,7 @@ function Configurador({ T, m, onDone }) {
           </div>
           <div style={{ display:"flex", gap:14, flexWrap:"wrap", fontSize:DS.font.sm, alignItems:"center" }}>
             <label style={{ display:"flex", gap:6, alignItems:"center", cursor:"pointer", fontWeight:700 }}><input type="checkbox" checked={r.comunicacion?.whatsapp === true} onChange={e => setR(x => ({ ...x, comunicacion: { ...x.comunicacion, whatsapp: e.target.checked } }))}/> WhatsApp desde el número de Recurrentes (la tienda confirmó que sus clientes aceptan avisos)</label>
-            {r.comunicacion?.whatsapp && [["aviso_proximo_cobro","Próximo cobro"],["carrito_sin_pagar","Carrito sin pagar"],["sin_stock","Sin stock"],["pago_rechazado","Pago rechazado"],["suscripcion_activa","Suscripción activa"],["renovacion_cobrada","Renovación cobrada"]].map(([id, lbl]) => (
+            {r.comunicacion?.whatsapp && [["aviso_proximo_cobro","Próximo cobro"],["carrito_sin_pagar","Carrito sin pagar"],["sin_stock","Sin stock"],["pago_rechazado","Pago rechazado"],["suscripcion_activa","Suscripción activa"],["renovacion_cobrada","Renovación cobrada"],["pedido_modificado","Pedido modificado"]].map(([id, lbl]) => (
               <label key={id} style={{ display:"flex", gap:6, alignItems:"center", cursor:"pointer" }}><input type="checkbox" checked={(r.comunicacion?.wa_templates || []).includes(id)} onChange={e => setR(x => { const f = new Set(x.comunicacion?.wa_templates || []); e.target.checked ? f.add(id) : f.delete(id); return { ...x, comunicacion: { ...x.comunicacion, wa_templates: [...f] } }; })}/> {lbl}</label>
             ))}
           </div>

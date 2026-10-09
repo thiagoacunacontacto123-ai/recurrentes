@@ -207,6 +207,15 @@ export const WA_TEMPLATES = [
     vars: { "1": "nombre", "2": "marca", "3": "producto", "4": "monto", "5": "proximo_cobro", "6": "link_portal" },
     samples: ["Ana", "Tostado Café", "Café de especialidad 250 g", "$9.480", "15 de noviembre", "https://www.recurrentesapp.com/#/portal"],
   },
+  {
+    // 9-oct-2026 (G4U): comprobante del cambio de pedido hecho desde el portal.
+    name: "pedido_modificado", category: "UTILITY", lang: "es_AR", trigger: "pack_changed",
+    title: "Pedido modificado",
+    body: "Hola {{1}}, te escribimos de parte de {{2}}: actualizamos tu pedido. Ahora es {{3}} por {{4}}, desde tu próximo cobro.\n\nSi querés volver a cambiarlo, es desde tu portal: {{5}}\n\nGracias por seguir con nosotros.",
+    footer: WA_FOOTER,
+    vars: { "1": "nombre", "2": "marca", "3": "producto", "4": "monto", "5": "link_portal" },
+    samples: ["Ana", "Tostado Café", "Pack x2 - Café 250 g x1, Filtros x1", "$9.480", "https://www.recurrentesapp.com/#/portal"],
+  },
 ];
 export const WA_TEMPLATE_BY_NAME = Object.fromEntries(WA_TEMPLATES.map(t => [t.name, t]));
 

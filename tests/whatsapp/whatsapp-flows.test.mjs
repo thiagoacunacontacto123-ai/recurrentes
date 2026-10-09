@@ -24,7 +24,7 @@ test("(q) whatsapp-flows: las plantillas a clientes, apagadas, con precio × 1,5
   assert.equal(r.statusCode, 200);
   assert.equal(r.body.enabled, true);
   assert.equal(r.body.sender, "platform");
-  assert.deepEqual(r.body.templates.map(t => t.name), ["carrito_sin_pagar", "aviso_proximo_cobro", "sin_stock", "pago_rechazado", "suscripcion_activa", "renovacion_cobrada"], "el carrito primero: es el que más se usa");
+  assert.deepEqual(r.body.templates.map(t => t.name), ["carrito_sin_pagar", "aviso_proximo_cobro", "sin_stock", "pago_rechazado", "suscripcion_activa", "renovacion_cobrada", "pedido_modificado"], "el carrito primero: es el que más se usa");
   assert.ok(r.body.templates.every(t => t.active === false && t.flow_id === null));
   assert.equal("markup" in r.body, false, "el recargo no se expone al panel");
   assert.equal("price_usd" in r.body, false, "ni el precio de Meta");
@@ -98,7 +98,7 @@ test("(q) sin WhatsApp prendido: la vista lo dice y el toggle devuelve not_enabl
   seedDoc(`merchants/${MID}`, luminaMerchant());   // sin whatsapp_platform_enabled
   const v = await call("whatsapp-flows");
   assert.equal(v.body.enabled, false);
-  assert.equal(v.body.templates.length, 6, "igual muestra qué se puede prender");
+  assert.equal(v.body.templates.length, 7, "igual muestra qué se puede prender");
   const r = await call("whatsapp-template-toggle", { method: "POST", body: { name: "pago_rechazado", active: true } });
   assert.equal(r.statusCode, 400);
   assert.equal(r.body.code, "not_enabled");

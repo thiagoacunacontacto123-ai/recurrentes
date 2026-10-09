@@ -36,7 +36,7 @@ export const RECETAS = [
     upsells: true,                     // "Sumá a tu suscripción" con los otros planes
     // 9-oct-2026 (Thiago: "que cuando configure G4U ya estén los mails"): mail de atención,
     // marca, flujos de mail prendidos y plantillas de WhatsApp. El mail lo da la tienda.
-    comunicacion: { reply_to: "", brand: "G4U", flujos: ["upcoming_charge", "checkout_started"], upcoming_days_before: 2, whatsapp: true, wa_templates: ["aviso_proximo_cobro", "carrito_sin_pagar", "sin_stock", "pago_rechazado"] },
+    comunicacion: { reply_to: "", brand: "G4U", flujos: ["upcoming_charge", "checkout_started"], upcoming_days_before: 2, whatsapp: true, wa_templates: ["aviso_proximo_cobro", "carrito_sin_pagar", "sin_stock", "pago_rechazado", "pedido_modificado"] },
     pendientes: [
       "Logística → Envíos: \"Poner todos gratis\" con gratis desde $95.000 (como su tienda).",
       "Activar los planes cuando el widget esté pegado (nacen apagados).",
@@ -61,7 +61,7 @@ export const RECETA_VACIA = {
 };
 
 export const RECETA_FLUJOS = ["upcoming_charge", "checkout_started", "activated", "payment_failed", "cancelled"];
-export const RECETA_WA = ["aviso_proximo_cobro", "carrito_sin_pagar", "sin_stock", "pago_rechazado", "suscripcion_activa", "renovacion_cobrada"];
+export const RECETA_WA = ["aviso_proximo_cobro", "carrito_sin_pagar", "sin_stock", "pago_rechazado", "suscripcion_activa", "renovacion_cobrada", "pedido_modificado"];
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 export function recetaPorId(id) {
