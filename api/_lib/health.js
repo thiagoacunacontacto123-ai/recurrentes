@@ -35,7 +35,7 @@ export const EXPECTED_CRONS = {
   "reconcile-mp": { every_min: 60, stale_after_min: 150 },
   // 28-sept-2026: los que faltaban en el tablero de estado (vercel.json).
   "demo-reminders": { every_min: 10, stale_after_min: 40, soft: true },
-  "stock-watch": { every_min: 15, stale_after_min: 60, soft: true },
+  "stock-watch": { every_min: 30, stale_after_min: 90, soft: true },
   "sync-saas-tiers": { every_min: 1440, stale_after_min: 1560, soft: true },
   "bill-wa-usage": { every_min: 1440, stale_after_min: 1560, soft: true },
 };
@@ -122,6 +122,10 @@ export function appBaseUrlReport(env = process.env) {
 // ── Heartbeat ───────────────────────────────────────────────────────
 // Nunca lanza. `summary.ok === false` → registra la corrida pero no mueve last_ok_at.
 export async function cronHeartbeat(action, summary = {}) {
+  // Cuota de Firestore agotada: aviso al admin (una vez por día), antes de intentar escribir.
+  if (summary.error && /RESOURCE_EXHAUSTED|Quota exceeded/i.test(String(summary.error))) {
+    try { const { reportQuotaExhausted } = await import("./quotaGuard.js"); await reportQuotaExhausted(`cron ${action}`, new Error(String(summary.error))); } catch (_) {}
+  }
   try {
     const at = new Date().toISOString();
     const ok = summary.ok !== false;
@@ -234,7 +238,10 @@ export async function buildHealth({ now = Date.now() } = {}) {
   const reconcile = reconcileReport(reconcileLast, now);
   const checks = [];
   const add = (group, id, label, status, detail) => checks.push({ group, id, label, status, detail: detail || "" });
-  add("Base", "firestore", "Base de datos (Firestore)", firestore.reachable ? "ok" : "error", firestore.reachable ? `Respondió en ${firestore.latency_ms} ms` : "No responde");
+  add("Base", "firestore", "Base de datos (Firestore)", firestore.reachable ? "ok" : "error",
+    firestore.reachable ? `Respondió en ${firestore.latency_ms} ms`
+      : firestore.error_code === "8" ? "Google rechaza las lecturas: cuota agotada (RESOURCE_EXHAUSTED). Revisar la facturación del proyecto (pago vencido) o la cuota de la API."
+      : "No responde");
   add("Base", "app_base_url", "Dominio del sitio (APP_BASE_URL)", base.canonical ? "ok" : "error", base.canonical ? CANONICAL_BASE_URL : `Es ${base.value || "(vacío)"}, debería ser ${CANONICAL_BASE_URL}`);
   add("Base", "production", "Entorno", process.env.VERCEL_ENV === "production" ? "ok" : "warn", process.env.VERCEL_ENV === "production" ? "Producción" : `Entorno ${process.env.VERCEL_ENV || "local"}`);
   for (const [id, g] of Object.entries(env)) {

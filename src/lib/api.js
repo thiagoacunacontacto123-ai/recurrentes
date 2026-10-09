@@ -55,6 +55,8 @@ async function authHeaders() {
 // evita el loop). Sin esto, un header viejo deja el dashboard en 403 para siempre.
 async function handleResponse(r, sentMid, uid) {
   const d = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
+  // Cuota de Firestore agotada (9-oct-2026): el comercio no tiene por qué ver un código de gRPC.
+  if (d && typeof d.error === "string" && /RESOURCE_EXHAUSTED|Quota exceeded/i.test(d.error)) d.error = "La base de datos está momentáneamente saturada. Ya estamos en eso; tus cobros no se ven afectados. Probá de nuevo en unos minutos.";
   // "Ver como" rechazado (ya no es admin o el comercio no existe): salimos del modo.
   if ((r.status === 403 || r.status === 404) && d?.code === "admin_forbidden" && getAdminAs()) {
     setAdminAs(null);

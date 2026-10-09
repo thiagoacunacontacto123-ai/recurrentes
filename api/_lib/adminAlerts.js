@@ -38,6 +38,8 @@ export const ADMIN_EVENT_LABEL = {
   // 5-oct-2026: un comprador se quedó sin poder suscribirse y nos enteramos
   // porque Thiago lo vio. Esto NO puede volver a pasar en silencio.
   mp_plan_error: "Mercado Pago le rechazó el plan a un comprador",
+  // 9-oct-2026: Google frenó Firestore en la cuota gratis (facturación en mora) y la plataforma quedó caída sin aviso.
+  firestore_quota: "Firestore sin cuota: la plataforma no puede leer la base",
 };
 export const ADMIN_EVENTS = Object.keys(ADMIN_EVENT_LABEL);
 

@@ -192,7 +192,9 @@ export default async function handler(req, res) {
 
   // Declaradas FUERA del try: el catch global las usa en la respuesta.
   const start = Date.now();
-  const minute = new Date(start).getMinutes();
+  // En tests se puede fijar el minuto (la dieta de lecturas depende de él); en Vercel se ignora.
+  const forced = process.env.VERCEL ? NaN : parseInt(process.env.CRON_FORCE_MINUTE || "", 10);
+  const minute = Number.isFinite(forced) ? forced : new Date(start).getMinutes();
   let merchantsSnap = null;
   let merchantsProcessed = 0, subsProcessed = 0, activated = 0, errors = 0;
   let tokensRefreshed = 0, plansCancelled = 0, resumed = 0, tokensReconnect = 0;
@@ -639,8 +641,12 @@ export async function collectDueGlobal(now = Date.now(), minute = new Date(now).
   const [vencidas, recientes, failed, pendings, resumes, cancelled, orphans, sinFecha] = await Promise.all([
     cg().where("status", "==", "active").where("next_charge_at", "<=", iso(now - 5 * 60 * 1000)).orderBy("next_charge_at").limit(GLOBAL_LIMIT).get(),
     cg().where("status", "==", "active").where("created_at", ">=", iso(now - 72 * H)).limit(GLOBAL_LIMIT).get(),
-    cg().where("status", "==", "payment_failed").orderBy("updated_at").limit(GLOBAL_LIMIT).get(),
-    cg().where("status", "==", "pending").where("updated_at", ">=", iso(now - 72 * H)).limit(GLOBAL_LIMIT).get(),
+    // Lecturas (9-oct-2026, 49k/día = el borde de la franja gratis de Firestore): las
+    // rechazadas cambian cada horas (MP reintenta en días) → cada 15 min; los carritos
+    // pendientes son el bucket más grande y el que vuelve por CheckoutSuccess ya se
+    // sincroniza solo → cada 10 min. Mismos filtros, menos veces.
+    minute % 15 === 0 ? cg().where("status", "==", "payment_failed").orderBy("updated_at").limit(GLOBAL_LIMIT).get() : none,
+    minute % 10 === 0 ? cg().where("status", "==", "pending").where("updated_at", ">=", iso(now - 72 * H)).limit(GLOBAL_LIMIT).get() : none,
     cg().where("status", "==", "paused").where("resume_at", "<=", iso(now)).limit(GLOBAL_LIMIT).get(),
     minute % 30 === 0 ? cg().where("status", "==", "cancelled").where("created_at", ">=", iso(now - 90 * D)).limit(300).get() : none,
     minute < 2 ? cg().where("status", "==", "pending").where("created_at", "<=", iso(now - 14 * D)).limit(200).get() : none,

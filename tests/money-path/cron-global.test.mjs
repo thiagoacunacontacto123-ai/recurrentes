@@ -51,7 +51,7 @@ beforeEach(() => {
 afterEach(() => { W.router.assertClean(); });
 
 test("(h2) collectDueGlobal trae solo lo que tiene algo que hacer, de todas las tiendas", async () => {
-  const due = await collectDueGlobal(Date.now(), 15);
+  const due = await collectDueGlobal(Date.now(), 10);  // minuto 10: entran las pendientes (dieta de lecturas del 9-oct)
   const ids = (docs) => docs.map(d => `${d.ref.parent.parent.id}/${d.id}`).sort();
   assert.deepEqual(ids(due.pendings), [`${MID}/sub_carla`, "sin_mp/s_sinmp"]);
   assert.deepEqual(ids(due.resumes), [`${MID}/sub_pausa`]);
@@ -61,7 +61,8 @@ test("(h2) collectDueGlobal trae solo lo que tiene algo que hacer, de todas las 
 });
 
 test("(h2) modo global: activa la que pagó, reactiva la pausa vencida y saltea archivadas y sin MP", async () => {
-  const r = await run();
+  process.env.CRON_FORCE_MINUTE = "10";  // las pendientes entran cada 10 min
+  let r; try { r = await run(); } finally { delete process.env.CRON_FORCE_MINUTE; }
   assert.equal(r.status, 200);
   assert.equal(r.body.ok, true);
   assert.equal(r.body.mode, "global");
