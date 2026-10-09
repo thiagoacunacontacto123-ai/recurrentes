@@ -531,7 +531,7 @@ export default async function handler(req, res) {
     await db().collection("system").doc("cron_last").set({ ...summary, at: nowIso() }, { merge: true }).catch(() => {});
     await cronHeartbeat("sync-all-pending", summary);
     // Vigilante: mira errores, crons y (cada hora) webhooks, tokens y widgets. Nunca lanza.
-    summary.watchdog = await runWatchdog({ minute });
+    summary.watchdog = await runWatchdog({ minute, hourly: false });   // los chequeos por tienda los hace run-flows
     return res.json(summary);
   } catch (e) {
     // NUNCA devolver 500: cron-job.org desactiva el job tras varios fallos. Si algo
@@ -615,7 +615,7 @@ async function runFlowsCron(res) {
     const out = { ok: true, mode, ...tot, elapsed_ms: Date.now() - start };
     if (tot.processed || tot.entered || tot.errors) console.log("[cron] run-flows:", JSON.stringify(out));
     await cronHeartbeat("run-flows", out);
-    out.watchdog = await runWatchdog({});   // el segundo ojo: vigila también a sync-all-pending
+    out.watchdog = await runWatchdog({ minute: new Date(start).getMinutes() });   // el segundo ojo: vigila también a sync-all-pending y hace los chequeos por tienda (minuto < 5)
     return res.json(out);
   } catch (e) {
     // Igual que sync-all-pending: nunca 500 (el cron sigue vivo y reintenta).
