@@ -362,8 +362,17 @@ export default async function handler(req, res) {
   // el merchant lo ponemos nosotros para que no dependa de que lo pegue bien.
   var q = new URLSearchParams(window.location.search);
   q.set("merchant", MERCHANT);
-  q.set("embed", "1");
   if (!q.get("src")) q.set("src", window.location.href);
+
+  // Navegador de Instagram / Facebook / Messenger (10-oct-2026): el checkout adentro de un
+  // iframe adentro del in-app no cobra (medido: 5 checkouts embebidos en 21 días, 0 pagos,
+  // Lumina y Wellfresh), igual que lo que vimos con el widget el 6-oct. Acá se va directo
+  // al checkout de Recurrentes con los mismos parámetros: misma pantalla, sin marco.
+  if (/Instagram|FBAN|FBAV|FB_IAB|Messenger/i.test(navigator.userAgent || "")) {
+    window.location.replace(BASE + "/#/checkout?" + q.toString());
+    return;
+  }
+  q.set("embed", "1");
 
   // Mientras el checkout carga, el MISMO cargando de siempre y del color de la
   // tienda. Sin esto el comprador ve un hueco en blanco y parece que el botón

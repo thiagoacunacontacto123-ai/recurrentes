@@ -119,3 +119,15 @@ test("salir a Mercado Pago rompe el marco: no se carga adentro del iframe", asyn
     "solo le hacemos caso al checkout");
   assert.match(js, /u\.indexOf\("https:\/\/"\) !== 0/, "y solo a una URL https");
 });
+
+test("en el navegador de Instagram / Facebook no arma el iframe: manda directo al checkout de Recurrentes", async () => {
+  const r = await embed();
+  const js = r.body;
+  assert.match(js, /Instagram\|FBAN\|FBAV\|FB_IAB\|Messenger/, "detecta el in-app por user agent");
+  // El salto va ANTES de crear el iframe y sin embed=1 (es el checkout entero, no el marco).
+  const salto = js.indexOf("window.location.replace(BASE");
+  const iframe = js.indexOf("createElement(\"iframe\")");
+  const embedFlag = js.indexOf("q.set(\"embed\", \"1\")");
+  assert.ok(salto > 0 && iframe > 0 && salto < iframe, "el salto está antes del iframe");
+  assert.ok(embedFlag > salto, "embed=1 se pone después del salto: el in-app no lo lleva");
+});
