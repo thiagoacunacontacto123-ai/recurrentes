@@ -195,3 +195,17 @@ test("(a) un nombre de una sola palabra NUNCA manda last_name vacío", async () 
   const sinNombre = toShopifyAddress({ ...dir, first_name: "Elena" }, "", "");
   assert.ok(sinNombre.last_name, "nunca vacío");
 });
+
+// "La direccion tiene que SIEMPRE si o si pasar igual" (Thiago, 14-oct-2026):
+// escriba lo que escriba el comprador — el nombre del perro, su mail, nada.
+test("(a) ningún nombre raro puede hacer que se pierda la dirección", async () => {
+  const { toShopifyAddress } = await loadApi("api/_lib/sync.js");
+  const dir = { address1: "Calle 21 2460", city: "Las Toninas", province: "Buenos Aires", zip: "7106" };
+  for (const nombre of ["Elena", "firulais", "eledalterio@gmail.com", "", "   ", "🐶", "Ana  ", "."]) {
+    const a = toShopifyAddress(dir, nombre, "");
+    assert.ok(a.first_name.trim(), `nombre vacío con ${JSON.stringify(nombre)}`);
+    assert.ok(a.last_name.trim(), `apellido vacío con ${JSON.stringify(nombre)} → Shopify tira la dirección`);
+    assert.equal(a.address1, "Calle 21 2460", `se perdió la dirección con ${JSON.stringify(nombre)}`);
+    assert.equal(a.city, "Las Toninas");
+  }
+});

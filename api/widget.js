@@ -416,6 +416,21 @@ export default async function handler(req, res) {
     if (h > 200 && h < 20000) { f.style.height = h + "px"; mostrar(); }
   });
 
+  // Subir hasta el campo que falta. Adentro del iframe no hay scroll propio
+  // (crece a lo alto), así que el checkout nos pide a nosotros que subamos: sin
+  // esto el comprador tocaba Pagar, el campo se ponía rojo ARRIBA, fuera de
+  // pantalla, y parecía que el botón no hacía nada (Thiago, 14-oct-2026).
+  window.addEventListener("message", function (e) {
+    if (!e || !e.data || e.data.type !== "rec-checkout-scroll") return;
+    if (BASE && e.origin !== BASE) return;
+    var y = parseInt(e.data.y, 10);
+    if (!(y >= 0) || y > 40000) return;
+    var top = 0, n = f;
+    while (n) { top += n.offsetTop || 0; n = n.offsetParent; }
+    try { window.scrollTo({ top: Math.max(0, top + y - 16), behavior: "smooth" }); }
+    catch (_) { window.scrollTo(0, Math.max(0, top + y - 16)); }
+  });
+
   // Salir del marco: Mercado Pago no se deja abrir adentro de un iframe, así que
   // cuando el checkout manda a pagar, la que navega es la página del comercio.
   window.addEventListener("message", function (e) {

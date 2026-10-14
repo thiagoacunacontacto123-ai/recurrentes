@@ -1022,9 +1022,13 @@ export function toShopifyAddress(addr, name, phone) {
   // Por eso, cuando el comprador puso una sola palabra, el apellido repite el
   // nombre en vez de ir vacío. Preferimos "Elena Elena" en la etiqueta antes que
   // un pedido pago sin domicilio.
-  const partes = String(name || "").trim().split(/\s+/).filter(Boolean);
-  const first = partes[0] || addr.first_name || "";
-  const last = partes.slice(1).join(" ") || addr.last_name || first || "";
+  // La dirección tiene que llegar SIEMPRE, escriba lo que escriba el comprador:
+  // el nombre del perro, un mail, una sola palabra o nada. Si no hay con qué
+  // armar un apellido, ponemos "Cliente": la etiqueta queda fea, el pedido llega.
+  const limpio = String(name || "").replace(/@.*$/, " ").replace(/[^\p{L}\p{N}' .-]/gu, " ");
+  const partes = limpio.trim().split(/\s+/).filter(Boolean);
+  const first = partes[0] || addr.first_name || "Cliente";
+  const last = partes.slice(1).join(" ") || addr.last_name || first || "Cliente";
   return {
     address1: addr.address1 || "",
     address2: addr.address2 || "",

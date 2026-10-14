@@ -669,11 +669,11 @@ export async function shCreatePaidOrder(shop, token, params) {
     province: String(shipping_address?.province || "").slice(0, 100),
     country_code: countryCode,
     zip: String(shipping_address?.zip || "").slice(0, 20),
-    first_name: String(shipping_address?.first_name || "").slice(0, 50),
+    first_name: String(shipping_address?.first_name || shipping_address?.last_name || "Cliente").slice(0, 50),
     // NUNCA vacío: con last_name "" Shopify descarta toda la dirección y devuelve
     // 201 igual (14-oct-2026, orden #3252 de Lumina). Última red: si llegó vacío
     // desde cualquier camino, repetimos el nombre.
-    last_name: String(shipping_address?.last_name || shipping_address?.first_name || "").slice(0, 50),
+    last_name: String(shipping_address?.last_name || shipping_address?.first_name || "Cliente").slice(0, 50),
     phone: String(shipping_address?.phone || "").slice(0, 30),
     company: companyTax,
   };
@@ -746,10 +746,35 @@ export async function shCreatePaidOrder(shop, token, params) {
       ],
     },
   };
+  // Shopify puede DESCARTAR la dirección en silencio: responde 201, cobra el
+  // envío y deja shipping_address en null (pasó con last_name vacío, orden #3252
+  // de Lumina). Como no hay error que mirar, lo miramos nosotros: si mandamos
+  // dirección y volvió vacía, la reponemos con un PUT. Si ni así entra, queda la
+  // etiqueta FALTA-DIRECCION para que el comercio lo vea en su panel.
+  const reponerDireccion = async (orden) => {
+    try {
+      if (!orden?.id || !cleanShipping.address1) return orden;
+      if (orden.shipping_address && orden.shipping_address.address1) return orden;
+      console.warn("[shopify] la orden", orden.id, "volvió sin dirección: la repongo");
+      const arreglada = { ...cleanShipping, last_name: cleanShipping.last_name || cleanShipping.first_name || "Cliente" };
+      const put = await call(shop, token, "PUT", `/orders/${orden.id}.json`,
+        { order: { id: orden.id, shipping_address: arreglada, billing_address: arreglada } });
+      const ok = put?.order?.shipping_address?.address1;
+      if (!ok) {
+        await call(shop, token, "PUT", `/orders/${orden.id}.json`,
+          { order: { id: orden.id, tags: `${orden.tags ? orden.tags + ", " : ""}FALTA-DIRECCION` } }).catch(() => {});
+      }
+      return put?.order || orden;
+    } catch (err) {
+      console.warn("[shopify] no pude reponer la dirección:", err?.message);
+      return orden;
+    }
+  };
+
   try {
     // Primero con el teléfono TAL CUAL vino en la dirección.
     const data = await call(shop, token, "POST", "/orders.json", body);
-    return data.order;
+    return await reponerDireccion(data.order);
   } catch (e) {
     // SOLO si Shopify rechaza el teléfono, lo normalizamos (15→11) y reintentamos.
     // El teléfono sigue viajando (nunca vacío).
@@ -761,14 +786,14 @@ export async function shCreatePaidOrder(shop, token, params) {
       const { source, ...sinSource } = body.order.shipping_lines[0];
       body.order.shipping_lines = [sinSource];
       const data = await call(shop, token, "POST", "/orders.json", body);
-      return data.order;
+      return await reponerDireccion(data.order);
     }
     if (/phone/i.test(e.message)) {
       const fixed = normalizeArPhone(body.order.shipping_address?.phone) || body.order.shipping_address?.phone || "";
       body.order.shipping_address = { ...body.order.shipping_address, phone: fixed };
       if (body.order.billing_address) body.order.billing_address = { ...body.order.billing_address, phone: fixed };
       const data = await call(shop, token, "POST", "/orders.json", body);
-      return data.order;
+      return await reponerDireccion(data.order);
     }
     throw e;
   }

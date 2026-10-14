@@ -86,11 +86,23 @@ const Field = ({ label, children, error, onFix }) => (
 );
 // Desliza hasta el primer campo con error (el de más arriba) y le da el foco: en celular el
 // botón queda abajo de todo y el comprador no ve qué le falta.
-function scrollToFirstError() {
+function scrollToFirstError(intento = 0) {
   requestAnimationFrame(() => {
     try {
+      // Esperamos a que React pinte el is-err. Con UN solo rAF el campo todavía
+      // no existe en el DOM, querySelector devuelve null y el botón se quedaba
+      // QUIETO: el comprador veía el rojo arriba (fuera de pantalla en celular),
+      // creía que la web no andaba y se iba (Thiago, 14-oct-2026).
       const el = document.querySelector(".rc-ck .rc-f.is-err, .rc-ck .rc-fe[data-f]");
-      if (!el) return;
+      if (!el) { if (intento < 8) setTimeout(() => scrollToFirstError(intento + 1), 40); return; }
+      // Embebido en la tienda: el iframe NO tiene scroll propio (crece a lo alto
+      // y scrollea la página de afuera), así que scrollIntoView acá no mueve
+      // nada. Le pedimos al padre que suba él.
+      const enIframe = (() => { try { return window.parent && window.parent !== window; } catch (_) { return true; } })();
+      if (enIframe) {
+        const y = Math.max(0, el.getBoundingClientRect().top + window.scrollY - 24);
+        try { window.parent.postMessage({ type: "rec-checkout-scroll", y }, "*"); } catch (_) {}
+      }
       el.scrollIntoView({ behavior: "smooth", block: "center" });
       el.querySelector("input,select")?.focus({ preventScroll: true });
     } catch (_) {}
