@@ -1014,7 +1014,17 @@ export async function simulateNextCharge(merchantId, subscriberId) {
 
 export function toShopifyAddress(addr, name, phone) {
   addr = addr || {}; // sub sin shipping_address no debe explotar (orden va con FALTA-DIRECCION)
-  const [first, ...rest] = (name || "").split(" ");
+  // SHOPIFY DESCARTA LA DIRECCION ENTERA SI last_name VIENE VACIO (14-oct-2026).
+  // Responde 201, la orden queda paga y con el envio cobrado, y shipping_address
+  // llega null: ni un error que podamos ver. Pasó con una clienta de Lumina que
+  // escribió solo "Elena" en el nombre (orden #3252). Reproducido en la tienda de
+  // prueba: con apellido la guarda, sin apellido la tira.
+  // Por eso, cuando el comprador puso una sola palabra, el apellido repite el
+  // nombre en vez de ir vacío. Preferimos "Elena Elena" en la etiqueta antes que
+  // un pedido pago sin domicilio.
+  const partes = String(name || "").trim().split(/\s+/).filter(Boolean);
+  const first = partes[0] || addr.first_name || "";
+  const last = partes.slice(1).join(" ") || addr.last_name || first || "";
   return {
     address1: addr.address1 || "",
     address2: addr.address2 || "",
@@ -1022,8 +1032,8 @@ export function toShopifyAddress(addr, name, phone) {
     province: addr.province || "",
     country: addr.country || "Argentina",
     zip: addr.zip || "",
-    first_name: first || "",
-    last_name: rest.join(" ") || "",
+    first_name: first,
+    last_name: last,
     phone: phone || "",
   };
 }

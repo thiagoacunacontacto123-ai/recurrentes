@@ -670,7 +670,10 @@ export async function shCreatePaidOrder(shop, token, params) {
     country_code: countryCode,
     zip: String(shipping_address?.zip || "").slice(0, 20),
     first_name: String(shipping_address?.first_name || "").slice(0, 50),
-    last_name: String(shipping_address?.last_name || "").slice(0, 50),
+    // NUNCA vacío: con last_name "" Shopify descarta toda la dirección y devuelve
+    // 201 igual (14-oct-2026, orden #3252 de Lumina). Última red: si llegó vacío
+    // desde cualquier camino, repetimos el nombre.
+    last_name: String(shipping_address?.last_name || shipping_address?.first_name || "").slice(0, 50),
     phone: String(shipping_address?.phone || "").slice(0, 30),
     company: companyTax,
   };

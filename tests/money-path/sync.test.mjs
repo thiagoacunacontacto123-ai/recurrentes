@@ -169,3 +169,29 @@ test("(d) MP rechaza el filtro preapproval_id (400): igual procesa el cobro por 
   assert.equal(r.orders_created, 1, "el cobro tiene que terminar en una orden");
   assert.equal(W.shopify.orderPosts.length, 1);
 });
+
+// ── Apellido vacío = Shopify tira la dirección (14-oct-2026, orden #3252) ────
+// Una clienta de Lumina escribió solo "Elena" en el nombre. Mandamos last_name
+// "" y Shopify respondió 201, cobró el envío y guardó shipping_address NULL, sin
+// un solo error que pudiéramos ver. Reproducido contra la API real en la tienda
+// de prueba: con apellido la guarda, sin apellido la descarta.
+test("(a) un nombre de una sola palabra NUNCA manda last_name vacío", async () => {
+  const { toShopifyAddress } = await loadApi("api/_lib/sync.js");
+  const dir = { address1: "Calle 21 2460", city: "Las Toninas", province: "Buenos Aires", zip: "7106", country: "Argentina" };
+
+  const sola = toShopifyAddress(dir, "Elena", "+541144133685");
+  assert.equal(sola.first_name, "Elena");
+  assert.ok(sola.last_name, "con last_name vacío Shopify descarta TODA la dirección");
+  assert.equal(sola.address1, "Calle 21 2460", "y la dirección sigue entera");
+
+  const completo = toShopifyAddress(dir, "Elena Dalterio", "+5411");
+  assert.equal(completo.first_name, "Elena");
+  assert.equal(completo.last_name, "Dalterio", "con apellido de verdad no se toca");
+
+  const tresPalabras = toShopifyAddress(dir, "Ana Maria Perez", "");
+  assert.equal(tresPalabras.last_name, "Maria Perez");
+
+  // Sin nombre pero con la dirección cargada: se usa lo que tenga la dirección.
+  const sinNombre = toShopifyAddress({ ...dir, first_name: "Elena" }, "", "");
+  assert.ok(sinNombre.last_name, "nunca vacío");
+});
