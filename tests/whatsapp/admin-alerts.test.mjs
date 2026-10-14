@@ -160,3 +160,31 @@ test("(p) todas las plantillas de Recurrentes tienen ejemplos, variables secuenc
   }
   assert.equal(WA_ALL_TEMPLATES.length, 26, "7 a clientes (con sin stock y pedido modificado) + 6 a comercios (con cambio de pedido) + 4 del plan + 1 admin genérica + 7 admin por evento (incluida la demo) + 1 bienvenida");
 });
+
+// ── Las tiendas de Thiago no lo despiertan (14-oct-2026) ────────────────────
+// "no quiero que me lleguen más estos mensajes": probar algo en PRUEBAS G4U
+// mandaba un WhatsApp como si fuera una tienda de un cliente. Las internas se
+// callan; las de PLATAFORMA (merchantId "system") y las de clientes, no.
+test("(p) una tienda interna NO manda aviso, una de cliente SÍ", async () => {
+  seedDoc("merchants/m_pruebas", { internal: true, store_name: "PRUEBAS G4U" });
+  seedDoc("merchants/m_cliente", { store_name: "Tienda del cliente", email: "duenio@tienda.test" });
+
+  const interna = await notifyAdmin("order_failed", { merchantId: "m_pruebas", store: "PRUEBAS G4U", detail: "Cobró y no se creó la orden", key: "k1" });
+  assert.equal(interna?.skipped, true, "la tienda de prueba no puede avisar");
+  assert.equal(interna?.reason, "internal");
+  assert.equal(rawList("system/admin_alerts/log").length, 0, "ni siquiera deja rastro en el log");
+
+  const cliente = await notifyAdmin("order_failed", { merchantId: "m_cliente", store: "Tienda del cliente", detail: "Cobró y no se creó la orden", key: "k1" });
+  assert.ok(cliente && !cliente.skipped, "la tienda de un cliente sí avisa");
+});
+
+test("(p) el dueño en ADMIN_EMAILS también cuenta como interna", async () => {
+  seedDoc("merchants/m_lumina", { store_name: "LuminaLabs", email: "admin@recurrentes.test" });
+  const r = await notifyAdmin("widget_down", { merchantId: "m_lumina", store: "LuminaLabs", detail: "x", key: "k2" });
+  assert.equal(r?.skipped, true);
+});
+
+test("(p) los avisos de PLATAFORMA siguen saliendo: no son de ninguna tienda", async () => {
+  const r = await notifyAdmin("firestore_quota", { merchantId: "system", store: "Recurrentes (toda la plataforma)", detail: "sin cuota", key: "k3" });
+  assert.ok(r && !r.skipped, "si se cae Firestore tiene que enterarse igual");
+});

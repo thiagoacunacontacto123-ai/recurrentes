@@ -75,8 +75,30 @@ export async function adminPhones() {
 export const _resetAdminPhoneCache = () => { phoneCache = { at: 0, phones: null }; };
 
 // `extra`: variables propias de la plantilla del evento (ej. demo: nombre, contacto, r1..r6).
+/**
+ * Las tiendas de Thiago (PRUEBAS G4U, DEMO, Lumina) no mandan avisos (14-oct-2026:
+ * "no quiero que me lleguen más estos mensajes"). Probar algo en una tienda de
+ * prueba no puede despertarlo por WhatsApp. Los avisos de PLATAFORMA siguen:
+ * esos vienen con merchantId "system", que no es ninguna tienda.
+ * Una lectura por aviso, y los avisos son pocos y deduplicados.
+ */
+async function esTiendaInterna(merchantId) {
+  const id = String(merchantId || "");
+  if (!id || id === "system" || id === "prueba") return false;
+  try {
+    const snap = await db().collection("merchants").doc(id).get();
+    if (!snap.exists) return false;
+    const { isInternal } = await import("./plans_saas.js");
+    return isInternal(snap.data() || {}, adminEmails());
+  } catch (e) {
+    console.warn("[admin-alerts] no pude ver si es interna:", scrub(e?.message));
+    return false;   // ante la duda, avisar
+  }
+}
+
 export async function notifyAdmin(event, { merchantId, store, detail, key, extra } = {}) {
   if (!ADMIN_EVENT_LABEL[event] || !merchantId) return null;
+  if (await esTiendaInterna(merchantId)) return { ok: false, skipped: true, reason: "internal" };
   const mails = adminEmails();
   const hasEnvPhone = !!String(process.env.ADMIN_WHATSAPP || "").trim();
   if (!mails.length && !hasEnvPhone) return null;               // nadie a quién avisar: cero lecturas
