@@ -50,6 +50,15 @@
   ],
   "headers": [
     {
+      "source": "/robots.txt",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, s-maxage=0, must-revalidate"
+        }
+      ]
+    },
+    {
       "source": "/api/widget",
       "headers": [
         {
@@ -125,6 +134,38 @@
     {
       "path": "/api/cron?action=bill-commission",
       "schedule": "0 10 * * *"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/demos/:path*",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/presentaciones/:path*",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/marcas/:path*",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/landing/:path*",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/:slug((?!api|assets|favicon|robots|apple-touch-icon|icon-512|brand|tiendanube-loader|index)[^/.]+)",
+      "destination": "/",
+      "permanent": false
     }
   ]
 }
