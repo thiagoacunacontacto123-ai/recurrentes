@@ -38,3 +38,10 @@ secrets/
 # Config local de Claude Code (worktrees, permisos); launch.json sí va.
 .claude/settings.local.json
 .claude/worktrees/
+.env*
+
+# Transcripciones de los chats (pesadas, no van al repo)
+historial-chats/
+
+# Material de venta retirado (6-nov-2026): fuera del build y del repo.
+_archivado/

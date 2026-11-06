@@ -1,42 +1,5 @@
+# Recurrentes dejó de venderse (6-nov-2026). El sitio público ya no existe:
+# recurrentesapp.com es solo la puerta de entrada al panel de los comercios
+# que ya están andando. Nada acá es para indexar.
 User-agent: *
-Allow: /
-Disallow: /api/
-Disallow: /demos/
-
-User-agent: GPTBot
-Allow: /
-Disallow: /api/
-
-User-agent: OAI-SearchBot
-Allow: /
-Disallow: /api/
-
-User-agent: ChatGPT-User
-Allow: /
-Disallow: /api/
-
-User-agent: ClaudeBot
-Allow: /
-Disallow: /api/
-
-User-agent: Claude-User
-Allow: /
-Disallow: /api/
-
-User-agent: PerplexityBot
-Allow: /
-Disallow: /api/
-
-User-agent: Google-Extended
-Allow: /
-Disallow: /api/
-
-User-agent: Applebot-Extended
-Allow: /
-Disallow: /api/
-
-User-agent: meta-externalagent
-Allow: /
-Disallow: /api/
-
-Sitemap: https://www.recurrentesapp.com/sitemap.xml
+Disallow: /

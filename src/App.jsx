@@ -15,12 +15,8 @@ const Checkout = React.lazy(() => import("./pages/Checkout.jsx"));
 const LegalPage = React.lazy(() => import("./pages/Legal.jsx"));
 const SoportePage = React.lazy(() => import("./pages/Legal.jsx").then(m => ({ default: m.SoportePage })));
 const TransferAcceptPage = React.lazy(() => import("./pages/Transfer.jsx").then(m => ({ default: m.TransferAcceptPage })));
-const DemoPage = React.lazy(() => import("./pages/Demo.jsx"));
-const TostadoStore = React.lazy(() => import("./pages/Tostado.jsx"));
 const EntrarPage = React.lazy(() => import("./pages/Entrar.jsx"));
-import { SITE_PAGES } from "./pages/SitePages.jsx";
 
-import { initPixel, initGoogleAds, pixelPageView } from "./lib/attribution.js";
 // Routing simple hash-based.
 // Rutas PÚBLICAS (ignoran si hay user logueado o no):
 //   #/portal?token=...           → Portal del cliente final
@@ -28,9 +24,8 @@ import { initPixel, initGoogleAds, pixelPageView } from "./lib/attribution.js";
 //   #/checkout-success?sub=...   → Pantalla de gracias post-MP
 //   #/terminos · #/privacidad    → páginas legales
 //   #/soporte                    → soporte público (lo pide la ficha de Tiendanube)
-//   #/demo                       → pedir demo (puerta de entrada principal, 25-sept-2026)
 // Rutas privadas:
-//   sin user → PublicSite (Landing · #/login · #/registro · #/recuperar)
+//   sin user → PublicSite (#/login · #/recuperar). Landing y demo: fuera (6-nov-2026).
 //   con user → Dashboard (#/dashboard/<tab>)
 export default function App() {
   const [user, setUser] = useState(null);
@@ -46,9 +41,10 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    initPixel();     // pixel de Meta de Recurrentes (solo con VITE_META_PIXEL_ID)
-    initGoogleAds(); // etiqueta de Google Ads (solo con VITE_GADS_ID)
-    const onHash = () => { setRoute(parseRoute()); pixelPageView(); };
+    // Sin captación no hay nada que medir (6-nov-2026): el pixel de Meta y la
+    // etiqueta de Google Ads no se cargan más. El panel de un comercio no
+    // tiene por qué avisarle a Meta que su dueño entró a trabajar.
+    const onHash = () => { setRoute(parseRoute()); };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
@@ -61,13 +57,8 @@ export default function App() {
   if (route === "terminos") return L(<LegalPage kind="terminos" T={readStoredDark() ? DARK : LIGHT}/>);
   if (route === "privacidad") return L(<LegalPage kind="privacidad" T={readStoredDark() ? DARK : LIGHT}/>);
   if (route === "soporte") return L(<SoportePage T={readStoredDark() ? DARK : LIGHT}/>);
-  // Pedir demo: anda con o sin sesión (no crea cuenta, junta el lead y avisa).
-  if (route === "demo") return L(<DemoPage/>);
-  if (route === "tostado") return L(<TostadoStore/>);
   // Login único desde la app de Shopify: canjea la clave del link y entra al panel.
   if (route === "entrar") return L(<EntrarPage/>);
-  // Páginas del sitio (#/precios, #/funciones…): públicas, también con sesión abierta.
-  if (route === "site") return <PublicSite/>;
   // Aceptar una tienda transferida: anda con o sin sesión (maneja el login adentro).
   if (route === "transferir") return L(<TransferAcceptPage user={user} authReady={authReady}/>);
 
@@ -92,9 +83,6 @@ function parseRoute() {
   if (path === "privacidad") return "privacidad";
   if (path === "soporte") return "soporte";
   if (path === "transferir") return "transferir";
-  if (path === "demo") return "demo";
-  if (path === "tostado") return "tostado";
   if (path === "entrar") return "entrar";
-  if (SITE_PAGES.has(path)) return "site";
   return "default";
 }

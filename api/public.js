@@ -148,9 +148,13 @@ async function handler(req, res) {
   // Mercado Pago sigue en /api/mp/webhook. Carga el código de pasarelas solo para esta acción.
   if (action === "provider-webhook") return (await import("./_lib/providers/webhook.js")).handleProviderWebhook(req, res);
   if (action === "wa-webhook") return handleWhatsappWebhook(req, res);
-  if (action === "demo-lead") return handleDemoLead(req, res);
-  if (action === "demo-booked") return handleDemoBooked(req, res);
-  if (action === "demo-slots") return handleDemoSlots(req, res);
+  // Recurrentes deja de venderse (6-nov-2026, Thiago): no se piden ni se
+  // agendan demos. Las 4 acciones responden 410 y no leen nada de Firestore
+  // ni llaman a Google Calendar. Los handlers quedan en el archivo por si
+  // algún día se reabre la venta.
+  if (action === "demo-lead" || action === "demo-booked" || action === "demo-slots" || action === "demo-book") {
+    return res.status(410).json({ error: "El pedido de demo está cerrado." });
+  }
   // Login único desde la app de Shopify (#/entrar?m=&k=): { m, k } → token de Firebase (_lib/appLink.js).
   if (action === "app-login") {
     if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
@@ -163,8 +167,7 @@ async function handler(req, res) {
   }
   // Vinculación con Growith (_lib/growith.js): canje del código, lectura de cobros, baja.
   if (action === "growith-link" || action === "growith-charges" || action === "growith-me" || action === "growith-unlink") return handleGrowith(action, req, res);
-  if (action === "demo-book") return handleDemoBook(req, res);
-  return res.status(400).json({ error: "action debe ser plan | sub | discount | unsub | update-address | pause-offer | demo-lead | demo-booked | demo-slots | demo-book | growith-*" });
+  return res.status(400).json({ error: "action debe ser plan | sub | discount | unsub | update-address | pause-offer | growith-*" });
 }
 
 // ─── action=demo-lead ───────────────────────────────────────────

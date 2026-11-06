@@ -92,14 +92,9 @@ export default async function handler(req, res) {
     return res.json(r);
   }
   if (action === "watchdog") return res.json(await runWatchdog({ hourly: req.query.hourly === "1" }));
-  // Recordatorio de la demo, 2 h antes (_lib/demoReminder.js). Va pegado a
-  // run-flows: misma frecuencia y una sola consulta, así no suma un cron nuevo.
-  if (action === "demo-reminders") {
-    const { enviarRecordatorios } = await import("./_lib/demoReminder.js");
-    const r = await enviarRecordatorios();
-    await cronHeartbeat("demo-reminders", { ok: r?.ok !== false });
-    return res.json(r);
-  }
+  // El recordatorio de demos se retiró con la venta (6-nov-2026, Thiago).
+  // Responde ok sin leer nada, por si Vercel tiene el cron viejo en cola.
+  if (action === "demo-reminders") return res.json({ ok: true, retired: true });
   if (action === "retry-fulfillment") return fulfillmentCron(res);
   if (action === "reconcile-mp") return reconcileCron(res);
   if (action === "sync-saas-tiers") {

@@ -1,5 +1,5 @@
 import { SAAS_BASE_USD } from "../../shared/platform/pricing.js";
-// Sitio público de Recurrentes: Landing + AuthScreen (login / registro /
+// Sitio público de Recurrentes: solo AuthScreen (login / registro /
 // recuperar contraseña). Adaptado de la AuthScreen de Growith. NO escribe
 // Firestore desde el cliente: el doc del merchant se crea en el primer GET
 // a /api/merchant.
@@ -13,8 +13,6 @@ import {
 import { useTheme } from "../ui/theme.js";
 import { InputStyle, BtnSolid, BtnSecondary, Spinner } from "../ui/components.jsx";
 import { RecLogo } from "../ui/Shell.jsx";
-import Landing from "./Landing.jsx";
-import SitePage, { SITE_PAGES } from "./SitePages.jsx";
 import { apiPost } from "../lib/api.js";
 import { savePendingSignup, readPendingSignup, normalizeWhatsapp, EMAIL_RE } from "../lib/signup.js";
 
@@ -39,13 +37,17 @@ export function registroPermitido() {
   } catch (_) { return false; }
 }
 
+// Recurrentes deja de venderse (6-nov-2026, Thiago: "ya me fui de ese nicho").
+// El sitio público queda SOLO como puerta de entrada al panel: la landing, las
+// páginas de marketing (#/precios, #/funciones…) y el pedido de demo ya no se
+// muestran. Lo que sigue intacto es el camino del cobro de las tiendas que ya
+// están andando (widget, #/checkout, #/portal) y el login de los comercios.
 function authViewFromHash() {
   const h = (typeof window !== "undefined" ? window.location.hash : "").toLowerCase().replace(/^#\/?/, "").split("?")[0];
-  if (h === "login") return "login";
   if (h === "registro" || h === "register" || h === "signup") return "register";
   if (h === "recuperar" || h === "reset") return "reset";
-  if (SITE_PAGES.has(h)) return "page:" + h;
-  return "landing";
+  // Todo lo demás (la raíz, #/login y cualquier página de marketing) → login.
+  return "login";
 }
 
 // Afiliados: el código del link (recurrentesapp.com/?ref=CODIGO) se guarda ANTES del
@@ -57,7 +59,7 @@ try {
 // Meta Ads propio: de qué anuncio vino (utm_* / fbclid), primer toque gana (src/lib/attribution.js).
 captureAttribution();
 
-// Rutea #/login · #/registro · #/recuperar; por defecto la Landing.
+// Rutea #/login · #/registro · #/recuperar; todo lo demás cae en el login.
 export function PublicSite() {
   const { T, darkMode, toggleDark } = useTheme();
   const [view, setView] = useState(authViewFromHash);
@@ -69,12 +71,11 @@ export function PublicSite() {
   // Quien llegue a #/registro (link viejo, mail guardado, la URL tipeada) va a
   // pedir la demo. La cuenta la crea Thiago desde el Admin después de la llamada.
   useEffect(() => {
-    if (view === "register" && !registroPermitido()) { try { window.location.hash = "#/demo"; } catch (_) {} }
+    if (view === "register" && !registroPermitido()) { try { window.location.hash = "#/login"; } catch (_) {} }
   }, [view]);
-  const go = (v) => { try { window.location.hash = v === "landing" ? "#/" : `#/${v === "register" ? "registro" : v === "reset" ? "recuperar" : "login"}`; } catch (_) {} setView(v); window.scrollTo(0, 0); };
-  if (view.startsWith("page:")) return <SitePage T={T} darkMode={darkMode} onToggleDark={toggleDark} onLogin={() => go("login")} page={view.slice(5)}/>;
-  if (view === "landing") return <Landing T={T} darkMode={darkMode} onToggleDark={toggleDark} onLogin={() => go("login")} onRegister={() => go("register")}/>;
-  return <AuthScreen T={T} darkMode={darkMode} onToggleDark={toggleDark} mode={view} setMode={go} onBackToLanding={() => go("landing")}/>;
+  const go = (v) => { try { window.location.hash = `#/${v === "register" ? "registro" : v === "reset" ? "recuperar" : "login"}`; } catch (_) {} setView(v); window.scrollTo(0, 0); };
+  // Sin landing: no hay "volver al sitio" porque no hay sitio al que volver.
+  return <AuthScreen T={T} darkMode={darkMode} onToggleDark={toggleDark} mode={view} setMode={go}/>;
 }
 
 export default PublicSite;
@@ -331,7 +332,11 @@ export function AuthScreen({ T, darkMode, onToggleDark, mode = "login", setMode,
           </button>
 
           <div style={{textAlign:"center",marginTop:18,fontSize:13,color:T.textMd,lineHeight:1.8}}>
-            {isLogin && <>¿No tenés cuenta? <button onClick={()=>changeMode("register")} style={linkBtn}>Registrate gratis</button></>}
+            {/* El registro está cerrado y no hay más altas (6-nov-2026): ofrecerle
+                crear una cuenta a quien no puede era mandarlo a una pantalla que
+                rebota sola. Las cuentas que existen entran por acá. */}
+            {isLogin && !registroPermitido() && <>¿Problemas para entrar? <a href="mailto:soporte@recurrentesapp.com" style={linkBtn}>Escribinos</a></>}
+            {isLogin && registroPermitido() && <>¿No tenés cuenta? <button onClick={()=>changeMode("register")} style={linkBtn}>Registrate gratis</button></>}
             {isRegister && <>¿Ya tenés cuenta? <button onClick={()=>changeMode("login")} style={linkBtn}>Iniciá sesión</button></>}
             {isReset && <><button onClick={()=>changeMode("login")} style={linkBtn}>← Volver a iniciar sesión</button></>}
           </div>

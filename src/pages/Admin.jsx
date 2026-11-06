@@ -96,7 +96,10 @@ export function AdminPage() {
   const [refreshing, setRefreshing] = useState(false);
   const tableRef = useRef(null);
   // Pestañas (28-sept-2026, Thiago: "el tablero está todo muy suelto"). Se recuerda la última.
-  const [tab, setTabState] = useState(() => { try { return sessionStorage.getItem("rec_admin_tab") || "resumen"; } catch (_) { return "resumen"; } });
+  // Las pestañas retiradas (registros · marcha · adquisicion) pueden estar
+  // guardadas de una sesión anterior: si no sigue en la barra, al Resumen.
+  const TAB_IDS = new Set(["resumen", "cobros", "tiendas", "estado", "costos", "whatsapp", "metricas"]);
+  const [tab, setTabState] = useState(() => { try { const t = sessionStorage.getItem("rec_admin_tab"); return TAB_IDS.has(t) ? t : "resumen"; } catch (_) { return "resumen"; } });
   const setTab = (t) => { setTabState(t); try { sessionStorage.setItem("rec_admin_tab", t); } catch (_) {} };
   const [marchaId, setMarchaId] = useState("");
   const [leadsNuevos, setLeadsNuevos] = useState(0);
@@ -173,13 +176,13 @@ export function AdminPage() {
   ];
 
   const nuevosLeads = leadsNuevos;
+  // Sin venta no hay registros, pauta ni puesta en marcha (6-nov-2026): las tres
+  // pestañas se ocultan. El código sigue acá por si se reabre; lo que queda es
+  // lo que sirve para ATENDER a los comercios que ya están andando.
   const TABS = [
     { id:"resumen", label:"Resumen" },
-    { id:"registros", label:"Registros", count: nuevosLeads || undefined },
     { id:"cobros", label:"Cobros" },
     { id:"tiendas", label:"Tiendas" },
-    { id:"marcha", label:"Puesta en marcha" },
-    { id:"adquisicion", label:"Meta y Google Ads" },
     { id:"estado", label:"Estado" },
     { id:"costos", label:"Costos" },
     { id:"whatsapp", label:"WhatsApp" },
