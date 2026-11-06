@@ -1,5 +1,0 @@
-# Recurrentes dejó de venderse (6-nov-2026). El sitio público ya no existe:
-# recurrentesapp.com es solo la puerta de entrada al panel de los comercios
-# que ya están andando. Nada acá es para indexar.
-User-agent: *
-Disallow: /
