@@ -135,6 +135,14 @@ async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
 
   const action = String(req.query.action || "");
+  // robots.txt por función y no como archivo: el estático quedó pegado en la
+  // CDN (HIT con s-maxage=0 y todo) y seguía diciendo "Allow: /". Desde acá
+  // sale siempre fresco. No lee nada.
+  if (action === "robots") {
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store, max-age=0");
+    return res.status(200).send("# Recurrentes dejo de venderse (6-nov-2026).\n# El sitio es solo el acceso al panel de los comercios que ya estan andando.\nUser-agent: *\nDisallow: /\n");
+  }
   if (action === "plan") return handlePlan(req, res);
   if (action === "widget-seen") return handleWidgetSeen(req, res);
   if (action === "stripe-saas-webhook") return (await import("./_lib/saasBilling.js")).handleSaasWebhook(req, res);

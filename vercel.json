@@ -24,6 +24,10 @@
   },
   "rewrites": [
     {
+      "source": "/robots.txt",
+      "destination": "/api/public?action=robots"
+    },
+    {
       "source": "/widget.js",
       "destination": "/api/widget"
     },
