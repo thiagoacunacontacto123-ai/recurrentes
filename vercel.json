@@ -154,5 +154,12 @@
       "path": "/api/cron?action=bill-commission",
       "schedule": "0 10 * * *"
     }
+  ],
+  "redirects": [
+    {
+      "source": "/:slug((?!api|assets|favicon|robots|apple-touch-icon|icon-512|brand|tiendanube-loader|index|no-existe)[^/.]+)(\\.html)?",
+      "destination": "/no-existe",
+      "permanent": true
+    }
   ]
 }
