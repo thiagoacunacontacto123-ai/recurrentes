@@ -32,6 +32,30 @@
       "destination": "/api/widget"
     },
     {
+      "source": "/demos/:path*",
+      "destination": "/api/public?action=gone"
+    },
+    {
+      "source": "/presentaciones/:path*",
+      "destination": "/api/public?action=gone"
+    },
+    {
+      "source": "/marcas/:path*",
+      "destination": "/api/public?action=gone"
+    },
+    {
+      "source": "/landing/:path*",
+      "destination": "/api/public?action=gone"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/public?action=gone"
+    },
+    {
+      "source": "/:slug((?!api|assets|favicon|robots|apple-touch-icon|icon-512|brand|tiendanube-loader|index)[^/.]+)",
+      "destination": "/api/public?action=gone"
+    },
+    {
       "source": "/__/auth/:path*",
       "destination": "https://recurrentes-16fbd.firebaseapp.com/__/auth/:path*"
     },
@@ -129,38 +153,6 @@
     {
       "path": "/api/cron?action=bill-commission",
       "schedule": "0 10 * * *"
-    }
-  ],
-  "redirects": [
-    {
-      "source": "/demos/:path*",
-      "destination": "/",
-      "permanent": false
-    },
-    {
-      "source": "/presentaciones/:path*",
-      "destination": "/",
-      "permanent": false
-    },
-    {
-      "source": "/marcas/:path*",
-      "destination": "/",
-      "permanent": false
-    },
-    {
-      "source": "/landing/:path*",
-      "destination": "/",
-      "permanent": false
-    },
-    {
-      "source": "/sitemap.xml",
-      "destination": "/",
-      "permanent": false
-    },
-    {
-      "source": "/:slug((?!api|assets|favicon|robots|apple-touch-icon|icon-512|brand|tiendanube-loader|index)[^/.]+)",
-      "destination": "/",
-      "permanent": false
     }
   ]
 }

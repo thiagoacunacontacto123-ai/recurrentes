@@ -53,3 +53,17 @@ test("(d) el cron de recordatorios no lee ni manda nada", async () => {
   assert.equal(r.body?.retired, true, "debería decir que está retirado");
   assert.equal(rawPaths().length, antes, "no tocó Firestore");
 });
+
+test("(d) las paginas de venta retiradas dan 410 seco, sin cuerpo ni lecturas", async () => {
+  const antes = rawPaths().length;
+  const r = await invoke(handler, { method: "GET", query: { action: "gone" } });
+  assert.equal(r.statusCode, 410);
+  // Sin HTML: el redirect viejo a la raiz arrastraba la SPA y sus 6 assets, y
+  // eso disparo la alerta de Vercel del 23-nov (2.140 pedidos en 15 min).
+  assert.ok(!/<html|<!doctype/i.test(String(r.body || "")), "no devuelve HTML");
+  assert.match(String(r.headers["content-type"] || ""), /text\/plain/);
+  assert.match(String(r.headers["x-robots-tag"] || ""), /noindex/);
+  // Cacheable en la CDN: los bots siguientes no llegan a la funcion.
+  assert.match(String(r.headers["cache-control"] || ""), /s-maxage=\d+/);
+  assert.equal(rawPaths().length, antes, "no toco Firestore");
+});

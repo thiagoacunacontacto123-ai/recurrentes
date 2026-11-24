@@ -143,6 +143,17 @@ async function handler(req, res) {
     res.setHeader("Cache-Control", "no-store, max-age=0");
     return res.status(200).send("# Recurrentes dejo de venderse (6-nov-2026).\n# El sitio es solo el acceso al panel de los comercios que ya estan andando.\nUser-agent: *\nDisallow: /\n");
   }
+  // Las páginas de venta retiradas (6-nov-2026): 410 seco. Antes redirigían a
+  // la raíz y cada bot se bajaba la SPA entera con sus 6 assets — 8 pedidos por
+  // visita, y Vercel avisó por el pico (23-nov: 2.140 en 15 min contra 313 de
+  // promedio). Un 410 es 1 pedido sin cuerpo, y Google las desindexa antes que
+  // con un redirect. No lee nada.
+  if (action === "gone") {
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=3600, s-maxage=86400");
+    res.setHeader("X-Robots-Tag", "noindex");
+    return res.status(410).end("410 Gone\n");
+  }
   if (action === "plan") return handlePlan(req, res);
   if (action === "widget-seen") return handleWidgetSeen(req, res);
   if (action === "stripe-saas-webhook") return (await import("./_lib/saasBilling.js")).handleSaasWebhook(req, res);
