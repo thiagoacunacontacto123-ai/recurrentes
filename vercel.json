@@ -157,6 +157,11 @@
   ],
   "redirects": [
     {
+      "source": "/sitemap.xml",
+      "destination": "/no-existe",
+      "permanent": true
+    },
+    {
       "source": "/:slug((?!api|assets|favicon|robots|apple-touch-icon|icon-512|brand|tiendanube-loader|index|no-existe)[^/.]+)(\\.html)?",
       "destination": "/no-existe",
       "permanent": true
